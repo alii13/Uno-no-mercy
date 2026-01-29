@@ -1,0 +1,453 @@
+/* ==========================================================================
+   SHARED GAME STYLES
+   Common styles for GameView and MultiplayerGameView components
+   ========================================================================== */
+
+/* ==========================================================================
+   GAME VIEW CONTAINER
+   ========================================================================== */
+.game-view {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  position: relative;
+  background: var(--bg-concrete);
+  color: var(--text-primary);
+}
+
+/* ==========================================================================
+   BACKGROUND ELEMENTS
+   ========================================================================== */
+.metal-surface {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.1;
+  background: 
+    repeating-linear-gradient(90deg, transparent 0, transparent 50px, #000 50px, #000 51px),
+    repeating-linear-gradient(0deg, transparent 0, transparent 50px, #000 50px, #000 51px);
+}
+
+.warning-stripes {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 10px;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--color-hazard-dim),
+    var(--color-hazard-dim) 10px,
+    #000 10px,
+    #000 20px
+  );
+  z-index: 10;
+  opacity: 0.5;
+}
+.warning-stripes.top { top: 0; }
+.warning-stripes.bottom { bottom: 0; }
+
+.vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, transparent 40%, rgba(0,0,0,0.8));
+  pointer-events: none;
+  z-index: 1;
+}
+
+.mechanical-cog {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 30rem;
+  opacity: 0.03;
+  color: white;
+  z-index: 0;
+  transition: transform 1s ease-out;
+}
+.mechanical-cog.spin-ccw { 
+  transform: translate(-50%, -50%) rotate(-360deg); 
+}
+
+/* ==========================================================================
+   SURVEILLANCE BAR (Top opponents area)
+   ========================================================================== */
+.surveillance-bar {
+  flex: 0 0 auto;
+  background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(5px);
+  border-bottom: 1px solid #333;
+  padding: 0.5rem;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+}
+
+.bar-label {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
+.opponents-grid {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+}
+
+/* Multiplayer opponent card style */
+.opponent-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 2rem;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid #333;
+}
+
+.opponent-card.active {
+  border-color: var(--color-neon-blue);
+  box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
+}
+
+.opponent-card .avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: #222;
+  border: 2px solid #444;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: bold;
+  font-size: 1.5rem;
+}
+
+.opponent-card .avatar-active {
+  border-color: var(--color-neon-blue);
+  box-shadow: 0 0 10px var(--color-neon-blue);
+}
+
+.opponent-card .opponent-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.opponent-card .name {
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.opponent-card .status-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #333;
+}
+
+.opponent-card .status-indicator.active {
+  background: var(--color-neon-blue);
+  box-shadow: 0 0 10px var(--color-neon-blue);
+  animation: pulse 1s infinite;
+}
+
+/* ==========================================================================
+   BATTLE PIT (Main game area)
+   ========================================================================== */
+.battle-pit {
+  flex: 1;
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 200px 1fr 200px;
+  align-items: center;
+  padding: 0 2rem;
+}
+
+.station {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  position: relative;
+}
+
+.station-mark {
+  position: absolute;
+  top: -2rem;
+  font-weight: bold;
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.1);
+  letter-spacing: 2px;
+  pointer-events: none;
+  border: 2px solid rgba(255,255,255,0.1);
+  padding: 0.25rem 0.5rem;
+}
+
+.station-mark.warning {
+  border-color: var(--color-hazard-dim);
+  color: var(--color-hazard-dim);
+  opacity: 0.3;
+}
+
+.draw-station {
+  cursor: pointer;
+}
+.draw-station:hover {
+  filter: brightness(1.2);
+}
+
+.action-hint {
+  font-size: 0.8rem;
+  color: var(--color-neon-blue);
+  animation: flicker 2s infinite;
+}
+
+.discard-station {
+  position: relative;
+}
+
+/* ==========================================================================
+   STATUS PANEL
+   ========================================================================== */
+.status-panel {
+  margin-top: 2rem;
+  background: rgba(0,0,0,0.6);
+  border: 1px solid #333;
+  padding: 0.5rem;
+  width: 200px;
+  position: relative;
+  z-index: 1;
+}
+
+.panel-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+  font-family: 'Courier New', monospace;
+  font-size: 0.8rem;
+}
+
+.panel-row .label { color: var(--text-muted); }
+.panel-row .value { color: var(--text-primary); font-weight: bold; }
+.panel-row .label.hazard { color: var(--color-alert); }
+.panel-row .value.hazard-text { color: var(--color-alert); text-shadow: 0 0 5px red; }
+
+.message-text {
+  font-size: 0.75rem;
+  text-align: center;
+  width: 100%;
+}
+
+/* ==========================================================================
+   DIRECTION INDICATOR
+   ========================================================================== */
+.direction-indicator {
+  font-size: 0.9rem;
+  transition: color 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.direction-icon {
+  font-size: 1.4rem;
+  display: inline-block;
+}
+
+.direction-cw .direction-icon {
+  animation: spin-cw 2s linear infinite;
+}
+
+.direction-ccw .direction-icon {
+  animation: spin-ccw 2s linear infinite;
+}
+
+/* ==========================================================================
+   UTILITIES SIDEBAR
+   ========================================================================== */
+.utilities-sidebar .control-switch {
+  cursor: pointer;
+  text-align: center;
+}
+.switch-indicator {
+  width: 30px;
+  height: 10px;
+  background: #333;
+  margin: 0 auto;
+}
+.switch-indicator.active {
+  background: var(--color-neon-blue);
+  box-shadow: 0 0 10px var(--color-neon-blue);
+}
+
+/* ==========================================================================
+   FLOATING HAND WRAPPER
+   ========================================================================== */
+.floating-hand-wrapper {
+  position: relative;
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  padding: 0 1rem;
+  min-height: 200px;
+}
+
+/* ==========================================================================
+   PLAYER CONSOLE BAR (Bottom)
+   ========================================================================== */
+.player-console-bar {
+  flex: 0 0 auto;
+  background: var(--surface-metal-dark);
+  border-top: 2px solid #333;
+  padding: 0.5rem 1rem;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 2rem;
+  font-family: 'Courier New', monospace;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.console-cards {
+  color: var(--color-hazard);
+}
+
+.console-cards .card-count {
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.console-status.status-active {
+  color: var(--color-neon-green);
+  text-shadow: 0 0 5px var(--color-neon-green);
+}
+
+/* ==========================================================================
+   UNO BUTTON
+   ========================================================================== */
+.uno-btn {
+  background: var(--color-alert);
+  color: white;
+  border: none;
+  padding: 0.2rem 1rem;
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  cursor: pointer;
+  box-shadow: 0 0 10px var(--color-alert);
+  clip-path: polygon(0 0, 90% 0, 100% 100%, 10% 100%);
+  transition: transform 0.2s;
+}
+
+.uno-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 20px var(--color-alert);
+}
+
+/* ==========================================================================
+   LEAVE BUTTON (Multiplayer)
+   ========================================================================== */
+.leave-btn {
+  background: transparent;
+  border: 1px solid #444;
+  color: var(--text-muted);
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
+.leave-btn:hover {
+  border-color: var(--color-alert);
+  color: var(--color-alert);
+}
+
+/* ==========================================================================
+   MODAL / OVERLAY
+   ========================================================================== */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.terminal-modal {
+  background: #111;
+  border: 2px solid var(--color-neon-green);
+  padding: 3rem;
+  text-align: center;
+  position: relative;
+  width: 500px;
+  overflow: hidden;
+  box-shadow: 0 0 20px rgba(0, 255, 100, 0.2);
+}
+
+.winner-text {
+  font-size: 1.5rem;
+  margin: 2rem 0;
+  color: var(--color-neon-green);
+}
+
+.btn-primary {
+  background: transparent;
+  border: 1px solid var(--color-neon-green);
+  color: var(--color-neon-green);
+  padding: 1rem 3rem;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary:hover {
+  background: var(--color-neon-green);
+  color: black;
+  box-shadow: 0 0 20px var(--color-neon-green);
+}
+
+/* ==========================================================================
+   SCREEN SHAKE EFFECT
+   ========================================================================== */
+.shake-screen {
+  animation: screen-shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+/* ==========================================================================
+   ANIMATIONS
+   ========================================================================== */
+@keyframes spin-cw {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes spin-ccw {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(-360deg); }
+}
+
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes screen-shake {
+  10%, 90% { transform: translate3d(-1px, 0, 0) rotate(-1deg); }
+  20%, 80% { transform: translate3d(2px, 0, 0) rotate(1deg); }
+  30%, 50%, 70% { transform: translate3d(-4px, 0, 0) rotate(-2deg); }
+  40%, 60% { transform: translate3d(4px, 0, 0) rotate(2deg); }
+}
+
+.blink { 
+  animation: flicker 3s infinite; 
+}

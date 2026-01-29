@@ -28,6 +28,7 @@ export interface Player {
   hand: Card[]
   isEliminated: boolean
   isBot?: boolean
+  score?: number
 }
 
 export type GameState = 'LOBBY' | 'PLAYING' | 'GAME_OVER'
@@ -38,6 +39,7 @@ export type TurnState =
   | 'STACKING_RESPONSE'
   | 'ROULETTE_DRAWING'
   | 'CHOOSING_ROULETTE_COLOR'
+  | 'DEALING'
 
 export interface ColorScheme {
   primary: string      // Main color

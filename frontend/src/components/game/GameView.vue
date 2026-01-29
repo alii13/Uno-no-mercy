@@ -1,96 +1,65 @@
 <template>
   <div class="game-view" :class="{ 'shake-screen': isShakeActive }">
-    <!-- Ambient Background Elements -->
-    <div class="metal-surface"></div>
-    <div class="warning-stripes top"></div>
-    <div class="warning-stripes bottom"></div>
-    <div class="vignette"></div>
-
-    <!-- Directional Cog Animation (Background) -->
-    <div class="mechanical-cog" :class="{ 'spin-ccw': store.direction === -1 }">
-      ⚙️
-    </div>
+    <!-- Shared Background Elements -->
+    <GameBackground :direction="store.direction" />
 
     <!-- Top Bar: Opponents Surveillance -->
-    <div class="surveillance-bar">
-      <div class="bar-label">OPPONENT_FEED_LIVE</div>
-      <div class="opponents-grid">
-        <OpponentHand 
-          v-for="player in opponents" 
-          :key="player.id"
-          :player="player" 
-          :is-active="player.id === store.currentPlayer?.id"
-          :is-selectable="store.turnState === 'CHOOSING_PLAYER_TO_SWAP' && isMyTurn"
-          @click="onOpponentClick(player.id)"
-        />
-      </div>
-    </div>
+    <SurveillanceBar>
+      <OpponentHand 
+        v-for="player in opponents" 
+        :key="player.id"
+        :ref="(el) => { if (el) opponentRefs[player.id] = (el as any).$el }"
+        :player="player" 
+        :is-active="player.id === store.currentPlayer?.id"
+        :is-selectable="store.turnState === 'CHOOSING_PLAYER_TO_SWAP' && isMyTurn"
+        @click="onOpponentClick(player.id)"
+      />
+    </SurveillanceBar>
 
     <!-- Main Game Table "The Pit" -->
-    <div class="battle-pit">
-      <!-- Draw Station -->
-      <div class="station draw-station" @click="drawCard">
-        <div class="station-mark">DRAW_PILE</div>
+    <BattlePit
+      ref="battlePitRef"
+      :show-draw-hint="isMyTurn && store.turnState === 'WAITING_FOR_ACTION'"
+      :is-muted="soundEffects.isMuted.value"
+      @draw="drawCard"
+      @toggle-sound="toggleSound"
+    >
+      <template #draw-pile>
         <CardPile :cards="store.deck" />
-        <div class="action-hint" v-if="isMyTurn && store.turnState === 'WAITING_FOR_ACTION'">
-          [ CLICK TO DRAW ]
-        </div>
-      </div>
-
-      <!-- Discard Station (Center) -->
-      <div class="station discard-station" ref="discardAreaRef">
-        <div class="station-mark warning">DISCARD_ZONE</div>
-        <CardPile :cards="store.discardPile" :is-discard="true" :large="true" />
-        
-        <!-- Status Readout Overlay -->
-        <div class="status-panel">
-            <div class="panel-row">
-                <span class="label">TURN</span>
-                <span class="value blink" v-if="store.currentPlayer">{{ store.currentPlayer.name }}</span>
-            </div>
-            <div class="panel-row" v-if="store.drawStack > 0">
-                <span class="label hazard">STACK_LEVEL</span>
-                <span class="value hazard-text">+{{ store.drawStack }}</span>
-            </div>
-             <div class="panel-row" v-if="gameMessage">
-                <span class="message-text">{{ gameMessage }}</span>
-            </div>
-        </div>
-      </div>
-
-      <!-- Utilities Sidebar -->
-      <div class="utilities-sidebar">
-        <div class="control-switch" @click="toggleSound">
-            <div class="switch-label">AUDIO</div>
-            <div class="switch-indicator" :class="{ active: !soundEffects.isMuted.value }"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Player Console (Bottom) -->
-    <div class="player-console">
-      <div class="console-header">
-        <div class="console-id">PLAYER: {{ myPlayer?.name }}</div>
-        <div class="console-status" :class="{ 'status-active': isMyTurn }">
-            STATUS: {{ isMyTurn ? 'ACTION_REQUIRED' : 'STANDBY' }}
-        </div>
-      </div>
+      </template>
       
-      <div class="controls-area">
-        <button v-if="store.turnState === 'CHOOSING_PLAYER_TO_SWAP'" class="btn-hazard">
-          ⚠ SELECT TARGET TO SWAP
-        </button>
-      </div>
+      <template #discard-pile>
+        <CardPile :cards="store.discardPile" :is-discard="true" :large="true" />
+      </template>
+      
+      <template #status-panel>
+        <StatusPanel
+          :current-player-name="store.currentPlayer?.name || 'Unknown'"
+          :direction="store.direction"
+          :draw-stack="store.drawStack"
+          :message="gameMessage"
+          :message-style="messageStyle"
+        />
+      </template>
+    </BattlePit>
 
-      <div class="hand-container-wrapper">
-         <PlayerHand 
-            v-if="myPlayer"
-            :hand="myPlayer.hand" 
-            :is-my-turn="isMyTurn"
-            :discard-area-ref="discardAreaRef"
-          />
-      </div>
+    <!-- Player Cards (rendered LAST so they're on top of everything) -->
+    <div class="floating-hand-wrapper" ref="playerHandRef">
+      <PlayerHand 
+        v-if="myPlayer"
+        :hand="myPlayer.hand" 
+        :is-my-turn="isMyTurn"
+      />
     </div>
+
+    <!-- Player Console Info Bar (BOTTOM) -->
+    <PlayerConsoleBar
+      :player-name="myPlayer?.name || 'Unknown'"
+      :card-count="myPlayer?.hand.length || 0"
+      :is-my-turn="isMyTurn"
+      :show-uno-button="store.showUnoButton"
+      @call-uno="store.callUno(myPlayerId)"
+    />
     
     <!-- Animated Card Layer (for flying cards) -->
     <div class="animation-layer" ref="animationLayer"></div>
@@ -98,7 +67,16 @@
     <!-- Modals / Overlays -->
     <ColorPickerModal 
       v-if="store.turnState === 'CHOOSING_ROULETTE_COLOR' && isMyTurn"
+      title="ROULETTE TRAP DETECTED"
+      subtitle="CHOOSE YOUR FATE"
+      :is-roulette="true"
       @select="(c) => store.setRouletteColor(c)"
+    />
+
+    <PlayerSelectModal
+      v-if="store.turnState === 'CHOOSING_PLAYER_TO_SWAP' && isMyTurn"
+      :eligible-players="store.players.filter(p => !p.isEliminated && p.id !== myPlayerId)"
+      @select="(id: string) => store.swapHands(id)"
     />
 
     <div v-if="store.gameState === 'GAME_OVER'" class="overlay">
@@ -113,20 +91,29 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, provide, watch } from 'vue'
+import { computed, ref, provide, watch, onMounted } from 'vue'
 import { useGameStore } from '../../stores/gameStore'
 import { soundEffects } from '../../composables/useSoundEffects'
+import { useCardAnimations } from '../../composables/useCardAnimations'
 import OpponentHand from './OpponentHand.vue'
 import PlayerHand from './PlayerHand.vue'
 import CardPile from './CardPile.vue'
 import ColorPickerModal from './ColorPickerModal.vue'
+import PlayerSelectModal from './PlayerSelectModal.vue'
+import GameBackground from './GameBackground.vue'
+import SurveillanceBar from './SurveillanceBar.vue'
+import BattlePit from './BattlePit.vue'
+import StatusPanel from './StatusPanel.vue'
+import PlayerConsoleBar from './PlayerConsoleBar.vue'
 
 const store = useGameStore()
+const { animateFlyingCard, animateDrawCardsStaggered } = useCardAnimations()
 
 // For MVP single player, we assume we are player 0
 const myPlayerId = 'p-0'
 
-const discardAreaRef = ref<HTMLElement | null>(null)
+const battlePitRef = ref<InstanceType<typeof BattlePit> | null>(null)
+const discardAreaRef = computed(() => battlePitRef.value?.discardAreaRef || null)
 const animationLayer = ref<HTMLElement | null>(null)
 
 // Provide refs for child components
@@ -138,13 +125,92 @@ const opponents = computed(() => store.players.filter(p => p.id !== myPlayerId))
 
 const isMyTurn = computed(() => store.currentPlayer?.id === myPlayerId)
 
+// Animation Handling
+const playerHandRef = ref<HTMLElement | null>(null)
+const opponentRefs = ref<Record<string, HTMLElement>>({})
+const prevHandLengths = ref<Record<string, number>>({})
+
+// Initial Deal Animation
+onMounted(async () => {
+  if (store.isDealing) {
+    await store.dealInitialCards(animateSingleCardDeal)
+  }
+})
+
+// Animate a single card being dealt to a player
+async function animateSingleCardDeal(playerId: string, _card: any): Promise<void> {
+  const deckEl = document.querySelector('.draw-station .card-pile') as HTMLElement
+  if (!deckEl) return
+  
+  // Determine target element
+  const targetEl = playerId === myPlayerId 
+    ? playerHandRef.value 
+    : opponentRefs.value[playerId] || null
+  
+  if (!targetEl) return
+  
+  // Play sound
+  soundEffects.playCardPick()
+  
+  // Use composable for animation
+  await animateFlyingCard(deckEl, targetEl, { duration: 0.3 })
+}
+
+function triggerDrawAnimation(playerId: string, count: number) {
+    const targetEl = playerId === myPlayerId ? playerHandRef.value : opponentRefs.value[playerId]
+    const deckEl = document.querySelector('.draw-station .card-pile') as HTMLElement
+    if (!targetEl || !deckEl) return
+
+    // Use composable for staggered draw animation
+    animateDrawCardsStaggered(deckEl, targetEl, count, {
+        duration: 0.4,
+        staggerDelay: 0.15
+    })
+}
+
+// Watch for hand size increases to animate draws (Flying Cards)
+// Skip animation during initial dealing - that has its own animation
+watch(() => store.players, (newPlayers) => {
+  newPlayers.forEach(p => {
+    const oldLen = prevHandLengths.value[p.id] || 0
+    
+    // Only animate if NOT during initial deal AND cards increased
+    if (!store.isDealing && p.hand.length > oldLen && oldLen > 0) {
+      const count = p.hand.length - oldLen
+      triggerDrawAnimation(p.id, count)
+    }
+    
+    // Always update tracking (even during dealing)
+    prevHandLengths.value[p.id] = p.hand.length
+  })
+}, { deep: true, immediate: true })
+
 const gameMessage = computed(() => {
-  if (store.turnState === 'CHOOSING_PLAYER_TO_SWAP') return "INITIATE HAND SWAP"
+  if (store.turnState === 'CHOOSING_PLAYER_TO_SWAP') return isMyTurn.value ? "SELECT PLAYER TO SWAP HANDS" : "BOT IS CHOOSING SWAP TARGET..."
+  if (store.turnState === 'CHOOSING_ROULETTE_COLOR') return isMyTurn.value ? "INCOMING ROULETTE! CHOOSE YOUR FATE" : "ROULETTE INITIATED: WAITING FOR VICTIM..."
   if (store.turnState === 'ROULETTE_DRAWING') {
     const target = store.rouletteTargetColor?.toUpperCase() || store.currentColor.toUpperCase()
-    return `ROULETTE: SEEKING ${target}`
+    return isMyTurn.value ? `DANGER: YOU NEED ${target}` : `BOT IS SEEKING ${target}...`
   }
   return ""
+})
+
+const messageStyle = computed(() => {
+    if (store.turnState === 'ROULETTE_DRAWING') {
+        const colorMap: Record<string, string> = {
+            red: '#ff5555',
+            blue: '#5555ff',
+            green: '#55ff55',
+            yellow: '#ffff55'
+        }
+        const target = store.rouletteTargetColor || store.currentColor
+        return { 
+            color: colorMap[target] || '#fff',
+            fontSize: '1rem',
+            textShadow: `0 0 10px ${colorMap[target] || '#fff'}`
+        }
+    }
+    return {}
 })
 
 const isShakeActive = ref(false)
@@ -189,194 +255,15 @@ function onOpponentClick(playerId: string) {
 }
 </script>
 
+<style>
+@import '../../assets/game-shared.css';
+</style>
+
 <style scoped>
-.game-view {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  width: 100vw;
-  overflow: hidden;
+/* Component-specific styles only */
+.hand-container-wrapper {
+  min-height: 180px;
   position: relative;
-  background: var(--bg-concrete);
-  color: var(--text-primary);
-}
-
-.metal-surface {
-  position: absolute;
-  top: 0; left: 0; width: 100%; height: 100%;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.1;
-  background: 
-    repeating-linear-gradient(90deg, transparent 0, transparent 50px, #000 50px, #000 51px),
-    repeating-linear-gradient(0deg, transparent 0, transparent 50px, #000 50px, #000 51px);
-}
-
-.warning-stripes {
-  position: absolute;
-  left: 0;
-  width: 100%;
-  height: 10px;
-  background: repeating-linear-gradient(
-    45deg,
-    var(--color-hazard-dim),
-    var(--color-hazard-dim) 10px,
-    #000 10px,
-    #000 20px
-  );
-  z-index: 10;
-  opacity: 0.5;
-}
-.warning-stripes.top { top: 0; }
-.warning-stripes.bottom { bottom: 0; }
-
-.vignette {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle, transparent 40%, rgba(0,0,0,0.8));
-  pointer-events: none;
-  z-index: 1;
-}
-
-.mechanical-cog {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 30rem;
-  opacity: 0.03;
-  color: white;
-  z-index: 0;
-  transition: transform 1s ease-out;
-}
-.spin-ccw { transform: translate(-50%, -50%) rotate(-360deg); }
-
-/* SURVEILLANCE BAR */
-.surveillance-bar {
-  flex: 0 0 auto;
-  background: rgba(0,0,0,0.4);
-  backdrop-filter: blur(5px);
-  border-bottom: 1px solid #333;
-  padding: 0.5rem;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-}
-
-.bar-label {
-  font-size: 0.7rem;
-  color: var(--text-secondary);
-  margin-bottom: 0.5rem;
-  margin-left: 1rem;
-}
-
-.opponents-grid {
-  display: flex;
-  justify-content: center;
-  gap: 2rem;
-}
-
-/* BATTLE PIT */
-.battle-pit {
-  flex: 1;
-  position: relative;
-  z-index: 2;
-  display: grid;
-  grid-template-columns: 200px 1fr 100px;
-  align-items: center;
-  padding: 0 2rem;
-}
-
-.station {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  position: relative;
-}
-
-.station-mark {
-  position: absolute;
-  top: -2rem;
-  font-weight: bold;
-  font-size: 0.8rem;
-  color: rgba(255,255,255,0.1);
-  letter-spacing: 2px;
-  pointer-events: none;
-  border: 2px solid rgba(255,255,255,0.1);
-  padding: 0.25rem 0.5rem;
-}
-
-.station-mark.warning {
-  border-color: var(--color-hazard-dim);
-  color: var(--color-hazard-dim);
-  opacity: 0.3;
-}
-
-.draw-station {
-  cursor: pointer;
-}
-.draw-station:hover {
-  filter: brightness(1.2);
-}
-
-.action-hint {
-  font-size: 0.8rem;
-  color: var(--color-neon-blue);
-  animation: flicker 2s infinite;
-}
-
-.discard-station {
-  position: relative;
-}
-
-.status-panel {
-  margin-top: 2rem;
-  background: rgba(0,0,0,0.6);
-  border: 1px solid #333;
-  padding: 0.5rem;
-  width: 200px;
-}
-
-.panel-row {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 0.25rem;
-  font-family: 'Courier New', monospace;
-  font-size: 0.8rem;
-}
-
-.label { color: var(--text-muted); }
-.value { color: var(--text-primary); font-weight: bold; }
-.label.hazard { color: var(--color-alert); }
-.value.hazard-text { color: var(--color-alert); text-shadow: 0 0 5px red; }
-
-.blink { animation: flicker 3s infinite; }
-
-/* PLAYER CONSOLE */
-.player-console {
-  flex: 0 0 auto;
-  background: var(--surface-metal-dark);
-  border-top: 2px solid #333;
-  padding: 1rem;
-  z-index: 10;
-  box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
-}
-
-.console-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-  font-family: 'Courier New', monospace;
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  border-bottom: 1px dashed #333;
-  padding-bottom: 0.5rem;
-}
-
-.status-active {
-  color: var(--color-neon-green);
-  text-shadow: 0 0 5px var(--color-neon-green);
 }
 
 .controls-area {
@@ -394,77 +281,5 @@ function onOpponentClick(playerId: string) {
   font-family: var(--font-display);
   cursor: pointer;
   clip-path: polygon(10% 0, 100% 0, 90% 100%, 0% 100%);
-}
-
-.hand-container-wrapper {
-  min-height: 150px;
-}
-
-/* MODAL */
-.overlay {
-  position: absolute;
-  top: 0; left: 0; width: 100%; height: 100%;
-  background: rgba(0,0,0,0.9);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.terminal-modal {
-  background: #111;
-  border: 2px solid var(--color-neon-green);
-  padding: 3rem;
-  text-align: center;
-  position: relative;
-  width: 500px;
-  overflow: hidden;
-  box-shadow: 0 0 20px rgba(0, 255, 100, 0.2);
-}
-
-.winner-text {
-  font-size: 1.5rem;
-  margin: 2rem 0;
-  color: var(--color-neon-green);
-}
-
-.btn-primary {
-  background: transparent;
-  border: 1px solid var(--color-neon-green);
-  color: var(--color-neon-green);
-  padding: 1rem 3rem;
-  font-family: var(--font-display);
-  font-size: 1.2rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-primary:hover {
-  background: var(--color-neon-green);
-  color: black;
-  box-shadow: 0 0 20px var(--color-neon-green);
-}
-
-.utilities-sidebar .control-switch {
-  cursor: pointer;
-  text-align: center;
-}
-.switch-indicator {
-  width: 30px; height: 10px; background: #333; margin: 0 auto;
-}
-.switch-indicator.active {
-  background: var(--color-neon-blue);
-  box-shadow: 0 0 10px var(--color-neon-blue);
-}
-
-.shake-screen {
-  animation: screen-shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
-}
-
-@keyframes screen-shake {
-  10%, 90% { transform: translate3d(-1px, 0, 0) rotate(-1deg); }
-  20%, 80% { transform: translate3d(2px, 0, 0) rotate(1deg); }
-  30%, 50%, 70% { transform: translate3d(-4px, 0, 0) rotate(-2deg); }
-  40%, 60% { transform: translate3d(4px, 0, 0) rotate(2deg); }
 }
 </style>

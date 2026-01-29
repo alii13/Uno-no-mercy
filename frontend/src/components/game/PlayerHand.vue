@@ -1,5 +1,5 @@
 <template>
-  <div class="player-hand">
+  <div class="player-hand" :class="{ 'not-my-turn': !isMyTurn }">
     <div class="cards-container" ref="handContainer">
       <div 
         v-for="(card, index) in hand" 
@@ -26,25 +26,27 @@
 
     <ColorPickerModal 
       v-if="showColorPicker"
+      title="WILD CARD ACTIVATED"
+      subtitle="CHOOSE NEXT COLOR"
       @select="handleColorSelect"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, inject, type Ref, type ComponentPublicInstance } from 'vue'
+import { ref, inject, watch, type Ref, type ComponentPublicInstance } from 'vue'
 import gsap from 'gsap'
 import type { Card as CardType, CardColor } from '../../types/card'
 import Card from './Card.vue'
 import ColorPickerModal from './ColorPickerModal.vue'
 import { useGameStore } from '../../stores/gameStore'
 import { canPlayCard } from '../../utils/gameRules'
+import { getCardStyle as getCardStyleUtil } from '../../utils/gameHelpers'
 import { soundEffects } from '../../composables/useSoundEffects'
 
 const props = defineProps<{
   hand: CardType[]
   isMyTurn: boolean
-  discardAreaRef?: HTMLElement | null
 }>()
 
 const store = useGameStore()
@@ -53,7 +55,15 @@ const cardRefs = ref<Map<string, HTMLElement>>(new Map())
 const showColorPicker = ref(false)
 const pendingWildCard = ref<CardType | null>(null)
 
-// Get discard area ref from parent
+// Safety: Auto-close color picker if turn changes or it's no longer our turn
+watch(() => [store.currentPlayerIndex, store.turnState, props.isMyTurn], () => {
+  if (showColorPicker.value && !props.isMyTurn) {
+    showColorPicker.value = false
+    pendingWildCard.value = null
+  }
+})
+
+// Inject animation-related refs from parent (single-player specific)
 const discardAreaRef = inject<Ref<HTMLElement | null>>('discardAreaRef', ref(null))
 const animationLayer = inject<Ref<HTMLElement | null>>('animationLayer', ref(null))
 
@@ -66,23 +76,12 @@ function setCardRef(cardId: string, el: HTMLElement | ComponentPublicInstance | 
 }
 
 function getCardStyle(index: number) {
-  const total = props.hand.length
-  const middleIndex = (total - 1) / 2
-  const offset = index - middleIndex
-  const isHovered = hoverIndex.value === index
-  
-  return {
-    zIndex: isHovered ? 100 : index,
-    transform: `
-      translateX(${offset * 5}px) 
-      rotate(${offset * 4}deg) 
-      translateY(${isHovered ? -35 : Math.abs(offset) * 3}px)
-    `
-  }
+  return getCardStyleUtil(index, props.hand.length, hoverIndex.value)
 }
 
 function canPlay(card: CardType) {
   if (!props.isMyTurn) return false
+  if (store.turnState !== 'WAITING_FOR_ACTION') return false
   if (!store.topCard) return false
   return canPlayCard(card, store.topCard, store.currentColor, store.drawStack)
 }
@@ -90,8 +89,9 @@ function canPlay(card: CardType) {
 function handleCardClick(card: CardType, _event: MouseEvent) {
   if (!canPlay(card)) return
 
-  // If Wild card, show picker first
-  if (card.color === 'wild') {
+  // If Wild and NOT Roulette, show picker first
+  // (Roulette color is chosen by the victim AFTER play, so direct play)
+  if (card.color === 'wild' && card.type !== 'wildColorRoulette') {
     pendingWildCard.value = card
     showColorPicker.value = true
     return
@@ -187,13 +187,32 @@ async function executePlayCard(card: CardType, selectedColor?: CardColor) {
 <style scoped>
 .player-hand {
   position: relative;
-  height: 220px;
+  height: 240px;
   display: flex;
   justify-content: center;
   align-items: flex-end;
+  padding-top: 40px;
   padding-bottom: 20px;
-  overflow: visible;
+  padding-left: 20px;
+  padding-right: 20px;
+  overflow-x: auto;
+  overflow-y: visible;
   width: 100%;
+  scrollbar-width: thin;
+  scrollbar-color: #444 transparent;
+}
+
+.player-hand::-webkit-scrollbar {
+  height: 6px;
+}
+
+.player-hand::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.player-hand::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 3px;
 }
 
 .cards-container {
@@ -201,6 +220,7 @@ async function executePlayCard(card: CardType, selectedColor?: CardColor) {
   justify-content: center;
   align-items: flex-end;
   perspective: 1000px;
+  flex-shrink: 0;
 }
 
 .hand-card-wrapper {
@@ -216,7 +236,9 @@ async function executePlayCard(card: CardType, selectedColor?: CardColor) {
 }
 
 .hand-card-wrapper:hover {
-  z-index: 100 !important;
+  z-index: 9999 !important;
+  transform: translateY(-60px) scale(1.15) !important;
+  position: relative;
 }
 
 .hand-card-wrapper:hover .hand-card {
@@ -230,7 +252,7 @@ async function executePlayCard(card: CardType, selectedColor?: CardColor) {
 }
 
 .hand-card-wrapper:hover .unplayable {
-  transform: translateY(0); /* Allow peek on hover */
+  transform: translateY(-50px) scale(1.1); /* Allow peek on hover */
   opacity: 1;
   filter: grayscale(0);
 }
@@ -246,5 +268,19 @@ async function executePlayCard(card: CardType, selectedColor?: CardColor) {
   0% { box-shadow: 0 0 10px rgba(0, 243, 255, 0.3); border-color: rgba(0, 243, 255, 0.6); }
   50% { box-shadow: 0 0 25px rgba(0, 243, 255, 0.8); border-color: rgba(0, 243, 255, 1); }
   100% { box-shadow: 0 0 10px rgba(0, 243, 255, 0.3); border-color: rgba(0, 243, 255, 0.6); }
+}
+
+/* When it's not the player's turn, gray out all cards */
+.not-my-turn .cards-container {
+  filter: grayscale(0.7) brightness(0.7);
+  opacity: 0.7;
+}
+
+.not-my-turn .hand-card-wrapper {
+  cursor: not-allowed;
+}
+
+.not-my-turn .hand-card-wrapper:hover {
+  transform: translateY(-30px) scale(1.05) !important;
 }
 </style>

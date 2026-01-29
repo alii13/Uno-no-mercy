@@ -1,12 +1,21 @@
 <template>
   <div class="color-picker-overlay">
-    <div class="tactical-hud">
-      <div class="hud-header">
+    <div 
+      class="tactical-hud" 
+      :style="{ transform: `translate(${position.x}px, ${position.y}px)` }"
+    >
+      <div 
+        class="hud-header" 
+        :class="{ 'header-danger': isRoulette }"
+        @mousedown="startDrag"
+        style="cursor: grab;"
+      >
         <span class="warning-icon">⚠</span>
-        <span>AUTHORIZATION REQUIRED</span>
+        <span>{{ title }}</span>
+        <span class="drag-hint">⋮⋮</span>
       </div>
       
-      <h3>SELECT FREQUENCY</h3>
+      <h3>{{ subtitle }}</h3>
       
       <div class="colors-grid">
         <button 
@@ -24,20 +33,61 @@
       </div>
       
       <div class="hud-footer">
-        AWAITING INPUT...
+        DRAG HEADER TO MOVE • AWAITING INPUT...
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref, reactive, onUnmounted } from 'vue'
 import type { CardColor } from '../../types/card'
+
+withDefaults(defineProps<{
+  title?: string
+  subtitle?: string
+  isRoulette?: boolean
+}>(), {
+  title: 'AUTHORIZATION REQUIRED',
+  subtitle: 'SELECT FREQUENCY',
+  isRoulette: false
+})
 
 const colors: CardColor[] = ['red', 'blue', 'green', 'yellow']
 
 defineEmits<{
   (e: 'select', color: CardColor): void
 }>()
+
+// Drag functionality
+const position = reactive({ x: 0, y: 0 })
+const isDragging = ref(false)
+const dragStart = reactive({ x: 0, y: 0 })
+
+function startDrag(e: MouseEvent) {
+  isDragging.value = true
+  dragStart.x = e.clientX - position.x
+  dragStart.y = e.clientY - position.y
+  document.addEventListener('mousemove', onDrag)
+  document.addEventListener('mouseup', stopDrag)
+}
+
+function onDrag(e: MouseEvent) {
+  if (!isDragging.value) return
+  position.x = e.clientX - dragStart.x
+  position.y = e.clientY - dragStart.y
+}
+
+function stopDrag() {
+  isDragging.value = false
+  document.removeEventListener('mousemove', onDrag)
+  document.removeEventListener('mouseup', stopDrag)
+}
+
+onUnmounted(() => {
+  document.removeEventListener('mousemove', onDrag)
+  document.removeEventListener('mouseup', stopDrag)
+})
 </script>
 
 <style scoped>
@@ -70,6 +120,17 @@ defineEmits<{
   z-index: 1;
 }
 
+.header-danger {
+  color: #ff3333 !important;
+  border-bottom-color: #ff3333 !important;
+  animation: blink-red 0.5s infinite;
+}
+
+@keyframes blink-red {
+  0%, 100% { background: rgba(255, 0, 0, 0); }
+  50% { background: rgba(255, 0, 0, 0.2); }
+}
+
 .hud-header {
   display: flex;
   align-items: center;
@@ -82,6 +143,13 @@ defineEmits<{
   margin-bottom: 2rem;
   border-bottom: 1px dashed var(--color-hazard-dim);
   padding-bottom: 1rem;
+  user-select: none;
+}
+
+.drag-hint {
+  margin-left: auto;
+  opacity: 0.5;
+  font-size: 1.2rem;
 }
 
 .warning-icon {

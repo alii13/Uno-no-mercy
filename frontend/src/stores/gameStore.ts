@@ -3,6 +3,15 @@ import { ref, computed, watch } from 'vue'
 import type { Card, Player, GameState, TurnState, CardColor } from '../types/card'
 import { generateFullDeck, shuffleDeck } from '../utils/deckGenerator'
 import { canPlayCard, getDrawValue } from '../utils/gameRules'
+import {
+    calculateNextPlayerIndex,
+    calculateScore,
+    reshuffleDeck as reshuffleDeckHelper,
+    checkMercyRule as checkMercyRuleHelper,
+    getWildCardColor,
+    rotateHands as rotateHandsHelper
+} from '../utils/gameHelpers'
+import { soundEffects } from '../composables/useSoundEffects'
 
 export const useGameStore = defineStore('game', () => {
     // Bot AI settings
@@ -11,6 +20,10 @@ export const useGameStore = defineStore('game', () => {
     // --- State ---
     const gameState = ref<GameState>('LOBBY')
     const turnState = ref<TurnState>('WAITING_FOR_ACTION')
+
+    // Dealing Animation State
+    const isDealing = ref(false)
+    const pendingDealCard = ref<{ playerId: string; card: Card } | null>(null)
 
     const deck = ref<Card[]>([])
     const discardPile = ref<Card[]>([])
@@ -27,16 +40,13 @@ export const useGameStore = defineStore('game', () => {
 
     const winnerId = ref<string | null>(null)
     const swapInitiatorId = ref<string | null>(null)
+    const hasCalledUno = ref<Record<string, boolean>>({})
+    const showUnoButton = ref(false)
 
     // --- Getters ---
     const currentPlayer = computed(() => players.value[currentPlayerIndex.value])
     const topCard = computed(() => discardPile.value[discardPile.value.length - 1])
-    const nextPlayerIndex = computed(() => {
-        let next = currentPlayerIndex.value + direction.value
-        if (next >= players.value.length) next = 0
-        if (next < 0) next = players.value.length - 1
-        return next
-    })
+
 
     // --- Actions ---
 
@@ -46,59 +56,74 @@ export const useGameStore = defineStore('game', () => {
             name,
             hand: [],
             isEliminated: false,
-            isBot: index > 0
+            isBot: index > 0,
+            score: 0
         }))
 
         const rawDeck = generateFullDeck()
         deck.value = shuffleDeck(rawDeck)
         discardPile.value = []
 
-        players.value.forEach(player => {
-            for (let i = 0; i < 7; i++) {
-                drawCardToHand(player)
-            }
-        })
-
-        let firstCard = drawCardFromDeck()
-        while (firstCard?.type === 'wild' || firstCard?.color === 'wild') {
-            deck.value.push(firstCard)
-            deck.value = shuffleDeck(deck.value)
-            firstCard = drawCardFromDeck()
-        }
-
-        if (firstCard) {
-            discardPile.value.push(firstCard)
-            currentColor.value = firstCard.color
-        }
+        // DON'T deal cards here - will be done incrementally via dealInitialCards()
 
         currentPlayerIndex.value = 0
         direction.value = 1
         drawStack.value = 0
         gameState.value = 'PLAYING'
         winnerId.value = null
-        turnState.value = 'WAITING_FOR_ACTION'
+        turnState.value = 'DEALING'
         rouletteTargetColor.value = null
+        isDealing.value = true
+        hasCalledUno.value = {}
+        showUnoButton.value = false
+    }
+
+    // Async function to deal initial cards one-by-one with animation support
+    async function dealInitialCards(onCardDealt: (playerId: string, card: Card) => Promise<void>) {
+        const CARDS_PER_PLAYER = 7
+
+        for (let round = 0; round < CARDS_PER_PLAYER; round++) {
+            for (const player of players.value) {
+                const card = drawCardFromDeck()
+                if (!card) continue
+
+                // Set pending card for animation
+                pendingDealCard.value = { playerId: player.id, card }
+
+                // Wait for animation callback
+                await onCardDealt(player.id, card)
+
+                // Add card to hand after animation
+                player.hand.push(card)
+                pendingDealCard.value = null
+            }
+        }
+
+        // Deal first discard card
+        let firstCard = drawCardFromDeck()
+        while (firstCard?.type === 'wild' || firstCard?.color === 'wild') {
+            deck.value.push(firstCard)
+            deck.value = shuffleDeck(deck.value)
+            firstCard = drawCardFromDeck()
+        }
+        if (firstCard) {
+            discardPile.value.push(firstCard)
+            currentColor.value = firstCard.color
+        }
+
+        // Dealing complete
+        isDealing.value = false
+        turnState.value = 'WAITING_FOR_ACTION'
 
         // Announce start
-        setTimeout(() => {
-            import('../composables/useSoundEffects').then(({ soundEffects }) => {
-                soundEffects.announceTurn("Game Start! Your turn")
-            })
-        }, 500)
+        soundEffects.announceTurn("Game Start! Your turn")
     }
 
     function drawCardFromDeck(): Card | undefined {
         if (deck.value.length === 0) {
-            if (discardPile.value.length <= 1) return undefined
-
-            const top = discardPile.value.pop()!
-            const rest = discardPile.value
-            deck.value = shuffleDeck(rest)
-            discardPile.value = [top]
-
-            import('../composables/useSoundEffects').then(({ soundEffects }) => {
-                soundEffects.playCardShuffle()
-            })
+            const reshuffled = reshuffleDeckHelper(deck.value, discardPile.value)
+            if (!reshuffled) return undefined
+            soundEffects.playCardShuffle()
         }
         return deck.value.pop()
     }
@@ -107,17 +132,15 @@ export const useGameStore = defineStore('game', () => {
         const card = drawCardFromDeck()
         if (card) {
             player.hand.push(card)
-
-            import('../composables/useSoundEffects').then(({ soundEffects }) => {
-                soundEffects.playCardPick()
-            })
+            hasCalledUno.value[player.id] = false
+            soundEffects.playCardPick()
         }
         checkMercyRule(player)
         return card
     }
 
     function checkMercyRule(player: Player): boolean {
-        if (player.hand.length >= 25) {
+        if (checkMercyRuleHelper(player.hand.length)) {
             player.isEliminated = true
             discardPile.value.push(...player.hand)
             player.hand = []
@@ -125,6 +148,7 @@ export const useGameStore = defineStore('game', () => {
             const activePlayers = players.value.filter(p => !p.isEliminated)
             if (activePlayers.length === 1 && activePlayers[0]) {
                 winnerId.value = activePlayers[0].id
+                applyScoresToWinner(activePlayers[0].id)
                 gameState.value = 'GAME_OVER'
             }
             return true
@@ -133,28 +157,49 @@ export const useGameStore = defineStore('game', () => {
     }
 
     function advanceTurn() {
-        currentPlayerIndex.value = nextPlayerIndex.value
+        const count = players.value.length
+        currentPlayerIndex.value = calculateNextPlayerIndex(
+            currentPlayerIndex.value,
+            direction.value,
+            count
+        )
 
         // If coming from Roulette, reset state default
-        if (turnState.value !== 'ROULETTE_DRAWING') {
+        // FIX: Don't reset if we are just entering CHOOSING logic
+        if (turnState.value !== 'ROULETTE_DRAWING' && turnState.value !== 'CHOOSING_ROULETTE_COLOR') {
             turnState.value = 'WAITING_FOR_ACTION'
         }
 
         // Skip eliminated players
         let sanity = 0
         while (players.value[currentPlayerIndex.value]?.isEliminated && sanity < 20) {
-            currentPlayerIndex.value = nextPlayerIndex.value
+            currentPlayerIndex.value = calculateNextPlayerIndex(
+                currentPlayerIndex.value,
+                direction.value,
+                count
+            )
             sanity++
         }
 
         // Announce turn
-        import('../composables/useSoundEffects').then(({ soundEffects }) => {
-            const p = currentPlayer.value
-            if (p) {
-                const text = p.isBot ? `${p.name}'s turn` : "Your turn"
-                soundEffects.announceTurn(text)
+        const p = currentPlayer.value
+        if (p) {
+            const text = p.isBot ? `${p.name}'s turn` : "Your turn"
+            soundEffects.announceTurn(text)
+
+            // Show UNO button if player has 2 cards and it's their turn
+            if (!p.isBot && p.hand.length === 2) {
+                showUnoButton.value = true
+            } else {
+                showUnoButton.value = false
             }
-        })
+        }
+    }
+
+    function callUno(playerId: string) {
+        hasCalledUno.value[playerId] = true
+        showUnoButton.value = false
+        soundEffects.announceTurn("UNO!")
     }
 
     function playCard(playerId: string, card: Card, selectedColor?: CardColor) {
@@ -171,7 +216,11 @@ export const useGameStore = defineStore('game', () => {
         discardPile.value.push(card)
 
         // Handle Color Selection (Wilds)
-        if (card.color === 'wild') {
+        if (card.type === 'wildColorRoulette') {
+            // Roulette: Color is chosen by NEXT player (Victim)
+            // We leave currentColor as is for now, or set to 'wild'
+            // It will be set effectively when the victim finds their color.
+        } else if (card.color === 'wild') {
             if (selectedColor) {
                 currentColor.value = selectedColor
             } else {
@@ -184,19 +233,40 @@ export const useGameStore = defineStore('game', () => {
         }
 
         // Sounds
-        import('../composables/useSoundEffects').then(({ soundEffects }) => {
-            soundEffects.playCardLand()
-            if (card.color === 'wild' || card.type.includes('draw') || card.type === 'skip' || card.type === 'reverse') {
-                soundEffects.playSpecialCard()
-            }
-        })
+        soundEffects.playCardLand()
+        if (card.color === 'wild' || card.type.includes('draw') || card.type === 'skip' || card.type === 'reverse') {
+            soundEffects.playSpecialCard()
+        }
 
         applyCardEffect(card)
 
+        if (card.type === 'wildColorRoulette') {
+            // Roulette handling stops here; turn has already advanced to victim in applyCardEffect
+            return
+        }
+
         if (player.hand.length === 0) {
+            // Check if UNO was called
+            if (!hasCalledUno.value[player.id]) {
+                // Penalty: Draw 2
+                drawCardToHand(player)
+                drawCardToHand(player)
+                soundEffects.announceTurn("CAUGHT! Draw 2")
+                advanceTurn()
+                return
+            }
             winnerId.value = player.id
+            applyScoresToWinner(player.id)
             gameState.value = 'GAME_OVER'
             return
+        }
+
+        // Potential for bots to call UNO
+        if (player.isBot && player.hand.length === 1 && !hasCalledUno.value[player.id]) {
+            // 70% chance to call UNO correctly
+            if (Math.random() > 0.3) {
+                callUno(player.id)
+            }
         }
 
         // Advance only if not blocked by special states
@@ -212,83 +282,112 @@ export const useGameStore = defineStore('game', () => {
         }
     }
 
-    function applyCardEffect(card: Card) {
-        // Stacking
-        const drawVal = getDrawValue(card)
-        if (drawVal > 0 && card.type !== 'wildColorRoulette') {
-            drawStack.value += drawVal
-        }
-
-        if (card.type === 'reverse' || card.type === 'wildReverseDraw4') {
-            direction.value = direction.value === 1 ? -1 : 1
-            if (players.value.length === 2) {
-                // In 2 player, Reverse acts as Skip.
-                // For Wild Reverse Draw 4, the official rule is ambiguous on "Skip" vs "Draw". 
-                // But typically Reverse=Skip. The Draw stack triggers on the "Next" player.
-                // If P1 plays it, P2 is skipped. P1 plays again.
-                // BUT P2 must draw 4? Or does P1 draw 4 because they are "next"?
-                // Official: "Player who played it draws 4" (if 2 players? No, usually next player).
-                // Actually commonly: P1 plays, P2 draws 4 and loses turn. P1 plays again.
-                // So we Advance Turn to P2 (they draw), then Advance Turn back to P1?
-                // Let's rely on standard flow:
-                // 1. Reverse direction.
-                // 2. Advance Turn -> Next player is P2.
-                // 3. P2 must draw stack.
+    // --- Card Effect Handlers ---
+    
+    function handleReverse(card: Card) {
+        const isTwoPlayer = players.value.length === 2
+        if (isTwoPlayer) {
+            if (card.type === 'reverse') {
+                // Reverse acts as Skip in 2p
+                advanceTurn()
+            } else {
+                // Wild Reverse Draw 4 in 2p: Skip other player, penalty BOOMERANGS to you
+                direction.value = direction.value === 1 ? -1 : 1
                 advanceTurn()
             }
+        } else {
+            direction.value = direction.value === 1 ? -1 : 1
         }
+    }
 
-        if (card.type === 'skip') {
-            advanceTurn()
-        }
+    function handleSkip() {
+        advanceTurn()
+    }
 
-        if (card.type === 'skipEveryone') {
-            return // Play again
-        }
+    function handleSkipEveryone(): boolean {
+        return true // Signal to stop processing (play again)
+    }
 
-        if (card.type === 'wildColorRoulette') {
-            // Initiate Roulette Sequence
-            // Official Rule: **Next Player** chooses the color, then draws until they get it.
-            // So we move state to 'CHOOSING_ROULETTE_COLOR' and Advance Turn to that victim.
-            turnState.value = 'CHOOSING_ROULETTE_COLOR'
-            // The turn advances to the victim below in `playCard` check.
-        }
+    function handleWildColorRoulette() {
+        // Next player chooses the color, then draws until they get it
+        turnState.value = 'CHOOSING_ROULETTE_COLOR'
+        advanceTurn()
+    }
 
-        if (card.type === 'discardAll') {
-            const player = currentPlayer.value
-            if (!player) return
-            const color = card.color
-            const toDiscard = player.hand.filter(c => c.color === color && c.type !== 'discardAll')
-            toDiscard.forEach(c => {
+    function handleDiscardAll(card: Card) {
+        const player = currentPlayer.value
+        if (!player) return
+        
+        const toDiscard = player.hand.filter(c => c.color === card.color)
+        let delay = 0
+        toDiscard.forEach(c => {
+            setTimeout(() => {
                 const idx = player.hand.findIndex(h => h.id === c.id)
                 if (idx > -1) {
                     player.hand.splice(idx, 1)
                     discardPile.value.push(c)
                 }
-            })
+            }, delay)
+            delay += 200
+        })
+    }
+
+    function handleNumberZero() {
+        rotateHands()
+    }
+
+    function handleNumberSeven(): boolean {
+        turnState.value = 'CHOOSING_PLAYER_TO_SWAP'
+        if (currentPlayer.value) {
+            swapInitiatorId.value = currentPlayer.value.id
+        }
+        return true // Signal to stop processing
+    }
+
+    // Card effect dispatch map
+    type CardEffectHandler = (card: Card) => boolean | void
+    const cardEffectHandlers: Record<string, CardEffectHandler> = {
+        reverse: handleReverse,
+        wildReverseDraw4: handleReverse,
+        skip: handleSkip,
+        skipEveryone: handleSkipEveryone,
+        wildColorRoulette: handleWildColorRoulette,
+        discardAll: handleDiscardAll
+    }
+
+    function applyCardEffect(card: Card) {
+        // Apply draw stack (except roulette)
+        const drawVal = getDrawValue(card)
+        if (drawVal > 0 && card.type !== 'wildColorRoulette') {
+            drawStack.value += drawVal
         }
 
-        if (card.type === 'number' && card.value === 0) {
-            rotateHands()
-        }
-
-        if (card.type === 'number' && card.value === 7) {
-            turnState.value = 'CHOOSING_PLAYER_TO_SWAP'
-            if (currentPlayer.value) {
-                swapInitiatorId.value = currentPlayer.value.id
+        // Handle special number cards (0 and 7)
+        if (card.type === 'number') {
+            if (card.value === 0) {
+                handleNumberZero()
+                return
             }
-            return
+            if (card.value === 7) {
+                handleNumberSeven()
+                return
+            }
+        }
+
+        // Dispatch to effect handler if exists
+        const handler = cardEffectHandlers[card.type]
+        if (handler) {
+            const shouldStop = handler(card)
+            if (shouldStop) return
         }
     }
 
     function rotateHands() {
         if (players.value.length < 2) return
         const hands = players.value.map(p => [...p.hand])
+        const rotated = rotateHandsHelper(hands, direction.value)
         players.value.forEach((p, i) => {
-            let sourceIndex = i - direction.value
-            if (sourceIndex < 0) sourceIndex = players.value.length - 1
-            if (sourceIndex >= players.value.length) sourceIndex = 0
-            p.hand = hands[sourceIndex] || []
+            p.hand = rotated[i] || []
         })
     }
 
@@ -324,13 +423,14 @@ export const useGameStore = defineStore('game', () => {
 
                 // Check if playable
                 if (canPlayCard(card, topCard.value, currentColor.value, 0)) {
-                    // Playable! Stop drawing.
-                    // User doesn't auto-play (unless we want them to?). 
-                    // Official rules: "You must play it". 
-                    // Let's stop and let user play it to keep agency/animations clear.
-                    // Or better: Auto play it? most digital Unos do auto-play if you drew it specifically.
-                    // Let's stick to "Stop drawing, let user play".
-                    // BUT turn does not end either.
+                    // Playable! Rule: "then immediately play it"
+                    setTimeout(() => {
+                        let colorToPick: CardColor | undefined
+                        if (card.color === 'wild') {
+                            colorToPick = chooseBotColor(p)
+                        }
+                        playerActionPlayCard(card, colorToPick)
+                    }, 1000)
                     return
                 } else {
                     // Not playable, check mercy rule (handled inc drawCardToHand).
@@ -355,30 +455,57 @@ export const useGameStore = defineStore('game', () => {
         // Draw card
         const card = drawCardToHand(p)
 
-        if (card && (card.color === currentColor.value || card.color === 'wild')) {
-            // Found matching color (wild counts as match usually, or strictly chosen color? 
-            // Rules say "until they get a card of your chosen color". Wild implies user can choose color, so maybe wild counts?)
-            // Let's assume strict color match for now to be safe, but typically Wild matches everything.
-            // Actually, in Uno, "Wild" has no color until played. But physically it triggers.
-            // Let's be generous: Wild matches.
+        // Rule: "Wild cards revealed do not count as matching the color – they have to pull an actual colored card of that color"
+        if (card && rouletteTargetColor.value && card.color === rouletteTargetColor.value) {
+            // Found matching color
+            // Rule: "The card that stopped the roulette is discarded and becomes the new top of the discard pile"
+
+            // Remove from hand (it was just added by drawCardToHand)
+            const idx = p.hand.indexOf(card)
+            if (idx > -1) {
+                p.hand.splice(idx, 1)
+            }
+
+            // Discard it
+            discardPile.value.push(card)
+
+            // Updates current color to the card found (or the target color if wild?)
+            currentColor.value = card.color === 'wild' ? rouletteTargetColor.value : card.color
 
             // Turn ends (Victim loses turn)
-            turnState.value = 'WAITING_FOR_ACTION'
-            advanceTurn()
+            // Add a stall so the user can see the final card before turn jumps
+            setTimeout(() => {
+                turnState.value = 'WAITING_FOR_ACTION'
+                advanceTurn()
+            }, 1500)
 
             // Sound/Speech
-            import('../composables/useSoundEffects').then(({ soundEffects }) => {
-                soundEffects.announceTurn("Safe!")
-            })
+            soundEffects.announceTurn("Safe!")
 
         } else if (p.isEliminated) {
             // Mercy rule trigger
-            turnState.value = 'WAITING_FOR_ACTION'
-            advanceTurn()
+            setTimeout(() => {
+                turnState.value = 'WAITING_FOR_ACTION'
+                advanceTurn()
+            }, 1000)
         } else {
             // Keep drawing
-            setTimeout(executeRouletteDraw, 300)
+            setTimeout(executeRouletteDraw, 800)
         }
+    }
+
+    function executeBotRouletteChoice() {
+        if (!currentPlayer.value?.isBot || turnState.value !== 'CHOOSING_ROULETTE_COLOR') return
+
+        const bot = currentPlayer.value
+        const color = chooseBotColor(bot)
+
+        // Small delay for realism
+        setTimeout(() => {
+            if (turnState.value === 'CHOOSING_ROULETTE_COLOR') {
+                setRouletteColor(color)
+            }
+        }, 1500)
     }
 
     function swapHands(targetPlayerId: string) {
@@ -396,11 +523,7 @@ export const useGameStore = defineStore('game', () => {
 
     function playerActionPlayCard(card: Card, selectedColor?: CardColor) {
         if (!currentPlayer.value) return
-        const isSkipEveryone = card.type === 'skipEveryone'
         playCard(currentPlayer.value.id, card, selectedColor)
-        if (!isSkipEveryone && turnState.value === 'WAITING_FOR_ACTION') {
-            advanceTurn()
-        }
     }
 
     // --- Bot AI Logic ---
@@ -411,7 +534,6 @@ export const useGameStore = defineStore('game', () => {
 
         // Handle special states for Bot
         if (turnState.value === 'ROULETTE_DRAWING') {
-            // Bot is victim of roulette
             executeRouletteDraw()
             return
         }
@@ -426,38 +548,32 @@ export const useGameStore = defineStore('game', () => {
         )
 
         if (playableCards.length > 0) {
-            let cardToPlay: Card | undefined
-
+            let cardToPlay: Card
             if (drawStack.value > 0) {
-                cardToPlay = playableCards[0]
+                cardToPlay = playableCards[0]!
             } else {
                 const specialCards = playableCards.filter(c =>
                     c.type !== 'number' && c.type !== 'discardAll'
                 )
                 if (specialCards.length > 0) {
-                    cardToPlay = specialCards[Math.floor(Math.random() * specialCards.length)]
+                    cardToPlay = specialCards[Math.floor(Math.random() * specialCards.length)]!
                 } else {
-                    cardToPlay = playableCards[Math.floor(Math.random() * playableCards.length)]
+                    cardToPlay = playableCards[Math.floor(Math.random() * playableCards.length)]!
                 }
             }
 
-            if (cardToPlay) {
-                let colorToPick: CardColor | undefined
-                if (cardToPlay.color === 'wild') {
-                    // Bot logical color choice: pick color they have most of
-                    const counts = bot.hand.reduce((acc, c) => {
-                        if (c.color !== 'wild') acc[c.color] = (acc[c.color] || 0) + 1
-                        return acc
-                    }, {} as Record<string, number>)
-
-                    const bestColor = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] as CardColor
-                    colorToPick = bestColor || 'red'
-                }
-                playerActionPlayCard(cardToPlay, colorToPick)
+            let colorToPick: CardColor | undefined
+            if (cardToPlay.color === 'wild') {
+                colorToPick = chooseBotColor(bot)
             }
+            playerActionPlayCard(cardToPlay, colorToPick)
         } else {
             drawCardsForCurrentPlayer()
         }
+    }
+
+    function chooseBotColor(bot: Player): CardColor {
+        return getWildCardColor(bot.hand)
     }
 
     function executeBotSwap() {
@@ -483,26 +599,49 @@ export const useGameStore = defineStore('game', () => {
             setTimeout(() => {
                 // Re-check conditions after delay (game might have ended or state changed)
                 if (gameState.value !== 'PLAYING') return
-                if (currentPlayerIndex.value !== players.value.indexOf(player) && turnState.value !== 'ROULETTE_DRAWING') return
+                if (currentPlayerIndex.value !== players.value.indexOf(player) &&
+                    turnState.value !== 'ROULETTE_DRAWING' &&
+                    turnState.value !== 'CHOOSING_ROULETTE_COLOR') return
 
                 if (turnState.value === 'CHOOSING_PLAYER_TO_SWAP') {
                     executeBotSwap()
                 } else if (turnState.value === 'ROULETTE_DRAWING') {
                     executeRouletteDraw()
+                } else if (turnState.value === 'CHOOSING_ROULETTE_COLOR') {
+                    executeBotRouletteChoice()
                 } else {
                     executeBotTurn()
                 }
             }, turnState.value === 'ROULETTE_DRAWING' ? 500 : BOT_DELAY_MS)
         } else {
-            // If human player is victim of Roulette, auto-start drawing
-            // If human player is victim of Roulette, they need to choose color first!
-            // 'CHOOSING_ROULETTE_COLOR' logic is handled by UI (color picker).
-            // Once they pick, it goes to 'ROULETTE_DRAWING', then we auto-draw:
-            if (turnState.value === 'ROULETTE_DRAWING') {
-                setTimeout(executeRouletteDraw, 1000)
-            }
+            // Human player logic: 
+            // The drawing loop is started by setRouletteColor once they choose.
+            // No automated action needed here for WAITING_FOR_ACTION.
         }
     }, { immediate: true })
+
+    function applyScoresToWinner(winningPlayerId: string) {
+        const winner = players.value.find(p => p.id === winningPlayerId)
+        if (!winner) return
+
+        // Collect opponent hands and elimination flags
+        const opponentHands: Card[][] = []
+        const eliminatedFlags: boolean[] = []
+
+        players.value.forEach(p => {
+            if (p.id === winningPlayerId) return
+            opponentHands.push(p.hand)
+            eliminatedFlags.push(p.isEliminated)
+        })
+
+        const totalPoints = calculateScore(opponentHands, eliminatedFlags)
+
+        if (winner.score !== undefined) {
+            winner.score += totalPoints
+        } else {
+            winner.score = totalPoints
+        }
+    }
 
     return {
         gameState,
@@ -518,6 +657,8 @@ export const useGameStore = defineStore('game', () => {
         currentPlayer,
         topCard,
         rouletteTargetColor,
+        showUnoButton,
+        hasCalledUno,
         initializeGame,
         drawCardFromDeck,
         drawCardToHand,
@@ -528,11 +669,17 @@ export const useGameStore = defineStore('game', () => {
         swapHands,
         playerActionPlayCard,
         executeRouletteDraw,
-        setRouletteColor(color: CardColor) {
-            if (turnState.value !== 'CHOOSING_ROULETTE_COLOR') return
-            rouletteTargetColor.value = color
-            turnState.value = 'ROULETTE_DRAWING'
-            executeRouletteDraw()
-        }
+        setRouletteColor,
+        callUno,
+        isDealing,
+        pendingDealCard,
+        dealInitialCards
+    }
+
+    function setRouletteColor(color: CardColor) {
+        if (turnState.value !== 'CHOOSING_ROULETTE_COLOR') return
+        rouletteTargetColor.value = color
+        turnState.value = 'ROULETTE_DRAWING'
+        executeRouletteDraw()
     }
 })

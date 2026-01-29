@@ -18,44 +18,32 @@ export function generateFullDeck(): Card[] {
   const colors: CardColor[] = ['red', 'blue', 'green', 'yellow']
 
   colors.forEach(color => {
-    // Number Cards: 0-9 (2 of each)
-    for (let i = 0; i <= 9; i++) {
+    // Number Cards: 0 (1 of each), 1-9 (2 of each)
+    deck.push(createCard(color, 'number', 0))
+    for (let i = 1; i <= 9; i++) {
       deck.push(createCard(color, 'number', i))
       deck.push(createCard(color, 'number', i))
     }
 
-    // Action Cards:
-    // Skip (3 per color)
-    for (let i = 0; i < 3; i++) deck.push(createCard(color, 'skip'))
-
-    // Reverse (3 per color)
-    for (let i = 0; i < 3; i++) deck.push(createCard(color, 'reverse'))
-
-    // Draw 2 (2 per color)
-    for (let i = 0; i < 2; i++) deck.push(createCard(color, 'draw2'))
-
-    // Draw 4 (2 per color - Yes, colored in No Mercy)
-    for (let i = 0; i < 2; i++) deck.push(createCard(color, 'draw4'))
-
-    // Skip Everyone (2 per color)
-    for (let i = 0; i < 2; i++) deck.push(createCard(color, 'skipEveryone'))
-
-    // Discard All (2 per color) - reduced from 3 to 2 to balance deck size if needed, but lets stick to 2.
-    for (let i = 0; i < 2; i++) deck.push(createCard(color, 'discardAll'))
+    // Action Cards: 3 of each per color (Total 72)
+    for (let i = 0; i < 3; i++) {
+      deck.push(createCard(color, 'skip'))
+      deck.push(createCard(color, 'reverse'))
+      deck.push(createCard(color, 'draw2'))
+      deck.push(createCard(color, 'draw4'))
+      deck.push(createCard(color, 'skipEveryone'))
+      deck.push(createCard(color, 'discardAll'))
+    }
   })
 
-  // Wild Cards
-  // Wild Reverse Draw 4 (8 cards)
-  for (let i = 0; i < 8; i++) deck.push(createCard('wild', 'wildReverseDraw4'))
-
-  // Wild Draw 6 (4 cards)
-  for (let i = 0; i < 4; i++) deck.push(createCard('wild', 'draw6'))
-
-  // Wild Draw 10 (4 cards)
-  for (let i = 0; i < 4; i++) deck.push(createCard('wild', 'draw10'))
-
-  // Wild Color Roulette (8 cards)
-  for (let i = 0; i < 8; i++) deck.push(createCard('wild', 'wildColorRoulette'))
+  // Wild Cards: 5 of each special type (Total 20)
+  // Total Deck: 76 (Numbers) + 72 (Actions) + 20 (Wilds) = 168
+  for (let i = 0; i < 5; i++) {
+    deck.push(createCard('wild', 'wildReverseDraw4'))
+    deck.push(createCard('wild', 'draw6'))
+    deck.push(createCard('wild', 'draw10'))
+    deck.push(createCard('wild', 'wildColorRoulette'))
+  }
 
   return deck
 }
@@ -64,8 +52,8 @@ export function shuffleDeck(deck: Card[]): Card[] {
   const newDeck = [...deck]
   for (let i = newDeck.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    const temp = newDeck[i]
-    newDeck[i] = newDeck[j]
+    const temp = newDeck[i]!
+    newDeck[i] = newDeck[j]!
     newDeck[j] = temp
   }
   return newDeck
