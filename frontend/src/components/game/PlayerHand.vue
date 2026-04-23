@@ -55,9 +55,9 @@ const cardRefs = ref<Map<string, HTMLElement>>(new Map())
 const showColorPicker = ref(false)
 const pendingWildCard = ref<CardType | null>(null)
 
-// Safety: Auto-close color picker if turn changes or it's no longer our turn
-watch(() => [store.currentPlayerIndex, store.turnState, props.isMyTurn], () => {
-  if (showColorPicker.value && !props.isMyTurn) {
+// Safety: Auto-close color picker if turn changes, game ends, or it's no longer our turn
+watch(() => [store.currentPlayerIndex, store.turnState, props.isMyTurn, store.gameState], () => {
+  if (showColorPicker.value && (!props.isMyTurn || store.gameState === 'GAME_OVER')) {
     showColorPicker.value = false
     pendingWildCard.value = null
   }

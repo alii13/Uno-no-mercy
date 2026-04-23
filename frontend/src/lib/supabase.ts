@@ -1,11 +1,21 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://djzqoccutacfueuadflw.supabase.co'
+// Use proxy URL if set (bypasses ISP blocks in India/UAE), otherwise direct Supabase
+const supabaseUrl = import.meta.env.VITE_SUPABASE_PROXY_URL || import.meta.env.VITE_SUPABASE_URL || 'https://djzqoccutacfueuadflw.supabase.co'
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
 console.log('Supabase config:', { url: supabaseUrl, keyLength: supabaseAnonKey.length, keyPrefix: supabaseAnonKey.substring(0, 10) })
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  // When using a proxy, we need to tell the realtime client where to connect
+  ...(import.meta.env.VITE_SUPABASE_PROXY_URL ? {
+    realtime: {
+      params: {
+        apikey: supabaseAnonKey,
+      },
+    },
+  } : {}),
+})
 
 export interface GameRow {
     id: string

@@ -36,9 +36,13 @@ export function generateFullDeck(): Card[] {
     }
   })
 
-  // Wild Cards: 5 of each special type (Total 20)
-  // Total Deck: 76 (Numbers) + 72 (Actions) + 20 (Wilds) = 168
-  for (let i = 0; i < 5; i++) {
+  // Wild Cards: 4 plain wilds + special wilds
+  // Plain Wild cards (choose color, no penalty)
+  for (let i = 0; i < 4; i++) {
+    deck.push(createCard('wild', 'wild'))
+  }
+  // Special Wild cards: 4 of each type
+  for (let i = 0; i < 4; i++) {
     deck.push(createCard('wild', 'wildReverseDraw4'))
     deck.push(createCard('wild', 'draw6'))
     deck.push(createCard('wild', 'draw10'))

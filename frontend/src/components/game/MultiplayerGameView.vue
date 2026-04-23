@@ -38,6 +38,9 @@
           :current-player-name="currentPlayerName"
           :direction="direction"
           :draw-stack="drawStack"
+          :current-color="currentColor"
+          :message="statusMessage"
+          :message-style="statusMessageStyle"
         />
       </template>
     </BattlePit>
@@ -60,7 +63,7 @@
       :player-name="myPlayer?.name || 'Unknown'"
       :card-count="myHand.length"
       :is-my-turn="isMyTurn"
-      :show-uno-button="myHand.length === 2 && isMyTurn && !myPlayer?.has_called_uno"
+      :show-uno-button="(myHand.length === 2 || myHand.length === 1) && isMyTurn && !myPlayer?.has_called_uno"
       :show-leave-button="true"
       @call-uno="handleCallUno"
       @leave="leaveGame"
@@ -78,7 +81,7 @@
     />
 
     <!-- Roulette Color Picker Modal (for victim choosing color) -->
-    <ColorPickerModal 
+    <ColorPickerModal
       v-if="turnState === 'CHOOSING_ROULETTE_COLOR' && isMyTurn"
       title="ROULETTE TRAP DETECTED"
       subtitle="CHOOSE YOUR FATE"
@@ -86,11 +89,26 @@
       @select="handleRouletteColorSelect"
     />
 
+    <!-- Drawn Wild Card Color Picker -->
+    <ColorPickerModal
+      v-if="mpStore.pendingDrawnWildCard"
+      title="WILD CARD DRAWN"
+      subtitle="CHOOSE COLOR TO PLAY"
+      @select="handleDrawnWildColorSelect"
+    />
+
     <!-- Player Select Modal (for Number 7 swap - in 2P just shows opponent) -->
     <PlayerSelectModal
       v-if="turnState === 'CHOOSING_PLAYER_TO_SWAP' && isMyTurn && opponent"
       :eligible-players="[{ id: opponent.user_id, name: opponent.name, hand: (opponent.hand as Card[]) || [], isEliminated: false }]"
       @select="handleSwapPlayer"
+    />
+
+    <!-- Discard All Top Card Picker -->
+    <DiscardAllPickerModal
+      v-if="mpStore.pendingDiscardAllCards.length > 0"
+      :cards="mpStore.pendingDiscardAllCards"
+      @select="handleDiscardAllTopSelect"
     />
 
     <!-- Opponent Left -->
@@ -123,6 +141,7 @@ import CardPile from './CardPile.vue'
 import MultiplayerPlayerHand from './MultiplayerPlayerHand.vue'
 import ColorPickerModal from './ColorPickerModal.vue'
 import PlayerSelectModal from './PlayerSelectModal.vue'
+import DiscardAllPickerModal from './DiscardAllPickerModal.vue'
 import GameBackground from './GameBackground.vue'
 import SurveillanceBar from './SurveillanceBar.vue'
 import BattlePit from './BattlePit.vue'
@@ -203,11 +222,48 @@ const deckDisplay = computed(() => {
   return Array(count).fill({ id: 'deck', color: 'wild', type: 'wild' })
 })
 
-// Watch for draw stack increases
+const statusMessage = computed(() => {
+  if (turnState.value === 'CHOOSING_PLAYER_TO_SWAP' && isMyTurn.value) return 'SELECT PLAYER TO SWAP HANDS'
+  if (turnState.value === 'CHOOSING_PLAYER_TO_SWAP' && !isMyTurn.value) return 'OPPONENT IS CHOOSING SWAP TARGET...'
+  if (turnState.value === 'CHOOSING_ROULETTE_COLOR' && isMyTurn.value) return 'INCOMING ROULETTE! CHOOSE YOUR FATE'
+  if (turnState.value === 'CHOOSING_ROULETTE_COLOR' && !isMyTurn.value) return 'ROULETTE: WAITING FOR VICTIM...'
+  if (turnState.value === 'ROULETTE_DRAWING') {
+    const target = (currentGame.value?.roulette_target_color || currentColor.value).toUpperCase()
+    return isMyTurn.value ? `DANGER: SEEKING ${target}` : `OPPONENT SEEKING ${target}...`
+  }
+  if (drawStack.value > 0 && isMyTurn.value) return `WARNING: DRAW ${drawStack.value} OR STACK HIGHER!`
+  if (drawStack.value > 0 && !isMyTurn.value) return `DRAW STACK: +${drawStack.value} PENDING`
+  return ''
+})
+
+const statusMessageStyle = computed(() => {
+  if (turnState.value === 'ROULETTE_DRAWING') {
+    const colorMap: Record<string, string> = {
+      red: '#ff5555', blue: '#5555ff', green: '#55ff55', yellow: '#ffff55'
+    }
+    const target = currentGame.value?.roulette_target_color || currentColor.value
+    return { color: colorMap[target] || '#fff', textShadow: `0 0 10px ${colorMap[target] || '#fff'}` }
+  }
+  if (drawStack.value > 0) {
+    return { color: '#ff3333', textShadow: '0 0 10px rgba(255, 51, 51, 0.6)' }
+  }
+  return {}
+})
+
+// Watch for draw stack increases - shake screen on any increase
 watch(drawStack, (newVal, oldVal) => {
-  if (newVal > oldVal && newVal >= 4) {
+  if (newVal > oldVal && newVal >= 2) {
     isShakeActive.value = true
+    soundEffects.playSpecialCard()
     setTimeout(() => isShakeActive.value = false, 500)
+  }
+})
+
+// Auto-close modals on game end or opponent leaving
+watch([gameStatus, opponentLeft], () => {
+  if (gameStatus.value === 'finished' || opponentLeft.value) {
+    showColorPicker.value = false
+    pendingCard.value = null
   }
 })
 
@@ -406,9 +462,19 @@ async function handleRouletteColorSelect(color: CardColor) {
   await mpStore.setRouletteColor(color)
 }
 
+// Handler for drawn wild card color selection
+async function handleDrawnWildColorSelect(color: CardColor) {
+  await mpStore.playDrawnWildCard(color)
+}
+
 // Handler for player swap (Number 7 card)
 async function handleSwapPlayer(playerId: string) {
   await mpStore.swapHands(playerId)
+}
+
+// Handler for Discard All top card selection
+async function handleDiscardAllTopSelect(cardId: string) {
+  await mpStore.selectDiscardAllTop(cardId)
 }
 
 async function handleDraw() {

@@ -39,6 +39,8 @@ export type TurnState =
   | 'STACKING_RESPONSE'
   | 'ROULETTE_DRAWING'
   | 'CHOOSING_ROULETTE_COLOR'
+  | 'CHOOSING_DRAWN_WILD_COLOR'
+  | 'CHOOSING_DISCARD_ALL_TOP'
   | 'DEALING'
 
 export interface ColorScheme {
