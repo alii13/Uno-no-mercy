@@ -27,6 +27,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     const error = ref<string | null>(null)
     const actionInProgress = ref(false) // Prevents double-clicks during async ops
     const opponentLeft = ref(false) // True when opponent leaves during game
+    const pendingDrawnWildCard = ref<Card | null>(null) // Wild card drawn that needs color selection
+    const pendingDiscardAllCards = ref<Card[]>([]) // Cards to choose top from during Discard All
+    const pendingDiscardAllGameId = ref<string | null>(null) // Game ID saved for Discard All completion
 
     let gameChannel: RealtimeChannel | null = null
 
@@ -389,9 +392,27 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
             console.log('startGame: Updating game state...')
 
-            // Update game state
+            // Update game state with first card effects
             const firstPlayer = gamePlayers.value[0]
+            const secondPlayer = gamePlayers.value[1]
             if (!firstPlayer) throw new Error('No players found')
+
+            let startingPlayerId = firstPlayer.user_id
+            let startingDirection: 1 | -1 = 1
+            let startingDrawStack = 0
+
+            if (firstCard) {
+                if (firstCard.type === 'skip' || (firstCard.type === 'reverse' && gamePlayers.value.length === 2)) {
+                    // First player skipped, second player starts
+                    startingPlayerId = secondPlayer?.user_id || firstPlayer.user_id
+                } else if (firstCard.type === 'reverse') {
+                    startingDirection = -1
+                } else if (firstCard.type === 'draw2') {
+                    startingDrawStack = 2
+                } else if (firstCard.type === 'draw4') {
+                    startingDrawStack = 4
+                }
+            }
 
             const { error: gameError } = await supabase
                 .from('games')
@@ -400,9 +421,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     deck: deck,
                     discard_pile: firstCard ? [firstCard] : [],
                     current_color: firstCard?.color || 'red',
-                    current_player_id: firstPlayer.user_id,
-                    direction: 1,
-                    draw_stack: 0,
+                    current_player_id: startingPlayerId,
+                    direction: startingDirection,
+                    draw_stack: startingDrawStack,
                     turn_state: 'WAITING_FOR_ACTION'
                 })
                 .eq('id', currentGame.value.id)
@@ -498,10 +519,28 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     }
 
     // Handle discard all cards of same color
-    function applyDiscardAllEffect(card: Card, playerId: string, state: PlayCardState): void {
+    function applyDiscardAllEffect(card: Card, playerId: string, myId: string, state: PlayCardState): void {
         if (card.type !== 'discardAll' || card.color === 'wild') return
 
         const matchingCards = state.newHand.filter(c => c.color === card.color)
+        if (matchingCards.length === 0) return
+
+        if (matchingCards.length === 1) {
+            // Only 1 card — auto-discard, it becomes the top card
+            const finalHand = state.newHand.filter(c => c.color !== card.color)
+            state.newDiscard.push(matchingCards[0]!)
+            state.handsToUpdate.push({ playerId, hand: finalHand })
+            return
+        }
+
+        // Multiple cards — player needs to pick which goes on top
+        // Store matching cards for the picker, pause the turn
+        pendingDiscardAllCards.value = matchingCards
+        state.turnState = 'CHOOSING_DISCARD_ALL_TOP'
+        state.nextPlayerId = myId // Keep turn on me to show the picker
+
+        // Still discard all matching cards except we need to reorder later
+        // For now, discard them all (the selectDiscardAllTop will fix the order)
         const finalHand = state.newHand.filter(c => c.color !== card.color)
         state.newDiscard.push(...matchingCards)
         state.handsToUpdate.push({ playerId, hand: finalHand })
@@ -557,7 +596,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         applySkipEffect(card, myIndex, playerCount, state)
         applySkipEveryoneEffect(card, myId, state)
         applyRouletteEffect(card, myIndex, playerCount, state)
-        applyDiscardAllEffect(card, playerId, state)
+        applyDiscardAllEffect(card, playerId, myId, state)
         applyRotateHandsEffect(card, myId, playerCount, state)
         applySwapEffect(card, myId, state)
 
@@ -704,18 +743,43 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     async function swapHands(targetPlayerId: string) {
         if (!currentGame.value || !myPlayer.value) return
         if (currentGame.value.turn_state !== 'CHOOSING_PLAYER_TO_SWAP') return
+        if (actionInProgress.value) return
 
+        actionInProgress.value = true
         const myId = authStore.user?.id
-        if (!myId) return
+        if (!myId) {
+            actionInProgress.value = false
+            return
+        }
 
         // Find target by either id or user_id for flexibility
         const targetPlayer = gamePlayers.value.find(p =>
             p.id === targetPlayerId || p.user_id === targetPlayerId
         )
-        if (!targetPlayer || targetPlayer.user_id === myId) return
+        if (!targetPlayer || targetPlayer.user_id === myId) {
+            actionInProgress.value = false
+            return
+        }
 
-        const myHand = [...(myPlayer.value.hand as Card[])]
-        const targetHand = [...(targetPlayer.hand as Card[])]
+        // Re-fetch hands fresh from DB to avoid stale realtime state
+        const { data: freshPlayers } = await supabase
+            .from('game_players')
+            .select('*')
+            .eq('game_id', currentGame.value.id)
+            .order('seat_order')
+
+        const freshMe = freshPlayers?.find(p => p.user_id === myId)
+        const freshTarget = freshPlayers?.find(p =>
+            p.id === targetPlayerId || p.user_id === targetPlayerId
+        )
+
+        if (!freshMe || !freshTarget) {
+            actionInProgress.value = false
+            return
+        }
+
+        const myHand = [...(freshMe.hand as Card[])]
+        const targetHand = [...(freshTarget.hand as Card[])]
 
         // Calculate next player
         const myIndex = gamePlayers.value.findIndex(p => p.user_id === myId)
@@ -729,12 +793,12 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             await supabase
                 .from('game_players')
                 .update({ hand: targetHand })
-                .eq('id', myPlayer.value.id)
+                .eq('id', freshMe.id)
 
             await supabase
                 .from('game_players')
                 .update({ hand: myHand })
-                .eq('id', targetPlayer.id)
+                .eq('id', freshTarget.id)
 
             // Update game state
             await supabase
@@ -747,6 +811,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
         } catch (err: any) {
             error.value = err.message
+        } finally {
+            actionInProgress.value = false
         }
     }
 
@@ -791,68 +857,76 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         }
     }
 
+    // Roulette draw state - persists across iterations to avoid stale reads
+    let rouletteState: { deck: Card[]; discardPile: Card[]; hand: Card[] } | null = null
+
     // Execute roulette draw - draw until matching color
     async function executeRouletteDraw() {
         if (!currentGame.value || !myPlayer.value || !isMyTurn.value) return
         if (currentGame.value.turn_state !== 'ROULETTE_DRAWING') return
         if (actionInProgress.value) return
 
-        actionInProgress.value = true // Lock this draw iteration
+        actionInProgress.value = true
 
         try {
             const targetColor = currentGame.value.roulette_target_color as CardColor
             if (!targetColor) return
 
-            const currentDeck = [...(currentGame.value.deck as Card[])]
-            let currentDiscard = [...(currentGame.value.discard_pile as Card[])]
+            // Initialize local state on first call, reuse on subsequent calls
+            if (!rouletteState) {
+                rouletteState = {
+                    deck: [...(currentGame.value.deck as Card[])],
+                    discardPile: [...(currentGame.value.discard_pile as Card[])],
+                    hand: [...(myPlayer.value.hand as Card[])]
+                }
+            }
 
-            if (currentDeck.length === 0) {
+            const { deck: localDeck, discardPile: localDiscard } = rouletteState
+
+            if (localDeck.length === 0) {
                 // Reshuffle discard pile
-                if (currentDiscard.length > 1) {
-                    const top = currentDiscard.pop()!
-                    currentDeck.push(...shuffleDeck(currentDiscard))
-                    currentDiscard = [top]
-                } else if (currentDiscard.length === 1) {
-                    // Roulette fallback: recycle the last thrown card once
-                    const only = currentDiscard.pop()!
-                    currentDeck.push(only)
-                    currentDiscard = []
+                if (localDiscard.length > 1) {
+                    const top = localDiscard.pop()!
+                    localDeck.push(...shuffleDeck(localDiscard.splice(0)))
+                    localDiscard.push(top)
                 } else {
-                    // No cards left to draw - end roulette and pass turn
+                    // No cards left - end roulette
                     await supabase
                         .from('games')
                         .update({
-                            deck: currentDeck,
-                            discard_pile: currentDiscard,
+                            deck: localDeck,
+                            discard_pile: localDiscard,
                             current_color: targetColor,
                             turn_state: 'WAITING_FOR_ACTION',
                             roulette_target_color: null,
                             current_player_id: getNextPlayerId()
                         })
                         .eq('id', currentGame.value.id)
+                    rouletteState = null
                     return
                 }
             }
 
-            const card = currentDeck.pop()
-            if (!card) return
+            const card = localDeck.pop()
+            if (!card) {
+                rouletteState = null
+                return
+            }
 
-            const newHand = [...(myPlayer.value.hand as Card[]), card]
+            rouletteState.hand.push(card)
+            const newHand = [...rouletteState.hand]
 
-            // Check mercy rule (25+ cards = elimination)
+            // Check mercy rule
             const isEliminated = checkMercyRule(newHand.length)
 
-            // Check if found matching color
-            // Rule: "Wild cards revealed do not count as matching the color – they have to pull an actual colored card of that color"
+            // Rule: Wild cards do NOT count as matching color
             const foundColor = card.color === targetColor
 
             if (foundColor || isEliminated) {
-                // Roulette ends - determine final hand and discard
                 let finalHand = newHand
-                let newDiscard = [...currentDiscard]
-                
+                const newDiscard = [...localDiscard]
+
                 if (isEliminated) {
-                    // Mercy rule: eliminated hand returns to discard pool
                     finalHand = []
                     newDiscard.push(...newHand)
                 } else if (foundColor) {
@@ -860,65 +934,62 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     newDiscard.push(card)
                 }
 
-                // Determine new color
                 let newColor = currentGame.value.current_color
                 if (foundColor) {
                     newColor = card.color === 'wild' ? targetColor : card.color
                 }
 
-                try {
-                    await supabase
-                        .from('game_players')
-                        .update({
-                            hand: finalHand,
-                            is_eliminated: isEliminated,
-                            has_called_uno: false
-                        })
-                        .eq('id', myPlayer.value.id)
+                await supabase
+                    .from('game_players')
+                    .update({
+                        hand: finalHand,
+                        is_eliminated: isEliminated,
+                        has_called_uno: false
+                    })
+                    .eq('id', myPlayer.value.id)
 
-                    // Check if elimination results in a winner
-                    const { winner_id, status: gStatus } = isEliminated
-                        ? await checkForWinnerAfterElimination()
-                        : { winner_id: null, status: 'playing' }
+                const { winner_id, status: gStatus } = isEliminated
+                    ? await checkForWinnerAfterElimination()
+                    : { winner_id: null, status: 'playing' }
 
-                    await supabase
-                        .from('games')
-                        .update({
-                            deck: currentDeck,
-                            discard_pile: newDiscard,
-                            current_color: newColor,
-                            turn_state: 'WAITING_FOR_ACTION',
-                            roulette_target_color: null,
-                            current_player_id: getNextPlayerId(),
-                            winner_id,
-                            status: gStatus
-                        })
-                        .eq('id', currentGame.value.id)
-                } catch (err: any) {
-                    error.value = err.message
-                }
+                await supabase
+                    .from('games')
+                    .update({
+                        deck: localDeck,
+                        discard_pile: newDiscard,
+                        current_color: newColor,
+                        turn_state: 'WAITING_FOR_ACTION',
+                        roulette_target_color: null,
+                        current_player_id: getNextPlayerId(),
+                        winner_id,
+                        status: gStatus
+                    })
+                    .eq('id', currentGame.value.id)
+
+                rouletteState = null
             } else {
-                // Keep drawing
-                try {
-                    await supabase
-                        .from('game_players')
-                        .update({ hand: newHand, has_called_uno: false })
-                        .eq('id', myPlayer.value.id)
+                // Keep drawing - update DB then schedule next draw
+                await supabase
+                    .from('game_players')
+                    .update({ hand: newHand, has_called_uno: false })
+                    .eq('id', myPlayer.value.id)
 
-                    await supabase
-                        .from('games')
-                        .update({
-                            deck: currentDeck,
-                            discard_pile: currentDiscard
-                        })
-                        .eq('id', currentGame.value.id)
+                await supabase
+                    .from('games')
+                    .update({
+                        deck: localDeck,
+                        discard_pile: localDiscard
+                    })
+                    .eq('id', currentGame.value.id)
 
-                    // Continue drawing after delay
-                    setTimeout(() => executeRouletteDraw(), 600)
-                } catch (err: any) {
-                    error.value = err.message
-                }
+                // Continue drawing after delay
+                actionInProgress.value = false
+                setTimeout(() => executeRouletteDraw(), 600)
+                return // Skip the finally block's actionInProgress reset
             }
+        } catch (err: any) {
+            error.value = err.message
+            rouletteState = null
         } finally {
             actionInProgress.value = false
         }
@@ -1014,64 +1085,71 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     // Draw until a playable card is found
     function createDrawUntilPlayable(state: DrawState): () => Promise<void> {
         const drawUntilPlayable = async (): Promise<void> => {
-            if (!currentGame.value || !myPlayer.value) {
-                actionInProgress.value = false
-                return
-            }
+            try {
+                if (!currentGame.value || !myPlayer.value) {
+                    actionInProgress.value = false
+                    return
+                }
 
-            const currentHand = [...(myPlayer.value.hand as Card[])]
+                const currentHand = [...(myPlayer.value.hand as Card[])]
 
-            // No cards left to draw
-            if (state.deck.length === 0 && !tryReshuffle(state)) {
+                // No cards left to draw
+                if (state.deck.length === 0 && !tryReshuffle(state)) {
+                    await supabase
+                        .from('games')
+                        .update({ current_player_id: getNextPlayerId() })
+                        .eq('id', currentGame.value.id)
+
+                    actionInProgress.value = false
+                    return
+                }
+
+                const card = state.deck.pop()
+                if (!card) {
+                    actionInProgress.value = false
+                    return
+                }
+
+                const newHand = [...currentHand, card]
+
+                // Check mercy rule (25+ cards = elimination)
+                if (checkMercyRule(newHand.length)) {
+                    await handleMercyElimination(newHand, state, currentGame.value.id)
+                    actionInProgress.value = false
+                    return
+                }
+
+                // Update hand
+                await supabase
+                    .from('game_players')
+                    .update({ hand: newHand, has_called_uno: false })
+                    .eq('id', myPlayer.value.id)
+
                 await supabase
                     .from('games')
-                    .update({ current_player_id: getNextPlayerId() })
+                    .update({ deck: state.deck, discard_pile: state.discardPile })
                     .eq('id', currentGame.value.id)
 
-                actionInProgress.value = false
-                return
-            }
+                // Check if drawn card is playable
+                if (state.topCard && canPlayCard(card, state.topCard, state.currentColor, 0)) {
+                    actionInProgress.value = false
 
-            const card = state.deck.pop()
-            if (!card) {
-                actionInProgress.value = false
-                return
-            }
-
-            const newHand = [...currentHand, card]
-
-            // Check mercy rule (25+ cards = elimination)
-            if (checkMercyRule(newHand.length)) {
-                await handleMercyElimination(newHand, state, currentGame.value.id)
-                actionInProgress.value = false
-                return
-            }
-
-            // Update hand
-            await supabase
-                .from('game_players')
-                .update({ hand: newHand, has_called_uno: false })
-                .eq('id', myPlayer.value.id)
-
-            await supabase
-                .from('games')
-                .update({ deck: state.deck, discard_pile: state.discardPile })
-                .eq('id', currentGame.value.id)
-
-            // Check if drawn card is playable
-            if (state.topCard && canPlayCard(card, state.topCard, state.currentColor, 0)) {
-                actionInProgress.value = false
-
-                setTimeout(async () => {
-                    let colorToPick: CardColor | undefined
                     if (card.color === 'wild') {
-                        colorToPick = getWildCardColor(newHand)
+                        // Wild card drawn - player needs to pick a color
+                        pendingDrawnWildCard.value = card
+                        return
                     }
-                    await playCard(card, colorToPick)
-                }, 800)
-            } else {
-                // Not playable, draw again
-                setTimeout(drawUntilPlayable, 400)
+
+                    setTimeout(async () => {
+                        await playCard(card)
+                    }, 800)
+                } else {
+                    // Not playable, draw again
+                    setTimeout(drawUntilPlayable, 400)
+                }
+            } catch (err: any) {
+                error.value = err.message
+                actionInProgress.value = false
             }
         }
 
@@ -1084,20 +1162,31 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         if (actionInProgress.value) return
         if (currentGame.value.current_player_id !== authStore.user?.id) return
 
+        const game = currentGame.value
+        const myHand = myPlayer.value.hand as Card[]
+        const topCard = (game.discard_pile as Card[])[(game.discard_pile as Card[]).length - 1]
+        const curColor = game.current_color as CardColor
+        const curDrawStack = game.draw_stack || 0
+
+        // Only allow drawing if player has no playable cards (except during draw stack penalty)
+        if (curDrawStack === 0 && topCard) {
+            const hasPlayable = myHand.some(c => canPlayCard(c, topCard, curColor, 0))
+            if (hasPlayable) return // Must play a card instead
+        }
+
         actionInProgress.value = true
 
-        const game = currentGame.value
         const state: DrawState = {
             deck: [...(game.deck as Card[])],
             discardPile: [...(game.discard_pile as Card[])],
-            topCard: (game.discard_pile as Card[])[(game.discard_pile as Card[]).length - 1],
-            currentColor: game.current_color as CardColor
+            topCard,
+            currentColor: curColor
         }
 
         // Handle draw stack penalty
-        if ((game.draw_stack || 0) > 0) {
+        if (curDrawStack > 0) {
             try {
-                await drawStackCards(game.draw_stack || 0, state, game.id)
+                await drawStackCards(curDrawStack, state, game.id)
             } catch (err: any) {
                 error.value = err.message
             } finally {
@@ -1109,6 +1198,76 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         // Standard draw: draw until playable
         const drawUntilPlayable = createDrawUntilPlayable(state)
         drawUntilPlayable()
+    }
+
+    // Play a drawn wild card after user selects color
+    async function playDrawnWildCard(color: CardColor) {
+        const card = pendingDrawnWildCard.value
+        if (!card) return
+        pendingDrawnWildCard.value = null
+        await playCard(card, color)
+    }
+
+    // Select top card for Discard All — reorder the discard pile so chosen card is on top
+    async function selectDiscardAllTop(topCardId: string) {
+        if (!currentGame.value || !myPlayer.value) return
+        if (currentGame.value.turn_state !== 'CHOOSING_DISCARD_ALL_TOP') return
+
+        const matchingCards = pendingDiscardAllCards.value
+        const topCard = matchingCards.find(c => c.id === topCardId)
+        if (!topCard) return
+
+        pendingDiscardAllCards.value = []
+
+        // Re-read the current discard pile from the game
+        const currentDiscard = [...(currentGame.value.discard_pile as Card[])]
+
+        // Remove the matching cards from the end of the discard pile
+        // (they were added by applyDiscardAllEffect)
+        const matchingIds = new Set(matchingCards.map(c => c.id))
+        const discardWithoutMatching = currentDiscard.filter(c => !matchingIds.has(c.id))
+
+        // Re-add them with the chosen card last (on top)
+        const others = matchingCards.filter(c => c.id !== topCardId)
+        const reorderedDiscard = [...discardWithoutMatching, ...others, topCard]
+
+        // Calculate next player
+        const myId = authStore.user?.id
+        if (!myId) return
+        const myIndex = gamePlayers.value.findIndex(p => p.user_id === myId)
+        const playerCount = gamePlayers.value.length
+        const direction = currentGame.value.direction as (1 | -1)
+        const nextIdx = calculateNextPlayerIndex(myIndex, direction, playerCount)
+        const nextPlayerId = gamePlayers.value[nextIdx]?.user_id || null
+
+        try {
+            // Check win condition
+            const myHand = myPlayer.value.hand as Card[]
+            let winnerId: string | null = null
+            let status = 'playing'
+
+            if (myHand.length === 0) {
+                if (myPlayer.value.has_called_uno) {
+                    await updateWinnerScore(myId)
+                    winnerId = myId
+                    status = 'finished'
+                }
+                // DiscardAll bulk discard doesn't penalize for UNO since cards went from many→0
+            }
+
+            await supabase
+                .from('games')
+                .update({
+                    discard_pile: reorderedDiscard,
+                    turn_state: 'WAITING_FOR_ACTION',
+                    current_player_id: nextPlayerId,
+                    winner_id: winnerId,
+                    status
+                })
+                .eq('id', currentGame.value.id)
+        } catch (err: any) {
+            error.value = err.message
+        }
     }
 
     // Leave game
@@ -1144,6 +1303,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         roomCode,
         opponentLeft,
         actionInProgress,
+        pendingDrawnWildCard,
+        pendingDiscardAllCards,
         createGame,
         joinGame,
         startGame,
@@ -1151,6 +1312,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         drawCard,
         swapHands,
         setRouletteColor,
+        playDrawnWildCard,
+        selectDiscardAllTop,
         callUno,
         leaveGame,
         loadGamePlayers

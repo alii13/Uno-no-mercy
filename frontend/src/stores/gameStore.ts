@@ -38,6 +38,12 @@ export const useGameStore = defineStore('game', () => {
     // For Roulette logic
     const rouletteTargetColor = ref<CardColor | null>(null)
 
+    // For draw-until-playable wild card color selection
+    const pendingDrawnWildCard = ref<Card | null>(null)
+
+    // For Discard All top card selection
+    const pendingDiscardAllCards = ref<Card[]>([])
+
     const winnerId = ref<string | null>(null)
     const swapInitiatorId = ref<string | null>(null)
     const hasCalledUno = ref<Record<string, boolean>>({})
@@ -109,6 +115,29 @@ export const useGameStore = defineStore('game', () => {
         if (firstCard) {
             discardPile.value.push(firstCard)
             currentColor.value = firstCard.color
+
+            // Apply first card effect per UNO rules
+            if (firstCard.type === 'skip') {
+                // First player is skipped
+                advanceTurn()
+            } else if (firstCard.type === 'reverse') {
+                // Reverse direction (in 2-player, first player gets skipped)
+                if (players.value.length === 2) {
+                    advanceTurn()
+                } else {
+                    direction.value = -1
+                }
+            } else if (firstCard.type === 'draw2') {
+                // First player draws 2 and is skipped
+                drawStack.value = 2
+            } else if (firstCard.type === 'draw4') {
+                // First player draws 4 and is skipped
+                drawStack.value = 4
+            } else if (firstCard.type === 'skipEveryone') {
+                // All players skipped - dealer (p0) plays again (no-op since p0 starts)
+            } else if (firstCard.type === 'discardAll') {
+                // First player may discard matching color cards on their turn
+            }
         }
 
         // Dealing complete
@@ -116,7 +145,9 @@ export const useGameStore = defineStore('game', () => {
         turnState.value = 'WAITING_FOR_ACTION'
 
         // Announce start
-        soundEffects.announceTurn("Game Start! Your turn")
+        const p = currentPlayer.value
+        const startMsg = p?.isBot ? `${p.name}'s turn` : "Game Start! Your turn"
+        soundEffects.announceTurn(startMsg)
     }
 
     function drawCardFromDeck(): Card | undefined {
@@ -188,9 +219,11 @@ export const useGameStore = defineStore('game', () => {
             soundEffects.announceTurn(text)
 
             // Show UNO button if player has 2 cards and it's their turn
+            // (they need to call UNO before playing their second-to-last card)
             if (!p.isBot && p.hand.length === 2) {
                 showUnoButton.value = true
-            } else {
+            } else if (!showUnoButton.value) {
+                // Don't hide if UNO button is already showing (from post-play 1-card state)
                 showUnoButton.value = false
             }
         }
@@ -211,6 +244,7 @@ export const useGameStore = defineStore('game', () => {
 
         const cardIndex = player.hand.findIndex(c => c.id === card.id)
         if (cardIndex === -1) return
+        const handSizeBeforePlay = player.hand.length
         player.hand.splice(cardIndex, 1)
 
         discardPile.value.push(card)
@@ -246,8 +280,10 @@ export const useGameStore = defineStore('game', () => {
         }
 
         if (player.hand.length === 0) {
-            // Check if UNO was called
-            if (!hasCalledUno.value[player.id]) {
+            // UNO penalty only applies if player went from exactly 2→1→0 (they had a chance to call UNO)
+            // If DiscardAll or other effects dropped them from 3+→0, no UNO call was expected
+            const neededUno = handSizeBeforePlay === 2
+            if (neededUno && !hasCalledUno.value[player.id]) {
                 // Penalty: Draw 2
                 drawCardToHand(player)
                 drawCardToHand(player)
@@ -261,11 +297,16 @@ export const useGameStore = defineStore('game', () => {
             return
         }
 
-        // Potential for bots to call UNO
-        if (player.isBot && player.hand.length === 1 && !hasCalledUno.value[player.id]) {
-            // 70% chance to call UNO correctly
-            if (Math.random() > 0.3) {
-                callUno(player.id)
+        // UNO handling when player reaches 1 card
+        if (player.hand.length === 1 && !hasCalledUno.value[player.id]) {
+            if (player.isBot) {
+                // 70% chance to call UNO correctly
+                if (Math.random() > 0.3) {
+                    callUno(player.id)
+                }
+            } else {
+                // Show UNO button for human player
+                showUnoButton.value = true
             }
         }
 
@@ -314,22 +355,82 @@ export const useGameStore = defineStore('game', () => {
         advanceTurn()
     }
 
-    function handleDiscardAll(card: Card) {
+    function handleDiscardAll(card: Card): boolean | void {
         const player = currentPlayer.value
         if (!player) return
-        
+
         const toDiscard = player.hand.filter(c => c.color === card.color)
-        let delay = 0
-        toDiscard.forEach(c => {
-            setTimeout(() => {
-                const idx = player.hand.findIndex(h => h.id === c.id)
-                if (idx > -1) {
-                    player.hand.splice(idx, 1)
-                    discardPile.value.push(c)
-                }
-            }, delay)
-            delay += 200
-        })
+        if (toDiscard.length === 0) return
+
+        // If only 1 matching card, no choice needed — auto-discard
+        if (toDiscard.length === 1) {
+            executeDiscardAll(toDiscard, toDiscard[0]!)
+            return
+        }
+
+        if (player.isBot) {
+            // Bot picks a random top card
+            const topChoice = toDiscard[Math.floor(Math.random() * toDiscard.length)]!
+            executeDiscardAll(toDiscard, topChoice)
+            return
+        }
+
+        // Human: show picker to choose which card goes on top
+        pendingDiscardAllCards.value = toDiscard
+        turnState.value = 'CHOOSING_DISCARD_ALL_TOP'
+        return true // Signal to stop — don't advance turn yet
+    }
+
+    function executeDiscardAll(cards: Card[], topCard: Card) {
+        const player = currentPlayer.value
+        if (!player) return
+
+        // Discard all except the chosen top card first, then top card last
+        const others = cards.filter(c => c.id !== topCard.id)
+        for (const c of [...others, topCard]) {
+            const idx = player.hand.findIndex(h => h.id === c.id)
+            if (idx > -1) {
+                player.hand.splice(idx, 1)
+                discardPile.value.push(c)
+            }
+        }
+    }
+
+    function selectDiscardAllTop(topCardId: string) {
+        if (turnState.value !== 'CHOOSING_DISCARD_ALL_TOP') return
+        const cards = pendingDiscardAllCards.value
+        const topCard = cards.find(c => c.id === topCardId)
+        if (!topCard) return
+
+        executeDiscardAll(cards, topCard)
+        pendingDiscardAllCards.value = []
+        turnState.value = 'WAITING_FOR_ACTION'
+
+        // Now check win/UNO and advance turn (same logic as end of playCard)
+        const player = currentPlayer.value
+        if (player && player.hand.length === 0) {
+            const neededUno = false // DiscardAll bulk discard — no UNO expected
+            if (neededUno && !hasCalledUno.value[player.id]) {
+                drawCardToHand(player)
+                drawCardToHand(player)
+                soundEffects.announceTurn("CAUGHT! Draw 2")
+            } else {
+                winnerId.value = player.id
+                applyScoresToWinner(player.id)
+                gameState.value = 'GAME_OVER'
+                return
+            }
+        }
+
+        if (player && player.hand.length === 1 && !hasCalledUno.value[player.id]) {
+            if (player.isBot) {
+                if (Math.random() > 0.3) callUno(player.id)
+            } else {
+                showUnoButton.value = true
+            }
+        }
+
+        advanceTurn()
     }
 
     function handleNumberZero() {
@@ -418,13 +519,18 @@ export const useGameStore = defineStore('game', () => {
                 if (!p || !topCard.value) return
                 // Draw 1
                 const card = drawCardToHand(p)
-                if (!card) return // Deck empty processing handled in drawCardToHand internal logic if needed? 
-                // Actually deck reshuffles.
+                if (!card) return
 
                 // Check if playable
                 if (canPlayCard(card, topCard.value, currentColor.value, 0)) {
                     // Playable! Rule: "then immediately play it"
                     setTimeout(() => {
+                        if (card.color === 'wild' && !p.isBot) {
+                            // Human player needs to pick a color - show modal
+                            pendingDrawnWildCard.value = card
+                            turnState.value = 'CHOOSING_DRAWN_WILD_COLOR'
+                            return
+                        }
                         let colorToPick: CardColor | undefined
                         if (card.color === 'wild') {
                             colorToPick = chooseBotColor(p)
@@ -433,7 +539,7 @@ export const useGameStore = defineStore('game', () => {
                     }, 1000)
                     return
                 } else {
-                    // Not playable, check mercy rule (handled inc drawCardToHand).
+                    // Not playable, check mercy rule (handled in drawCardToHand).
                     if (p.isEliminated) {
                         advanceTurn()
                         return
@@ -601,9 +707,17 @@ export const useGameStore = defineStore('game', () => {
                 if (gameState.value !== 'PLAYING') return
                 if (currentPlayerIndex.value !== players.value.indexOf(player) &&
                     turnState.value !== 'ROULETTE_DRAWING' &&
-                    turnState.value !== 'CHOOSING_ROULETTE_COLOR') return
+                    turnState.value !== 'CHOOSING_ROULETTE_COLOR' &&
+                    turnState.value !== 'CHOOSING_DISCARD_ALL_TOP') return
 
-                if (turnState.value === 'CHOOSING_PLAYER_TO_SWAP') {
+                if (turnState.value === 'CHOOSING_DISCARD_ALL_TOP') {
+                    // Bot auto-selects a random top card
+                    const cards = pendingDiscardAllCards.value
+                    if (cards.length > 0) {
+                        const pick = cards[Math.floor(Math.random() * cards.length)]!
+                        selectDiscardAllTop(pick.id)
+                    }
+                } else if (turnState.value === 'CHOOSING_PLAYER_TO_SWAP') {
                     executeBotSwap()
                 } else if (turnState.value === 'ROULETTE_DRAWING') {
                     executeRouletteDraw()
@@ -657,6 +771,8 @@ export const useGameStore = defineStore('game', () => {
         currentPlayer,
         topCard,
         rouletteTargetColor,
+        pendingDrawnWildCard,
+        pendingDiscardAllCards,
         showUnoButton,
         hasCalledUno,
         initializeGame,
@@ -670,6 +786,8 @@ export const useGameStore = defineStore('game', () => {
         playerActionPlayCard,
         executeRouletteDraw,
         setRouletteColor,
+        playDrawnWildCard,
+        selectDiscardAllTop,
         callUno,
         isDealing,
         pendingDealCard,
@@ -681,5 +799,14 @@ export const useGameStore = defineStore('game', () => {
         rouletteTargetColor.value = color
         turnState.value = 'ROULETTE_DRAWING'
         executeRouletteDraw()
+    }
+
+    function playDrawnWildCard(color: CardColor) {
+        if (turnState.value !== 'CHOOSING_DRAWN_WILD_COLOR') return
+        const card = pendingDrawnWildCard.value
+        if (!card) return
+        pendingDrawnWildCard.value = null
+        turnState.value = 'WAITING_FOR_ACTION'
+        playerActionPlayCard(card, color)
     }
 })

@@ -37,6 +37,7 @@
           :current-player-name="store.currentPlayer?.name || 'Unknown'"
           :direction="store.direction"
           :draw-stack="store.drawStack"
+          :current-color="store.currentColor"
           :message="gameMessage"
           :message-style="messageStyle"
         />
@@ -65,7 +66,7 @@
     <div class="animation-layer" ref="animationLayer"></div>
     
     <!-- Modals / Overlays -->
-    <ColorPickerModal 
+    <ColorPickerModal
       v-if="store.turnState === 'CHOOSING_ROULETTE_COLOR' && isMyTurn"
       title="ROULETTE TRAP DETECTED"
       subtitle="CHOOSE YOUR FATE"
@@ -73,10 +74,23 @@
       @select="(c) => store.setRouletteColor(c)"
     />
 
+    <ColorPickerModal
+      v-if="store.turnState === 'CHOOSING_DRAWN_WILD_COLOR' && isMyTurn"
+      title="WILD CARD DRAWN"
+      subtitle="CHOOSE COLOR TO PLAY"
+      @select="(c) => store.playDrawnWildCard(c)"
+    />
+
     <PlayerSelectModal
       v-if="store.turnState === 'CHOOSING_PLAYER_TO_SWAP' && isMyTurn"
       :eligible-players="store.players.filter(p => !p.isEliminated && p.id !== myPlayerId)"
       @select="(id: string) => store.swapHands(id)"
+    />
+
+    <DiscardAllPickerModal
+      v-if="store.turnState === 'CHOOSING_DISCARD_ALL_TOP' && isMyTurn"
+      :cards="store.pendingDiscardAllCards"
+      @select="(id: string) => store.selectDiscardAllTop(id)"
     />
 
     <div v-if="store.gameState === 'GAME_OVER'" class="overlay">
@@ -93,6 +107,7 @@
 <script setup lang="ts">
 import { computed, ref, provide, watch, onMounted } from 'vue'
 import { useGameStore } from '../../stores/gameStore'
+import { canPlayCard } from '../../utils/gameRules'
 import { soundEffects } from '../../composables/useSoundEffects'
 import { useCardAnimations } from '../../composables/useCardAnimations'
 import OpponentHand from './OpponentHand.vue'
@@ -100,6 +115,7 @@ import PlayerHand from './PlayerHand.vue'
 import CardPile from './CardPile.vue'
 import ColorPickerModal from './ColorPickerModal.vue'
 import PlayerSelectModal from './PlayerSelectModal.vue'
+import DiscardAllPickerModal from './DiscardAllPickerModal.vue'
 import GameBackground from './GameBackground.vue'
 import SurveillanceBar from './SurveillanceBar.vue'
 import BattlePit from './BattlePit.vue'
@@ -230,10 +246,16 @@ function triggerShake() {
 }
 
 function drawCard() {
-  if (isMyTurn.value && store.turnState === 'WAITING_FOR_ACTION') {
-    soundEffects.playCardPick()
-    store.drawCardsForCurrentPlayer()
+  if (!isMyTurn.value || store.turnState !== 'WAITING_FOR_ACTION') return
+  // Only allow drawing when no playable cards exist (except during draw stack)
+  if (store.drawStack === 0 && store.topCard && myPlayer.value) {
+    const hasPlayable = myPlayer.value.hand.some(c =>
+      canPlayCard(c, store.topCard!, store.currentColor, 0)
+    )
+    if (hasPlayable) return
   }
+  soundEffects.playCardPick()
+  store.drawCardsForCurrentPlayer()
 }
 
 function toggleSound() {
@@ -246,7 +268,7 @@ function getWinnerName() {
 }
 
 function restart() {
-  store.initializeGame(['Hero', 'Rival 1', 'Rival 2', 'Rival 3'])
+  store.initializeGame(['You', 'Terminator'])
 }
 function onOpponentClick(playerId: string) {
   if (store.turnState === 'CHOOSING_PLAYER_TO_SWAP' && isMyTurn.value) {
