@@ -2,6 +2,8 @@
 
 A real-time multiplayer UNO card game with the brutal "No Mercy" rule expansion. Play online with friends or battle a ruthless AI - all from your browser.
 
+**Play now:** [uno-no-mercy.pages.dev](https://uno-no-mercy.pages.dev)
+
 ## Why this exists
 
 The official UNO No Mercy rules never got a proper digital version. This project brings every chaotic rule - Draw 6, Draw 10, Skip Everyone, Discard All, Color Roulette, hand swaps on 7, hand rotations on 0 - into a fast, playable web game. No downloads, no app stores.
@@ -104,6 +106,31 @@ npm run build
 npm run preview   # test the production build locally
 ```
 
+### Deploy to Cloudflare Pages
+
+The production site runs on [Cloudflare Pages](https://pages.cloudflare.com).
+
+**Option A: CLI deploy**
+
+```bash
+cd frontend
+npm run build
+npx wrangler pages deploy dist --project-name uno-no-mercy
+```
+
+**Option B: GitHub auto-deploy**
+
+1. Go to [Cloudflare Dashboard > Pages](https://dash.cloudflare.com/?to=/:account/pages)
+2. Create a project and connect your GitHub repo
+3. Set build configuration:
+   - **Build command:** `npm run build`
+   - **Build output directory:** `dist`
+   - **Root directory:** `frontend`
+4. Add environment variables:
+   - `VITE_SUPABASE_URL` - your Supabase project URL
+   - `VITE_SUPABASE_ANON_KEY` - your Supabase anon key
+5. Every push to `main` auto-deploys
+
 ### Supabase proxy (optional)
 
 If Supabase is blocked in your region, the `supabase-proxy/` directory contains a Cloudflare Worker that proxies all traffic through Cloudflare's network.
@@ -114,6 +141,11 @@ npm install
 # Update wrangler.toml with your Supabase project ref
 npx wrangler dev       # local dev
 npx wrangler deploy    # deploy to Cloudflare
+```
+
+Then add to your frontend `.env`:
+```env
+VITE_SUPABASE_PROXY_URL=https://uno-supabase-proxy.your-subdomain.workers.dev
 ```
 
 ## Screens

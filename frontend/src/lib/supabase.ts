@@ -1,10 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
 
 // Use proxy URL if set (bypasses ISP blocks in India/UAE), otherwise direct Supabase
-const supabaseUrl = import.meta.env.VITE_SUPABASE_PROXY_URL || import.meta.env.VITE_SUPABASE_URL || 'https://djzqoccutacfueuadflw.supabase.co'
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+const supabaseUrl = import.meta.env.VITE_SUPABASE_PROXY_URL || import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-console.log('Supabase config:', { url: supabaseUrl, keyLength: supabaseAnonKey.length, keyPrefix: supabaseAnonKey.substring(0, 10) })
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables. See frontend/.env.example')
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   // When using a proxy, we need to tell the realtime client where to connect
