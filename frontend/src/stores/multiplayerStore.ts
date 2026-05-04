@@ -40,6 +40,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     )
     const gameStatus = computed(() => currentGame.value?.status || 'waiting')
     const roomCode = computed(() => currentGame.value?.room_code || '')
+    const opponents = computed(() =>
+        gamePlayers.value.filter(p => p.user_id !== authStore.user?.id)
+    )
 
     // Generate room code
     function generateRoomCode(): string {
@@ -51,24 +54,34 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         return code
     }
 
-    // Helper: Calculate next player ID based on current player and direction
-    function getNextPlayerId(): string | null {
+    // Helper: Calculate next active (non-eliminated) player ID based on current player and direction
+    function getNextPlayerId(fromUserId?: string): string | null {
         if (!currentGame.value) return null
-        const myId = authStore.user?.id
-        const myIndex = gamePlayers.value.findIndex(p => p.user_id === myId)
+        const fromId = fromUserId || authStore.user?.id
+        const fromIndex = gamePlayers.value.findIndex(p => p.user_id === fromId)
         const playerCount = gamePlayers.value.length
         const direction = (currentGame.value.direction || 1) as (1 | -1)
-        const nextIdx = calculateNextPlayerIndex(myIndex, direction, playerCount)
+
+        // Skip eliminated players
+        let nextIdx = calculateNextPlayerIndex(fromIndex, direction, playerCount)
+        let attempts = 0
+        while (gamePlayers.value[nextIdx]?.is_eliminated && attempts < playerCount) {
+            nextIdx = calculateNextPlayerIndex(nextIdx, direction, playerCount)
+            attempts++
+        }
         return gamePlayers.value[nextIdx]?.user_id || null
     }
 
-    // Helper: Check if elimination results in a winner, update scores if so
+    // Helper: Check if elimination results in a winner (last player standing), update scores if so
     async function checkForWinnerAfterElimination(): Promise<{ winner_id: string | null; status: string }> {
-        const otherActivePlayers = gamePlayers.value.filter(
-            gp => gp.user_id !== myPlayer.value?.user_id && !gp.is_eliminated
-        )
-        if (otherActivePlayers.length === 1 && otherActivePlayers[0]) {
-            const winnerId = otherActivePlayers[0].user_id
+        // Count ALL active (non-eliminated) players
+        const activePlayers = gamePlayers.value.filter(gp => !gp.is_eliminated)
+
+        // Also account for the player currently being eliminated (whose DB flag hasn't been written yet)
+        const activeExcludingMe = activePlayers.filter(gp => gp.user_id !== myPlayer.value?.user_id)
+
+        if (activeExcludingMe.length === 1 && activeExcludingMe[0]) {
+            const winnerId = activeExcludingMe[0].user_id
             await updateWinnerScore(winnerId)
             return { winner_id: winnerId, status: 'finished' }
         }
@@ -198,8 +211,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
             console.log('Player count:', count)
 
-            if ((count || 0) >= 2) {
-                throw new Error('Game is full')
+            if ((count || 0) >= 10) {
+                throw new Error('Game is full (max 10 players)')
             }
 
             // Join the game
@@ -209,7 +222,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     game_id: game.id,
                     user_id: authStore.user.id,
                     name: authStore.profile.username,
-                    seat_order: 1
+                    seat_order: count || 1
                 })
                 .select()
                 .single()
@@ -246,6 +259,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         if (!err && data) {
             gamePlayers.value = data
             myPlayer.value = data.find(p => p.user_id === authStore.user?.id) || null
+            // Keep first opponent for backward compat (2-player views)
             opponent.value = data.find(p => p.user_id !== authStore.user?.id) || null
         }
     }
@@ -312,15 +326,14 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 if (payload.new?.game_id === gameId || payload.old?.game_id === gameId) {
                     console.log('Realtime: Reloading players for our game')
 
-                    // Check for opponent leaving (DELETE event on a player that isn't me)
+                    // Check for player leaving during active game
                     if (payload.eventType === 'DELETE' && payload.old?.user_id !== authStore.user?.id) {
-                        console.log('Realtime: Opponent left the game!')
-                        opponentLeft.value = true
+                        console.log('Realtime: A player left the game!')
                     }
 
                     await loadGamePlayers(gameId)
 
-                    // Also check if opponent is no longer in gamePlayers after reload
+                    // If during an active game we're down to < 2 players, game is unplayable
                     if (currentGame.value?.status === 'playing' && gamePlayers.value.length < 2) {
                         opponentLeft.value = true
                     }
@@ -356,11 +369,12 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         try {
             // Generate and shuffle deck
             const deck = shuffleDeck(generateFullDeck())
+            const playerCount = gamePlayers.value.length
 
             // Deal 7 cards to each player
-            const hands: Card[][] = [[], []]
+            const hands: Card[][] = Array.from({ length: playerCount }, () => [])
             for (let i = 0; i < 7; i++) {
-                for (let j = 0; j < 2; j++) {
+                for (let j = 0; j < playerCount; j++) {
                     const card = deck.pop()
                     const hand = hands[j]
                     if (card && hand) hand.push(card)
@@ -394,7 +408,6 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
             // Update game state with first card effects
             const firstPlayer = gamePlayers.value[0]
-            const secondPlayer = gamePlayers.value[1]
             if (!firstPlayer) throw new Error('No players found')
 
             let startingPlayerId = firstPlayer.user_id
@@ -402,11 +415,15 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             let startingDrawStack = 0
 
             if (firstCard) {
-                if (firstCard.type === 'skip' || (firstCard.type === 'reverse' && gamePlayers.value.length === 2)) {
-                    // First player skipped, second player starts
-                    startingPlayerId = secondPlayer?.user_id || firstPlayer.user_id
+                if (firstCard.type === 'skip' || (firstCard.type === 'reverse' && playerCount === 2)) {
+                    // First player skipped — next player starts
+                    const nextIdx = calculateNextPlayerIndex(0, 1, playerCount)
+                    startingPlayerId = gamePlayers.value[nextIdx]?.user_id || firstPlayer.user_id
                 } else if (firstCard.type === 'reverse') {
+                    // 3+ players: reverse direction, last player goes first
                     startingDirection = -1
+                    const nextIdx = calculateNextPlayerIndex(0, -1, playerCount)
+                    startingPlayerId = gamePlayers.value[nextIdx]?.user_id || firstPlayer.user_id
                 } else if (firstCard.type === 'draw2') {
                     startingDrawStack = 2
                 } else if (firstCard.type === 'draw4') {
@@ -484,7 +501,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         }
     }
 
-    // Handle skip card effect
+    // Handle skip card effect — skip the next active player
     function applySkipEffect(
         card: Card,
         myIndex: number,
@@ -493,9 +510,21 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     ): void {
         if (card.type !== 'skip') return
 
+        // Find next active player (the one being skipped)
         let skipIdx = calculateNextPlayerIndex(myIndex, state.direction, playerCount)
-        skipIdx = calculateNextPlayerIndex(skipIdx, state.direction, playerCount)
-        state.nextPlayerId = gamePlayers.value[skipIdx]?.user_id || null
+        let attempts = 0
+        while (gamePlayers.value[skipIdx]?.is_eliminated && attempts < playerCount) {
+            skipIdx = calculateNextPlayerIndex(skipIdx, state.direction, playerCount)
+            attempts++
+        }
+        // Now find the player AFTER the skipped one
+        let nextIdx = calculateNextPlayerIndex(skipIdx, state.direction, playerCount)
+        attempts = 0
+        while (gamePlayers.value[nextIdx]?.is_eliminated && attempts < playerCount) {
+            nextIdx = calculateNextPlayerIndex(nextIdx, state.direction, playerCount)
+            attempts++
+        }
+        state.nextPlayerId = gamePlayers.value[nextIdx]?.user_id || null
     }
 
     // Handle skip everyone (play again)
@@ -504,7 +533,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         state.nextPlayerId = myId
     }
 
-    // Handle wild color roulette
+    // Handle wild color roulette — victim is next active player
     function applyRouletteEffect(
         card: Card,
         myIndex: number,
@@ -514,7 +543,13 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         if (card.type !== 'wildColorRoulette') return
 
         state.turnState = 'CHOOSING_ROULETTE_COLOR'
-        const victimIdx = calculateNextPlayerIndex(myIndex, state.direction, playerCount)
+        // Find next active (non-eliminated) player as victim
+        let victimIdx = calculateNextPlayerIndex(myIndex, state.direction, playerCount)
+        let attempts = 0
+        while (gamePlayers.value[victimIdx]?.is_eliminated && attempts < playerCount) {
+            victimIdx = calculateNextPlayerIndex(victimIdx, state.direction, playerCount)
+            attempts++
+        }
         state.nextPlayerId = gamePlayers.value[victimIdx]?.user_id || null
     }
 
@@ -600,9 +635,14 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         applyRotateHandsEffect(card, myId, playerCount, state)
         applySwapEffect(card, myId, state)
 
-        // Default next player if not set
+        // Default next player if not set — skip eliminated players
         if (state.nextPlayerId === null) {
-            const nextIdx = calculateNextPlayerIndex(myIndex, state.direction, playerCount)
+            let nextIdx = calculateNextPlayerIndex(myIndex, state.direction, playerCount)
+            let attempts = 0
+            while (gamePlayers.value[nextIdx]?.is_eliminated && attempts < playerCount) {
+                nextIdx = calculateNextPlayerIndex(nextIdx, state.direction, playerCount)
+                attempts++
+            }
             state.nextPlayerId = gamePlayers.value[nextIdx]?.user_id || null
         }
     }
@@ -1295,6 +1335,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         gamePlayers,
         myPlayer,
         opponent,
+        opponents,
         loading,
         error,
         isHost,

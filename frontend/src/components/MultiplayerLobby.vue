@@ -49,33 +49,36 @@
         </div>
         
         <div class="players-list">
-          <div class="player-slot" v-for="i in 2" :key="i">
-          <template v-if="mpStore.gamePlayers[i - 1]">
-              <div class="player-avatar">{{ mpStore.gamePlayers[i - 1]?.name?.charAt(0) }}</div>
-              <span class="player-name">{{ mpStore.gamePlayers[i - 1]?.name }}</span>
-              <span class="player-status ready">READY</span>
-            </template>
-            <template v-else>
-              <div class="player-avatar empty">?</div>
-              <span class="player-name muted">Waiting for player...</span>
-              <div class="loading-dots">
-                <span></span><span></span><span></span>
-              </div>
-            </template>
+          <div class="player-slot" v-for="player in mpStore.gamePlayers" :key="player.id">
+            <div class="player-avatar">{{ player.name?.charAt(0) }}</div>
+            <span class="player-name">{{ player.name }}</span>
+            <span class="player-badge" v-if="player.user_id === mpStore.currentGame?.host_id">HOST</span>
+            <span class="player-status ready">READY</span>
+          </div>
+          <div class="player-slot empty-slot" v-if="mpStore.gamePlayers.length < 10">
+            <div class="player-avatar empty">?</div>
+            <span class="player-name muted">Waiting for players...</span>
+            <div class="loading-dots">
+              <span></span><span></span><span></span>
+            </div>
           </div>
         </div>
-        
+
+        <div class="player-counter">
+          {{ mpStore.gamePlayers.length }} / 10 PLAYERS
+        </div>
+
         <div class="waiting-actions">
-          <button 
-            v-if="mpStore.isHost" 
+          <button
+            v-if="mpStore.isHost"
             @click="startGame"
             :disabled="mpStore.gamePlayers.length < 2"
             class="start-btn"
           >
-            {{ mpStore.gamePlayers.length < 2 ? 'WAITING FOR OPPONENT...' : 'START GAME' }}
+            {{ mpStore.gamePlayers.length < 2 ? 'NEED AT LEAST 2 PLAYERS...' : `START GAME (${mpStore.gamePlayers.length} PLAYERS)` }}
           </button>
-          <p v-else class="waiting-text">Waiting for host to start...</p>
-          
+          <p v-else class="waiting-text">Waiting for host to start... ({{ mpStore.gamePlayers.length }} players)</p>
+
           <button @click="leaveGame" class="leave-btn">LEAVE GAME</button>
         </div>
       </div>
@@ -311,20 +314,44 @@ function copyRoomCode() {
 
 .players-list {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
-  gap: 3rem;
-  margin-bottom: 2rem;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
 }
 
 .player-slot {
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid #333;
-  padding: 2rem;
-  min-width: 200px;
+  padding: 1.5rem;
+  min-width: 150px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
+}
+
+.player-slot.empty-slot {
+  border-style: dashed;
+  opacity: 0.5;
+}
+
+.player-badge {
+  font-size: 0.65rem;
+  background: var(--color-hazard);
+  color: black;
+  padding: 0.15rem 0.5rem;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+.player-counter {
+  text-align: center;
+  color: var(--text-muted);
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  margin-bottom: 1.5rem;
+  letter-spacing: 2px;
 }
 
 .player-avatar {
@@ -503,5 +530,92 @@ function copyRoomCode() {
 .join-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .lobby-options {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .lobby-content {
+    padding: 1.5rem;
+  }
+
+  .title {
+    font-size: 3.5rem;
+  }
+
+  .room-code-display .code {
+    font-size: 2rem;
+  }
+
+  .start-btn {
+    font-size: 1.2rem;
+    padding: 1rem 2rem;
+  }
+
+  .modal-card {
+    min-width: unset;
+    width: 90vw;
+  }
+}
+
+@media (max-width: 480px) {
+  .title {
+    font-size: 2.5rem;
+  }
+
+  .subtitle {
+    font-size: 1.2rem;
+  }
+
+  .lobby-header {
+    padding: 1rem;
+  }
+
+  .lobby-content {
+    padding: 1rem;
+  }
+
+  .room-code-display .code {
+    font-size: 2rem;
+    letter-spacing: 0.3rem;
+  }
+
+  .start-btn {
+    font-size: 1rem;
+    padding: 1rem;
+    width: 100%;
+  }
+
+  .option-card {
+    padding: 1.5rem;
+  }
+
+  .option-icon {
+    font-size: 2rem;
+  }
+
+  .player-slot {
+    min-width: 120px;
+    padding: 1rem;
+  }
+
+  .player-avatar {
+    width: 45px;
+    height: 45px;
+    font-size: 1.2rem;
+  }
+
+  .modal-card {
+    min-width: unset;
+    width: 95vw;
+    padding: 1.5rem;
+  }
+
+  .room-input {
+    font-size: 1.5rem;
+  }
 }
 </style>

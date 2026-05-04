@@ -156,3 +156,19 @@ button {
   95% { clip: rect(42px, 9999px, 97px, 0); }
   100% { clip: rect(38px, 9999px, 49px, 0); }
 }
+
+/* Disable glitch pseudo-elements on small screens — saves CPU */
+@media (max-width: 480px) {
+  .glitch-text::before,
+  .glitch-text::after {
+    display: none;
+  }
+}
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .glitch-text::before,
+  .glitch-text::after {
+    animation: none;
+  }
+}

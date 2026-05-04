@@ -121,4 +121,28 @@ defineEmits<{
   font-size: 0.7rem;
   color: #444;
 }
+
+@media (max-width: 480px) {
+  .tactical-hud {
+    width: 95vw;
+    padding: 1rem;
+  }
+
+  .hud-header {
+    font-size: 0.75rem;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .player-btn {
+    padding: 0.75rem;
+  }
+}
+
+@media (max-width: 768px) and (min-width: 481px) {
+  .tactical-hud {
+    width: 90vw;
+    padding: 1.5rem;
+  }
+}
 </style>
