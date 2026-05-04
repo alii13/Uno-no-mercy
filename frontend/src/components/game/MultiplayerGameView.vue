@@ -161,7 +161,7 @@ import type { Card, CardColor } from '../../types/card'
 
 const mpStore = useMultiplayerStore()
 const authStore = useAuthStore()
-const { animateFlyingCard, animateDealCards, animateDrawCardsStaggered } = useCardAnimations()
+const { animateFlyingCard, animateDrawCardsStaggered } = useCardAnimations()
 
 const isShakeActive = ref(false)
 const showColorPicker = ref(false)
