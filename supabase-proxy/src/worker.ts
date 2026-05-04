@@ -126,77 +126,64 @@ export default {
  * 3. Pipe messages between client ↔ Supabase
  */
 async function handleWebSocket(request: Request, targetUrl: URL, env: Env): Promise<Response> {
-  // Change protocol to wss:// for the upstream connection
+  // Cloudflare fetch() needs https://, not wss:// - it handles the WS upgrade internally
   const wsUrl = new URL(targetUrl.toString())
-  wsUrl.protocol = 'wss:'
+  wsUrl.protocol = 'https:'
 
-  // Forward relevant headers to Supabase (don't set Host — causes CF 1016 loop)
+  // Build headers for upstream connection (no Host header - causes 1101 on WS)
   const headers = new Headers()
-  const apikey = request.headers.get('apikey')
+  const apikey = request.headers.get('apikey') || wsUrl.searchParams.get('apikey')
   if (apikey) headers.set('apikey', apikey)
   const auth = request.headers.get('Authorization')
   if (auth) headers.set('Authorization', auth)
 
-  // Create a WebSocket pair: [client-facing, server-facing]
-  const pair = new WebSocketPair()
-  const [clientWs, serverWs] = [pair[0], pair[1]]
+  try {
+    // Use Cloudflare's fetch with Upgrade header for WebSocket
+    headers.set('Upgrade', 'websocket')
+    const upstreamResponse = await fetch(wsUrl.toString(), {
+      headers,
+    })
 
-  // Accept the server side immediately so we can start receiving from client
-  serverWs.accept()
+    const upstreamWs = upstreamResponse.webSocket
+    if (!upstreamWs) {
+      const body = await upstreamResponse.text()
+      return new Response(JSON.stringify({ error: 'WebSocket upgrade failed', status: upstreamResponse.status, body }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
 
-  // Connect to upstream Supabase Realtime
-  const upstreamResponse = await fetch(wsUrl.toString(), {
-    headers,
-    method: 'GET',
-    // @ts-ignore - Cloudflare Workers support this
-    cf: { webSocket: true },
-  })
+    upstreamWs.accept()
 
-  const upstreamWs = upstreamResponse.webSocket
-  if (!upstreamWs) {
-    serverWs.close(1011, 'Failed to connect to upstream WebSocket')
-    return new Response('WebSocket upgrade failed', { status: 502 })
+    // Create a WebSocket pair for the client
+    const pair = new WebSocketPair()
+    const [clientWs, serverWs] = [pair[0], pair[1]]
+    serverWs.accept()
+
+    // Pipe: client → upstream
+    serverWs.addEventListener('message', (event) => {
+      try { upstreamWs.send(event.data) } catch {}
+    })
+    serverWs.addEventListener('close', (event) => {
+      try { upstreamWs.close(event.code, event.reason) } catch {}
+    })
+
+    // Pipe: upstream → client
+    upstreamWs.addEventListener('message', (event) => {
+      try { serverWs.send(event.data) } catch {}
+    })
+    upstreamWs.addEventListener('close', (event) => {
+      try { serverWs.close(event.code, event.reason) } catch {}
+    })
+
+    return new Response(null, {
+      status: 101,
+      webSocket: clientWs,
+    })
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: 'WebSocket proxy error', message: err.message }), {
+      status: 502,
+      headers: { 'Content-Type': 'application/json' },
+    })
   }
-
-  upstreamWs.accept()
-
-  // Pipe: client → upstream
-  serverWs.addEventListener('message', (event) => {
-    try {
-      upstreamWs.send(event.data)
-    } catch {
-      // upstream closed
-    }
-  })
-
-  serverWs.addEventListener('close', (event) => {
-    try {
-      upstreamWs.close(event.code, event.reason)
-    } catch {
-      // already closed
-    }
-  })
-
-  // Pipe: upstream → client
-  upstreamWs.addEventListener('message', (event) => {
-    try {
-      serverWs.send(event.data)
-    } catch {
-      // client closed
-    }
-  })
-
-  upstreamWs.addEventListener('close', (event) => {
-    try {
-      serverWs.close(event.code, event.reason)
-    } catch {
-      // already closed
-    }
-  })
-
-  // Return the upgrade response with the client-facing WebSocket
-  return new Response(null, {
-    status: 101,
-    webSocket: clientWs,
-  })
 }
