@@ -54,4 +54,21 @@ defineProps<{
 .color-blue { color: #3388ff; text-shadow: 0 0 8px rgba(51, 136, 255, 0.6); }
 .color-green { color: #33ff66; text-shadow: 0 0 8px rgba(51, 255, 102, 0.6); }
 .color-yellow { color: #ffcc00; text-shadow: 0 0 8px rgba(255, 204, 0, 0.6); }
+
+@media (max-width: 480px) {
+  .color-indicator {
+    font-size: 0.7rem;
+    padding: 1px 4px;
+    letter-spacing: 1px;
+  }
+
+  .direction-indicator {
+    font-size: 0.7rem;
+    gap: 0.25rem;
+  }
+
+  .direction-icon {
+    font-size: 1rem;
+  }
+}
 </style>

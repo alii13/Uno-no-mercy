@@ -304,4 +304,21 @@ function onOpponentClick(playerId: string) {
   cursor: pointer;
   clip-path: polygon(10% 0, 100% 0, 90% 100%, 0% 100%);
 }
+
+@media (max-width: 768px) {
+  .hand-container-wrapper {
+    min-height: 140px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hand-container-wrapper {
+    min-height: 100px;
+  }
+
+  .btn-hazard {
+    padding: 0.5rem 1rem;
+    min-height: 44px;
+  }
+}
 </style>

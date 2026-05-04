@@ -3,17 +3,27 @@
     <!-- Shared Background Elements -->
     <GameBackground :direction="direction" />
 
-    <!-- Top Bar: Opponent Info -->
+    <!-- Top Bar: All Opponents -->
     <SurveillanceBar>
-      <div v-if="opponent" class="opponent-card" :class="{ active: !isMyTurn }">
-        <div class="avatar" :class="{ 'avatar-active': !isMyTurn }">
-          {{ opponent.name.charAt(0).toUpperCase() }}
+      <div
+        v-for="opp in allOpponents"
+        :key="opp.user_id"
+        :data-uid="opp.user_id"
+        class="opponent-card"
+        :class="{
+          active: currentGame?.current_player_id === opp.user_id,
+          eliminated: opp.is_eliminated
+        }"
+      >
+        <div class="avatar" :class="{ 'avatar-active': currentGame?.current_player_id === opp.user_id }">
+          {{ opp.name.charAt(0).toUpperCase() }}
         </div>
         <div class="opponent-info">
-          <span class="name">{{ opponent.name }}</span>
-          <span class="card-count">{{ opponentHandCount }} INTEL</span>
+          <span class="name">{{ opp.name }}</span>
+          <span class="card-count" v-if="!opp.is_eliminated">{{ (opp.hand as Card[])?.length || 0 }} INTEL</span>
+          <span class="card-count eliminated-text" v-else>ELIMINATED</span>
         </div>
-        <div class="status-indicator" :class="{ active: !isMyTurn }"></div>
+        <div class="status-indicator" :class="{ active: currentGame?.current_player_id === opp.user_id }"></div>
       </div>
     </SurveillanceBar>
 
@@ -97,10 +107,10 @@
       @select="handleDrawnWildColorSelect"
     />
 
-    <!-- Player Select Modal (for Number 7 swap - in 2P just shows opponent) -->
+    <!-- Player Select Modal (for Number 7 swap - shows all active opponents) -->
     <PlayerSelectModal
-      v-if="turnState === 'CHOOSING_PLAYER_TO_SWAP' && isMyTurn && opponent"
-      :eligible-players="[{ id: opponent.user_id, name: opponent.name, hand: (opponent.hand as Card[]) || [], isEliminated: false }]"
+      v-if="turnState === 'CHOOSING_PLAYER_TO_SWAP' && isMyTurn"
+      :eligible-players="allOpponents.filter(o => !o.is_eliminated).map(o => ({ id: o.user_id, name: o.name, hand: (o.hand as Card[]) || [], isEliminated: false }))"
       @select="handleSwapPlayer"
     />
 
@@ -169,7 +179,7 @@ provide('animationLayer', animationLayer)
 
 // Track previous hand sizes for animation detection
 const prevMyHandLength = ref(0)
-const prevOpponentHandLength = ref(0)
+const prevOpponentHandLengths = ref<Record<string, number>>({})
 
 // Track if we're in initial deal animation mode
 const isInitialDeal = ref(false)
@@ -189,9 +199,8 @@ const visibleHand = computed(() => {
 
 // Computed from store
 const myPlayer = computed(() => mpStore.myPlayer)
-const opponent = computed(() => mpStore.opponent)
+const allOpponents = computed(() => mpStore.opponents)
 const myHand = computed(() => (myPlayer.value?.hand as Card[]) || [])
-const opponentHandCount = computed(() => (opponent.value?.hand as Card[])?.length || 0)
 const isMyTurn = computed(() => mpStore.isMyTurn)
 const gameStatus = computed(() => mpStore.gameStatus)
 const opponentLeft = computed(() => mpStore.opponentLeft)
@@ -207,13 +216,15 @@ const topCard = computed(() => discardPile.value[discardPile.value.length - 1])
 const currentPlayerName = computed(() => {
   if (!currentGame.value?.current_player_id) return 'Unknown'
   if (currentGame.value.current_player_id === authStore.user?.id) return 'You'
-  return opponent.value?.name || 'Opponent'
+  const player = mpStore.gamePlayers.find(p => p.user_id === currentGame.value?.current_player_id)
+  return player?.name || 'Opponent'
 })
 
 const winnerName = computed(() => {
   if (!currentGame.value?.winner_id) return 'Unknown'
   if (currentGame.value.winner_id === authStore.user?.id) return 'YOU!'
-  return opponent.value?.name || 'Opponent'
+  const winner = mpStore.gamePlayers.find(p => p.user_id === currentGame.value?.winner_id)
+  return winner?.name || 'Opponent'
 })
 
 // Display deck (just show a placeholder array for the pile)
@@ -229,7 +240,7 @@ const statusMessage = computed(() => {
   if (turnState.value === 'CHOOSING_ROULETTE_COLOR' && !isMyTurn.value) return 'ROULETTE: WAITING FOR VICTIM...'
   if (turnState.value === 'ROULETTE_DRAWING') {
     const target = (currentGame.value?.roulette_target_color || currentColor.value).toUpperCase()
-    return isMyTurn.value ? `DANGER: SEEKING ${target}` : `OPPONENT SEEKING ${target}...`
+    return isMyTurn.value ? `DANGER: SEEKING ${target}` : `${currentPlayerName.value} SEEKING ${target}...`
   }
   if (drawStack.value > 0 && isMyTurn.value) return `WARNING: DRAW ${drawStack.value} OR STACK HIGHER!`
   if (drawStack.value > 0 && !isMyTurn.value) return `DRAW STACK: +${drawStack.value} PENDING`
@@ -332,7 +343,9 @@ watch(gameStatus, async (newStatus, oldStatus) => {
 
     // Update tracking after initial deal
     prevMyHandLength.value = myHand.value.length
-    prevOpponentHandLength.value = opponentHandCount.value
+    for (const opp of allOpponents.value) {
+      prevOpponentHandLengths.value[opp.user_id] = (opp.hand as Card[])?.length || 0
+    }
 
     isInitialDeal.value = false
   }
@@ -363,30 +376,27 @@ watch(
   }
 )
 
-// Watch for opponent hand size increases to animate their draws
-// Note: Opponent animation is visual-only, we don't control their visible cards
+// Watch all opponents for hand size changes to animate their draws
 watch(
-  () => opponentHandCount.value,
-  (newLen, oldLen) => {
-    console.log('opponent hand length changed:', oldLen, '->', newLen)
-    
-    // Skip during initial deal
-    if (isInitialDeal.value) {
-      return
-    }
-    
-    // Only animate if cards increased (we don't control opponent's visible count, just animate)
-    if (newLen > (oldLen ?? 0) && (oldLen ?? 0) > 0) {
-      const count = newLen - (oldLen ?? 0)
-      console.log('🎴 Animating draw for opponent:', count, 'cards')
-      // Target the opponent card area - just visual animation
-      const opponentEl = document.querySelector('.opponent-card') as HTMLElement
-      // For opponent, we don't sync with visibleCardCount since we don't control their hand display
-      if (opponentEl) {
-        triggerOpponentDrawAnimation(opponentEl, count)
+  () => allOpponents.value.map(o => ({ id: o.user_id, len: (o.hand as Card[])?.length || 0 })),
+  (newVals) => {
+    if (isInitialDeal.value) return
+
+    for (const { id, len } of newVals) {
+      const oldLen = prevOpponentHandLengths.value[id] || 0
+      if (len > oldLen && oldLen > 0) {
+        const count = len - oldLen
+        // Target the specific opponent's card element
+        const opponentEl = document.querySelector(`.opponent-card[data-uid="${id}"]`) as HTMLElement
+          || document.querySelector('.opponent-card') as HTMLElement
+        if (opponentEl) {
+          triggerOpponentDrawAnimation(opponentEl, count)
+        }
       }
+      prevOpponentHandLengths.value[id] = len
     }
-  }
+  },
+  { deep: true }
 )
 
 // Separate animation for opponent (visual only, no card reveal sync)
@@ -502,5 +512,12 @@ async function leaveGame() {
 </style>
 
 <style scoped>
-/* Component-specific styles only - most styles are in game-shared.css */
+.opponent-card.eliminated {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+.eliminated-text {
+  color: var(--color-alert) !important;
+  font-size: 0.7rem;
+}
 </style>

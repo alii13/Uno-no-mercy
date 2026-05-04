@@ -4,10 +4,11 @@
       class="tactical-hud" 
       :style="{ transform: `translate(${position.x}px, ${position.y}px)` }"
     >
-      <div 
-        class="hud-header" 
+      <div
+        class="hud-header"
         :class="{ 'header-danger': isRoulette }"
         @mousedown="startDrag"
+        @touchstart.prevent="startTouchDrag"
         style="cursor: grab;"
       >
         <span class="warning-icon">⚠</span>
@@ -82,11 +83,34 @@ function stopDrag() {
   isDragging.value = false
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
+  document.removeEventListener('touchmove', onTouchDrag)
+  document.removeEventListener('touchend', stopDrag)
+}
+
+function startTouchDrag(e: TouchEvent) {
+  const touch = e.touches[0]
+  if (!touch) return
+  isDragging.value = true
+  dragStart.x = touch.clientX - position.x
+  dragStart.y = touch.clientY - position.y
+  document.addEventListener('touchmove', onTouchDrag, { passive: false })
+  document.addEventListener('touchend', stopDrag)
+}
+
+function onTouchDrag(e: TouchEvent) {
+  if (!isDragging.value) return
+  e.preventDefault()
+  const touch = e.touches[0]
+  if (!touch) return
+  position.x = touch.clientX - dragStart.x
+  position.y = touch.clientY - dragStart.y
 }
 
 onUnmounted(() => {
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
+  document.removeEventListener('touchmove', onTouchDrag)
+  document.removeEventListener('touchend', stopDrag)
 })
 </script>
 
@@ -237,5 +261,48 @@ h3 {
 @keyframes blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
+}
+
+@media (max-width: 480px) {
+  .tactical-hud {
+    width: 95vw;
+    padding: 1rem;
+  }
+
+  h3 {
+    font-size: 1.4rem;
+    margin-bottom: 1rem;
+  }
+
+  .hud-header {
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    font-size: 0.8rem;
+    gap: 0.5rem;
+  }
+
+  .color-btn {
+    height: 65px;
+  }
+
+  .colors-grid {
+    gap: 0.75rem;
+  }
+
+  .btn-inner {
+    font-size: 1.1rem;
+  }
+
+  .hud-footer {
+    margin-top: 1rem;
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 768px) and (min-width: 481px) {
+  .tactical-hud {
+    width: 85vw;
+    padding: 1.5rem;
+  }
 }
 </style>

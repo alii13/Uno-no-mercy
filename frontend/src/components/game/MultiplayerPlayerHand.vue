@@ -14,9 +14,9 @@
         @mouseleave="hoverIndex = -1"
         @click="handleCardClick(card)"
       >
-        <Card 
-          :card="card" 
-          :size="{ width: 140, height: 196 }" 
+        <Card
+          :card="card"
+          :size="cardSize"
           :is-playable="isMyTurn && canPlay(card)"
           class="hand-card"
         />
@@ -26,11 +26,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import Card from './Card.vue'
 import { canPlayCard } from '../../utils/gameRules'
 import { getCardStyle as getCardStyleUtil } from '../../utils/gameHelpers'
 import type { Card as CardType, CardColor } from '../../types/card'
+import { useScreenSize } from '../../composables/useScreenSize'
 
 const props = defineProps<{
   hand: CardType[]
@@ -44,10 +45,17 @@ const emit = defineEmits<{
   (e: 'playCard', card: CardType): void
 }>()
 
+const { isMobile, isTablet } = useScreenSize()
 const hoverIndex = ref(-1)
 
+const cardSize = computed(() => {
+  if (isMobile.value) return { width: 65, height: 91 }
+  if (isTablet.value) return { width: 80, height: 112 }
+  return { width: 100, height: 140 }
+})
+
 function getCardStyle(index: number) {
-  return getCardStyleUtil(index, props.hand.length, hoverIndex.value)
+  return getCardStyleUtil(index, props.hand.length, hoverIndex.value, isMobile.value)
 }
 
 function canPlay(card: CardType): boolean {
@@ -64,29 +72,13 @@ function handleCardClick(card: CardType) {
 <style scoped>
 .player-hand {
   position: relative;
-  height: 240px;
+  height: 200px;
   display: flex;
   justify-content: center;
   align-items: flex-end;
-  padding: 40px 20px 20px;
-  overflow-x: auto;
-  overflow-y: visible;
+  padding: 50px 20px 10px;
+  overflow: visible;
   width: 100%;
-  scrollbar-width: thin;
-  scrollbar-color: #444 transparent;
-}
-
-.player-hand::-webkit-scrollbar {
-  height: 6px;
-}
-
-.player-hand::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.player-hand::-webkit-scrollbar-thumb {
-  background: #444;
-  border-radius: 3px;
 }
 
 .cards-container {
@@ -101,7 +93,7 @@ function handleCardClick(card: CardType) {
   position: relative;
   transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   cursor: pointer;
-  margin-right: -50px;
+  margin-right: -35px;
   transform-origin: bottom center;
 }
 
@@ -111,7 +103,7 @@ function handleCardClick(card: CardType) {
 
 .hand-card-wrapper:hover {
   z-index: 9999 !important;
-  transform: translateY(-60px) scale(1.15) !important;
+  transform: translateY(-40px) scale(1.12) !important;
 }
 
 .hand-card-wrapper:hover .hand-card {
@@ -125,7 +117,7 @@ function handleCardClick(card: CardType) {
 }
 
 .hand-card-wrapper:hover .unplayable {
-  transform: translateY(-50px) scale(1.1);
+  transform: translateY(-30px) scale(1.05);
   opacity: 1;
   filter: grayscale(0);
 }
@@ -154,6 +146,46 @@ function handleCardClick(card: CardType) {
 }
 
 .not-my-turn .hand-card-wrapper:hover {
-  transform: translateY(-30px) scale(1.05) !important;
+  transform: translateY(-20px) scale(1.05) !important;
+}
+
+@media (max-width: 768px) {
+  .player-hand {
+    height: 160px;
+    padding: 30px 10px 10px;
+  }
+
+  .hand-card-wrapper {
+    margin-right: -25px;
+  }
+
+  .hand-card-wrapper:hover {
+    transform: translateY(-30px) scale(1.1) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .player-hand {
+    height: 120px;
+    padding: 15px 5px 5px;
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+
+  .cards-container {
+    min-width: min-content;
+  }
+
+  .hand-card-wrapper {
+    margin-right: -18px;
+  }
+
+  .hand-card-wrapper:hover {
+    transform: translateY(-20px) scale(1.08) !important;
+  }
+
+  .not-my-turn .hand-card-wrapper:hover {
+    transform: translateY(-10px) scale(1.03) !important;
+  }
 }
 </style>

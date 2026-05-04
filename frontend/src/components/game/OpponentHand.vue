@@ -233,4 +233,52 @@ function getFanStyle(index: number) {
   padding: 2px 6px;
   border: 1px solid #333;
 }
+
+@media (max-width: 768px) {
+  .opponent-hand {
+    min-width: 120px;
+    padding: 0.5rem;
+  }
+
+  .avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 1rem;
+  }
+
+  .card-fan {
+    height: 45px;
+    width: 120px;
+  }
+}
+
+@media (max-width: 480px) {
+  .opponent-hand {
+    min-width: 80px;
+    padding: 0.4rem;
+  }
+
+  .avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 0.8rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .name {
+    font-size: 0.65rem;
+  }
+
+  .card-count {
+    font-size: 0.6rem;
+  }
+
+  .card-fan {
+    display: none;
+  }
+
+  .info {
+    margin-bottom: 0.25rem;
+  }
+}
 </style>

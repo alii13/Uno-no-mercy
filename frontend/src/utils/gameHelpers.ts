@@ -11,18 +11,24 @@ import { shuffleDeck } from './deckGenerator'
 export function getCardStyle(
     index: number,
     totalCards: number,
-    hoverIndex: number
+    hoverIndex: number,
+    compact?: boolean
 ): { zIndex: number; transform: string } {
     const middleIndex = (totalCards - 1) / 2
     const offset = index - middleIndex
     const isHovered = hoverIndex === index
 
+    const spreadX = compact ? 1.8 : 3
+    const spreadRotate = compact ? 1.8 : 3
+    const hoverLift = compact ? -15 : -25
+    const arcY = compact ? 1.2 : 2
+
     return {
         zIndex: isHovered ? 100 : index,
         transform: `
-            translateX(${offset * 5}px) 
-            rotate(${offset * 4}deg) 
-            translateY(${isHovered ? -35 : Math.abs(offset) * 3}px)
+            translateX(${offset * spreadX}px)
+            rotate(${offset * spreadRotate}deg)
+            translateY(${isHovered ? hoverLift : Math.abs(offset) * arcY}px)
         `
     }
 }

@@ -359,5 +359,38 @@ defineEmits<{
   .title { font-size: 3.5rem; }
   .subtitle { font-size: 1.5rem; }
   .tagline { letter-spacing: 0.1rem; font-size: 0.8rem; }
+
+  .action-card {
+    padding: 1.5rem;
+  }
+
+  .action-btn {
+    padding: 1rem;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 375px) {
+  .landing-main {
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .title { font-size: 2.8rem; }
+  .subtitle { font-size: 1.2rem; }
+  .tagline { font-size: 0.7rem; }
+
+  .action-card {
+    padding: 1rem;
+  }
+
+  .card-title {
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+  }
+
+  .feature-item {
+    font-size: 0.8rem;
+  }
 }
 </style>

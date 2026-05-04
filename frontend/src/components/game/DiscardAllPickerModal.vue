@@ -18,7 +18,7 @@
         >
           <Card
             :card="card"
-            :size="{ width: 120, height: 168 }"
+            :size="cardSize"
             :is-playable="true"
             class="pick-card"
           />
@@ -33,12 +33,22 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { Card as CardType } from '../../types/card'
 import Card from './Card.vue'
+import { useScreenSize } from '../../composables/useScreenSize'
 
 defineProps<{
   cards: CardType[]
 }>()
+
+const { isMobile, isTablet } = useScreenSize()
+
+const cardSize = computed(() => {
+  if (isMobile.value) return { width: 80, height: 112 }
+  if (isTablet.value) return { width: 100, height: 140 }
+  return { width: 120, height: 168 }
+})
 
 defineEmits<{
   (e: 'select', cardId: string): void
@@ -141,5 +151,29 @@ h3 {
   font-size: 0.75rem;
   color: var(--text-muted);
   animation: blink 2s infinite;
+}
+
+@media (max-width: 480px) {
+  .tactical-hud {
+    padding: 1rem;
+    max-height: 90vh;
+  }
+
+  h3 {
+    font-size: 1.3rem;
+  }
+
+  .subtitle {
+    font-size: 0.75rem;
+  }
+
+  .cards-grid {
+    gap: 0.5rem;
+  }
+
+  .hud-footer {
+    font-size: 0.65rem;
+    margin-top: 1rem;
+  }
 }
 </style>

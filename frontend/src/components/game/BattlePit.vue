@@ -5,7 +5,7 @@
       <div class="station-mark">DRAW_PILE</div>
       <slot name="draw-pile"></slot>
       <div class="action-hint" v-if="showDrawHint">
-        [ CLICK TO DRAW ]
+        {{ drawHintText }}
       </div>
     </div>
 
@@ -29,12 +29,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { useScreenSize } from '../../composables/useScreenSize'
 
 defineProps<{
   showDrawHint: boolean
   isMuted: boolean
 }>()
+
+const { isMobile } = useScreenSize()
+const drawHintText = computed(() => isMobile.value ? '[ TAP TO DRAW ]' : '[ CLICK TO DRAW ]')
 
 defineEmits<{
   'draw': []
@@ -48,3 +52,23 @@ defineExpose({
   discardAreaRef
 })
 </script>
+
+<style scoped>
+@media (max-width: 480px) {
+  .utilities-sidebar {
+    position: absolute;
+    top: 0.25rem;
+    right: 0.25rem;
+    z-index: 10;
+  }
+
+  .utilities-sidebar .control-switch {
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+}
+</style>

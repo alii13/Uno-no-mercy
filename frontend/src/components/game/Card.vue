@@ -78,9 +78,16 @@ const handleHover = () => {
   object-fit: cover;
 }
 
-.card-wrapper:hover {
-  transform: translateY(-8px) rotateX(5deg) rotateY(-2deg) scale(1.05);
-  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.3));
+@media (hover: hover) {
+  .card-wrapper:hover {
+    transform: translateY(-8px) rotateX(5deg) rotateY(-2deg) scale(1.05);
+    filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.3));
+  }
+}
+
+.card-wrapper:active {
+  transform: scale(0.97);
+  transition-duration: 0.1s;
 }
 
 .card-wrapper.playable {

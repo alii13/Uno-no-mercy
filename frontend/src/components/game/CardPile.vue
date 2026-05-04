@@ -54,6 +54,7 @@ import gsap from 'gsap'
 import type { Card as CardType } from '../../types/card'
 import Card from './Card.vue'
 import CardBack from './CardBack.vue'
+import { useScreenSize } from '../../composables/useScreenSize'
 
 const props = defineProps<{
   cards: CardType[]
@@ -62,11 +63,18 @@ const props = defineProps<{
 }>()
 
 const topCardRef = ref<HTMLElement | null>(null)
+const { isMobile, isTablet } = useScreenSize()
 
-const cardSize = computed(() => props.large 
-  ? { width: 160, height: 224 } 
-  : { width: 120, height: 168 }
-)
+const cardSize = computed(() => {
+  if (props.large) {
+    if (isMobile.value) return { width: 75, height: 105 }
+    if (isTablet.value) return { width: 90, height: 126 }
+    return { width: 110, height: 154 }
+  }
+  if (isMobile.value) return { width: 55, height: 77 }
+  if (isTablet.value) return { width: 65, height: 91 }
+  return { width: 80, height: 112 }
+})
 
 const stackDepth = computed(() => Math.min(Math.ceil(props.cards.length / 10), 8))
 const scatterCount = computed(() => Math.min(props.cards.length, 5))
@@ -103,12 +111,12 @@ watch(() => props.cards.length, (newLen, oldLen) => {
     nextTick(() => {
       if (topCardRef.value) {
         // Dramatic "Slam" animation
-        gsap.fromTo(topCardRef.value, 
+        gsap.fromTo(topCardRef.value,
           {
-            y: -200,
-            scale: 2,
+            y: -100,
+            scale: 1.5,
             opacity: 0,
-            rotation: gsap.utils.random(-45, 45)
+            rotation: gsap.utils.random(-30, 30)
           },
           {
             y: 0,
