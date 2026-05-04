@@ -84,6 +84,10 @@ export default {
       if (val) proxyHeaders.set(name, val)
     }
 
+    // Set Host header to Supabase domain to avoid Cloudflare 1016 DNS loop
+    const supabaseHost = new URL(env.SUPABASE_URL).host
+    proxyHeaders.set('Host', supabaseHost)
+
     try {
       const response = await fetch(targetUrl.toString(), {
         method: request.method,
