@@ -30,7 +30,7 @@ function getCorsHeaders(request: Request): Record<string, string> {
   return {
     'Access-Control-Allow-Origin': isAllowed ? origin : ALLOWED_ORIGINS[0]!,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey, x-client-info, x-supabase-api-version, range',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey, x-client-info, x-supabase-api-version, range, prefer, accept, accept-profile, content-profile, x-retry-count',
     'Access-Control-Expose-Headers': 'Content-Range, x-supabase-api-version',
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Max-Age': '86400',
