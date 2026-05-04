@@ -9,7 +9,6 @@ import {
     calculateScore,
     reshuffleDeck as reshuffleDeckHelper,
     checkMercyRule,
-    getWildCardColor,
     rotateHands as rotateHandsHelper
 } from '../utils/gameHelpers'
 import type { Card, CardColor } from '../types/card'
@@ -29,8 +28,6 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     const opponentLeft = ref(false) // True when opponent leaves during game
     const pendingDrawnWildCard = ref<Card | null>(null) // Wild card drawn that needs color selection
     const pendingDiscardAllCards = ref<Card[]>([]) // Cards to choose top from during Discard All
-    const pendingDiscardAllGameId = ref<string | null>(null) // Game ID saved for Discard All completion
-
     let gameChannel: RealtimeChannel | null = null
 
     // Computed
