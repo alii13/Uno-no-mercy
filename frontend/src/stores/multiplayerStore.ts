@@ -853,6 +853,39 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         }
     }
 
+    async function skipSwap() {
+        if (!currentGame.value || !myPlayer.value) return
+        if (currentGame.value.turn_state !== 'CHOOSING_PLAYER_TO_SWAP') return
+        if (actionInProgress.value) return
+
+        actionInProgress.value = true
+        const myId = authStore.user?.id
+        if (!myId) {
+            actionInProgress.value = false
+            return
+        }
+
+        const myIndex = gamePlayers.value.findIndex(p => p.user_id === myId)
+        const playerCount = gamePlayers.value.length
+        const direction = currentGame.value.direction as (1 | -1)
+        const nextIdx = calculateNextPlayerIndex(myIndex, direction, playerCount)
+        const nextPlayerId = gamePlayers.value[nextIdx]?.user_id || null
+
+        try {
+            await supabase
+                .from('games')
+                .update({
+                    turn_state: 'WAITING_FOR_ACTION',
+                    current_player_id: nextPlayerId
+                })
+                .eq('id', currentGame.value.id)
+        } catch (err: any) {
+            error.value = err.message
+        } finally {
+            actionInProgress.value = false
+        }
+    }
+
     // Set roulette color (victim chooses)
     async function setRouletteColor(color: CardColor) {
         if (!currentGame.value || !myPlayer.value || !isMyTurn.value) return
@@ -1349,6 +1382,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         playCard,
         drawCard,
         swapHands,
+        skipSwap,
         setRouletteColor,
         playDrawnWildCard,
         selectDiscardAllTop,

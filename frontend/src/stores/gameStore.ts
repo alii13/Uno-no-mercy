@@ -627,6 +627,12 @@ export const useGameStore = defineStore('game', () => {
         advanceTurn()
     }
 
+    function skipSwap() {
+        if (turnState.value !== 'CHOOSING_PLAYER_TO_SWAP') return
+        turnState.value = 'WAITING_FOR_ACTION'
+        advanceTurn()
+    }
+
     function playerActionPlayCard(card: Card, selectedColor?: CardColor) {
         if (!currentPlayer.value) return
         playCard(currentPlayer.value.id, card, selectedColor)
@@ -783,6 +789,7 @@ export const useGameStore = defineStore('game', () => {
         rotateHands,
         drawCardsForCurrentPlayer,
         swapHands,
+        skipSwap,
         playerActionPlayCard,
         executeRouletteDraw,
         setRouletteColor,

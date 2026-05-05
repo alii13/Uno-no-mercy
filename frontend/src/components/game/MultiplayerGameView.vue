@@ -112,6 +112,7 @@
       v-if="turnState === 'CHOOSING_PLAYER_TO_SWAP' && isMyTurn"
       :eligible-players="allOpponents.filter(o => !o.is_eliminated).map(o => ({ id: o.user_id, name: o.name, hand: (o.hand as Card[]) || [], isEliminated: false }))"
       @select="handleSwapPlayer"
+      @skip="mpStore.skipSwap()"
     />
 
     <!-- Discard All Top Card Picker -->
