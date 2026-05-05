@@ -10,63 +10,96 @@
       <h2 class="subtitle">NO MERCY</h2>
       
       <div class="auth-form">
-        <div class="form-tabs">
-          <button 
+        <div class="form-tabs" v-if="mode !== 'forgot'">
+          <button
             :class="{ active: mode === 'login' }"
-            @click="mode = 'login'"
+            @click="mode = 'login'; error = ''; successMsg = ''"
           >
             LOGIN
           </button>
-          <button 
+          <button
             :class="{ active: mode === 'signup' }"
-            @click="mode = 'signup'"
+            @click="mode = 'signup'; error = ''; successMsg = ''"
           >
             SIGN UP
           </button>
         </div>
-        
-        <form @submit.prevent="handleSubmit">
-          <div v-if="mode === 'signup'" class="input-group">
-            <label>USERNAME</label>
-            <input 
-              v-model="username" 
-              type="text" 
-              placeholder="Choose a username"
-              required
-              minlength="3"
-            />
-          </div>
-          
-          <div class="input-group">
-            <label>EMAIL</label>
-            <input 
-              v-model="email" 
-              type="email" 
-              placeholder="Enter your email"
-              required
-            />
-          </div>
-          
-          <div class="input-group">
-            <label>PASSWORD</label>
-            <input 
-              v-model="password" 
-              type="password" 
-              placeholder="Enter password"
-              required
-              minlength="6"
-            />
-          </div>
-          
-          <div v-if="error" class="error-message">
-            ⚠️ {{ error }}
-          </div>
-          
-          <button type="submit" class="submit-btn" :disabled="loading">
-            <span v-if="loading">PROCESSING...</span>
-            <span v-else>{{ mode === 'login' ? 'ENGAGE' : 'CREATE ACCOUNT' }}</span>
+
+        <!-- Forgot password mode -->
+        <template v-if="mode === 'forgot'">
+          <h3 class="form-title">RESET PASSWORD</h3>
+          <p class="form-desc">Enter your email to receive a reset link.</p>
+          <form @submit.prevent="handleForgotPassword">
+            <div class="input-group">
+              <label>EMAIL</label>
+              <input
+                v-model="email"
+                type="email"
+                placeholder="Enter your email"
+                required
+              />
+            </div>
+
+            <div v-if="error" class="error-message">{{ error }}</div>
+            <div v-if="successMsg" class="success-message">{{ successMsg }}</div>
+
+            <button type="submit" class="submit-btn" :disabled="loading">
+              <span v-if="loading">SENDING...</span>
+              <span v-else>SEND RESET LINK</span>
+            </button>
+          </form>
+          <button class="forgot-link" @click="mode = 'login'; error = ''; successMsg = ''">
+            BACK TO LOGIN
           </button>
-        </form>
+        </template>
+
+        <!-- Login / Signup mode -->
+        <template v-else>
+          <form @submit.prevent="handleSubmit">
+            <div v-if="mode === 'signup'" class="input-group">
+              <label>USERNAME</label>
+              <input
+                v-model="username"
+                type="text"
+                placeholder="Choose a username"
+                required
+                minlength="3"
+              />
+            </div>
+
+            <div class="input-group">
+              <label>EMAIL</label>
+              <input
+                v-model="email"
+                type="email"
+                placeholder="Enter your email"
+                required
+              />
+            </div>
+
+            <div class="input-group">
+              <label>PASSWORD</label>
+              <input
+                v-model="password"
+                type="password"
+                placeholder="Enter password"
+                required
+                minlength="6"
+              />
+            </div>
+
+            <div v-if="error" class="error-message">{{ error }}</div>
+
+            <button type="submit" class="submit-btn" :disabled="loading">
+              <span v-if="loading">PROCESSING...</span>
+              <span v-else>{{ mode === 'login' ? 'ENGAGE' : 'CREATE ACCOUNT' }}</span>
+            </button>
+          </form>
+
+          <button v-if="mode === 'login'" class="forgot-link" @click="mode = 'forgot'; error = ''">
+            FORGOT PASSWORD?
+          </button>
+        </template>
       </div>
     </div>
   </div>
@@ -86,12 +119,13 @@ defineEmits<{
 
 const authStore = useAuthStore()
 
-const mode = ref<'login' | 'signup'>('login')
+const mode = ref<'login' | 'signup' | 'forgot'>('login')
 const email = ref('')
 const password = ref('')
 const username = ref('')
 const loading = ref(false)
 const error = ref('')
+const successMsg = ref('')
 
 onMounted(() => {
   if (props.initialMode) {
@@ -102,7 +136,7 @@ onMounted(() => {
 async function handleSubmit() {
   loading.value = true
   error.value = ''
-  
+
   try {
     if (mode.value === 'signup') {
       const result = await authStore.signUp(email.value, password.value, username.value)
@@ -114,6 +148,23 @@ async function handleSubmit() {
       if (!result.success) {
         error.value = result.error || 'Login failed'
       }
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+async function handleForgotPassword() {
+  loading.value = true
+  error.value = ''
+  successMsg.value = ''
+
+  try {
+    const result = await authStore.sendPasswordReset(email.value)
+    if (result.success) {
+      successMsg.value = 'Reset link sent. Check your email.'
+    } else {
+      error.value = result.error || 'Failed to send reset link'
     }
   } finally {
     loading.value = false
@@ -249,6 +300,48 @@ async function handleSubmit() {
 
 .back-btn:hover {
   color: var(--color-neon-blue);
+}
+
+.forgot-link {
+  display: block;
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.5rem;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-align: center;
+  transition: color 0.2s;
+}
+
+.forgot-link:hover {
+  color: var(--color-neon-blue);
+}
+
+.form-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  text-align: center;
+  margin: 0 0 0.5rem 0;
+  color: var(--color-hazard);
+}
+
+.form-desc {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin: 0 0 1.5rem 0;
+}
+
+.success-message {
+  background: rgba(0, 255, 100, 0.1);
+  border: 1px solid var(--color-neon-green);
+  color: var(--color-neon-green);
+  padding: 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
 }
 
 @media (max-width: 480px) {
