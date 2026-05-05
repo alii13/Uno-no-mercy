@@ -148,14 +148,17 @@ Then add to your frontend `.env`:
 VITE_SUPABASE_PROXY_URL=https://uno-supabase-proxy.your-subdomain.workers.dev
 ```
 
-## Screens
+## Screenshots
 
-| Screen | Description |
-|--------|-------------|
-| Landing | Cyberpunk-themed entry with login/signup |
-| Lobby | Create/join rooms, see connected players |
-| Game | Full game board with card animations, draw/discard piles, opponent tracking |
-| Modals | Color picker, player swap selector, discard-all picker, game over |
+### Lobby
+Create a game, join with a room code, or play against the AI.
+
+![Lobby](docs/screenshots/lobby.png)
+
+### Waiting room
+Share the room code and wait for players to join.
+
+![Waiting room](docs/screenshots/waiting-room.png)
 
 ## Contributing
 
