@@ -164,9 +164,12 @@ function copyRoomCode() {
 <style scoped>
 .lobby-container {
   min-height: 100vh;
+  height: 100vh;
   background: var(--bg-concrete);
   color: var(--text-primary);
   position: relative;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .scan-line {
@@ -220,7 +223,7 @@ function copyRoomCode() {
 }
 
 .lobby-content {
-  padding: 3rem;
+  padding: 1.5rem 3rem 3rem;
   max-width: 900px;
   margin: 0 auto;
 }
@@ -284,11 +287,11 @@ function copyRoomCode() {
 .room-code-display {
   background: rgba(0, 0, 0, 0.5);
   border: 2px solid var(--color-hazard);
-  padding: 2rem;
-  margin-bottom: 2rem;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
   display: inline-flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .room-code-display .label {
