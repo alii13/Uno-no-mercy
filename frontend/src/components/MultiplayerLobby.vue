@@ -172,6 +172,8 @@ function copyRoomCode() {
   position: relative;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
 }
 
 .scan-line {
@@ -239,6 +241,10 @@ function copyRoomCode() {
   padding: 1.5rem 3rem 3rem;
   max-width: 900px;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1;
 }
 
 .lobby-options {
