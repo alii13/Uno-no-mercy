@@ -85,6 +85,7 @@
       v-if="store.turnState === 'CHOOSING_PLAYER_TO_SWAP' && isMyTurn"
       :eligible-players="store.players.filter(p => !p.isEliminated && p.id !== myPlayerId)"
       @select="(id: string) => store.swapHands(id)"
+      @skip="store.skipSwap()"
     />
 
     <DiscardAllPickerModal

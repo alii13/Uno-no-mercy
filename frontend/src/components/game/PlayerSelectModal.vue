@@ -20,6 +20,10 @@
         </button>
       </div>
       
+      <button class="skip-btn" @click="$emit('skip')">
+        KEEP MY HAND
+      </button>
+
       <div class="hud-footer">
         AUTHORIZATION REQUIRED...
       </div>
@@ -36,6 +40,7 @@ defineProps<{
 
 defineEmits<{
   (e: 'select', playerId: string): void
+  (e: 'skip'): void
 }>()
 </script>
 
@@ -114,8 +119,26 @@ defineEmits<{
   font-family: monospace;
 }
 
+.skip-btn {
+  width: 100%;
+  margin-top: 1.5rem;
+  padding: 0.75rem;
+  background: transparent;
+  border: 1px solid #555;
+  color: var(--text-secondary);
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.skip-btn:hover {
+  border-color: var(--color-neon-blue);
+  color: var(--color-neon-blue);
+}
+
 .hud-footer {
-  margin-top: 2rem;
+  margin-top: 1rem;
   text-align: right;
   font-family: monospace;
   font-size: 0.7rem;
