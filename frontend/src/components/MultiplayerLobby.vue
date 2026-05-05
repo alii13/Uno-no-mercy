@@ -3,8 +3,10 @@
     <div class="scan-line"></div>
     
     <div class="lobby-header">
-      <h1 class="title glitch-text" data-text="UNO">UNO</h1>
-      <h2 class="subtitle">NO MERCY</h2>
+      <div class="brand-group">
+        <h1 class="title glitch-text" data-text="UNO">UNO</h1>
+        <h2 class="subtitle">NO MERCY</h2>
+      </div>
       <div class="user-info">
         <span>{{ authStore.username }}</span>
         <button @click="authStore.signOut()" class="logout-btn">LOGOUT</button>
@@ -183,29 +185,40 @@ function copyRoomCode() {
 
 .lobby-header {
   text-align: center;
-  padding: 2rem;
+  padding: 0.75rem 2rem;
   border-bottom: 2px solid #333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+.brand-group {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
 }
 
 .title {
   font-family: var(--font-display);
-  font-size: 5rem;
+  font-size: 2rem;
   margin: 0;
+  line-height: 1;
 }
 
 .subtitle {
   font-family: var(--font-display);
-  font-size: 1.5rem;
+  font-size: 1rem;
   color: var(--color-alert);
-  margin: 0 0 1rem 0;
+  margin: 0;
 }
 
 .user-info {
   display: flex;
-  justify-content: center;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
   color: var(--text-muted);
+  margin-left: auto;
 }
 
 .logout-btn {
@@ -545,10 +558,6 @@ function copyRoomCode() {
     padding: 1.5rem;
   }
 
-  .title {
-    font-size: 3.5rem;
-  }
-
   .room-code-display .code {
     font-size: 2rem;
   }
@@ -565,16 +574,18 @@ function copyRoomCode() {
 }
 
 @media (max-width: 480px) {
+  .lobby-header {
+    flex-wrap: wrap;
+    padding: 0.5rem 1rem;
+    gap: 0.5rem;
+  }
+
   .title {
-    font-size: 2.5rem;
+    font-size: 1.5rem;
   }
 
   .subtitle {
-    font-size: 1.2rem;
-  }
-
-  .lobby-header {
-    padding: 1rem;
+    font-size: 0.8rem;
   }
 
   .lobby-content {
