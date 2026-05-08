@@ -111,8 +111,8 @@ function handleCardClick(card: CardType) {
 }
 
 .unplayable {
-  opacity: 0.6;
-  filter: grayscale(1) brightness(0.6);
+  opacity: 0.7;
+  filter: brightness(0.75);
   transform: translateY(10px);
 }
 
