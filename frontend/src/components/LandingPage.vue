@@ -37,15 +37,18 @@
         <div class="action-card">
           <h3 class="card-title">JOIN THE BATTLE</h3>
           
-          <button @click="$emit('showAuth', 'signup')" class="action-btn primary">
-            INITIALIZE PLAYER
+          <button @click="$emit('playGuest')" class="action-btn primary">
+            PLAY NOW
           </button>
-          
-          <button @click="$emit('showAuth', 'login')" class="action-btn secondary">
-           
+
+          <button @click="$emit('showAuth', 'signup')" class="action-btn secondary">
+            CREATE ACCOUNT
+          </button>
+
+          <button @click="$emit('showAuth', 'login')" class="action-btn tertiary">
             RETURNING PLAYER
           </button>
-          
+
           <div class="separator"></div>
           
           <!-- Features List -->
@@ -78,6 +81,7 @@
 <script setup lang="ts">
 defineEmits<{
   (e: 'showAuth', mode: 'login' | 'signup'): void
+  (e: 'playGuest'): void
 }>()
 </script>
 
@@ -283,6 +287,18 @@ defineEmits<{
 .action-btn.secondary:hover {
   background: var(--color-neon-blue);
   color: black;
+  transform: translateY(-2px);
+}
+
+.action-btn.tertiary {
+  background: transparent;
+  border: 1px solid #444;
+  color: var(--text-muted);
+}
+
+.action-btn.tertiary:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
   transform: translateY(-2px);
 }
 

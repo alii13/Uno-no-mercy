@@ -46,26 +46,26 @@
       </div>
     </template>
 
+    <!-- Playing local game vs bot (works without auth for guest play) -->
+    <GameView v-else-if="localGameStore.gameState !== 'LOBBY'" />
+
     <!-- Not authenticated -->
     <template v-else-if="!authStore.isAuthenticated">
       <!-- Show auth view if user clicked login/signup -->
       <AuthView v-if="showAuthView" @back="showAuthView = false" :initial-mode="authMode" />
 
       <!-- Otherwise show landing page -->
-      <LandingPage v-else @showAuth="handleShowAuth" />
+      <LandingPage v-else @showAuth="handleShowAuth" @playGuest="startLocalGame" />
     </template>
-    
+
     <!-- Playing multiplayer game -->
-    <MultiplayerGameView 
-      v-else-if="mpStore.currentGame && (mpStore.currentGame.status === 'playing' || mpStore.currentGame.status === 'finished')" 
+    <MultiplayerGameView
+      v-else-if="mpStore.currentGame && (mpStore.currentGame.status === 'playing' || mpStore.currentGame.status === 'finished')"
     />
-    
-    <!-- Playing local game vs bot -->
-    <GameView v-else-if="localGameStore.gameState !== 'LOBBY'" />
-    
+
     <!-- Authenticated - show lobby -->
-    <MultiplayerLobby 
-      v-else 
+    <MultiplayerLobby
+      v-else
       @playLocal="startLocalGame"
     />
   </div>
