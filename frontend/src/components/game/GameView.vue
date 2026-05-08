@@ -100,6 +100,7 @@
         <div class="scan-line"></div>
         <p class="winner-text">VICTOR: {{ getWinnerName() }}</p>
         <button @click="restart" class="btn-primary">REBOOT_SYSTEM</button>
+        <button @click="store.returnToLobby()" class="btn-primary" style="margin-top: 1rem; border-color: #444; color: var(--text-muted);">EXIT</button>
       </div>
     </div>
   </div>

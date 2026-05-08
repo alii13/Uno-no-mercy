@@ -633,6 +633,13 @@ export const useGameStore = defineStore('game', () => {
         advanceTurn()
     }
 
+    function returnToLobby() {
+        gameState.value = 'LOBBY'
+        players.value = []
+        deck.value = []
+        discardPile.value = []
+    }
+
     function playerActionPlayCard(card: Card, selectedColor?: CardColor) {
         if (!currentPlayer.value) return
         playCard(currentPlayer.value.id, card, selectedColor)
@@ -798,7 +805,8 @@ export const useGameStore = defineStore('game', () => {
         callUno,
         isDealing,
         pendingDealCard,
-        dealInitialCards
+        dealInitialCards,
+        returnToLobby
     }
 
     function setRouletteColor(color: CardColor) {
