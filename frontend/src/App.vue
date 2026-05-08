@@ -55,7 +55,7 @@
       <AuthView v-if="showAuthView" @back="showAuthView = false" :initial-mode="authMode" />
 
       <!-- Otherwise show landing page -->
-      <LandingPage v-else @showAuth="handleShowAuth" @playGuest="startLocalGame" />
+      <LandingPage v-else @showAuth="handleShowAuth" @playGuest="playAsGuest" />
     </template>
 
     <!-- Playing multiplayer game -->
@@ -67,6 +67,7 @@
     <MultiplayerLobby
       v-else
       @playLocal="startLocalGame"
+      @showAuth="handleShowAuth('signup')"
     />
   </div>
 </template>
@@ -141,6 +142,14 @@ async function handlePasswordUpdate() {
 function handleShowAuth(mode: 'login' | 'signup') {
   authMode.value = mode
   showAuthView.value = true
+}
+
+async function playAsGuest() {
+  const result = await authStore.signInAnonymously()
+  if (!result.success) {
+    console.error('Guest sign-in failed:', result.error)
+  }
+  // Once authenticated (even anonymously), App.vue will show the lobby
 }
 
 function startLocalGame() {
