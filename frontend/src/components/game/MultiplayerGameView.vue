@@ -136,6 +136,10 @@
       <div class="modal terminal-modal">
         <h1 class="glitch-text" data-text="GAME OVER">GAME OVER</h1>
         <p class="winner-text">VICTOR: {{ winnerName }}</p>
+        <div v-if="authStore.isAnonymous" class="upgrade-prompt">
+          <p class="upgrade-text">Create an account to save your stats and play with friends anytime</p>
+          <button @click="handleUpgrade" class="btn-primary" style="border-color: var(--color-neon-blue); color: var(--color-neon-blue);">CREATE ACCOUNT</button>
+        </div>
         <button @click="leaveGame" class="btn-primary">RETURN TO LOBBY</button>
       </div>
     </div>
@@ -505,6 +509,11 @@ function toggleSound() {
 
 async function leaveGame() {
   await mpStore.leaveGame()
+}
+
+async function handleUpgrade() {
+  await mpStore.leaveGame()
+  await authStore.signOut()
 }
 </script>
 

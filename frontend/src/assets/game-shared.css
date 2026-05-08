@@ -417,6 +417,23 @@
 }
 
 /* ==========================================================================
+   UPGRADE PROMPT (Game Over modal for anonymous users)
+   ========================================================================== */
+.upgrade-prompt {
+  border: 1px dashed var(--color-neon-blue);
+  padding: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
+  background: rgba(0, 243, 255, 0.05);
+}
+
+.upgrade-text {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin: 0 0 0.75rem 0;
+  font-family: 'Courier New', monospace;
+}
+
+/* ==========================================================================
    SCREEN SHAKE EFFECT
    ========================================================================== */
 .shake-screen {
