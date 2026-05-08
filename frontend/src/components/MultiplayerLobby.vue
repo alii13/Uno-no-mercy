@@ -9,6 +9,7 @@
       </div>
       <div class="user-info">
         <span>{{ authStore.username }}</span>
+        <button v-if="authStore.isAnonymous" @click="upgradeAccount" class="logout-btn" style="border-color: var(--color-neon-blue); color: var(--color-neon-blue);">CREATE ACCOUNT</button>
         <button @click="authStore.signOut()" class="logout-btn">LOGOUT</button>
       </div>
     </div>
@@ -121,7 +122,7 @@ import { ref } from 'vue'
 import { useAuthStore } from '../stores/authStore'
 import { useMultiplayerStore } from '../stores/multiplayerStore'
 
-defineEmits(['playLocal'])
+const emit = defineEmits(['playLocal', 'showAuth'])
 
 const authStore = useAuthStore()
 const mpStore = useMultiplayerStore()
@@ -154,6 +155,11 @@ async function startGame() {
 
 async function leaveGame() {
   await mpStore.leaveGame()
+}
+
+async function upgradeAccount() {
+  await authStore.signOut()
+  emit('showAuth')
 }
 
 function copyRoomCode() {

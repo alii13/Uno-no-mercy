@@ -127,6 +127,54 @@ export const useAuthStore = defineStore('auth', () => {
         }
     }
 
+    async function signInAnonymously() {
+        loading.value = true
+        error.value = null
+
+        try {
+            const guestName = 'Guest_' + Math.random().toString(36).substring(2, 6).toUpperCase()
+
+            const { data, error: authError } = await supabase.auth.signInAnonymously({
+                options: {
+                    data: {
+                        username: guestName
+                    }
+                }
+            })
+
+            if (authError) throw authError
+            if (!data.user) throw new Error('Anonymous sign-in failed')
+
+            user.value = data.user
+
+            // Create profile for anonymous user (trigger may not fire for anon)
+            const { data: existing } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('id', data.user.id)
+                .single()
+
+            if (!existing) {
+                await supabase
+                    .from('profiles')
+                    .insert({
+                        id: data.user.id,
+                        username: guestName
+                    })
+            }
+
+            await fetchProfile()
+            return { success: true }
+        } catch (err: any) {
+            error.value = err.message
+            return { success: false, error: err.message }
+        } finally {
+            loading.value = false
+        }
+    }
+
+    const isAnonymous = computed(() => user.value?.is_anonymous === true)
+
     async function sendPasswordReset(email: string) {
         try {
             const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
@@ -170,10 +218,12 @@ export const useAuthStore = defineStore('auth', () => {
         loading,
         error,
         isAuthenticated,
+        isAnonymous,
         username,
         initialize,
         signUp,
         signIn,
+        signInAnonymously,
         signOut,
         sendPasswordReset,
         updatePassword
