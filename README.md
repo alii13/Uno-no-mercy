@@ -10,11 +10,14 @@ The official UNO No Mercy rules never got a proper digital version. This project
 
 ## What it does
 
-- **Real-time multiplayer** - create a room, share a code, play with 2-10 players
+- **No login required** - click "Play Now" and you're in a game in seconds. Guest players get full access via anonymous auth.
+- **Real-time multiplayer** - create a room, share a code, play with 2-10 players. Works for guests and registered users alike.
 - **VS Bot** - single-player mode against an AI opponent
 - **Full No Mercy rules** - every card from the physical deck implemented faithfully
+- **7-card swap is optional** - choose to swap hands or keep your own
 - **Mobile responsive** - playable on phones (320px+), tablets, and desktops
-- **Supabase backend** - auth, game state, and real-time sync via Supabase Realtime
+- **Password reset** - forgot password flow with email recovery
+- **Supabase backend** - auth (including anonymous), game state, and real-time sync via Supabase Realtime
 - **Cloudflare proxy** - optional Cloudflare Worker to bypass regional Supabase blocks
 
 ### No Mercy cards included
@@ -26,7 +29,7 @@ The official UNO No Mercy rules never got a proper digital version. This project
 | Reverse Draw 4 | Reverse direction AND +4 |
 | Color Roulette | Victim draws until they hit the chosen color |
 | Discard All | Play every card of the matching color at once |
-| 7 - Swap | Swap hands with any player |
+| 7 - Swap | Swap hands with any player (or keep your hand) |
 | 0 - Rotate | All hands rotate in play direction |
 
 ## Tech stack
@@ -78,7 +81,9 @@ npm install
 
 1. Create a project at [supabase.com](https://supabase.com)
 2. Copy your project URL and anon key from **Settings > API**
-3. Create your env file:
+3. Enable **anonymous sign-ins** under **Authentication > Settings** (required for guest play)
+4. Set the **Site URL** under **Authentication > URL Configuration** to your deploy URL (e.g. `https://uno-no-mercy.pages.dev`)
+5. Create your env file:
 
 ```bash
 cp .env.example .env
