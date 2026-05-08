@@ -99,6 +99,10 @@
         <h1 class="glitch-text" data-text="GAME OVER">GAME OVER</h1>
         <div class="scan-line"></div>
         <p class="winner-text">VICTOR: {{ getWinnerName() }}</p>
+        <div v-if="authStore.isAnonymous" class="upgrade-prompt">
+          <p class="upgrade-text">Create an account to save your stats and play with friends</p>
+          <button @click="handleUpgrade" class="btn-primary" style="border-color: var(--color-neon-blue); color: var(--color-neon-blue);">CREATE ACCOUNT</button>
+        </div>
         <button @click="restart" class="btn-primary">REBOOT_SYSTEM</button>
         <button @click="store.returnToLobby()" class="btn-primary" style="margin-top: 1rem; border-color: #444; color: var(--text-muted);">EXIT</button>
       </div>
@@ -109,6 +113,7 @@
 <script setup lang="ts">
 import { computed, ref, provide, watch, onMounted } from 'vue'
 import { useGameStore } from '../../stores/gameStore'
+import { useAuthStore } from '../../stores/authStore'
 import { canPlayCard } from '../../utils/gameRules'
 import { soundEffects } from '../../composables/useSoundEffects'
 import { useCardAnimations } from '../../composables/useCardAnimations'
@@ -125,6 +130,7 @@ import StatusPanel from './StatusPanel.vue'
 import PlayerConsoleBar from './PlayerConsoleBar.vue'
 
 const store = useGameStore()
+const authStore = useAuthStore()
 const { animateFlyingCard, animateDrawCardsStaggered } = useCardAnimations()
 
 // For MVP single player, we assume we are player 0
@@ -271,6 +277,11 @@ function getWinnerName() {
 
 function restart() {
   store.initializeGame(['You', 'Terminator'])
+}
+
+async function handleUpgrade() {
+  store.returnToLobby()
+  await authStore.signOut()
 }
 function onOpponentClick(playerId: string) {
   if (store.turnState === 'CHOOSING_PLAYER_TO_SWAP' && isMyTurn.value) {
