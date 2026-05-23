@@ -331,11 +331,10 @@ export const useGameStore = defineStore('game', () => {
             if (card.type === 'reverse') {
                 // Reverse acts as Skip in 2p
                 advanceTurn()
-            } else {
-                // Wild Reverse Draw 4 in 2p: Skip other player, penalty BOOMERANGS to you
-                direction.value = direction.value === 1 ? -1 : 1
-                advanceTurn()
             }
+            // Wild Reverse Draw 4 in 2p: just reverse direction, penalty goes to opponent
+            // (the normal advanceTurn in playCard will move to the other player)
+            direction.value = direction.value === 1 ? -1 : 1
         } else {
             direction.value = direction.value === 1 ? -1 : 1
         }

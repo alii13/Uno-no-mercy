@@ -9,15 +9,10 @@ export function canPlayCard(
     currentColor: CardColor,
     drawStack: number
 ): boolean {
-    // 1. Stacking Logic definition
+    // 1. Stacking Logic - any draw card can stack on any draw card
     if (drawStack > 0) {
         const drawVal = getDrawValue(card)
-        // Must play a draw card to stack.
-        if (drawVal > 0) {
-            const topDrawValue = getDrawValue(topCard)
-            return drawVal >= topDrawValue
-        }
-        return false // Cannot play non-draw card when facing a stack validation
+        return drawVal > 0
     }
 
     // 2. Standard Uno Logic

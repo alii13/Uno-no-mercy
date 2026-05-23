@@ -227,26 +227,35 @@ async function animateAndPlay(card: CardType) {
 
 @media (max-width: 480px) {
   .player-hand {
-    height: 120px;
-    padding: 15px 5px 5px;
-    overflow-x: auto;
-    overflow-y: visible;
+    height: 130px;
+    padding: 20px 0 5px;
+    overflow-x: scroll;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 15px;
+  }
+
+  .player-hand::-webkit-scrollbar {
+    display: none;
   }
 
   .cards-container {
     min-width: min-content;
+    padding: 0 10px;
   }
 
   .hand-card-wrapper {
-    margin-right: -18px;
+    margin-right: -15px;
+    flex-shrink: 0;
   }
 
   .hand-card-wrapper:hover {
-    transform: translateY(-20px) scale(1.08) !important;
+    transform: translateY(-15px) scale(1.05) !important;
   }
 
   .not-my-turn .hand-card-wrapper:hover {
-    transform: translateY(-10px) scale(1.03) !important;
+    transform: translateY(-8px) scale(1.03) !important;
   }
 }
 </style>
