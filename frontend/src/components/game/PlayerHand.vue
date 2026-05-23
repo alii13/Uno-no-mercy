@@ -10,7 +10,7 @@
           'playable-glow': isMyTurn && canPlay(card)
         }"
         :ref="(el: any) => setCardRef(card.id, el)"
-        :style="getCardStyle(index)"
+        :style="{ ...getCardStyle(index), marginRight: index < hand.length - 1 ? cardOverlap + 'px' : '0' }"
         @mouseenter="hoverIndex = index"
         @mouseleave="hoverIndex = -1"
         @click="handleCardClick(card, $event)"
@@ -51,13 +51,39 @@ const props = defineProps<{
 }>()
 
 const store = useGameStore()
-const { isMobile, isTablet } = useScreenSize()
+const { screenWidth, isMobile, isTablet } = useScreenSize()
 const hoverIndex = ref(-1)
 
-const cardSize = computed(() => {
+const baseCardSize = computed(() => {
   if (isMobile.value) return { width: 65, height: 91 }
   if (isTablet.value) return { width: 80, height: 112 }
   return { width: 100, height: 140 }
+})
+
+// Dynamic card sizing - shrink cards when hand is very large on small screens
+const cardSize = computed(() => {
+  const base = baseCardSize.value
+  if (!isMobile.value || props.hand.length <= 8) return base
+  const scale = Math.max(0.7, 1 - (props.hand.length - 8) * 0.03)
+  return {
+    width: Math.round(base.width * scale),
+    height: Math.round(base.height * scale)
+  }
+})
+
+// Dynamic overlap - squeeze cards to always fit on screen
+const cardOverlap = computed(() => {
+  const count = props.hand.length
+  if (count <= 1) return 0
+  const padding = isMobile.value ? 20 : isTablet.value ? 20 : 40
+  const available = screenWidth.value - padding
+  const totalWidth = count * cardSize.value.width
+  if (totalWidth <= available) {
+    return isMobile.value ? -15 : isTablet.value ? -25 : -35
+  }
+  const needed = -(totalWidth - available) / (count - 1)
+  const maxOverlap = -(cardSize.value.width * 0.85)
+  return Math.max(maxOverlap, needed)
 })
 const cardRefs = ref<Map<string, HTMLElement>>(new Map())
 const showColorPicker = ref(false)
@@ -214,14 +240,9 @@ async function executePlayCard(card: CardType, selectedColor?: CardColor) {
 
 .hand-card-wrapper {
   position: relative;
-  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), margin-right 0.3s ease;
   cursor: pointer;
-  margin-right: -35px;
   transform-origin: bottom center;
-}
-
-.hand-card-wrapper:last-child {
-  margin-right: 0;
 }
 
 .hand-card-wrapper:hover {
@@ -279,10 +300,6 @@ async function executePlayCard(card: CardType, selectedColor?: CardColor) {
     padding: 30px 10px 10px;
   }
 
-  .hand-card-wrapper {
-    margin-right: -25px;
-  }
-
   .hand-card-wrapper:hover {
     transform: translateY(-30px) scale(1.1) !important;
   }
@@ -291,26 +308,8 @@ async function executePlayCard(card: CardType, selectedColor?: CardColor) {
 @media (max-width: 480px) {
   .player-hand {
     height: 130px;
-    padding: 20px 0 5px;
-    overflow-x: scroll;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    padding-bottom: 15px;
-  }
-
-  .player-hand::-webkit-scrollbar {
-    display: none;
-  }
-
-  .cards-container {
-    min-width: min-content;
-    padding: 0 10px;
-  }
-
-  .hand-card-wrapper {
-    margin-right: -15px;
-    flex-shrink: 0;
+    padding: 20px 5px 5px;
+    overflow: visible;
   }
 
   .hand-card-wrapper:hover {
