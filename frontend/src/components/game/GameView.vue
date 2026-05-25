@@ -99,6 +99,10 @@
         <h1 class="glitch-text" data-text="GAME OVER">GAME OVER</h1>
         <div class="scan-line"></div>
         <p class="winner-text">VICTOR: {{ getWinnerName() }}</p>
+        <div class="gameover-share">
+          <button @click="shareToTwitter" class="share-social-btn twitter-btn">SHARE ON X</button>
+          <button @click="shareToWhatsApp" class="share-social-btn whatsapp-btn">SHARE ON WHATSAPP</button>
+        </div>
         <div v-if="authStore.isAnonymous" class="upgrade-prompt">
           <p class="upgrade-text">Create an account to save your stats and play with friends</p>
           <button @click="handleUpgrade" class="btn-primary" style="border-color: var(--color-neon-blue); color: var(--color-neon-blue);">CREATE ACCOUNT</button>
@@ -277,6 +281,24 @@ function getWinnerName() {
 
 function restart() {
   store.initializeGame(['You', 'Terminator'])
+}
+
+function getGameOverShareText() {
+  const won = store.winnerId === 'p-0'
+  return won
+    ? `Just destroyed the bot in UNO No Mercy. No mercy given. Play me if you dare.`
+    : `The bot just wrecked me in UNO No Mercy. This game is brutal. Try it yourself.`
+}
+
+function shareToTwitter() {
+  const text = encodeURIComponent(getGameOverShareText())
+  const url = encodeURIComponent('https://uno-no-mercy.pages.dev')
+  window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank')
+}
+
+function shareToWhatsApp() {
+  const text = encodeURIComponent(getGameOverShareText() + '\n\nhttps://uno-no-mercy.pages.dev')
+  window.open(`https://wa.me/?text=${text}`, '_blank')
 }
 
 async function handleUpgrade() {
