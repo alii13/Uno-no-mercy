@@ -22,28 +22,35 @@
       
       <!-- No active game - show options -->
       <div v-if="!mpStore.currentGame" class="lobby-options">
-        <div class="option-card" :class="{ loading: mpStore.loading }" @click="createGame">
-          <div class="option-icon">🎮</div>
-          <h3>{{ mpStore.loading ? 'CREATING...' : 'CREATE GAME' }}</h3>
-          <p>Start a new game and invite a friend</p>
-        </div>
-        
-        <div class="option-card" @click="showJoinModal = true">
-          <div class="option-icon">🔗</div>
-          <h3>JOIN GAME</h3>
-          <p>Enter a room code to join</p>
-        </div>
-        
-        <div class="option-card" @click="$emit('playLocal')">
-          <div class="option-icon">🤖</div>
-          <h3>VS BOT</h3>
-          <p>Practice against AI opponent</p>
+        <div class="option-cards-row">
+          <div class="option-card" :class="{ loading: mpStore.loading }" @click="createGame">
+            <svg class="option-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="9" cy="12" r="2"/><line x1="15" y1="10" x2="15" y2="14"/><line x1="13" y1="12" x2="17" y2="12"/></svg>
+            <h3>{{ mpStore.loading ? 'CREATING...' : 'CREATE GAME' }}</h3>
+            <p>Start a new game and invite a friend</p>
+          </div>
+
+          <div class="option-card" @click="showJoinModal = true">
+            <svg class="option-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            <h3>JOIN GAME</h3>
+            <p>Enter a room code to join</p>
+          </div>
+
+          <div class="option-card" @click="$emit('playLocal')">
+            <svg class="option-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="11"/><circle cx="8" cy="16" r="1" fill="currentColor"/><circle cx="16" cy="16" r="1" fill="currentColor"/></svg>
+            <h3>VS BOT</h3>
+            <p>Practice against AI opponent</p>
+          </div>
         </div>
 
-        <div class="option-card" @click="$emit('showStats')">
-          <div class="option-icon">📊</div>
-          <h3>MY STATS</h3>
-          <p>View your battle record</p>
+        <div class="stats-bar" @click="handleStatsClick">
+          <svg class="stats-bar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="7" width="4" height="14"/><rect x="17" y="3" width="4" height="18"/></svg>
+          <div class="stats-bar-info">
+            <h3>MY STATS</h3>
+            <p v-if="authStore.isAnonymous">Create an account to track your battle record</p>
+            <p v-else>View your battle record and share stats</p>
+          </div>
+          <svg v-if="authStore.isAnonymous" class="stats-bar-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          <svg v-else class="stats-bar-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
         </div>
       </div>
       
@@ -168,6 +175,14 @@ async function upgradeAccount() {
   emit('showAuth')
 }
 
+function handleStatsClick() {
+  if (authStore.isAnonymous) {
+    upgradeAccount()
+  } else {
+    emit('showStats')
+  }
+}
+
 function copyRoomCode() {
   navigator.clipboard.writeText(mpStore.roomCode)
   copied.value = true
@@ -260,8 +275,14 @@ function copyRoomCode() {
 }
 
 .lobby-options {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.option-cards-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 1.5rem;
 }
 
@@ -280,9 +301,15 @@ function copyRoomCode() {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 
-.option-icon {
-  font-size: 3rem;
+.option-svg {
+  width: 40px;
+  height: 40px;
+  color: var(--color-neon-blue);
   margin-bottom: 1rem;
+}
+
+.option-card:hover .option-svg {
+  color: var(--color-neon-green);
 }
 
 .option-card h3 {
@@ -294,6 +321,58 @@ function copyRoomCode() {
   color: var(--text-muted);
   font-size: 0.9rem;
   margin: 0;
+}
+
+/* Stats Bar */
+.stats-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid #333;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.stats-bar:hover {
+  border-color: var(--color-neon-blue);
+  background: rgba(0, 243, 255, 0.03);
+}
+
+.stats-bar-icon {
+  width: 28px;
+  height: 28px;
+  color: var(--color-hazard);
+  flex-shrink: 0;
+}
+
+.stats-bar-info {
+  flex: 1;
+}
+
+.stats-bar-info h3 {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.stats-bar-info p {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin: 0.2rem 0 0;
+}
+
+.stats-bar-lock {
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted);
+}
+
+.stats-bar-arrow {
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted);
 }
 
 .option-card.loading {
@@ -567,8 +646,8 @@ function copyRoomCode() {
 }
 
 @media (max-width: 768px) {
-  .lobby-options {
-    grid-template-columns: repeat(2, 1fr);
+  .option-cards-row {
+    grid-template-columns: 1fr;
     gap: 1rem;
   }
 
