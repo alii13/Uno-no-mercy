@@ -6,79 +6,82 @@
     <!-- Animated Background Grid -->
     <div class="grid-bg"></div>
     
-    <!-- Danger Tape Top -->
-    <div class="danger-tape top">
-      <div class="tape-content">
-        <span v-for="i in 20" :key="i">// NO MERCY ZONE // ENTER AT YOUR OWN RISK //</span>
-      </div>
-    </div>
-    
-    <!-- Main Content - Split Layout -->
-    <main class="landing-main">
-      <!-- Left Side - Branding -->
-      <div class="brand-section">
-        <h1 class="title glitch-text" data-text="UNO">UNO</h1>
-        <h2 class="subtitle">NO MERCY</h2>
-        <p class="tagline">THE RUTHLESS CARD BATTLE</p>
-        
-        <!-- Status Display -->
-        <div class="status-display">
-          <div class="status-line">
-            <span class="blink">▶</span> SYSTEM: <span class="online">ONLINE</span>
-          </div>
-          <div class="status-line">
-            <span class="blink">▶</span> THREAT LEVEL: <span class="critical">MAXIMUM</span>
-          </div>
+    <!-- Hero Screen - fits exactly in viewport -->
+    <div class="hero-screen">
+      <!-- Danger Tape Top -->
+      <div class="danger-tape top">
+        <div class="tape-content">
+          <span v-for="i in 20" :key="i">// NO MERCY ZONE // ENTER AT YOUR OWN RISK //</span>
         </div>
       </div>
-      
-      <!-- Right Side - Actions -->
-      <div class="action-section">
-        <div class="action-card">
-          <h3 class="card-title">JOIN THE BATTLE</h3>
-          
-          <button @click="$emit('playGuest')" class="action-btn primary">
-            PLAY NOW
-          </button>
 
-          <button @click="$emit('showAuth', 'signup')" class="action-btn secondary">
-            CREATE ACCOUNT
-          </button>
+      <!-- Main Content - Split Layout -->
+      <main class="landing-main">
+        <!-- Left Side - Branding -->
+        <div class="brand-section">
+          <h1 class="title glitch-text" data-text="UNO">UNO</h1>
+          <h2 class="subtitle">NO MERCY</h2>
+          <p class="tagline">THE RUTHLESS CARD BATTLE</p>
 
-          <button @click="$emit('showAuth', 'login')" class="action-btn tertiary">
-            RETURNING PLAYER
-          </button>
-
-          <div class="separator"></div>
-          
-          <!-- Features List -->
-          <div class="features-list">
-            <div class="feature-item">
-              <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-              <span class="feature-text">Real-time Multiplayer</span>
+          <!-- Status Display -->
+          <div class="status-display">
+            <div class="status-line">
+              <span class="blink">▶</span> SYSTEM: <span class="online">ONLINE</span>
             </div>
-            <div class="feature-item">
-              <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="11"/><circle cx="8" cy="16" r="1" fill="currentColor"/><circle cx="16" cy="16" r="1" fill="currentColor"/></svg>
-              <span class="feature-text">VS Ruthless AI</span>
-            </div>
-            <div class="feature-item">
-              <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-              <span class="feature-text">Stack Draws & Skip Everyone</span>
+            <div class="status-line">
+              <span class="blink">▶</span> THREAT LEVEL: <span class="critical">MAXIMUM</span>
             </div>
           </div>
         </div>
-      </div>
-    </main>
-    
-    <!-- Scroll Indicator -->
-    <div class="scroll-indicator">
-      <span class="scroll-text">SCROLL TO SEE THE CHAOS</span>
-      <svg class="scroll-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><polyline points="6 9 12 15 18 9"/></svg>
-    </div>
 
-    <!-- Hazard Bar -->
-    <div class="hazard-bar">
-      <div class="hazard-stripe"></div>
+        <!-- Right Side - Actions -->
+        <div class="action-section">
+          <div class="action-card">
+            <h3 class="card-title">JOIN THE BATTLE</h3>
+
+            <button @click="$emit('playGuest')" class="action-btn primary">
+              PLAY NOW
+            </button>
+
+            <button @click="$emit('showAuth', 'signup')" class="action-btn secondary">
+              CREATE ACCOUNT
+            </button>
+
+            <button @click="$emit('showAuth', 'login')" class="action-btn tertiary">
+              RETURNING PLAYER
+            </button>
+
+            <div class="separator"></div>
+
+            <!-- Features List -->
+            <div class="features-list">
+              <div class="feature-item">
+                <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <span class="feature-text">Real-time Multiplayer</span>
+              </div>
+              <div class="feature-item">
+                <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="11"/><circle cx="8" cy="16" r="1" fill="currentColor"/><circle cx="16" cy="16" r="1" fill="currentColor"/></svg>
+                <span class="feature-text">VS Ruthless AI</span>
+              </div>
+              <div class="feature-item">
+                <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                <span class="feature-text">Stack Draws & Skip Everyone</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- Scroll Indicator -->
+      <div class="scroll-indicator">
+        <span class="scroll-text">SCROLL TO SEE THE CHAOS</span>
+        <svg class="scroll-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+
+      <!-- Hazard Bar -->
+      <div class="hazard-bar">
+        <div class="hazard-stripe"></div>
+      </div>
     </div>
 
     <!-- Scroll Animated Sections -->
@@ -110,8 +113,12 @@ defineEmits<{
   flex-direction: column;
 }
 
-.landing-container > .landing-main {
-  min-height: 100vh;
+.hero-screen {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .scan-line {
@@ -174,10 +181,11 @@ defineEmits<{
 /* Main Content - Split Layout */
 .landing-main {
   flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 4rem;
-  padding: 4rem;
+  gap: 3rem;
+  padding: 2rem 4rem;
   align-items: center;
   position: relative;
   z-index: 5;
