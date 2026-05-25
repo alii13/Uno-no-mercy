@@ -30,6 +30,30 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     const pendingDiscardAllCards = ref<Card[]>([]) // Cards to choose top from during Discard All
     let gameChannel: RealtimeChannel | null = null
 
+    // --- In-game stat tracking ---
+    const mpGameStartTime = ref(0)
+    const mpStats = ref({
+        peakCards: 0,
+        drawCardsPlayed: 0,
+        wildCardsPlayed: 0,
+        cardsPlayedTotal: 0,
+        skipsDealt: 0,
+        swapsMade: 0,
+        drawsTaken: 0,
+        biggestStackSurvived: 0,
+        unoCalls: 0,
+        unoPenalties: 0
+    })
+
+    function resetMpStats() {
+        mpGameStartTime.value = Date.now()
+        mpStats.value = {
+            peakCards: 0, drawCardsPlayed: 0, wildCardsPlayed: 0,
+            cardsPlayedTotal: 0, skipsDealt: 0, swapsMade: 0,
+            drawsTaken: 0, biggestStackSurvived: 0, unoCalls: 0, unoPenalties: 0
+        }
+    }
+
     // Computed
     const isHost = computed(() => currentGame.value?.host_id === authStore.user?.id)
     const isMyTurn = computed(() =>
@@ -330,6 +354,14 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
                     await loadGamePlayers(gameId)
 
+                    // Track peak cards for my hand
+                    if (myPlayer.value) {
+                        const handLen = (myPlayer.value.hand as Card[])?.length || 0
+                        if (handLen > mpStats.value.peakCards) {
+                            mpStats.value.peakCards = handLen
+                        }
+                    }
+
                     // If during an active game we're down to < 2 players, game is unplayable
                     if (currentGame.value?.status === 'playing' && gamePlayers.value.length < 2) {
                         opponentLeft.value = true
@@ -445,6 +477,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             if (gameError) throw gameError
 
             console.log('startGame: Game started successfully!')
+            resetMpStats()
 
         } catch (err: any) {
             console.error('startGame error:', err)
@@ -739,6 +772,13 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             return
         }
 
+        // Track card play stats
+        const st = mpStats.value
+        st.cardsPlayedTotal++
+        if (card.color === 'wild') st.wildCardsPlayed++
+        if (getDrawValue(card) > 0) st.drawCardsPlayed++
+        if (card.type === 'skip' || card.type === 'skipEveryone') st.skipsDealt++
+
         const myIndex = gamePlayers.value.findIndex(p => p.user_id === myId)
         const playerCount = gamePlayers.value.length
 
@@ -779,6 +819,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     // targetPlayerId can be either game_players.id or user_id
     async function swapHands(targetPlayerId: string) {
         if (!currentGame.value || !myPlayer.value) return
+        mpStats.value.swapsMade++
         if (currentGame.value.turn_state !== 'CHOOSING_PLAYER_TO_SWAP') return
         if (actionInProgress.value) return
 
@@ -917,6 +958,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     // Call UNO
     async function callUno() {
         if (!myPlayer.value) return
+        mpStats.value.unoCalls++
         try {
             await supabase
                 .from('game_players')
@@ -1246,6 +1288,13 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
         actionInProgress.value = true
 
+        // Track draw stats
+        const st = mpStats.value
+        st.drawsTaken++
+        if (curDrawStack > 0 && curDrawStack > st.biggestStackSurvived) {
+            st.biggestStackSurvived = curDrawStack
+        }
+
         const state: DrawState = {
             deck: [...(game.deck as Card[])],
             discardPile: [...(game.discard_pile as Card[])],
@@ -1359,6 +1408,62 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         opponent.value = null
         gamePlayers.value = []
     }
+
+    // Log game results when multiplayer game finishes
+    let mpResultLogged = false
+
+    async function logMpGameResult() {
+        if (mpResultLogged) return
+        if (!currentGame.value || currentGame.value.status !== 'finished') return
+        const userId = authStore.user?.id
+        if (!userId) return
+
+        mpResultLogged = true
+        const st = mpStats.value
+        const duration = Math.round((Date.now() - mpGameStartTime.value) / 1000)
+        const myHand = (myPlayer.value?.hand as Card[]) || []
+
+        let result: 'won' | 'lost' | 'eliminated' | 'abandoned' = 'lost'
+        if (currentGame.value.winner_id === userId) result = 'won'
+        else if (myPlayer.value?.is_eliminated) result = 'eliminated'
+
+        await supabase.from('game_results').insert({
+            game_id: currentGame.value.id,
+            user_id: userId,
+            opponent_count: gamePlayers.value.length - 1,
+            result,
+            cards_remaining: myHand.length,
+            peak_cards: st.peakCards,
+            draw_cards_played: st.drawCardsPlayed,
+            wild_cards_played: st.wildCardsPlayed,
+            cards_played_total: st.cardsPlayedTotal,
+            skips_dealt: st.skipsDealt,
+            swaps_made: st.swapsMade,
+            draws_taken: st.drawsTaken,
+            biggest_stack_survived: st.biggestStackSurvived,
+            uno_calls: st.unoCalls,
+            uno_penalties: st.unoPenalties,
+            game_duration_secs: duration,
+            is_bot_game: false
+        })
+    }
+
+    // Watch for game status changes to log results
+    // Uses a getter to watch the nested property reactively
+    void (() => {
+        let prevStatus = ''
+        return setInterval(() => {
+            const status = currentGame.value?.status || ''
+            if (status === 'finished' && prevStatus === 'playing') {
+                logMpGameResult()
+            }
+            if (status !== prevStatus && status === 'playing') {
+                mpResultLogged = false
+                resetMpStats()
+            }
+            prevStatus = status
+        }, 500)
+    })()
 
     return {
         currentGame,
