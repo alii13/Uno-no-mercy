@@ -39,6 +39,12 @@
           <h3>VS BOT</h3>
           <p>Practice against AI opponent</p>
         </div>
+
+        <div class="option-card" @click="$emit('showStats')">
+          <div class="option-icon">📊</div>
+          <h3>MY STATS</h3>
+          <p>View your battle record</p>
+        </div>
       </div>
       
       <!-- Waiting room -->
@@ -122,7 +128,7 @@ import { ref } from 'vue'
 import { useAuthStore } from '../stores/authStore'
 import { useMultiplayerStore } from '../stores/multiplayerStore'
 
-const emit = defineEmits(['playLocal', 'showAuth'])
+const emit = defineEmits(['playLocal', 'showAuth', 'showStats'])
 
 const authStore = useAuthStore()
 const mpStore = useMultiplayerStore()
@@ -255,8 +261,8 @@ function copyRoomCode() {
 
 .lobby-options {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 2rem;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
 }
 
 .option-card {
@@ -562,7 +568,7 @@ function copyRoomCode() {
 
 @media (max-width: 768px) {
   .lobby-options {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
     gap: 1rem;
   }
 

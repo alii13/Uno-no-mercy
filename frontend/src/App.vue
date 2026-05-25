@@ -63,11 +63,18 @@
       v-else-if="mpStore.currentGame && (mpStore.currentGame.status === 'playing' || mpStore.currentGame.status === 'finished')"
     />
 
+    <!-- Player Dashboard -->
+    <PlayerDashboard
+      v-else-if="showDashboard"
+      @back="showDashboard = false"
+    />
+
     <!-- Authenticated - show lobby -->
     <MultiplayerLobby
       v-else
       @playLocal="startLocalGame"
       @showAuth="handleShowAuth('signup')"
+      @showStats="showDashboard = true"
     />
   </div>
 </template>
@@ -77,6 +84,7 @@ import { ref, onMounted } from 'vue'
 import LandingPage from './components/LandingPage.vue'
 import AuthView from './components/AuthView.vue'
 import MultiplayerLobby from './components/MultiplayerLobby.vue'
+import PlayerDashboard from './components/PlayerDashboard.vue'
 import GameView from './components/game/GameView.vue'
 import MultiplayerGameView from './components/game/MultiplayerGameView.vue'
 import { useAuthStore } from './stores/authStore'
@@ -90,6 +98,7 @@ const localGameStore = useGameStore()
 
 const showAuthView = ref(false)
 const authMode = ref<'login' | 'signup'>('signup')
+const showDashboard = ref(false)
 const showPasswordReset = ref(false)
 const newPassword = ref('')
 const confirmPassword = ref('')

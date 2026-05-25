@@ -12,6 +12,7 @@ import {
     rotateHands as rotateHandsHelper
 } from '../utils/gameHelpers'
 import { soundEffects } from '../composables/useSoundEffects'
+import { supabase } from '../lib/supabase'
 
 export const useGameStore = defineStore('game', () => {
     // Bot AI settings
@@ -49,6 +50,21 @@ export const useGameStore = defineStore('game', () => {
     const hasCalledUno = ref<Record<string, boolean>>({})
     const showUnoButton = ref(false)
 
+    // --- Per-player stat tracking (keyed by player id) ---
+    const gameStartTime = ref<number>(0)
+    const playerStats = ref<Record<string, {
+        peakCards: number
+        drawCardsPlayed: number
+        wildCardsPlayed: number
+        cardsPlayedTotal: number
+        skipsDealt: number
+        swapsMade: number
+        drawsTaken: number
+        biggestStackSurvived: number
+        unoCalls: number
+        unoPenalties: number
+    }>>({})
+
     // --- Getters ---
     const currentPlayer = computed(() => players.value[currentPlayerIndex.value])
     const topCard = computed(() => discardPile.value[discardPile.value.length - 1])
@@ -82,6 +98,18 @@ export const useGameStore = defineStore('game', () => {
         isDealing.value = true
         hasCalledUno.value = {}
         showUnoButton.value = false
+        gameStartTime.value = Date.now()
+
+        // Initialize per-player stats
+        const stats: typeof playerStats.value = {}
+        for (const p of players.value) {
+            stats[p.id] = {
+                peakCards: 0, drawCardsPlayed: 0, wildCardsPlayed: 0,
+                cardsPlayedTotal: 0, skipsDealt: 0, swapsMade: 0,
+                drawsTaken: 0, biggestStackSurvived: 0, unoCalls: 0, unoPenalties: 0
+            }
+        }
+        playerStats.value = stats
     }
 
     // Async function to deal initial cards one-by-one with animation support
@@ -165,6 +193,11 @@ export const useGameStore = defineStore('game', () => {
             player.hand.push(card)
             hasCalledUno.value[player.id] = false
             soundEffects.playCardPick()
+            // Track peak cards
+            const s = playerStats.value[player.id]
+            if (s && player.hand.length > s.peakCards) {
+                s.peakCards = player.hand.length
+            }
         }
         checkMercyRule(player)
         return card
@@ -232,6 +265,8 @@ export const useGameStore = defineStore('game', () => {
     function callUno(playerId: string) {
         hasCalledUno.value[playerId] = true
         showUnoButton.value = false
+        const s = playerStats.value[playerId]
+        if (s) s.unoCalls++
         soundEffects.announceTurn("UNO!")
     }
 
@@ -248,6 +283,15 @@ export const useGameStore = defineStore('game', () => {
         player.hand.splice(cardIndex, 1)
 
         discardPile.value.push(card)
+
+        // Track card play stats
+        const s = playerStats.value[playerId]
+        if (s) {
+            s.cardsPlayedTotal++
+            if (card.color === 'wild') s.wildCardsPlayed++
+            if (getDrawValue(card) > 0) s.drawCardsPlayed++
+            if (card.type === 'skip' || card.type === 'skipEveryone') s.skipsDealt++
+        }
 
         // Handle Color Selection (Wilds)
         if (card.type === 'wildColorRoulette') {
@@ -285,6 +329,7 @@ export const useGameStore = defineStore('game', () => {
             const neededUno = handSizeBeforePlay === 2
             if (neededUno && !hasCalledUno.value[player.id]) {
                 // Penalty: Draw 2
+                if (s) s.unoPenalties++
                 drawCardToHand(player)
                 drawCardToHand(player)
                 soundEffects.announceTurn("CAUGHT! Draw 2")
@@ -498,6 +543,13 @@ export const useGameStore = defineStore('game', () => {
         if (drawStack.value > 0) {
             // Stacking Penalty Draw
             const cardsToDraw = drawStack.value
+            const ps = playerStats.value[p.id]
+            if (ps) {
+                ps.drawsTaken++
+                if (cardsToDraw > ps.biggestStackSurvived) {
+                    ps.biggestStackSurvived = cardsToDraw
+                }
+            }
             drawStack.value = 0
             let drawnCount = 0
             function drawNext() {
@@ -516,6 +568,8 @@ export const useGameStore = defineStore('game', () => {
 
             function drawUntilPlayable() {
                 if (!p || !topCard.value) return
+                const ps = playerStats.value[p.id]
+                if (ps) ps.drawsTaken++
                 // Draw 1
                 const card = drawCardToHand(p)
                 if (!card) return
@@ -618,6 +672,8 @@ export const useGameStore = defineStore('game', () => {
         const initiator = players.value.find(p => p.id === swapInitiatorId.value)
         const target = players.value.find(p => p.id === targetPlayerId)
         if (initiator && target) {
+            const s = playerStats.value[initiator.id]
+            if (s) s.swapsMade++
             const temp = [...initiator.hand]
             initiator.hand = [...target.hand]
             target.hand = temp
@@ -767,6 +823,51 @@ export const useGameStore = defineStore('game', () => {
         } else {
             winner.score = totalPoints
         }
+    }
+
+    // Auto-log results when game ends
+    watch(gameState, (newState) => {
+        if (newState === 'GAME_OVER') {
+            logGameResults()
+        }
+    })
+
+    async function logGameResults() {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        const humanPlayer = players.value.find(p => !p.isBot)
+        if (!humanPlayer) return
+
+        const s = playerStats.value[humanPlayer.id]
+        if (!s) return
+
+        const duration = Math.round((Date.now() - gameStartTime.value) / 1000)
+        let result: 'won' | 'lost' | 'eliminated' = 'lost'
+        if (winnerId.value === humanPlayer.id) result = 'won'
+        else if (humanPlayer.isEliminated) result = 'eliminated'
+
+        const gameId = `bot-${Date.now()}`
+
+        await supabase.from('game_results').insert({
+            game_id: gameId,
+            user_id: user.id,
+            opponent_count: players.value.length - 1,
+            result,
+            cards_remaining: humanPlayer.hand.length,
+            peak_cards: s.peakCards,
+            draw_cards_played: s.drawCardsPlayed,
+            wild_cards_played: s.wildCardsPlayed,
+            cards_played_total: s.cardsPlayedTotal,
+            skips_dealt: s.skipsDealt,
+            swaps_made: s.swapsMade,
+            draws_taken: s.drawsTaken,
+            biggest_stack_survived: s.biggestStackSurvived,
+            uno_calls: s.unoCalls,
+            uno_penalties: s.unoPenalties,
+            game_duration_secs: duration,
+            is_bot_game: true
+        })
     }
 
     return {
