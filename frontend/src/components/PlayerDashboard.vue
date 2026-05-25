@@ -11,7 +11,7 @@
     </div>
 
     <div v-else-if="gamesPlayed === 0" class="empty-state">
-      <p class="empty-icon">📊</p>
+      <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="7" width="4" height="14"/><rect x="17" y="3" width="4" height="18"/></svg>
       <p class="empty-title">NO DATA YET</p>
       <p class="empty-desc">Play your first game to start tracking stats.</p>
     </div>
@@ -403,7 +403,7 @@ function copyShareLink() {
   color: var(--text-muted);
 }
 
-.empty-icon { font-size: 3rem; margin-bottom: 1rem; }
+.empty-icon { color: var(--text-muted); margin-bottom: 1rem; }
 .empty-title { font-family: var(--font-display); font-size: 1.5rem; margin: 0 0 0.5rem; }
 .empty-desc { color: var(--text-muted); margin: 0; }
 

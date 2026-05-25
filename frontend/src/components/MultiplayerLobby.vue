@@ -17,7 +17,7 @@
     <div class="lobby-content">
       <!-- Error display -->
       <div v-if="mpStore.error" class="error-banner">
-        ⚠️ {{ mpStore.error }}
+        {{ mpStore.error }}
       </div>
       
       <!-- No active game - show options -->
