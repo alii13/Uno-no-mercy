@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { supabase, type GameRow, type GamePlayerRow } from '../lib/supabase'
 import { useAuthStore } from './authStore'
 import { generateFullDeck, shuffleDeck } from '../utils/deckGenerator'
@@ -111,6 +111,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
     // Create a new game
     async function createGame() {
+        mpResultLogged = false
         if (!authStore.user) {
             error.value = 'You must be logged in to create a game'
             return null
@@ -688,6 +689,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         if (finalHand.length === 0) {
             if (!myPlayer.value?.has_called_uno) {
                 // Penalty: Draw 2
+                mpStats.value.unoPenalties++
                 const deck = [...(game.deck as Card[])]
                 const drawn: Card[] = []
                 for (let i = 0; i < 2; i++) {
@@ -1449,21 +1451,18 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     }
 
     // Watch for game status changes to log results
-    // Uses a getter to watch the nested property reactively
-    void (() => {
-        let prevStatus = ''
-        return setInterval(() => {
-            const status = currentGame.value?.status || ''
-            if (status === 'finished' && prevStatus === 'playing') {
+    watch(
+        () => currentGame.value?.status,
+        (newStatus, oldStatus) => {
+            if (newStatus === 'finished' && oldStatus === 'playing') {
                 logMpGameResult()
             }
-            if (status !== prevStatus && status === 'playing') {
+            if (newStatus === 'playing' && oldStatus !== 'playing') {
                 mpResultLogged = false
                 resetMpStats()
             }
-            prevStatus = status
-        }, 500)
-    })()
+        }
+    )
 
     return {
         currentGame,
