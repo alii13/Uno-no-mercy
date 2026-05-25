@@ -1,0 +1,6 @@
+# Redirect old pages.dev domain to custom domain
+https://uno-no-mercy.pages.dev/* https://uno-no-mercy.com/:splat 301
+https://*.uno-no-mercy.pages.dev/* https://uno-no-mercy.com/:splat 301
+
+# Redirect www to apex
+https://www.uno-no-mercy.com/* https://uno-no-mercy.com/:splat 301
