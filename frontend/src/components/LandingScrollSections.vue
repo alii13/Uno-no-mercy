@@ -118,7 +118,7 @@ function onResize() { isMobile.value = window.innerWidth <= 768 }
 
 const heroCardSize = computed(() => isMobile.value ? { width: 120, height: 168 } : { width: 180, height: 252 })
 const medCardSize = computed(() => isMobile.value ? { width: 90, height: 126 } : { width: 130, height: 182 })
-const tinyCardSize = computed(() => isMobile.value ? { width: 40, height: 56 } : { width: 50, height: 70 })
+const tinyCardSize = computed(() => isMobile.value ? { width: 30, height: 42 } : { width: 50, height: 70 })
 
 // Section refs
 const stackSection = ref<HTMLElement>()
@@ -601,6 +601,8 @@ function initCta() {
   gap: 1.5rem;
   position: relative;
   min-height: 250px;
+  overflow: hidden;
+  padding: 2rem 0;
 }
 
 .mercy-counter-big {
@@ -615,11 +617,14 @@ function initCta() {
   display: flex;
   justify-content: center;
   flex-wrap: nowrap;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .mercy-c {
   margin-right: -22px;
   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+  flex-shrink: 0;
 }
 
 .mercy-c:last-child { margin-right: 0; }
@@ -639,6 +644,7 @@ function initCta() {
   z-index: 10;
   text-shadow: 0 0 30px var(--color-alert);
   box-shadow: 0 0 60px rgba(255, 42, 42, 0.4);
+  max-width: 90vw;
 }
 
 /* ========== CTA ========== */
@@ -709,8 +715,8 @@ function initCta() {
   .victim-avatar { width: 38px; height: 38px; }
   .victim-name { font-size: 0.6rem; }
   .roulette-stream { gap: 0.3rem; }
-  .mercy-boom { font-size: 1.5rem; padding: 0.2rem 1rem; }
-  .mercy-c { margin-right: -30px; }
+  .mercy-boom { font-size: 1.3rem; padding: 0.2rem 0.8rem; }
+  .mercy-c { margin-right: -32px; }
   .cta-heading { font-size: 3rem; }
   .cta-btn { padding: 1rem 2.5rem; font-size: 1rem; }
   .scroll-section { padding: 3rem 1rem; }
