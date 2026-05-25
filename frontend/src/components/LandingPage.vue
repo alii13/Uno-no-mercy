@@ -9,7 +9,7 @@
     <!-- Danger Tape Top -->
     <div class="danger-tape top">
       <div class="tape-content">
-        <span v-for="i in 20" :key="i">⚠️ NO MERCY ZONE ⚠️ ENTER AT YOUR OWN RISK ⚠️</span>
+        <span v-for="i in 20" :key="i">// NO MERCY ZONE // ENTER AT YOUR OWN RISK //</span>
       </div>
     </div>
     
@@ -54,15 +54,15 @@
           <!-- Features List -->
           <div class="features-list">
             <div class="feature-item">
-              <span class="feature-icon">🎮</span>
+              <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               <span class="feature-text">Real-time Multiplayer</span>
             </div>
             <div class="feature-item">
-              <span class="feature-icon">🤖</span>
+              <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="11"/><circle cx="8" cy="16" r="1" fill="currentColor"/><circle cx="16" cy="16" r="1" fill="currentColor"/></svg>
               <span class="feature-text">VS Ruthless AI</span>
             </div>
             <div class="feature-item">
-              <span class="feature-icon">💀</span>
+              <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
               <span class="feature-text">Stack Draws & Skip Everyone</span>
             </div>
           </div>
@@ -73,7 +73,7 @@
     <!-- Hazard Bar Bottom -->
     <div class="hazard-bar">
       <div class="hazard-stripe"></div>
-      <p class="warning-text">⚠️ WARNING: FRIENDSHIPS MAY NOT SURVIVE ⚠️</p>
+      <p class="warning-text">// WARNING: FRIENDSHIPS MAY NOT SURVIVE //</p>
     </div>
   </div>
 </template>
@@ -328,7 +328,10 @@ defineEmits<{
 }
 
 .feature-icon {
-  font-size: 1.2rem;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--color-neon-blue);
 }
 
 /* Hazard Bar */
