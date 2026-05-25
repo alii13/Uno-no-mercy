@@ -54,7 +54,7 @@
       <!-- Battle Record -->
       <div class="section">
         <h3 class="section-title">BATTLE RECORD</h3>
-        <div class="battle-bar">
+        <div class="battle-bar" v-if="gamesPlayed > 0">
           <div class="bar-segment bar-won" :style="{ width: (gamesWon / gamesPlayed * 100) + '%' }">{{ gamesWon }}W</div>
           <div class="bar-segment bar-lost" :style="{ width: (gamesLost / gamesPlayed * 100) + '%' }">{{ gamesLost }}L</div>
           <div v-if="gamesEliminated > 0" class="bar-segment bar-elim" :style="{ width: (gamesEliminated / gamesPlayed * 100) + '%' }">{{ gamesEliminated }}E</div>
@@ -163,8 +163,20 @@
       </div>
     </div>
 
-    <!-- Hidden canvas for share card -->
-    <canvas ref="shareCanvas" width="600" height="400" style="display: none;"></canvas>
+    <!-- Share Modal -->
+    <div v-if="showShareModal" class="share-overlay" @click.self="showShareModal = false">
+      <div class="share-modal">
+        <h3 class="share-title">SHARE YOUR STATS</h3>
+        <canvas ref="shareCanvas" width="600" height="400" class="share-preview"></canvas>
+        <div class="share-buttons">
+          <button @click="downloadCard" class="share-action">DOWNLOAD PNG</button>
+          <button @click="shareToTwitter" class="share-action twitter">TWITTER / X</button>
+          <button @click="shareToWhatsApp" class="share-action whatsapp">WHATSAPP</button>
+          <button @click="copyShareLink" class="share-action">{{ copied ? 'COPIED!' : 'COPY LINK' }}</button>
+        </div>
+        <button @click="showShareModal = false" class="share-close">CLOSE</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -180,6 +192,8 @@ defineEmits<{
 const authStore = useAuthStore()
 const username = authStore.username
 const shareCanvas = ref<HTMLCanvasElement | null>(null)
+const showShareModal = ref(false)
+const copied = ref(false)
 
 const {
   loading, gamesPlayed, gamesWon, gamesLost, gamesEliminated,
@@ -203,38 +217,35 @@ function formatDate(dateStr: string): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-function generateShareCard() {
+function getShareText() {
+  return `I'm a ${rank.value.title} in UNO No Mercy - ${winRate.value}% win rate across ${gamesPlayed.value} games. Think you can beat me?`
+}
+
+function renderShareCanvas() {
   const canvas = shareCanvas.value
   if (!canvas) return
-
   const ctx = canvas.getContext('2d')
   if (!ctx) return
 
-  // Background
   ctx.fillStyle = '#0a0a0b'
   ctx.fillRect(0, 0, 600, 400)
 
-  // Border
   ctx.strokeStyle = '#ffcc00'
   ctx.lineWidth = 2
   ctx.strokeRect(10, 10, 580, 380)
 
-  // Title
   ctx.fillStyle = '#e6e6e6'
   ctx.font = 'bold 28px monospace'
   ctx.fillText('UNO NO MERCY', 30, 55)
 
-  // Rank
   ctx.fillStyle = rank.value.color
   ctx.font = 'bold 18px monospace'
   ctx.fillText(rank.value.title.toUpperCase(), 30, 85)
 
-  // Username
   ctx.fillStyle = '#a1a1aa'
   ctx.font = '16px monospace'
   ctx.fillText(username, 280, 55)
 
-  // Divider
   ctx.strokeStyle = '#333'
   ctx.lineWidth = 1
   ctx.beginPath()
@@ -242,7 +253,6 @@ function generateShareCard() {
   ctx.lineTo(570, 100)
   ctx.stroke()
 
-  // Stats grid
   const statsY = 140
   ctx.fillStyle = '#e6e6e6'
   ctx.font = 'bold 32px monospace'
@@ -258,7 +268,6 @@ function generateShareCard() {
   ctx.fillText('STREAK', 330, statsY + 20)
   ctx.fillText('RUTHLESS', 470, statsY + 20)
 
-  // Highlights
   ctx.fillStyle = '#ffcc00'
   ctx.font = '14px monospace'
   const hlY = 210
@@ -267,7 +276,6 @@ function generateShareCard() {
   ctx.fillText(`Peak cards held: ${peakCardsEver.value}`, 30, hlY + 50)
   ctx.fillText(`Cards played: ${totalCardsPlayed.value}`, 30, hlY + 75)
 
-  // Battle record bar
   const barY = 320
   const barW = 540
   ctx.fillStyle = '#333'
@@ -285,35 +293,41 @@ function generateShareCard() {
   ctx.font = '11px monospace'
   ctx.fillText(`${gamesWon.value}W / ${gamesLost.value}L / ${gamesEliminated.value}E`, 30, barY + 38)
 
-  // Footer
   ctx.fillStyle = '#52525b'
   ctx.font = '12px monospace'
   ctx.fillText('uno-no-mercy.pages.dev', 30, 380)
+}
 
-  // Download
+function generateShareCard() {
+  showShareModal.value = true
+  setTimeout(renderShareCanvas, 100)
+}
+
+function downloadCard() {
+  const canvas = shareCanvas.value
+  if (!canvas) return
   const link = document.createElement('a')
   link.download = 'uno-no-mercy-stats.png'
   link.href = canvas.toDataURL('image/png')
   link.click()
+}
 
-  // Also try to share via Web Share API
-  canvas.toBlob((blob) => {
-    if (!blob) return
-    const file = new File([blob], 'uno-no-mercy-stats.png', { type: 'image/png' })
-    const shareText = `I'm a ${rank.value.title} in UNO No Mercy - ${winRate.value}% win rate across ${gamesPlayed.value} games. Think you can beat me?`
+function shareToTwitter() {
+  const text = encodeURIComponent(getShareText())
+  const url = encodeURIComponent('https://uno-no-mercy.pages.dev')
+  window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank')
+}
 
-    if (navigator.share && navigator.canShare?.({ files: [file] })) {
-      navigator.share({
-        text: shareText,
-        url: 'https://uno-no-mercy.pages.dev',
-        files: [file]
-      }).catch(() => {})
-    } else {
-      // Fallback: copy tweet text to clipboard
-      const tweet = `${shareText}\n\nhttps://uno-no-mercy.pages.dev`
-      navigator.clipboard?.writeText(tweet)
-    }
-  })
+function shareToWhatsApp() {
+  const text = encodeURIComponent(getShareText() + '\n\nhttps://uno-no-mercy.pages.dev')
+  window.open(`https://wa.me/?text=${text}`, '_blank')
+}
+
+function copyShareLink() {
+  const text = getShareText() + '\n\nhttps://uno-no-mercy.pages.dev'
+  navigator.clipboard?.writeText(text)
+  copied.value = true
+  setTimeout(() => copied.value = false, 2000)
 }
 </script>
 
@@ -581,6 +595,100 @@ function generateShareCard() {
 .recent-duration { color: var(--text-muted); }
 .recent-date { color: var(--text-muted); margin-left: auto; }
 
+/* Share Modal */
+.share-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  padding: 1rem;
+}
+
+.share-modal {
+  background: #111;
+  border: 2px solid var(--color-hazard);
+  padding: 1.5rem;
+  max-width: 650px;
+  width: 100%;
+  text-align: center;
+}
+
+.share-title {
+  font-family: var(--font-display);
+  color: var(--color-hazard);
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+}
+
+.share-preview {
+  display: block;
+  width: 100%;
+  max-width: 600px;
+  height: auto;
+  border: 1px solid #333;
+  margin: 0 auto 1rem;
+}
+
+.share-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.share-action {
+  padding: 0.75rem;
+  background: #222;
+  border: 1px solid #444;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  transition: all 0.2s;
+}
+
+.share-action:hover {
+  border-color: var(--color-neon-blue);
+  color: var(--color-neon-blue);
+}
+
+.share-action.twitter {
+  border-color: #1DA1F2;
+  color: #1DA1F2;
+}
+
+.share-action.twitter:hover {
+  background: #1DA1F2;
+  color: black;
+}
+
+.share-action.whatsapp {
+  border-color: #25D366;
+  color: #25D366;
+}
+
+.share-action.whatsapp:hover {
+  background: #25D366;
+  color: black;
+}
+
+.share-close {
+  background: transparent;
+  border: 1px solid #444;
+  color: var(--text-muted);
+  padding: 0.5rem 2rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.share-close:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-secondary);
+}
+
 /* Mobile */
 @media (max-width: 480px) {
   .dashboard-content { padding: 0.75rem 0.75rem 2rem; }
@@ -591,5 +699,7 @@ function generateShareCard() {
   .dash-title { font-size: 1rem; }
   .share-btn { padding: 0.3rem 0.5rem; font-size: 0.7rem; }
   .recent-game { font-size: 0.7rem; gap: 0.5rem; }
+  .share-buttons { grid-template-columns: 1fr; }
+  .share-modal { padding: 1rem; }
 }
 </style>
