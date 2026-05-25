@@ -25,7 +25,7 @@ const ALLOWED_ORIGINS = [
 
 function getCorsHeaders(request: Request): Record<string, string> {
   const origin = request.headers.get('Origin') || ''
-  const isAllowed = ALLOWED_ORIGINS.includes(origin) || origin.endsWith('.pages.dev') || origin.endsWith('.vercel.app') || origin.endsWith('.netlify.app')
+  const isAllowed = ALLOWED_ORIGINS.includes(origin) || origin === 'https://uno-no-mercy.com' || origin === 'https://www.uno-no-mercy.com' || origin.endsWith('.pages.dev') || origin.endsWith('.vercel.app') || origin.endsWith('.netlify.app')
 
   return {
     'Access-Control-Allow-Origin': isAllowed ? origin : ALLOWED_ORIGINS[0]!,

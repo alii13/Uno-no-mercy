@@ -520,12 +520,12 @@ function getGameOverShareText() {
 
 function shareToTwitter() {
   const text = encodeURIComponent(getGameOverShareText())
-  const url = encodeURIComponent('https://uno-no-mercy.pages.dev')
+  const url = encodeURIComponent('https://uno-no-mercy.com')
   window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank')
 }
 
 function shareToWhatsApp() {
-  const text = encodeURIComponent(getGameOverShareText() + '\n\nhttps://uno-no-mercy.pages.dev')
+  const text = encodeURIComponent(getGameOverShareText() + '\n\nhttps://uno-no-mercy.com')
   window.open(`https://wa.me/?text=${text}`, '_blank')
 }
 

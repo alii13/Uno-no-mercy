@@ -2,7 +2,7 @@
 
 A real-time multiplayer UNO card game with the brutal "No Mercy" rule expansion. Play online with friends or battle a ruthless AI - all from your browser.
 
-**Play now:** [uno-no-mercy.pages.dev](https://uno-no-mercy.pages.dev)
+**Play now:** [uno-no-mercy.com](https://uno-no-mercy.com)
 
 ## Why this exists
 
@@ -82,7 +82,7 @@ npm install
 1. Create a project at [supabase.com](https://supabase.com)
 2. Copy your project URL and anon key from **Settings > API**
 3. Enable **anonymous sign-ins** under **Authentication > Settings** (required for guest play)
-4. Set the **Site URL** under **Authentication > URL Configuration** to your deploy URL (e.g. `https://uno-no-mercy.pages.dev`)
+4. Set the **Site URL** under **Authentication > URL Configuration** to your deploy URL (e.g. `https://uno-no-mercy.com`)
 5. Create your env file:
 
 ```bash

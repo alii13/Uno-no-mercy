@@ -295,7 +295,7 @@ function renderShareCanvas() {
 
   ctx.fillStyle = '#52525b'
   ctx.font = '12px monospace'
-  ctx.fillText('uno-no-mercy.pages.dev', 30, 380)
+  ctx.fillText('uno-no-mercy.com', 30, 380)
 }
 
 function generateShareCard() {
@@ -314,17 +314,17 @@ function downloadCard() {
 
 function shareToTwitter() {
   const text = encodeURIComponent(getShareText())
-  const url = encodeURIComponent('https://uno-no-mercy.pages.dev')
+  const url = encodeURIComponent('https://uno-no-mercy.com')
   window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank')
 }
 
 function shareToWhatsApp() {
-  const text = encodeURIComponent(getShareText() + '\n\nhttps://uno-no-mercy.pages.dev')
+  const text = encodeURIComponent(getShareText() + '\n\nhttps://uno-no-mercy.com')
   window.open(`https://wa.me/?text=${text}`, '_blank')
 }
 
 function copyShareLink() {
-  const text = getShareText() + '\n\nhttps://uno-no-mercy.pages.dev'
+  const text = getShareText() + '\n\nhttps://uno-no-mercy.com'
   navigator.clipboard?.writeText(text)
   copied.value = true
   setTimeout(() => copied.value = false, 2000)
