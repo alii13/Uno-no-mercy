@@ -37,7 +37,7 @@ body {
   color: var(--text-primary);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  overflow: hidden; /* Prevent scrolling during game */
+  overflow-x: hidden;
   /* Scratched metal / grain texture overlay would be great here */
   background-image: 
     repeating-linear-gradient(
