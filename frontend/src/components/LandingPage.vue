@@ -70,7 +70,21 @@
       </div>
     </main>
     
-    <!-- Hazard Bar Bottom -->
+    <!-- Scroll Indicator -->
+    <div class="scroll-indicator">
+      <span class="scroll-text">SCROLL TO SEE THE CHAOS</span>
+      <svg class="scroll-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+
+    <!-- Hazard Bar -->
+    <div class="hazard-bar">
+      <div class="hazard-stripe"></div>
+    </div>
+
+    <!-- Scroll Animated Sections -->
+    <LandingScrollSections @playGuest="$emit('playGuest')" />
+
+    <!-- Bottom Hazard Bar -->
     <div class="hazard-bar">
       <div class="hazard-stripe"></div>
       <p class="warning-text">// WARNING: FRIENDSHIPS MAY NOT SURVIVE //</p>
@@ -79,6 +93,8 @@
 </template>
 
 <script setup lang="ts">
+import LandingScrollSections from './LandingScrollSections.vue'
+
 defineEmits<{
   (e: 'showAuth', mode: 'login' | 'signup'): void
   (e: 'playGuest'): void
@@ -87,13 +103,15 @@ defineEmits<{
 
 <style scoped>
 .landing-container {
-  min-height: 100vh;
   background: var(--bg-concrete);
   color: var(--text-primary);
   position: relative;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+.landing-container > .landing-main {
+  min-height: 100vh;
 }
 
 .scan-line {
@@ -332,6 +350,34 @@ defineEmits<{
   height: 20px;
   flex-shrink: 0;
   color: var(--color-neon-blue);
+}
+
+/* Scroll Indicator */
+.scroll-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.5rem 0;
+  position: relative;
+  z-index: 5;
+}
+
+.scroll-text {
+  font-family: 'Courier New', monospace;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  letter-spacing: 3px;
+}
+
+.scroll-chevron {
+  color: var(--text-muted);
+  animation: bounce-down 2s ease-in-out infinite;
+}
+
+@keyframes bounce-down {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(6px); }
 }
 
 /* Hazard Bar */

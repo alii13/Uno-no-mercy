@@ -168,10 +168,11 @@ function startLocalGame() {
 
 <style scoped>
 .app-container {
-  height: 100vh;
-  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
   width: 100vw;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   position: relative;
   background: var(--bg-concrete);
   color: var(--text-primary);
@@ -179,7 +180,6 @@ function startLocalGame() {
 
 @media (max-width: 480px) {
   .app-container {
-    overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
 }
