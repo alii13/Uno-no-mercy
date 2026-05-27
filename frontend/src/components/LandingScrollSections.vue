@@ -95,7 +95,7 @@
       <div class="section-inner cta-inner">
         <h2 class="cta-heading" ref="ctaH">READY?</h2>
         <p class="cta-sub" ref="ctaSub">No downloads. No login. Just chaos.</p>
-        <button @click="$emit('playGuest')" class="cta-btn" ref="ctaBtn">PLAY NOW</button>
+        <button @click="reportAndPlay" class="cta-btn" ref="ctaBtn">PLAY NOW</button>
       </div>
     </section>
   </div>
@@ -111,7 +111,15 @@ import type { Card as CardType } from '../types/card'
 
 gsap.registerPlugin(ScrollTrigger)
 
-defineEmits<{ (e: 'playGuest'): void }>()
+const emit = defineEmits<{ (e: 'playGuest'): void }>()
+
+function reportAndPlay() {
+  const fn = (window as any).gtag_report_conversion
+  if (typeof fn === 'function') {
+    try { fn() } catch (e) { /* noop */ }
+  }
+  emit('playGuest')
+}
 
 const isMobile = ref(window.innerWidth <= 768)
 function onResize() { isMobile.value = window.innerWidth <= 768 }

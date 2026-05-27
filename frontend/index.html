@@ -30,6 +30,22 @@
       gtag('js', new Date());
       gtag('config', 'G-HF9GCTVQ7J');
       gtag('config', 'AW-18192424425');
+
+      // Google Ads conversion tracking on click
+      window.gtag_report_conversion = function(url) {
+        var callback = function () {
+          if (typeof(url) != 'undefined') {
+            window.location = url;
+          }
+        };
+        gtag('event', 'conversion', {
+          'send_to': 'AW-18192424425/-S5SCMTPnbQcEOm76eJD',
+          'value': 1.0,
+          'currency': 'INR',
+          'event_callback': callback
+        });
+        return false;
+      };
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

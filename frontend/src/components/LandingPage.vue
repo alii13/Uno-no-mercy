@@ -39,15 +39,15 @@
           <div class="action-card">
             <h3 class="card-title">JOIN THE BATTLE</h3>
 
-            <button @click="$emit('playGuest')" class="action-btn primary">
+            <button @click="reportAndEmit('playGuest')" class="action-btn primary">
               PLAY NOW
             </button>
 
-            <button @click="$emit('showAuth', 'signup')" class="action-btn secondary">
+            <button @click="reportAndEmit('showAuth', 'signup')" class="action-btn secondary">
               CREATE ACCOUNT
             </button>
 
-            <button @click="$emit('showAuth', 'login')" class="action-btn tertiary">
+            <button @click="reportAndEmit('showAuth', 'login')" class="action-btn tertiary">
               RETURNING PLAYER
             </button>
 
@@ -98,10 +98,21 @@
 <script setup lang="ts">
 import LandingScrollSections from './LandingScrollSections.vue'
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'showAuth', mode: 'login' | 'signup'): void
   (e: 'playGuest'): void
 }>()
+
+function reportAndEmit(event: 'playGuest'): void
+function reportAndEmit(event: 'showAuth', mode: 'login' | 'signup'): void
+function reportAndEmit(event: any, mode?: any) {
+  const fn = (window as any).gtag_report_conversion
+  if (typeof fn === 'function') {
+    try { fn() } catch (e) { /* noop */ }
+  }
+  if (event === 'showAuth') emit('showAuth', mode)
+  else if (event === 'playGuest') emit('playGuest')
+}
 </script>
 
 <style scoped>
