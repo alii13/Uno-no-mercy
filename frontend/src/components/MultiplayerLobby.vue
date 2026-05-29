@@ -383,7 +383,7 @@ function copyRoomCode() {
   padding: 0.75rem 1rem;
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid #2a2a2a;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   cursor: pointer;
   font-family: var(--font-display);
   font-size: 0.75rem;
@@ -392,8 +392,7 @@ function copyRoomCode() {
 }
 
 .settings-toggle:hover {
-  border-color: #444;
-  color: var(--text-primary);
+  border-color: var(--color-neon-blue);
 }
 
 .settings-mode-tag {
