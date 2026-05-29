@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { Card, Player, GameState, TurnState, CardColor } from '../types/card'
 import { generateFullDeck, shuffleDeck } from '../utils/deckGenerator'
-import { canPlayCard, getDrawValue } from '../utils/gameRules'
+import { canPlayCard, getDrawValue, type StackingMode, DEFAULT_STACKING_MODE } from '../utils/gameRules'
 import {
     calculateNextPlayerIndex,
     calculateScore,
@@ -50,6 +50,20 @@ export const useGameStore = defineStore('game', () => {
     const hasCalledUno = ref<Record<string, boolean>>({})
     const showUnoButton = ref(false)
 
+    // Stacking mode - persists in localStorage so the user keeps their pick across sessions
+    function loadStackingMode(): StackingMode {
+        try {
+            const v = localStorage.getItem('uno_stacking_mode')
+            if (v === 'official' || v === 'house' || v === 'casual') return v
+        } catch { /* localStorage unavailable */ }
+        return DEFAULT_STACKING_MODE
+    }
+    const stackingMode = ref<StackingMode>(loadStackingMode())
+    function setStackingMode(m: StackingMode) {
+        stackingMode.value = m
+        try { localStorage.setItem('uno_stacking_mode', m) } catch { /* noop */ }
+    }
+
     // --- Per-player stat tracking (keyed by player id) ---
     const gameStartTime = ref<number>(0)
     const playerStats = ref<Record<string, {
@@ -72,7 +86,8 @@ export const useGameStore = defineStore('game', () => {
 
     // --- Actions ---
 
-    function initializeGame(playerNames: string[]) {
+    function initializeGame(playerNames: string[], mode?: StackingMode) {
+        if (mode) setStackingMode(mode)
         players.value = playerNames.map((name, index) => ({
             id: `p-${index}`,
             name,
@@ -275,7 +290,7 @@ export const useGameStore = defineStore('game', () => {
         if (!player) return
 
         if (!topCard.value) return
-        if (!canPlayCard(card, topCard.value, currentColor.value, drawStack.value)) return
+        if (!canPlayCard(card, topCard.value, currentColor.value, drawStack.value, stackingMode.value)) return
 
         const cardIndex = player.hand.findIndex(c => c.id === card.id)
         if (cardIndex === -1) return
@@ -575,7 +590,7 @@ export const useGameStore = defineStore('game', () => {
                 if (!card) return
 
                 // Check if playable
-                if (canPlayCard(card, topCard.value, currentColor.value, 0)) {
+                if (canPlayCard(card, topCard.value, currentColor.value, 0, stackingMode.value)) {
                     // Playable! Rule: "then immediately play it"
                     setTimeout(() => {
                         if (card.color === 'wild' && !p.isBot) {
@@ -718,7 +733,7 @@ export const useGameStore = defineStore('game', () => {
         if (!top) return
 
         const playableCards = bot.hand.filter(c =>
-            canPlayCard(c, top, currentColor.value, drawStack.value)
+            canPlayCard(c, top, currentColor.value, drawStack.value, stackingMode.value)
         )
 
         if (playableCards.length > 0) {
@@ -888,6 +903,8 @@ export const useGameStore = defineStore('game', () => {
         pendingDiscardAllCards,
         showUnoButton,
         hasCalledUno,
+        stackingMode,
+        setStackingMode,
         initializeGame,
         drawCardFromDeck,
         drawCardToHand,

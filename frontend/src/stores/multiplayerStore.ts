@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { supabase, type GameRow, type GamePlayerRow } from '../lib/supabase'
 import { useAuthStore } from './authStore'
 import { generateFullDeck, shuffleDeck } from '../utils/deckGenerator'
-import { canPlayCard, getDrawValue } from '../utils/gameRules'
+import { canPlayCard, getDrawValue, type StackingMode, DEFAULT_STACKING_MODE } from '../utils/gameRules'
 import {
     calculateNextPlayerIndex,
     calculateScore,
@@ -61,6 +61,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     )
     const gameStatus = computed(() => currentGame.value?.status || 'waiting')
     const roomCode = computed(() => currentGame.value?.room_code || '')
+    const stackingMode = computed<StackingMode>(() => (currentGame.value?.stacking_mode as StackingMode) || DEFAULT_STACKING_MODE)
     const opponents = computed(() =>
         gamePlayers.value.filter(p => p.user_id !== authStore.user?.id)
     )
@@ -110,7 +111,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     }
 
     // Create a new game
-    async function createGame() {
+    async function createGame(mode: StackingMode = DEFAULT_STACKING_MODE) {
         mpResultLogged = false
         if (!authStore.user) {
             error.value = 'You must be logged in to create a game'
@@ -135,7 +136,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 .insert({
                     room_code: roomCode,
                     host_id: authStore.user.id,
-                    status: 'waiting'
+                    status: 'waiting',
+                    stacking_mode: mode
                 })
                 .select()
                 .single()
@@ -1245,7 +1247,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     .eq('id', currentGame.value.id)
 
                 // Check if drawn card is playable
-                if (state.topCard && canPlayCard(card, state.topCard, state.currentColor, 0)) {
+                if (state.topCard && canPlayCard(card, state.topCard, state.currentColor, 0, stackingMode.value)) {
                     actionInProgress.value = false
 
                     if (card.color === 'wild') {
@@ -1284,7 +1286,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
         // Only allow drawing if player has no playable cards (except during draw stack penalty)
         if (curDrawStack === 0 && topCard) {
-            const hasPlayable = myHand.some(c => canPlayCard(c, topCard, curColor, 0))
+            const hasPlayable = myHand.some(c => canPlayCard(c, topCard, curColor, 0, stackingMode.value))
             if (hasPlayable) return // Must play a card instead
         }
 
@@ -1476,6 +1478,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         isMyTurn,
         gameStatus,
         roomCode,
+        stackingMode,
         opponentLeft,
         actionInProgress,
         pendingDrawnWildCard,
