@@ -30,7 +30,7 @@
 import { ref, computed, inject, type Ref, type ComponentPublicInstance } from 'vue'
 import gsap from 'gsap'
 import Card from './Card.vue'
-import { canPlayCard } from '../../utils/gameRules'
+import { canPlayCard, type StackingMode } from '../../utils/gameRules'
 import { getCardStyle as getCardStyleUtil } from '../../utils/gameHelpers'
 import type { Card as CardType, CardColor } from '../../types/card'
 import { useScreenSize } from '../../composables/useScreenSize'
@@ -41,6 +41,7 @@ const props = defineProps<{
   currentColor: CardColor
   topCard: CardType | undefined
   drawStack: number
+  stackingMode: StackingMode
 }>()
 
 const emit = defineEmits<{
@@ -98,7 +99,7 @@ function getCardStyle(index: number) {
 
 function canPlay(card: CardType): boolean {
   if (!props.isMyTurn || !props.topCard) return false
-  return canPlayCard(card, props.topCard, props.currentColor, props.drawStack)
+  return canPlayCard(card, props.topCard, props.currentColor, props.drawStack, props.stackingMode)
 }
 
 function handleCardClick(card: CardType) {

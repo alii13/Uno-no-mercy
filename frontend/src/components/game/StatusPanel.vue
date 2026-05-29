@@ -27,6 +27,10 @@
     <div class="panel-row" v-if="message">
       <span class="message-text" :style="messageStyle">{{ message }}</span>
     </div>
+    <div v-if="stackingMode && stackingMode !== 'official'" class="panel-row mode-row">
+      <span class="label">RULES</span>
+      <span class="value mode-value">{{ stackingMode.toUpperCase() }}</span>
+    </div>
   </div>
 </template>
 
@@ -40,6 +44,7 @@ defineProps<{
   currentColor?: string
   message?: string
   messageStyle?: CSSProperties
+  stackingMode?: string
 }>()
 </script>
 
@@ -50,6 +55,18 @@ defineProps<{
   border-radius: 3px;
   letter-spacing: 2px;
 }
+.mode-row {
+  border-top: 1px dashed #333;
+  padding-top: 4px;
+  margin-top: 2px;
+}
+
+.mode-value {
+  color: var(--color-hazard) !important;
+  font-size: 0.7rem;
+  letter-spacing: 1px;
+}
+
 .color-red { color: #ff3333; text-shadow: 0 0 8px rgba(255, 51, 51, 0.6); }
 .color-blue { color: #3388ff; text-shadow: 0 0 8px rgba(51, 136, 255, 0.6); }
 .color-green { color: #33ff66; text-shadow: 0 0 8px rgba(51, 255, 102, 0.6); }
