@@ -1,22 +1,42 @@
 import type { Card, CardColor } from '../types/card'
 
+export type StackingMode = 'official' | 'house' | 'casual'
+
+export const DEFAULT_STACKING_MODE: StackingMode = 'official'
+
 /**
  * Checks if a card can be played on top of the current top card.
+ *
+ * Stacking modes:
+ *  - 'official': any draw card stacks only if its draw value >= the top card's
+ *  - 'house':    wild draw cards stack on any draw card; colored draw cards still need equal-or-higher
+ *  - 'casual':   any draw card stacks on any draw card
  */
 export function canPlayCard(
     card: Card,
     topCard: Card,
     currentColor: CardColor,
-    drawStack: number
+    drawStack: number,
+    stackingMode: StackingMode = DEFAULT_STACKING_MODE
 ): boolean {
-    // 1. Stacking Logic - must play equal or higher draw value
+    // 1. Stacking Logic - varies by stacking mode
     if (drawStack > 0) {
         const drawVal = getDrawValue(card)
-        if (drawVal > 0) {
-            const topDrawValue = getDrawValue(topCard)
-            return drawVal >= topDrawValue
+        if (drawVal <= 0) return false
+
+        if (stackingMode === 'casual') {
+            return true
         }
-        return false
+
+        if (stackingMode === 'house') {
+            // Wild draw cards stack on anything
+            if (card.color === 'wild') return true
+            // Colored draw cards still need equal-or-higher
+            return drawVal >= getDrawValue(topCard)
+        }
+
+        // 'official'
+        return drawVal >= getDrawValue(topCard)
     }
 
     // 2. Standard Uno Logic

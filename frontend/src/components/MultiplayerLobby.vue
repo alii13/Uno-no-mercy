@@ -23,7 +23,7 @@
       <!-- No active game - show options -->
       <div v-if="!mpStore.currentGame" class="lobby-options">
         <div class="option-cards-row">
-          <div class="option-card" :class="{ loading: mpStore.loading }" @click="createGame">
+          <div class="option-card" :class="{ loading: mpStore.loading }" @click="handleCreateGame">
             <svg class="option-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="9" cy="12" r="2"/><line x1="15" y1="10" x2="15" y2="14"/><line x1="13" y1="12" x2="17" y2="12"/></svg>
             <h3>{{ mpStore.loading ? 'CREATING...' : 'CREATE GAME' }}</h3>
             <p>Start a new game and invite a friend</p>
@@ -35,10 +35,37 @@
             <p>Enter a room code to join</p>
           </div>
 
-          <div class="option-card" @click="$emit('playLocal')">
+          <div class="option-card" @click="$emit('playLocal', selectedStackingMode)">
             <svg class="option-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="11"/><circle cx="8" cy="16" r="1" fill="currentColor"/><circle cx="16" cy="16" r="1" fill="currentColor"/></svg>
             <h3>VS BOT</h3>
             <p>Practice against AI opponent</p>
+          </div>
+        </div>
+
+        <!-- Game Settings -->
+        <div class="settings-bar">
+          <button class="settings-toggle" @click="showSettings = !showSettings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            GAME SETTINGS
+            <span class="settings-mode-tag">{{ modeLabel(selectedStackingMode) }}</span>
+            <svg class="settings-chevron" :class="{ open: showSettings }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div v-if="showSettings" class="settings-panel">
+            <div class="setting-row">
+              <label class="setting-label">STACKING RULES</label>
+              <div class="setting-options">
+                <button
+                  v-for="m in stackingModes"
+                  :key="m.value"
+                  class="setting-option"
+                  :class="{ active: selectedStackingMode === m.value }"
+                  @click="selectedStackingMode = m.value"
+                >
+                  <div class="option-name">{{ m.label }}</div>
+                  <div class="option-desc">{{ m.desc }}</div>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -62,6 +89,7 @@
           <button @click="copyRoomCode" class="copy-btn">
             {{ copied ? '✓ COPIED' : 'COPY' }}
           </button>
+          <div class="room-mode-badge">RULES: {{ modeLabel(mpStore.stackingMode) }}</div>
         </div>
         
         <div class="players-list">
@@ -134,18 +162,37 @@
 import { ref } from 'vue'
 import { useAuthStore } from '../stores/authStore'
 import { useMultiplayerStore } from '../stores/multiplayerStore'
+import { useGameStore } from '../stores/gameStore'
+import type { StackingMode } from '../utils/gameRules'
 
-const emit = defineEmits(['playLocal', 'showAuth', 'showStats'])
+const emit = defineEmits<{
+  (e: 'playLocal', mode: StackingMode): void
+  (e: 'showAuth'): void
+  (e: 'showStats'): void
+}>()
 
 const authStore = useAuthStore()
 const mpStore = useMultiplayerStore()
+const gameStore = useGameStore()
 
 const showJoinModal = ref(false)
 const joinCode = ref('')
 const copied = ref(false)
+const showSettings = ref(false)
+const selectedStackingMode = ref<StackingMode>(gameStore.stackingMode)
 
-async function createGame() {
-  await mpStore.createGame()
+const stackingModes: { value: StackingMode; label: string; desc: string }[] = [
+  { value: 'official', label: 'OFFICIAL', desc: 'Draw cards stack only if equal or higher value (printed rules)' },
+  { value: 'house', label: 'HOUSE', desc: 'Wild draws stack on anything; colored draws still need equal or higher' },
+  { value: 'casual', label: 'CASUAL', desc: 'Any draw card stacks on any draw card' },
+]
+
+function modeLabel(m: StackingMode) {
+  return stackingModes.find(x => x.value === m)?.label || 'OFFICIAL'
+}
+
+async function handleCreateGame() {
+  await mpStore.createGame(selectedStackingMode.value)
 }
 
 async function joinGame() {
@@ -323,6 +370,121 @@ function copyRoomCode() {
   margin: 0;
 }
 
+/* Settings Bar */
+.settings-bar {
+  margin-bottom: 0.5rem;
+}
+
+.settings-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid #2a2a2a;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  letter-spacing: 1px;
+  transition: all 0.2s;
+}
+
+.settings-toggle:hover {
+  border-color: var(--color-neon-blue);
+}
+
+.settings-mode-tag {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: var(--color-hazard);
+  background: rgba(255, 204, 0, 0.1);
+  border: 1px solid var(--color-hazard-dim);
+  padding: 0.15rem 0.5rem;
+}
+
+.settings-chevron {
+  transition: transform 0.2s;
+  color: var(--text-muted);
+}
+
+.settings-chevron.open {
+  transform: rotate(180deg);
+}
+
+.settings-panel {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid #2a2a2a;
+  border-top: none;
+  padding: 1rem;
+}
+
+.setting-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.setting-label {
+  font-family: 'Courier New', monospace;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  letter-spacing: 2px;
+}
+
+.setting-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.setting-option {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid #333;
+  color: var(--text-secondary);
+  padding: 0.75rem 0.5rem;
+  cursor: pointer;
+  text-align: left;
+  font-family: 'Courier New', monospace;
+  transition: all 0.2s;
+}
+
+.setting-option:hover {
+  border-color: var(--color-neon-blue);
+  color: var(--text-primary);
+}
+
+.setting-option.active {
+  border-color: var(--color-hazard);
+  background: rgba(255, 204, 0, 0.05);
+  color: var(--text-primary);
+}
+
+.setting-option .option-name {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  color: var(--color-hazard);
+  margin-bottom: 0.25rem;
+}
+
+.setting-option:not(.active) .option-name {
+  color: var(--text-secondary);
+}
+
+.setting-option .option-desc {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+@media (max-width: 600px) {
+  .setting-options {
+    grid-template-columns: 1fr;
+  }
+  .settings-mode-tag { font-size: 0.65rem; }
+}
+
 /* Stats Bar */
 .stats-bar {
   display: flex;
@@ -392,6 +554,16 @@ function copyRoomCode() {
 /* Waiting Room */
 .waiting-room {
   text-align: center;
+}
+
+.room-mode-badge {
+  font-family: 'Courier New', monospace;
+  font-size: 0.7rem;
+  color: var(--color-hazard);
+  letter-spacing: 2px;
+  padding-top: 0.5rem;
+  border-top: 1px dashed #333;
+  margin-top: 0.25rem;
 }
 
 .room-code-display {

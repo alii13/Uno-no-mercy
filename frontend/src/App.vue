@@ -161,8 +161,8 @@ async function playAsGuest() {
   // Once authenticated (even anonymously), App.vue will show the lobby
 }
 
-function startLocalGame() {
-  localGameStore.initializeGame(['You', 'Terminator'])
+function startLocalGame(mode?: 'official' | 'house' | 'casual') {
+  localGameStore.initializeGame(['You', 'Terminator'], mode)
 }
 </script>
 
