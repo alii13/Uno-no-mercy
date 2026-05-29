@@ -117,7 +117,7 @@ function canPlay(card: CardType) {
   if (!props.isMyTurn) return false
   if (store.turnState !== 'WAITING_FOR_ACTION') return false
   if (!store.topCard) return false
-  return canPlayCard(card, store.topCard, store.currentColor, store.drawStack)
+  return canPlayCard(card, store.topCard, store.currentColor, store.drawStack, store.stackingMode)
 }
 
 function handleCardClick(card: CardType, _event: MouseEvent) {

@@ -40,6 +40,7 @@
           :current-color="store.currentColor"
           :message="gameMessage"
           :message-style="messageStyle"
+          :stacking-mode="store.stackingMode"
         />
       </template>
     </BattlePit>
@@ -262,7 +263,7 @@ function drawCard() {
   // Only allow drawing when no playable cards exist (except during draw stack)
   if (store.drawStack === 0 && store.topCard && myPlayer.value) {
     const hasPlayable = myPlayer.value.hand.some(c =>
-      canPlayCard(c, store.topCard!, store.currentColor, 0)
+      canPlayCard(c, store.topCard!, store.currentColor, 0, store.stackingMode)
     )
     if (hasPlayable) return
   }

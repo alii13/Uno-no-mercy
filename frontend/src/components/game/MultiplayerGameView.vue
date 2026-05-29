@@ -51,19 +51,21 @@
           :current-color="currentColor"
           :message="statusMessage"
           :message-style="statusMessageStyle"
+          :stacking-mode="mpStore.stackingMode"
         />
       </template>
     </BattlePit>
 
     <!-- My Hand -->
     <div class="floating-hand-wrapper" ref="playerHandRef">
-      <MultiplayerPlayerHand 
+      <MultiplayerPlayerHand
         v-if="visibleHand.length > 0 && showHand"
         :hand="visibleHand"
         :is-my-turn="isMyTurn"
         :current-color="currentColor"
         :top-card="topCard"
         :draw-stack="drawStack"
+        :stacking-mode="mpStore.stackingMode"
         @play-card="handlePlayCard"
       />
     </div>
