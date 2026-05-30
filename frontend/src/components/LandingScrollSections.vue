@@ -90,10 +90,19 @@
       </div>
     </section>
 
-    <!-- Section 5: Feedback nudge -->
+    <!-- Section 5: CTA -->
+    <section class="scroll-section cta-section" ref="ctaSection">
+      <div class="section-inner cta-inner">
+        <h2 class="cta-heading" ref="ctaH">READY?</h2>
+        <p class="cta-sub" ref="ctaSub">No downloads. No login. Just chaos.</p>
+        <button @click="reportAndPlay" class="cta-btn" ref="ctaBtn">PLAY NOW</button>
+      </div>
+    </section>
+
+    <!-- Section 6: Feedback nudge (last - after you've decided to play, drop us a line) -->
     <section class="scroll-section feedback-section" ref="feedbackSection">
       <div class="section-inner">
-        <div class="section-label">05</div>
+        <div class="section-label">06</div>
         <div class="feedback-stage">
           <div class="bubble bubble-1" ref="bubble1">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -116,15 +125,6 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           SEND FEEDBACK
         </button>
-      </div>
-    </section>
-
-    <!-- Section 6: CTA -->
-    <section class="scroll-section cta-section" ref="ctaSection">
-      <div class="section-inner cta-inner">
-        <h2 class="cta-heading" ref="ctaH">READY?</h2>
-        <p class="cta-sub" ref="ctaSub">No downloads. No login. Just chaos.</p>
-        <button @click="reportAndPlay" class="cta-btn" ref="ctaBtn">PLAY NOW</button>
       </div>
     </section>
   </div>
