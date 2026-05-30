@@ -92,11 +92,20 @@
       <div class="hazard-stripe"></div>
       <p class="warning-text">// WARNING: FRIENDSHIPS MAY NOT SURVIVE //</p>
     </div>
+
+    <SiteFooter @open-feedback="showFeedback = true" />
+
+    <FeedbackModal v-if="showFeedback" @close="showFeedback = false" />
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import LandingScrollSections from './LandingScrollSections.vue'
+import SiteFooter from './SiteFooter.vue'
+import FeedbackModal from './FeedbackModal.vue'
+
+const showFeedback = ref(false)
 
 const emit = defineEmits<{
   (e: 'showAuth', mode: 'login' | 'signup'): void
