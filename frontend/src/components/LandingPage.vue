@@ -85,18 +85,30 @@
     </div>
 
     <!-- Scroll Animated Sections -->
-    <LandingScrollSections @playGuest="$emit('playGuest')" />
+    <LandingScrollSections
+      @playGuest="$emit('playGuest')"
+      @openFeedback="showFeedback = true"
+    />
 
     <!-- Bottom Hazard Bar -->
     <div class="hazard-bar">
       <div class="hazard-stripe"></div>
       <p class="warning-text">// WARNING: FRIENDSHIPS MAY NOT SURVIVE //</p>
     </div>
+
+    <SiteFooter />
+
+    <FeedbackModal v-if="showFeedback" @close="showFeedback = false" />
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import LandingScrollSections from './LandingScrollSections.vue'
+import SiteFooter from './SiteFooter.vue'
+import FeedbackModal from './FeedbackModal.vue'
+
+const showFeedback = ref(false)
 
 const emit = defineEmits<{
   (e: 'showAuth', mode: 'login' | 'signup'): void

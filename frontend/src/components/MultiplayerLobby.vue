@@ -155,6 +155,8 @@
         </div>
       </div>
     </div>
+
+    <SiteFooter />
   </div>
 </template>
 
@@ -163,6 +165,7 @@ import { ref } from 'vue'
 import { useAuthStore } from '../stores/authStore'
 import { useMultiplayerStore } from '../stores/multiplayerStore'
 import { useGameStore } from '../stores/gameStore'
+import SiteFooter from './SiteFooter.vue'
 import type { StackingMode } from '../utils/gameRules'
 
 const emit = defineEmits<{
