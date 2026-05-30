@@ -85,7 +85,10 @@
     </div>
 
     <!-- Scroll Animated Sections -->
-    <LandingScrollSections @playGuest="$emit('playGuest')" />
+    <LandingScrollSections
+      @playGuest="$emit('playGuest')"
+      @openFeedback="showFeedback = true"
+    />
 
     <!-- Bottom Hazard Bar -->
     <div class="hazard-bar">
@@ -93,7 +96,7 @@
       <p class="warning-text">// WARNING: FRIENDSHIPS MAY NOT SURVIVE //</p>
     </div>
 
-    <SiteFooter @open-feedback="showFeedback = true" />
+    <SiteFooter />
 
     <FeedbackModal v-if="showFeedback" @close="showFeedback = false" />
   </div>
