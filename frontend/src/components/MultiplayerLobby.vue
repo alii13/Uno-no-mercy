@@ -155,6 +155,10 @@
         </div>
       </div>
     </div>
+
+    <SiteFooter @open-feedback="showFeedback = true" />
+
+    <FeedbackModal v-if="showFeedback" @close="showFeedback = false" />
   </div>
 </template>
 
@@ -163,6 +167,10 @@ import { ref } from 'vue'
 import { useAuthStore } from '../stores/authStore'
 import { useMultiplayerStore } from '../stores/multiplayerStore'
 import { useGameStore } from '../stores/gameStore'
+import SiteFooter from './SiteFooter.vue'
+import FeedbackModal from './FeedbackModal.vue'
+
+const showFeedback = ref(false)
 import type { StackingMode } from '../utils/gameRules'
 
 const emit = defineEmits<{
