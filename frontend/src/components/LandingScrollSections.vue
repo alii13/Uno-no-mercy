@@ -428,7 +428,7 @@ function initFeedback() {
   if (feedbackBtn.value) gsap.set(feedbackBtn.value, { opacity: 0, scale: 0.7, y: 20 })
 
   const tl = gsap.timeline({
-    scrollTrigger: { trigger: feedbackSection.value, start: 'top 70%', end: 'bottom 30%', scrub: 0.8 }
+    scrollTrigger: { trigger: feedbackSection.value, start: 'top 80%', end: 'top 20%', scrub: 0.8 }
   })
 
   // Bubbles slide in staggered
