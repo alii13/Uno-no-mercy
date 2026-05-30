@@ -90,7 +90,36 @@
       </div>
     </section>
 
-    <!-- Section 5: CTA -->
+    <!-- Section 5: Feedback nudge -->
+    <section class="scroll-section feedback-section" ref="feedbackSection">
+      <div class="section-inner">
+        <div class="section-label">05</div>
+        <div class="feedback-stage">
+          <div class="bubble bubble-1" ref="bubble1">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span>Found a bug?</span>
+          </div>
+          <div class="bubble bubble-2" ref="bubble2">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span>Got an idea?</span>
+          </div>
+          <div class="bubble bubble-3" ref="bubble3">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            <span>Want to say hi?</span>
+          </div>
+        </div>
+        <h2 class="section-heading feedback-heading" ref="feedbackHeading">
+          WE'RE <span class="accent-green">LISTENING</span>
+        </h2>
+        <p class="section-desc">Every message goes straight to my inbox. We read everything.</p>
+        <button class="feedback-cta" ref="feedbackBtn" @click="$emit('openFeedback')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          SEND FEEDBACK
+        </button>
+      </div>
+    </section>
+
+    <!-- Section 6: CTA -->
     <section class="scroll-section cta-section" ref="ctaSection">
       <div class="section-inner cta-inner">
         <h2 class="cta-heading" ref="ctaH">READY?</h2>
@@ -111,7 +140,10 @@ import type { Card as CardType } from '../types/card'
 
 gsap.registerPlugin(ScrollTrigger)
 
-const emit = defineEmits<{ (e: 'playGuest'): void }>()
+const emit = defineEmits<{
+  (e: 'playGuest'): void
+  (e: 'openFeedback'): void
+}>()
 
 function reportAndPlay() {
   const fn = (window as any).gtag_report_conversion
@@ -144,6 +176,12 @@ const rouletteLabel = ref<HTMLElement>()
 const mercySection = ref<HTMLElement>()
 const mercyNum = ref<HTMLElement>()
 const mercyBoom = ref<HTMLElement>()
+const feedbackSection = ref<HTMLElement>()
+const bubble1 = ref<HTMLElement>()
+const bubble2 = ref<HTMLElement>()
+const bubble3 = ref<HTMLElement>()
+const feedbackHeading = ref<HTMLElement>()
+const feedbackBtn = ref<HTMLElement>()
 const ctaSection = ref<HTMLElement>()
 const ctaH = ref<HTMLElement>()
 const ctaSub = ref<HTMLElement>()
@@ -183,6 +221,7 @@ function init() {
   initSkip()
   initRoulette()
   initMercy()
+  initFeedback()
   initCta()
 }
 
@@ -363,6 +402,72 @@ function initMercy() {
   // Counter fades
   if (mercyNum.value) {
     tl.to(mercyNum.value, { opacity: 0, duration: 0.1 }, 0.55)
+  }
+
+  triggers.push(tl.scrollTrigger!)
+}
+
+function initFeedback() {
+  if (!feedbackSection.value) return
+
+  const bubbles = [bubble1.value, bubble2.value, bubble3.value]
+
+  // Bubbles drift in from left/right with rotation, settle at scale 1
+  bubbles.forEach((b, i) => {
+    if (!b) return
+    gsap.set(b, {
+      opacity: 0,
+      x: i % 2 === 0 ? -120 : 120,
+      y: gsap.utils.random(-30, 30),
+      rotation: i % 2 === 0 ? -8 : 8,
+      scale: 0.6,
+    })
+  })
+
+  if (feedbackHeading.value) gsap.set(feedbackHeading.value, { opacity: 0, y: 40, scale: 0.9 })
+  if (feedbackBtn.value) gsap.set(feedbackBtn.value, { opacity: 0, scale: 0.7, y: 20 })
+
+  const tl = gsap.timeline({
+    scrollTrigger: { trigger: feedbackSection.value, start: 'top 70%', end: 'bottom 30%', scrub: 0.8 }
+  })
+
+  // Bubbles slide in staggered
+  bubbles.forEach((b, i) => {
+    if (!b) return
+    const t = i * 0.12
+    tl.to(b, {
+      opacity: 1,
+      x: 0,
+      y: gsap.utils.random(-6, 6),
+      rotation: gsap.utils.random(-2, 2),
+      scale: 1,
+      duration: 0.25,
+      ease: 'back.out(1.8)',
+    }, t)
+    // Gentle pulse on settle
+    tl.to(b, { scale: 1.05, duration: 0.08, yoyo: true, repeat: 1 }, t + 0.2)
+  })
+
+  // Heading rises
+  if (feedbackHeading.value) {
+    tl.to(feedbackHeading.value, {
+      opacity: 1,
+      y: 0,
+      scale: 1,
+      duration: 0.3,
+      ease: 'power3.out',
+    }, 0.45)
+  }
+
+  // Button bounces in
+  if (feedbackBtn.value) {
+    tl.to(feedbackBtn.value, {
+      opacity: 1,
+      scale: 1,
+      y: 0,
+      duration: 0.25,
+      ease: 'back.out(2.2)',
+    }, 0.6)
   }
 
   triggers.push(tl.scrollTrigger!)
@@ -655,6 +760,74 @@ function initCta() {
   max-width: 90vw;
 }
 
+/* ========== FEEDBACK ========== */
+.feedback-section { min-height: 100vh; }
+
+.feedback-stage {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 3rem;
+  min-height: 80px;
+}
+
+.bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.85rem 1.4rem;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid #333;
+  color: var(--text-secondary);
+  font-family: 'Courier New', monospace;
+  font-size: 0.95rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  position: relative;
+}
+
+.bubble svg {
+  color: var(--color-neon-blue);
+  flex-shrink: 0;
+}
+
+.bubble-1 { border-color: rgba(0, 243, 255, 0.4); }
+.bubble-1 svg { color: var(--color-neon-blue); }
+.bubble-2 { border-color: rgba(255, 204, 0, 0.4); }
+.bubble-2 svg { color: var(--color-hazard); }
+.bubble-3 { border-color: rgba(0, 255, 100, 0.4); }
+.bubble-3 svg { color: var(--color-neon-green); }
+
+.feedback-heading {
+  font-size: 4rem;
+}
+
+.feedback-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 1.1rem 2.5rem;
+  background: transparent;
+  border: 2px solid var(--color-neon-green);
+  color: var(--color-neon-green);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: all 0.25s;
+  margin-top: 1.5rem;
+}
+
+.feedback-cta:hover {
+  background: var(--color-neon-green);
+  color: black;
+  transform: translateY(-2px);
+  box-shadow: 0 0 40px rgba(0, 255, 100, 0.35);
+}
+
 /* ========== CTA ========== */
 .cta-section { min-height: 70vh; }
 
@@ -711,6 +884,8 @@ function initCta() {
   .mercy-c { margin-right: -26px; }
   .cta-heading { font-size: 4rem; }
   .cta-btn { padding: 1.2rem 3rem; font-size: 1.1rem; }
+  .feedback-heading { font-size: 2.8rem; }
+  .bubble { font-size: 0.85rem; padding: 0.65rem 1rem; }
   .scroll-section { padding: 4rem 1.5rem; }
 }
 
@@ -727,6 +902,10 @@ function initCta() {
   .mercy-c { margin-right: -32px; }
   .cta-heading { font-size: 3rem; }
   .cta-btn { padding: 1rem 2.5rem; font-size: 1rem; }
+  .feedback-heading { font-size: 2rem; }
+  .feedback-stage { gap: 0.5rem; }
+  .bubble { font-size: 0.75rem; padding: 0.5rem 0.85rem; }
+  .feedback-cta { padding: 0.9rem 1.5rem; font-size: 0.9rem; }
   .scroll-section { padding: 3rem 1rem; }
   .impact-flash { width: 200px; height: 200px; }
 }
