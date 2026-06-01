@@ -84,11 +84,12 @@
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-strut: cubic-bezier(0.16, 1, 0.3, 1);
 
-  /* Z-index scale — populated for landing; in-game stress-tests in Phase 2 */
+  /* Z-index scale — hand sits ABOVE hud bars so cards float over the
+     bottom console (Phase 2 fixed the prior 1001>1000 clipping bug). */
   --z-base: 1;
   --z-cards: 10;
-  --z-hand: 50;
-  --z-hud: 100;
+  --z-hud: 50;
+  --z-hand: 200;
   --z-toast: 500;
   --z-modal: 1000;
   --z-drag: 2000;

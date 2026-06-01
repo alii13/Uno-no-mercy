@@ -43,7 +43,7 @@
     #000 10px,
     #000 20px
   );
-  z-index: 10;
+  z-index: var(--z-cards);
   opacity: 0.5;
 }
 .warning-stripes.top { top: 0; }
@@ -54,7 +54,7 @@
   inset: 0;
   background: radial-gradient(circle, transparent 40%, rgba(0,0,0,0.8));
   pointer-events: none;
-  z-index: 1;
+  z-index: var(--z-base);
 }
 
 .mechanical-cog {
@@ -73,29 +73,84 @@
 }
 
 /* ==========================================================================
-   SURVEILLANCE BAR (Top opponents area)
+   SURVEILLANCE BAR (Top HUD — opponents + audio + settings)
    ========================================================================== */
 .surveillance-bar {
   flex: 0 0 auto;
   background: rgba(0,0,0,0.55);
   border-bottom: 1px solid #333;
-  padding: 0.5rem;
-  z-index: 2;
+  padding: var(--spacing-2);
+  z-index: var(--z-hud);
   display: flex;
   flex-direction: column;
 }
 
 .bar-label {
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
   color: var(--text-secondary);
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--spacing-2);
   text-align: center;
+}
+
+.bar-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+}
+
+.bar-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  flex-shrink: 0;
 }
 
 .opponents-grid {
   display: flex;
   justify-content: center;
-  gap: 2rem;
+  gap: var(--spacing-8);
+  flex: 1;
+  min-width: 0;
+}
+
+/* HUD audio toggle — compact tactical button that sits in the
+   SurveillanceBar's controls slot. */
+.hud-audio {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid #333;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.15em;
+  padding: var(--spacing-2) var(--spacing-3);
+  cursor: pointer;
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+  transition:
+    border-color var(--duration-snap) var(--ease-snap),
+    color var(--duration-snap) var(--ease-snap);
+}
+
+.hud-audio:hover {
+  border-color: var(--color-neon-blue);
+  color: var(--color-neon-blue);
+}
+
+.hud-audio-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #333;
+  transition: background var(--duration-snap) var(--ease-snap), box-shadow var(--duration-snap) var(--ease-snap);
+}
+
+.hud-audio.active .hud-audio-dot {
+  background: var(--color-neon-blue);
+  box-shadow: 0 0 8px var(--color-neon-blue);
 }
 
 /* Multiplayer opponent card style */
@@ -156,16 +211,38 @@
 
 /* ==========================================================================
    BATTLE PIT (Main game area)
+   Centered table — draw + discard piles sit as a pair in the middle, with
+   the status panel below. No more 200px side gutters scattering the layout;
+   audio + settings moved out into the SurveillanceBar HUD.
    ========================================================================== */
 .battle-pit {
   flex: 1;
   min-height: 0;
   position: relative;
-  z-index: 2;
-  display: grid;
-  grid-template-columns: 200px 1fr 200px;
+  z-index: var(--z-cards);
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  padding: 0 2rem;
+  justify-content: center;
+  gap: var(--spacing-6);
+  padding: var(--spacing-8) var(--spacing-4);
+}
+
+.pit-table {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-16);
+  position: relative;
+  z-index: var(--z-cards);
+}
+
+.pit-status {
+  position: relative;
+  z-index: var(--z-cards);
+  width: 100%;
+  display: flex;
+  justify-content: center;
 }
 
 /* Subtle ambient frame around the play area — corner glows + thin border
@@ -174,20 +251,20 @@
 .battle-pit::before {
   content: '';
   position: absolute;
-  inset: 0.5rem 1rem;
+  inset: var(--spacing-2) var(--spacing-4);
   pointer-events: none;
   border: 1px solid rgba(255, 204, 0, 0.08);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   box-shadow:
     inset 0 0 60px rgba(255, 204, 0, 0.03),
     inset 0 -40px 80px -40px rgba(255, 42, 42, 0.05);
   z-index: 0;
 }
-/* Corner accents — Reka-Like industrial vibe */
+/* Corner accents — industrial vibe */
 .battle-pit::after {
   content: '';
   position: absolute;
-  inset: 0.5rem 1rem;
+  inset: var(--spacing-2) var(--spacing-4);
   pointer-events: none;
   background:
     linear-gradient(135deg, rgba(255, 204, 0, 0.5) 0 12px, transparent 12px 100%) top left / 24px 24px no-repeat,
@@ -203,7 +280,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
+  gap: var(--spacing-4);
   position: relative;
 }
 
@@ -246,13 +323,13 @@
    STATUS PANEL
    ========================================================================== */
 .status-panel {
-  margin-top: 2rem;
   background: rgba(0,0,0,0.6);
   border: 1px solid #333;
-  padding: 0.5rem;
-  width: 200px;
+  padding: var(--spacing-3);
+  width: 240px;
   position: relative;
-  z-index: 1;
+  z-index: var(--z-base);
+  border-radius: var(--radius-sm);
 }
 
 .panel-row {
@@ -318,16 +395,48 @@
 
 /* ==========================================================================
    FLOATING HAND WRAPPER
+   Sits above the console bar (--z-hand > --z-hud) so card lift transforms
+   never get clipped by the bottom strip. Pulses with a soft border glow
+   when it's the player's turn — a passive cue beyond the console text.
    ========================================================================== */
 .floating-hand-wrapper {
   position: relative;
-  z-index: 1000;
+  z-index: var(--z-hand);
   display: flex;
   justify-content: center;
-  padding: 0 1rem;
+  padding: 0 var(--spacing-4);
   min-height: 180px;
   overflow: visible;
   flex-shrink: 0;
+}
+
+.floating-hand-wrapper.is-my-turn::after {
+  content: '';
+  position: absolute;
+  inset: 0 var(--spacing-2);
+  pointer-events: none;
+  border-top: 1px solid rgba(0, 255, 102, 0.35);
+  box-shadow: inset 0 12px 32px -16px rgba(0, 255, 102, 0.45);
+  animation: hand-turn-pulse 2.4s ease-in-out infinite;
+  z-index: -1;
+}
+
+@keyframes hand-turn-pulse {
+  0%, 100% {
+    opacity: 0.6;
+    box-shadow: inset 0 12px 32px -16px rgba(0, 255, 102, 0.35);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: inset 0 16px 40px -16px rgba(0, 255, 102, 0.7);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .floating-hand-wrapper.is-my-turn::after {
+    animation: none;
+    opacity: 0.7;
+  }
 }
 
 /* Hand tray gradient — bottom of the screen darkens behind the hand so the
@@ -351,18 +460,20 @@
 
 /* ==========================================================================
    PLAYER CONSOLE BAR (Bottom)
+   Sits BELOW the hand stack (--z-hud < --z-hand) so card lift transforms
+   never get clipped by the console strip. Was the 1001 > 1000 bug.
    ========================================================================== */
 .player-console-bar {
   flex: 0 0 auto;
   background: var(--surface-metal-dark);
   border-top: 2px solid #333;
-  padding: 0.5rem 1rem;
-  z-index: 1001;
+  padding: var(--spacing-2) var(--spacing-4);
+  z-index: var(--z-hud);
   position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 2rem;
+  gap: var(--spacing-8);
   font-family: 'Courier New', monospace;
   font-size: 0.8rem;
   color: var(--text-secondary);
@@ -428,7 +539,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 2000;
+  z-index: var(--z-modal);
 }
 
 .terminal-modal {
@@ -574,12 +685,18 @@
   }
 
   .battle-pit {
-    grid-template-columns: 120px 1fr 60px;
-    padding: 0 0.5rem;
+    padding: var(--spacing-4) var(--spacing-2);
+    gap: var(--spacing-4);
+  }
+
+  .pit-table {
+    gap: var(--spacing-8);
   }
 
   .status-panel {
-    width: 120px;
+    width: 100%;
+    max-width: 320px;
+    padding: var(--spacing-2);
   }
 
   .floating-hand-wrapper {
@@ -588,14 +705,18 @@
 
   .opponents-grid {
     overflow-x: auto;
-    gap: 0.75rem;
+    gap: var(--spacing-3);
     justify-content: flex-start;
-    padding-bottom: 0.25rem;
+    padding-bottom: var(--spacing-1);
+  }
+
+  .bar-controls {
+    gap: var(--spacing-2);
   }
 
   .opponent-card {
-    padding: 0.5rem 0.75rem;
-    gap: 0.5rem;
+    padding: var(--spacing-2) var(--spacing-3);
+    gap: var(--spacing-2);
   }
 
   .opponent-card .avatar {
@@ -606,13 +727,13 @@
 
   .terminal-modal {
     width: 90vw;
-    padding: 2rem;
+    padding: var(--spacing-8);
   }
 
   .player-console-bar {
-    gap: 1rem;
-    padding: 0.5rem 0.75rem;
-    font-size: 0.75rem;
+    gap: var(--spacing-4);
+    padding: var(--spacing-2) var(--spacing-3);
+    font-size: var(--text-sm);
   }
 
   .mechanical-cog {
@@ -621,7 +742,7 @@
 
   .uno-btn {
     min-height: 44px;
-    padding: 0.3rem 1rem;
+    padding: var(--spacing-1) var(--spacing-4);
   }
 }
 
@@ -630,21 +751,36 @@
    ========================================================================== */
 @media (max-width: 480px) {
   .battle-pit {
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto auto;
-    padding: 0 0.25rem;
-    gap: 0.5rem;
+    padding: var(--spacing-3) var(--spacing-2);
+    gap: var(--spacing-3);
+  }
+
+  .pit-table {
+    gap: var(--spacing-6);
   }
 
   .status-panel {
     width: 100%;
-    grid-column: 1 / -1;
-    margin-top: 0.5rem;
+    max-width: none;
+    margin: 0;
+    padding: var(--spacing-2);
+  }
+
+  .panel-row {
+    font-size: var(--text-sm);
   }
 
   .floating-hand-wrapper {
     min-height: 100px;
-    padding: 0 0.25rem;
+    padding: 0 var(--spacing-1);
+  }
+
+  .bar-content {
+    gap: var(--spacing-2);
+  }
+
+  .bar-controls {
+    gap: var(--spacing-1);
   }
 
   .opponents-grid {

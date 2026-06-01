@@ -3,17 +3,29 @@
     <!-- Shared Background Elements -->
     <GameBackground :direction="store.direction" />
 
-    <!-- Top Bar: Opponents Surveillance -->
+    <!-- Top Bar: Opponents Surveillance + audio/settings -->
     <SurveillanceBar>
-      <OpponentHand 
-        v-for="player in opponents" 
+      <OpponentHand
+        v-for="player in opponents"
         :key="player.id"
         :ref="(el) => { if (el) opponentRefs[player.id] = (el as any).$el }"
-        :player="player" 
+        :player="player"
         :is-active="player.id === store.currentPlayer?.id"
         :is-selectable="store.turnState === 'CHOOSING_PLAYER_TO_SWAP' && isMyTurn"
         @click="onOpponentClick(player.id)"
       />
+      <template #controls>
+        <button
+          class="hud-audio"
+          :class="{ active: !soundEffects.isMuted.value }"
+          @click="toggleSound"
+          :aria-label="soundEffects.isMuted.value ? 'Unmute audio' : 'Mute audio'"
+        >
+          <span class="hud-audio-label">AUDIO</span>
+          <span class="hud-audio-dot"></span>
+        </button>
+        <SettingsButton />
+      </template>
     </SurveillanceBar>
 
     <!-- Main Game Table "The Pit" -->
@@ -22,7 +34,6 @@
       :show-draw-hint="isMyTurn && store.turnState === 'WAITING_FOR_ACTION'"
       :is-muted="soundEffects.isMuted.value"
       @draw="drawCard"
-      @toggle-sound="toggleSound"
     >
       <template #draw-pile>
         <CardPile :cards="store.deck" />
@@ -46,10 +57,14 @@
     </BattlePit>
 
     <!-- Player Cards (rendered LAST so they're on top of everything) -->
-    <div class="floating-hand-wrapper" ref="playerHandRef">
-      <PlayerHand 
+    <div
+      class="floating-hand-wrapper"
+      :class="{ 'is-my-turn': isMyTurn && store.turnState === 'WAITING_FOR_ACTION' }"
+      ref="playerHandRef"
+    >
+      <PlayerHand
         v-if="myPlayer"
-        :hand="myPlayer.hand" 
+        :hand="myPlayer.hand"
         :is-my-turn="isMyTurn"
       />
     </div>
@@ -130,6 +145,7 @@ import PlayerSelectModal from './PlayerSelectModal.vue'
 import DiscardAllPickerModal from './DiscardAllPickerModal.vue'
 import GameBackground from './GameBackground.vue'
 import SurveillanceBar from './SurveillanceBar.vue'
+import SettingsButton from '../SettingsButton.vue'
 import BattlePit from './BattlePit.vue'
 import StatusPanel from './StatusPanel.vue'
 import PlayerConsoleBar from './PlayerConsoleBar.vue'

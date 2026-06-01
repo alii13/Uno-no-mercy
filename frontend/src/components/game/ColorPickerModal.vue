@@ -60,10 +60,23 @@ defineEmits<{
   (e: 'select', color: CardColor): void
 }>()
 
-// Drag functionality
+// Drag functionality — modal is translated from a centered start position,
+// so position.{x,y} represents the offset from screen centre. Clamp it so
+// the modal's drag handle never leaves the viewport (audit-flagged: it
+// could previously be dragged off-screen with no way back).
 const position = reactive({ x: 0, y: 0 })
 const isDragging = ref(false)
 const dragStart = reactive({ x: 0, y: 0 })
+const HANDLE_MARGIN = 60 // keep at least this much of the modal in-view
+
+function clampPosition() {
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const maxX = Math.max(0, vw / 2 - HANDLE_MARGIN)
+  const maxY = Math.max(0, vh / 2 - HANDLE_MARGIN)
+  position.x = Math.max(-maxX, Math.min(maxX, position.x))
+  position.y = Math.max(-maxY, Math.min(maxY, position.y))
+}
 
 function startDrag(e: MouseEvent) {
   isDragging.value = true
@@ -77,6 +90,7 @@ function onDrag(e: MouseEvent) {
   if (!isDragging.value) return
   position.x = e.clientX - dragStart.x
   position.y = e.clientY - dragStart.y
+  clampPosition()
 }
 
 function stopDrag() {
@@ -104,6 +118,7 @@ function onTouchDrag(e: TouchEvent) {
   if (!touch) return
   position.x = touch.clientX - dragStart.x
   position.y = touch.clientY - dragStart.y
+  clampPosition()
 }
 
 onUnmounted(() => {
@@ -122,7 +137,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 2000;
+  z-index: var(--z-modal);
   backdrop-filter: blur(5px);
 }
 

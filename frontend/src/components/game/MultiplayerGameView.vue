@@ -3,7 +3,7 @@
     <!-- Shared Background Elements -->
     <GameBackground :direction="direction" />
 
-    <!-- Top Bar: All Opponents -->
+    <!-- Top Bar: All Opponents + audio/settings -->
     <SurveillanceBar>
       <div
         v-for="opp in allOpponents"
@@ -25,6 +25,18 @@
         </div>
         <div class="status-indicator" :class="{ active: currentGame?.current_player_id === opp.user_id }"></div>
       </div>
+      <template #controls>
+        <button
+          class="hud-audio"
+          :class="{ active: !soundEffects.isMuted.value }"
+          @click="toggleSound"
+          :aria-label="soundEffects.isMuted.value ? 'Unmute audio' : 'Mute audio'"
+        >
+          <span class="hud-audio-label">AUDIO</span>
+          <span class="hud-audio-dot"></span>
+        </button>
+        <SettingsButton />
+      </template>
     </SurveillanceBar>
 
     <!-- Main Game Table -->
@@ -33,7 +45,6 @@
       :show-draw-hint="isMyTurn && turnState === 'WAITING_FOR_ACTION'"
       :is-muted="soundEffects.isMuted.value"
       @draw="handleDraw"
-      @toggle-sound="toggleSound"
     >
       <template #draw-pile>
         <CardPile :cards="deckDisplay" />
@@ -57,7 +68,11 @@
     </BattlePit>
 
     <!-- My Hand -->
-    <div class="floating-hand-wrapper" ref="playerHandRef">
+    <div
+      class="floating-hand-wrapper"
+      :class="{ 'is-my-turn': isMyTurn && turnState === 'WAITING_FOR_ACTION' }"
+      ref="playerHandRef"
+    >
       <MultiplayerPlayerHand
         v-if="visibleHand.length > 0 && showHand"
         :hand="visibleHand"
@@ -176,6 +191,7 @@ import PlayerSelectModal from './PlayerSelectModal.vue'
 import DiscardAllPickerModal from './DiscardAllPickerModal.vue'
 import GameBackground from './GameBackground.vue'
 import SurveillanceBar from './SurveillanceBar.vue'
+import SettingsButton from '../SettingsButton.vue'
 import BattlePit from './BattlePit.vue'
 import StatusPanel from './StatusPanel.vue'
 import PlayerConsoleBar from './PlayerConsoleBar.vue'
