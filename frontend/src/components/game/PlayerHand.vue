@@ -34,8 +34,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, inject, watch, type Ref, type ComponentPublicInstance } from 'vue'
+import { ref, computed, inject, watch, nextTick, type Ref, type ComponentPublicInstance } from 'vue'
 import gsap from 'gsap'
+import { Flip } from 'gsap/Flip'
 import type { Card as CardType, CardColor } from '../../types/card'
 import Card from './Card.vue'
 import ColorPickerModal from './ColorPickerModal.vue'
@@ -100,6 +101,7 @@ watch(() => [store.currentPlayerIndex, store.turnState, props.isMyTurn, store.ga
 // Inject animation-related refs from parent (single-player specific)
 const discardAreaRef = inject<Ref<HTMLElement | null>>('discardAreaRef', ref(null))
 const animationLayer = inject<Ref<HTMLElement | null>>('animationLayer', ref(null))
+const handContainer = ref<HTMLElement | null>(null)
 
 function setCardRef(cardId: string, el: HTMLElement | ComponentPublicInstance | null) {
   if (el) {
@@ -157,6 +159,15 @@ function executePlayCard(card: CardType, selectedColor?: CardColor) {
   const cardRect = cardEl.getBoundingClientRect()
   const discardRect = discardAreaRef.value.getBoundingClientRect()
 
+  // Capture Flip state of remaining hand cards BEFORE the state change so
+  // they can slide into their new positions after the card is removed.
+  const remainingCards = handContainer.value
+    ? handContainer.value.querySelectorAll('.hand-card-wrapper')
+    : null
+  const handFlipState = remainingCards && remainingCards.length > 1
+    ? Flip.getState(remainingCards)
+    : null
+
   // Flying-card clone — visual only.
   const clone = cardEl.cloneNode(true) as HTMLElement
   clone.style.position = 'fixed'
@@ -185,20 +196,105 @@ function executePlayCard(card: CardType, selectedColor?: CardColor) {
     soundEffects.playSpecialCard()
   }
 
-  // Single transform tween — compositor-only, no layout.
-  // Arc is added in section C+ via MotionPath. For now keep it straight + fast.
-  gsap.to(clone, {
-    x: dx,
-    y: dy,
-    rotation: landRotation,
-    scale: 0.85,
-    duration: 0.28,
-    ease: 'power3.out',
+  // After Vue removes the played card from the hand DOM, slide the
+  // remaining cards into their new positions instead of popping.
+  if (handFlipState) {
+    nextTick(() => {
+      Flip.from(handFlipState, {
+        duration: 0.35,
+        ease: 'power3.out',
+        stagger: 0.015,
+        absolute: false
+      })
+    })
+  }
+
+  // Arc midpoint — lifts the card halfway between source and target.
+  // ~25% of the diagonal travel as upward lift gives a satisfying toss.
+  const midX = dx / 2
+  const arcHeight = Math.max(80, Math.hypot(dx, dy) * 0.22)
+  const midY = dy / 2 - arcHeight
+
+  const tl = gsap.timeline({
     onComplete: () => {
       soundEffects.playCardLand()
       clone.remove()
     }
   })
+
+  // 1. Anticipation — tiny pull-back in the opposite direction of throw.
+  tl.to(clone, {
+    x: -dx * 0.04,
+    y: -dy * 0.04,
+    scale: 0.96,
+    duration: 0.07,
+    ease: 'power2.in'
+  })
+
+  // 2. Throw — MotionPath arc from current position through (midX, midY) to (dx, dy).
+  tl.to(clone, {
+    motionPath: {
+      path: [
+        { x: midX, y: midY },
+        { x: dx, y: dy }
+      ],
+      curviness: 1.5,
+      autoRotate: false
+    },
+    rotation: landRotation,
+    scale: 0.92,
+    duration: 0.32,
+    ease: 'power2.out'
+  })
+
+  // 3. Follow-through — slight overshoot and settle on the pile.
+  tl.to(clone, {
+    scale: 0.82,
+    duration: 0.14,
+    ease: 'back.out(2.2)'
+  })
+
+  // 4. Trigger the pile flash for power cards (runs in parallel with landing).
+  if (card.color === 'wild' || card.type.includes('draw') || card.type === 'skipEveryone') {
+    triggerPileFlash(card.color === 'wild' ? 'wild' : (card.color as CardColor))
+  }
+}
+
+function triggerPileFlash(color: CardColor | 'wild') {
+  if (!discardAreaRef?.value) return
+  const flash = document.createElement('div')
+  flash.className = 'pile-flash'
+  const colorMap: Record<string, string> = {
+    red: 'rgba(255, 60, 60, 0.85)',
+    blue: 'rgba(60, 120, 255, 0.85)',
+    green: 'rgba(60, 220, 120, 0.85)',
+    yellow: 'rgba(255, 220, 60, 0.85)',
+    wild: 'rgba(255, 80, 220, 0.9)'
+  }
+  flash.style.cssText = `
+    position: absolute;
+    inset: -40px;
+    border-radius: 50%;
+    background: radial-gradient(circle, ${colorMap[color] || colorMap.wild} 0%, transparent 70%);
+    mix-blend-mode: screen;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 50;
+    will-change: opacity, transform;
+  `
+  discardAreaRef.value.appendChild(flash)
+  gsap.fromTo(flash,
+    { opacity: 0, scale: 0.4 },
+    {
+      opacity: 1, scale: 1.6, duration: 0.18, ease: 'power2.out',
+      onComplete: () => {
+        gsap.to(flash, {
+          opacity: 0, scale: 1.9, duration: 0.32, ease: 'power2.in',
+          onComplete: () => flash.remove()
+        })
+      }
+    }
+  )
 }
 </script>
 
@@ -251,6 +347,12 @@ function executePlayCard(card: CardType, selectedColor?: CardColor) {
   transform: translateY(-30px) scale(1.05);
   opacity: 1;
   filter: grayscale(0);
+}
+
+/* Click-down press feedback — quick squash before the throw fires. */
+.hand-card-wrapper.playable-glow:active {
+  transform: translateY(-32px) scale(1.04) !important;
+  transition: transform 0.06s ease-out;
 }
 
 /* Playable glow: keep a static box-shadow + border, pulse opacity on a pseudo-element.

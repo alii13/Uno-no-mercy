@@ -719,15 +719,18 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         return { winnerId: null, status: 'playing', finalHand }
     }
 
-    // Update player hands in database
+    // Update player hands in database. Multi-hand updates (0 rotate, 7 swap)
+    // are issued in parallel — they're independent row updates.
     async function updatePlayerHands(state: PlayCardState): Promise<void> {
         if (state.handsToUpdate.length > 0) {
-            for (const update of state.handsToUpdate) {
-                await supabase
-                    .from('game_players')
-                    .update({ hand: update.hand })
-                    .eq('id', update.playerId)
-            }
+            await Promise.all(
+                state.handsToUpdate.map(update =>
+                    supabase
+                        .from('game_players')
+                        .update({ hand: update.hand })
+                        .eq('id', update.playerId)
+                )
+            )
         } else {
             await supabase
                 .from('game_players')
@@ -809,9 +812,37 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             return
         }
 
+        // OPTIMISTIC LOCAL APPLY — make the UI move immediately instead of
+        // waiting on two DB round-trips. The realtime channel will correct
+        // anything that drifts (and our writes below normally win the race).
+        if (myPlayer.value) {
+            myPlayer.value.hand = state.newHand
+        }
+        if (state.handsToUpdate.length > 0) {
+            for (const upd of state.handsToUpdate) {
+                const gp = gamePlayers.value.find(p => p.id === upd.playerId)
+                if (gp) gp.hand = upd.hand
+            }
+        }
+        if (currentGame.value) {
+            currentGame.value.discard_pile = state.newDiscard as any
+            currentGame.value.current_color = state.newColor
+            currentGame.value.current_player_id = state.nextPlayerId
+            currentGame.value.direction = state.direction
+            currentGame.value.draw_stack = state.drawStack
+            currentGame.value.turn_state = state.turnState
+            currentGame.value.roulette_target_color = state.rouletteTargetColor
+            if (winResult.winnerId) currentGame.value.winner_id = winResult.winnerId
+            if (winResult.status) currentGame.value.status = winResult.status as typeof currentGame.value.status
+        }
+
         try {
-            await updatePlayerHands(state)
-            await updateGameState(game.id, game.deck as Card[], state, winResult.winnerId, winResult.status)
+            // Fan out the two writes in parallel — they target different rows
+            // (game_players vs games) so ordering doesn't matter for correctness.
+            await Promise.all([
+                updatePlayerHands(state),
+                updateGameState(game.id, game.deck as Card[], state, winResult.winnerId, winResult.status)
+            ])
         } catch (err: any) {
             error.value = err.message
         } finally {
@@ -870,27 +901,34 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         const nextIdx = calculateNextPlayerIndex(myIndex, direction, playerCount)
         const nextPlayerId = gamePlayers.value[nextIdx]?.user_id || null
 
+        // Optimistic local apply — both hands swap locally before the round-trips.
+        const meRef = gamePlayers.value.find(p => p.user_id === myId)
+        const targetRef = gamePlayers.value.find(p => p.id === freshTarget.id)
+        if (meRef) meRef.hand = targetHand
+        if (targetRef) targetRef.hand = myHand
+        if (currentGame.value) {
+            currentGame.value.turn_state = 'WAITING_FOR_ACTION'
+            currentGame.value.current_player_id = nextPlayerId
+        }
+
         try {
-            // Swap hands
-            await supabase
-                .from('game_players')
-                .update({ hand: targetHand })
-                .eq('id', freshMe.id)
-
-            await supabase
-                .from('game_players')
-                .update({ hand: myHand })
-                .eq('id', freshTarget.id)
-
-            // Update game state
-            await supabase
-                .from('games')
-                .update({
-                    turn_state: 'WAITING_FOR_ACTION',
-                    current_player_id: nextPlayerId
-                })
-                .eq('id', currentGame.value.id)
-
+            await Promise.all([
+                supabase
+                    .from('game_players')
+                    .update({ hand: targetHand })
+                    .eq('id', freshMe.id),
+                supabase
+                    .from('game_players')
+                    .update({ hand: myHand })
+                    .eq('id', freshTarget.id),
+                supabase
+                    .from('games')
+                    .update({
+                        turn_state: 'WAITING_FOR_ACTION',
+                        current_player_id: nextPlayerId
+                    })
+                    .eq('id', currentGame.value.id)
+            ])
         } catch (err: any) {
             error.value = err.message
         } finally {
@@ -1055,52 +1093,57 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     newColor = card.color === 'wild' ? targetColor : card.color
                 }
 
-                await supabase
-                    .from('game_players')
-                    .update({
-                        hand: finalHand,
-                        is_eliminated: isEliminated,
-                        has_called_uno: false
-                    })
-                    .eq('id', myPlayer.value.id)
-
                 const { winner_id, status: gStatus } = isEliminated
                     ? await checkForWinnerAfterElimination()
                     : { winner_id: null, status: 'playing' }
 
-                await supabase
-                    .from('games')
-                    .update({
-                        deck: localDeck,
-                        discard_pile: newDiscard,
-                        current_color: newColor,
-                        turn_state: 'WAITING_FOR_ACTION',
-                        roulette_target_color: null,
-                        current_player_id: getNextPlayerId(),
-                        winner_id,
-                        status: gStatus
-                    })
-                    .eq('id', currentGame.value.id)
+                await Promise.all([
+                    supabase
+                        .from('game_players')
+                        .update({
+                            hand: finalHand,
+                            is_eliminated: isEliminated,
+                            has_called_uno: false
+                        })
+                        .eq('id', myPlayer.value.id),
+                    supabase
+                        .from('games')
+                        .update({
+                            deck: localDeck,
+                            discard_pile: newDiscard,
+                            current_color: newColor,
+                            turn_state: 'WAITING_FOR_ACTION',
+                            roulette_target_color: null,
+                            current_player_id: getNextPlayerId(),
+                            winner_id,
+                            status: gStatus
+                        })
+                        .eq('id', currentGame.value.id)
+                ])
 
                 rouletteState = null
             } else {
-                // Keep drawing - update DB then schedule next draw
-                await supabase
-                    .from('game_players')
-                    .update({ hand: newHand, has_called_uno: false })
-                    .eq('id', myPlayer.value.id)
+                // Keep drawing — optimistic local apply, then parallel writes.
+                myPlayer.value.hand = newHand
+                myPlayer.value.has_called_uno = false
+                if (currentGame.value) {
+                    currentGame.value.deck = localDeck as any
+                    currentGame.value.discard_pile = localDiscard as any
+                }
+                await Promise.all([
+                    supabase
+                        .from('game_players')
+                        .update({ hand: newHand, has_called_uno: false })
+                        .eq('id', myPlayer.value.id),
+                    supabase
+                        .from('games')
+                        .update({ deck: localDeck, discard_pile: localDiscard })
+                        .eq('id', currentGame.value.id)
+                ])
 
-                await supabase
-                    .from('games')
-                    .update({
-                        deck: localDeck,
-                        discard_pile: localDiscard
-                    })
-                    .eq('id', currentGame.value.id)
-
-                // Continue drawing after delay
+                // Continue drawing after a much shorter delay (was 600ms).
                 actionInProgress.value = false
-                setTimeout(() => executeRouletteDraw(), 600)
+                setTimeout(() => executeRouletteDraw(), 280)
                 return // Skip the finally block's actionInProgress reset
             }
         } catch (err: any) {
@@ -1172,30 +1215,44 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             state.discardPile = [...state.discardPile, ...newHand]
         }
 
-        await supabase
-            .from('game_players')
-            .update({
-                hand: isEliminated ? [] : newHand,
-                is_eliminated: isEliminated,
-                has_called_uno: false
-            })
-            .eq('id', myPlayer.value!.id)
+        // Optimistic local apply before the network round-trip.
+        if (myPlayer.value) {
+            myPlayer.value.hand = isEliminated ? [] : newHand
+            myPlayer.value.is_eliminated = isEliminated
+            myPlayer.value.has_called_uno = false
+        }
+        if (currentGame.value) {
+            currentGame.value.deck = state.deck as any
+            currentGame.value.discard_pile = state.discardPile as any
+            currentGame.value.draw_stack = 0
+            currentGame.value.current_player_id = getNextPlayerId()
+        }
 
         const { winner_id, status: gStatus } = isEliminated
             ? await checkForWinnerAfterElimination()
             : { winner_id: null, status: 'playing' }
 
-        await supabase
-            .from('games')
-            .update({
-                deck: state.deck,
-                discard_pile: state.discardPile,
-                draw_stack: 0,
-                current_player_id: getNextPlayerId(),
-                winner_id,
-                status: gStatus
-            })
-            .eq('id', gameId)
+        await Promise.all([
+            supabase
+                .from('game_players')
+                .update({
+                    hand: isEliminated ? [] : newHand,
+                    is_eliminated: isEliminated,
+                    has_called_uno: false
+                })
+                .eq('id', myPlayer.value!.id),
+            supabase
+                .from('games')
+                .update({
+                    deck: state.deck,
+                    discard_pile: state.discardPile,
+                    draw_stack: 0,
+                    current_player_id: getNextPlayerId(),
+                    winner_id,
+                    status: gStatus
+                })
+                .eq('id', gameId)
+        ])
     }
 
     // Draw until a playable card is found
@@ -1235,16 +1292,24 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     return
                 }
 
-                // Update hand
-                await supabase
-                    .from('game_players')
-                    .update({ hand: newHand, has_called_uno: false })
-                    .eq('id', myPlayer.value.id)
+                // Optimistic local apply.
+                myPlayer.value.hand = newHand
+                myPlayer.value.has_called_uno = false
+                if (currentGame.value) {
+                    currentGame.value.deck = state.deck as any
+                    currentGame.value.discard_pile = state.discardPile as any
+                }
 
-                await supabase
-                    .from('games')
-                    .update({ deck: state.deck, discard_pile: state.discardPile })
-                    .eq('id', currentGame.value.id)
+                await Promise.all([
+                    supabase
+                        .from('game_players')
+                        .update({ hand: newHand, has_called_uno: false })
+                        .eq('id', myPlayer.value.id),
+                    supabase
+                        .from('games')
+                        .update({ deck: state.deck, discard_pile: state.discardPile })
+                        .eq('id', currentGame.value.id)
+                ])
 
                 // Check if drawn card is playable
                 if (state.topCard && canPlayCard(card, state.topCard, state.currentColor, 0, stackingMode.value)) {
@@ -1258,10 +1323,10 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
                     setTimeout(async () => {
                         await playCard(card)
-                    }, 800)
+                    }, 300)
                 } else {
                     // Not playable, draw again
-                    setTimeout(drawUntilPlayable, 400)
+                    setTimeout(drawUntilPlayable, 150)
                 }
             } catch (err: any) {
                 error.value = err.message

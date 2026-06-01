@@ -1,6 +1,6 @@
 <template>
   <div class="player-hand" :class="{ 'not-my-turn': !isMyTurn }">
-    <div class="cards-container">
+    <div class="cards-container" ref="handContainer">
       <div
         v-for="(card, index) in hand"
         :key="card.id"
@@ -27,8 +27,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, inject, type Ref, type ComponentPublicInstance } from 'vue'
+import { ref, computed, inject, nextTick, type Ref, type ComponentPublicInstance } from 'vue'
 import gsap from 'gsap'
+import { Flip } from 'gsap/Flip'
 import Card from './Card.vue'
 import { canPlayCard, type StackingMode } from '../../utils/gameRules'
 import { getCardStyle as getCardStyleUtil } from '../../utils/gameHelpers'
@@ -51,6 +52,7 @@ const emit = defineEmits<{
 const { screenWidth, isMobile, isTablet } = useScreenSize()
 const hoverIndex = ref(-1)
 const cardRefs = ref<Map<string, HTMLElement>>(new Map())
+const handContainer = ref<HTMLElement | null>(null)
 
 const discardAreaRef = inject<Ref<HTMLElement | null>>('discardAreaRef', ref(null))
 const animationLayer = inject<Ref<HTMLElement | null>>('animationLayer', ref(null))
@@ -107,7 +109,7 @@ function handleCardClick(card: CardType) {
   animateAndPlay(card)
 }
 
-async function animateAndPlay(card: CardType) {
+function animateAndPlay(card: CardType) {
   const cardEl = cardRefs.value.get(card.id)
   if (!cardEl || !discardAreaRef?.value || !animationLayer?.value) {
     emit('playCard', card)
@@ -117,7 +119,15 @@ async function animateAndPlay(card: CardType) {
   const cardRect = cardEl.getBoundingClientRect()
   const discardRect = discardAreaRef.value.getBoundingClientRect()
 
-  // Create flying clone
+  // Capture Flip state of remaining cards BEFORE the play so they slide
+  // into their new spots after Vue removes the played card.
+  const remainingCards = handContainer.value
+    ? handContainer.value.querySelectorAll('.hand-card-wrapper')
+    : null
+  const handFlipState = remainingCards && remainingCards.length > 1
+    ? Flip.getState(remainingCards)
+    : null
+
   const clone = cardEl.cloneNode(true) as HTMLElement
   clone.style.position = 'fixed'
   clone.style.left = `${cardRect.left}px`
@@ -127,31 +137,56 @@ async function animateAndPlay(card: CardType) {
   clone.style.zIndex = '5000'
   clone.style.pointerEvents = 'none'
   clone.style.margin = '0'
-  clone.style.transform = 'none'
-
   animationLayer.value.appendChild(clone)
   cardEl.style.opacity = '0'
 
   const targetX = discardRect.left + discardRect.width / 2 - cardRect.width / 2
   const targetY = discardRect.top + discardRect.height / 2 - cardRect.height / 2
+  const dx = targetX - cardRect.left
+  const dy = targetY - cardRect.top
+  const midX = dx / 2
+  const arcHeight = Math.max(80, Math.hypot(dx, dy) * 0.22)
+  const midY = dy / 2 - arcHeight
   const landRotation = gsap.utils.random(-20, 20)
 
-  await gsap.to(clone, {
-    left: targetX,
-    top: targetY,
-    rotation: landRotation,
-    scale: 0.85,
-    duration: 0.35,
-    ease: 'power2.out',
-    onUpdate: function() {
-      const progress = this.progress()
-      const arcHeight = -60 * Math.sin(progress * Math.PI)
-      clone.style.transform = `translateY(${arcHeight}px) rotate(${landRotation * progress}deg) scale(${1 - progress * 0.15})`
-    }
-  })
-
-  clone.remove()
+  // Fire the play emit FIRST so multiplayer's network round-trip starts
+  // immediately. Animation runs in parallel as cosmetic theatre.
   emit('playCard', card)
+
+  if (handFlipState) {
+    nextTick(() => {
+      Flip.from(handFlipState, {
+        duration: 0.35,
+        ease: 'power3.out',
+        stagger: 0.015
+      })
+    })
+  }
+
+  const tl = gsap.timeline({ onComplete: () => clone.remove() })
+  tl.to(clone, {
+    x: -dx * 0.04,
+    y: -dy * 0.04,
+    scale: 0.96,
+    duration: 0.07,
+    ease: 'power2.in'
+  })
+  tl.to(clone, {
+    motionPath: {
+      path: [{ x: midX, y: midY }, { x: dx, y: dy }],
+      curviness: 1.5,
+      autoRotate: false
+    },
+    rotation: landRotation,
+    scale: 0.92,
+    duration: 0.32,
+    ease: 'power2.out'
+  })
+  tl.to(clone, {
+    scale: 0.82,
+    duration: 0.14,
+    ease: 'back.out(2.2)'
+  })
 }
 </script>
 
@@ -177,9 +212,10 @@ async function animateAndPlay(card: CardType) {
 
 .hand-card-wrapper {
   position: relative;
-  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), margin-right 0.3s ease;
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   cursor: pointer;
   transform-origin: bottom center;
+  will-change: transform;
 }
 
 .hand-card-wrapper:hover {
@@ -188,7 +224,7 @@ async function animateAndPlay(card: CardType) {
 }
 
 .hand-card-wrapper:hover .hand-card {
-  filter: drop-shadow(0 20px 30px rgba(0, 0, 0, 0.6));
+  box-shadow: 0 18px 28px rgba(0, 0, 0, 0.55);
 }
 
 .unplayable {
@@ -203,17 +239,32 @@ async function animateAndPlay(card: CardType) {
   filter: grayscale(0);
 }
 
+.hand-card-wrapper.playable-glow:active {
+  transform: translateY(-32px) scale(1.04) !important;
+  transition: transform 0.06s ease-out;
+}
+
 .playable-glow .hand-card {
   box-shadow: 0 0 15px rgba(0, 243, 255, 0.5);
   border: 1px solid rgba(0, 243, 255, 0.8);
   border-radius: 8px;
-  animation: pulse-glow 2s infinite;
+  position: relative;
+}
+
+.playable-glow .hand-card::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 10px;
+  pointer-events: none;
+  box-shadow: 0 0 22px rgba(0, 243, 255, 0.85);
+  opacity: 0;
+  animation: pulse-glow 2.4s ease-in-out infinite;
 }
 
 @keyframes pulse-glow {
-  0% { box-shadow: 0 0 10px rgba(0, 243, 255, 0.3); border-color: rgba(0, 243, 255, 0.6); }
-  50% { box-shadow: 0 0 25px rgba(0, 243, 255, 0.8); border-color: rgba(0, 243, 255, 1); }
-  100% { box-shadow: 0 0 10px rgba(0, 243, 255, 0.3); border-color: rgba(0, 243, 255, 0.6); }
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
 }
 
 /* When it's not the player's turn, gray out all cards */

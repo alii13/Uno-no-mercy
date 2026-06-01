@@ -173,8 +173,8 @@ export function useCardAnimations() {
             y: -50,
             scale: 1.2,
             rotation: gsap.utils.random(-20, 20),
-            duration: options.duration || 0.3,
-            ease: 'bounce.out'
+            duration: options.duration || 0.32,
+            ease: 'back.out(1.7)'
         })
     }
 

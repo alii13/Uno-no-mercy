@@ -110,7 +110,7 @@ watch(() => props.cards.length, (newLen, oldLen) => {
   if (props.isDiscard && newLen > oldLen && topCardRef.value) {
     nextTick(() => {
       if (topCardRef.value) {
-        // Dramatic "Slam" animation
+        // Dramatic slam — back.out overshoots and settles, less cartoony than bounce.
         gsap.fromTo(topCardRef.value,
           {
             y: -100,
@@ -123,9 +123,8 @@ watch(() => props.cards.length, (newLen, oldLen) => {
             scale: 1,
             opacity: 1,
             rotation: 0,
-            duration: 0.5,
-            ease: 'bounce.out' 
-            // 'bounce.out' gives a heavy impact feel
+            duration: 0.42,
+            ease: 'back.out(1.7)'
           }
         )
       }
