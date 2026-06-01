@@ -172,3 +172,31 @@ button {
     animation: none;
   }
 }
+
+/* ==========================================================================
+   PAGE TRANSITIONS
+   Major top-level views fade + slide up on mount so transitions between
+   landing/lobby/game don't snap. Pure mount animation, no exit transition
+   (Vue removes the prior element synchronously). Cheap, prevents the
+   "broken page render" feel of a hard cut.
+   ========================================================================== */
+.landing-container,
+.lobby-container,
+.game-view,
+.reset-container {
+  animation: viewEnter 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes viewEnter {
+  0%   { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-container,
+  .lobby-container,
+  .game-view,
+  .reset-container {
+    animation: none;
+  }
+}
