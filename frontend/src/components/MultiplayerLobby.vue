@@ -7,6 +7,7 @@
         <h1 class="title glitch-text" data-text="UNO">UNO</h1>
         <h2 class="subtitle">NO MERCY</h2>
       </div>
+      <LandingStatsBadge class="lobby-stats" />
       <div class="user-info">
         <span>{{ authStore.username }}</span>
         <button v-if="authStore.isAnonymous" @click="upgradeAccount" class="logout-btn" style="border-color: var(--color-neon-blue); color: var(--color-neon-blue);">CREATE ACCOUNT</button>
@@ -166,6 +167,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useMultiplayerStore } from '../stores/multiplayerStore'
 import { useGameStore } from '../stores/gameStore'
 import SiteFooter from './SiteFooter.vue'
+import LandingStatsBadge from './LandingStatsBadge.vue'
 import type { StackingMode } from '../utils/gameRules'
 
 const emit = defineEmits<{
@@ -267,6 +269,14 @@ function copyRoomCode() {
   align-items: center;
   justify-content: center;
   gap: 1.5rem;
+}
+
+.lobby-stats {
+  align-self: center;
+}
+
+@media (max-width: 720px) {
+  .lobby-stats { display: none; } /* keep header tight on mobile */
 }
 
 .brand-group {

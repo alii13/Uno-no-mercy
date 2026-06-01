@@ -15,7 +15,7 @@
 
         <p class="tagline">
           <template v-if="isWinner">You showed no mercy.</template>
-          <template v-else><strong>{{ winnerName }}</strong> walks away. You don't.</template>
+          <template v-else>{{ villainQuote }}</template>
         </p>
 
         <!-- Stats grid -->
@@ -51,6 +51,9 @@
           <button class="share-btn share-wa" @click="$emit('share-whatsapp')">
             <span class="share-icon">⬤</span> WhatsApp
           </button>
+          <button class="share-btn share-image" @click="onShareImage" :disabled="generatingImage">
+            <span class="share-icon">📷</span> {{ generatingImage ? '…' : 'Image' }}
+          </button>
         </div>
 
         <!-- Footer: small dismissible links, not heavy CTAs -->
@@ -66,6 +69,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import gsap from 'gsap'
+import { generateShareImage, shareOrDownload } from '../../utils/shareImage'
 
 interface Stats {
   cardsPlayed: number
@@ -91,6 +95,43 @@ defineEmits<{
 }>()
 
 const modalRef = ref<HTMLElement | null>(null)
+const generatingImage = ref(false)
+
+// Rotating villain quotes on loss. Builds character without voice acting and
+// stops the "{winner} walks away. You don't." line from grinding through
+// every session. Picked once per mount so refreshing the loss screen doesn't
+// shuffle the line mid-read.
+const LOSS_QUOTES = [
+  'Mercy is for cowards.',
+  'You played. You lost. That’s the entire story.',
+  'The bot does not forgive.',
+  'Run it back. Or don’t. The deck doesn’t care.',
+  'Some hands you fold. This was one of them.',
+  'You came for a card game. You got a beatdown.',
+  'Defeat tastes like every other day.',
+  'The house always wins. Today the house was a bot.',
+] as const
+
+const villainQuote = LOSS_QUOTES[Math.floor(Math.random() * LOSS_QUOTES.length)]
+
+async function onShareImage() {
+  if (generatingImage.value) return
+  generatingImage.value = true
+  try {
+    const blob = await generateShareImage({
+      isWinner: props.isWinner,
+      opponentName: props.winnerName,
+      cardsPlayed: props.stats?.cardsPlayed ?? 0,
+      biggestStack: props.stats?.biggestStack ?? 0,
+      unosCalled: props.stats?.unosCalled ?? 0,
+      peakHand: props.stats?.peakHand ?? 0,
+      siteUrl: 'uno-no-mercy.com',
+    })
+    if (blob) await shareOrDownload(blob)
+  } finally {
+    generatingImage.value = false
+  }
+}
 
 // Animated stat values — tick up from 0 to target over ~900ms.
 const animated = ref<Stats>({ cardsPlayed: 0, biggestStack: 0, unosCalled: 0, peakHand: 0 })
@@ -307,6 +348,8 @@ function confettiStyle(i: number) {
 .share-icon { display: inline-block; margin-right: 0.35rem; }
 .share-x:hover { border-color: #1d9bf0; color: #1d9bf0; }
 .share-wa:hover { border-color: #25d366; color: #25d366; }
+.share-image:hover { border-color: #ffcc00; color: #ffcc00; }
+.share-image:disabled { opacity: 0.5; cursor: wait; }
 
 /* Footer links — minimal, doesn't compete with the primary */
 .footer-links {

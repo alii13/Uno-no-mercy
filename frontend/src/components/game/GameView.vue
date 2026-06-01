@@ -115,6 +115,7 @@
 import { computed, ref, provide, watch, onMounted, onUnmounted, toRef } from 'vue'
 import { music } from '../../composables/useMusic'
 import { useStackEscalation } from '../../composables/useStackEscalation'
+import { useRetentionStore } from '../../stores/retentionStore'
 import { useGameStore } from '../../stores/gameStore'
 import { useAuthStore } from '../../stores/authStore'
 import { canPlayCard } from '../../utils/gameRules'
@@ -188,9 +189,22 @@ onUnmounted(() => {
 
 // Duck the music when the game ends so the modal entrance + win/loss
 // sting can cut through; restore on rematch.
+const retention = useRetentionStore()
 watch(() => store.gameState, (now, prev) => {
   if (now === 'GAME_OVER') {
     music.duck()
+    // Record once per game end — accumulate lifetime stats + advance the streak.
+    const s: any = (store as any).playerStats?.['p-0']
+    if (s) {
+      retention.recordGameResult({
+        won: store.winnerId === 'p-0',
+        cardsPlayed: s.cardsPlayedTotal || 0,
+        biggestStackSurvived: s.biggestStackSurvived || 0,
+        unoCalls: s.unoCalls || 0,
+        peakHand: s.peakCards || 0,
+        mode: 'sp',
+      })
+    }
   } else if (prev === 'GAME_OVER' && now === 'PLAYING') {
     music.unduck()
   }
