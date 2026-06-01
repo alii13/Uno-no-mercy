@@ -108,22 +108,88 @@
     <link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Chakra+Petch:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300&display=swap" rel="stylesheet">
 
     <style>
-      /* Crawler-visible SEO content - shown until Vue mounts and replaces #app */
-      .seo-fallback {
-        max-width: 800px;
-        margin: 0 auto;
-        padding: 3rem 1.5rem;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        color: #e6e6e6;
-        background: #0a0a0b;
-        min-height: 100vh;
+      /* Crawler-visible SEO content. Also the loading screen — same brand tokens
+         as the Vue app so the swap-in is invisible instead of a FOUC flash.
+         Self-contained: no external CSS dependency. Web fonts load async via the
+         Google preconnect above; system fallbacks chosen to match weight so the
+         font swap is nearly imperceptible. */
+      html, body { background: #0a0a0b; margin: 0; padding: 0; }
+      body {
+        background-image:
+          repeating-linear-gradient(45deg, rgba(0,0,0,0.05) 0, rgba(0,0,0,0.05) 2px, transparent 2px, transparent 8px),
+          radial-gradient(circle at center, #18191b, #0a0a0b);
       }
-      .seo-fallback h1 { font-size: 2.5rem; margin: 0 0 0.5rem; }
-      .seo-fallback h2 { font-size: 1.2rem; color: #ff2a2a; margin: 0 0 1.5rem; }
-      .seo-fallback p { line-height: 1.6; color: #a1a1aa; margin: 0 0 1rem; }
-      .seo-fallback ul { color: #a1a1aa; line-height: 1.8; padding-left: 1.5rem; }
-      .seo-fallback a { color: #00f3ff; }
-      .seo-loading { opacity: 0.5; font-size: 0.85rem; margin-top: 2rem; }
+      .seo-fallback {
+        max-width: 880px;
+        margin: 0 auto;
+        padding: 3.5rem 1.5rem 4rem;
+        font-family: 'Chakra Petch', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        color: #e6e6e6;
+        min-height: 100vh;
+        position: relative;
+      }
+      .seo-fallback h1 {
+        font-family: 'Black Ops One', 'Impact', 'Arial Black', sans-serif;
+        font-size: clamp(2.4rem, 6vw, 4rem);
+        letter-spacing: 0.04em;
+        margin: 0;
+        color: #ff2a2a;
+        text-shadow: 0 0 20px rgba(255, 42, 42, 0.45), 0 0 4px rgba(255, 42, 42, 0.9);
+        line-height: 1.05;
+      }
+      .seo-fallback h2 {
+        font-family: 'Chakra Petch', sans-serif;
+        font-size: clamp(0.9rem, 2.2vw, 1.1rem);
+        font-weight: 500;
+        letter-spacing: 0.35em;
+        text-transform: uppercase;
+        color: #a1a1aa;
+        margin: 0.5rem 0 2.5rem;
+        border-left: 2px solid #ffcc00;
+        padding-left: 0.75rem;
+      }
+      .seo-fallback p {
+        line-height: 1.7;
+        color: #a1a1aa;
+        margin: 0 0 1rem;
+        font-size: 1rem;
+      }
+      .seo-fallback ul {
+        color: #a1a1aa;
+        line-height: 1.9;
+        padding-left: 1.5rem;
+        margin: 0 0 1.5rem;
+      }
+      .seo-fallback li::marker { color: #ffcc00; }
+      .seo-fallback li strong { color: #e6e6e6; }
+      .seo-fallback a {
+        color: #00f3ff;
+        text-decoration: none;
+        border-bottom: 1px dashed rgba(0, 243, 255, 0.4);
+      }
+      .seo-fallback a:hover { border-bottom-style: solid; }
+      .seo-loading {
+        margin-top: 2.5rem;
+        font-size: 0.8rem;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: #52525b;
+        display: inline-block;
+      }
+      .seo-loading::after {
+        content: '';
+        display: inline-block;
+        width: 1em;
+        text-align: left;
+        animation: seoDots 1.2s steps(4, end) infinite;
+      }
+      @keyframes seoDots {
+        0%   { content: ''; }
+        25%  { content: '.'; }
+        50%  { content: '..'; }
+        75%  { content: '...'; }
+        100% { content: ''; }
+      }
     </style>
   </head>
   <body>
