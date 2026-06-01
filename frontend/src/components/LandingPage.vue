@@ -8,9 +8,6 @@
       </a>
 
       <div class="top-bar-cta">
-        <Button variant="primary" size="sm" @click="reportAndEmit('playGuest')">
-          PLAY NOW
-        </Button>
         <button class="text-link" @click="reportAndEmit('showAuth', 'signup')">
           SIGN UP
         </button>
@@ -80,11 +77,6 @@
 
     <!-- Scroll sections (kept from Phase 1) -->
     <LandingScrollSections @openFeedback="showFeedback = true" />
-
-    <div class="hazard-bar" aria-hidden="true">
-      <div class="hazard-stripe"></div>
-      <p class="warning-text">// WARNING: FRIENDSHIPS MAY NOT SURVIVE //</p>
-    </div>
 
     <SiteFooter />
 
@@ -527,7 +519,10 @@ function runHeroChoreography() {
 }
 
 .hero-stage {
-  position: relative;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   width: 100%;
   max-width: 480px;
   height: 240px;
@@ -535,6 +530,7 @@ function runHeroChoreography() {
   align-items: center;
   justify-content: center;
   z-index: var(--z-cards);
+  pointer-events: none;
 }
 
 .hero-card {
@@ -641,34 +637,6 @@ function runHeroChoreography() {
   width: 1px;
   height: 1px;
   pointer-events: none;
-}
-
-/* HAZARD BAR */
-.hazard-bar {
-  position: relative;
-  z-index: var(--z-cards);
-}
-
-.hazard-stripe {
-  height: 16px;
-  background: repeating-linear-gradient(
-    -45deg,
-    var(--color-hazard),
-    var(--color-hazard) 10px,
-    #000 10px,
-    #000 20px
-  );
-}
-
-.warning-text {
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  text-align: center;
-  color: var(--color-alert);
-  background: var(--bg-concrete);
-  margin: 0;
-  padding: var(--spacing-3);
-  letter-spacing: 2px;
 }
 
 /* STICKY MOBILE CTA */
