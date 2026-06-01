@@ -1,114 +1,80 @@
 <template>
   <div class="landing-container">
-    <!-- Atmosphere -->
-    <div class="scan-line" aria-hidden="true"></div>
-    <div class="noise-overlay" aria-hidden="true"></div>
-    <div class="grid-bg" aria-hidden="true"></div>
+    <!-- Top bar — all three CTAs visible from the first pixel, no scroll needed -->
+    <header class="top-bar">
+      <a class="brand-mark" href="#" @click.prevent>
+        <span class="brand-mark-uno">UNO</span>
+        <span class="brand-mark-nomercy">NO MERCY</span>
+      </a>
 
-    <!-- Settings -->
-    <div class="settings-corner">
-      <SettingsButton />
-    </div>
+      <div class="top-bar-cta">
+        <Button variant="primary" size="md" @click="reportAndEmit('playGuest')">
+          PLAY NOW
+        </Button>
+        <button class="text-link" @click="reportAndEmit('showAuth', 'signup')">
+          SIGN UP
+        </button>
+        <span class="text-link-sep" aria-hidden="true">·</span>
+        <button class="text-link" @click="reportAndEmit('showAuth', 'login')">
+          SIGN IN
+        </button>
+        <SettingsButton class="top-bar-settings" />
+      </div>
+    </header>
 
-    <!-- HERO — single column, mobile-first. Primary CTA above the fold. -->
+    <!-- HERO — cinematic card-stack choreography -->
     <section class="hero">
-      <div class="danger-tape" aria-hidden="true">
-        <div class="tape-content">
-          <span v-for="i in 20" :key="i">// NO MERCY ZONE // ENTER AT YOUR OWN RISK //</span>
+      <div class="hero-bloom" aria-hidden="true"></div>
+
+      <div class="hero-stage" ref="heroStage">
+        <!-- The 5-card stack. Each card has a unique entry trajectory. After
+             the explosion beat they scatter to ambient positions behind the
+             wordmark. Refs are GSAP-driven. -->
+        <div
+          v-for="(card, idx) in heroCards"
+          :key="card.id"
+          class="hero-card"
+          :ref="(el) => { if (el) cardRefs[idx] = el as HTMLElement }"
+        >
+          <Card :card="card" :size="cardSize" />
+        </div>
+
+        <!-- The counter — typographic centerpiece during the stack beats -->
+        <div class="hero-counter" ref="counterRef" aria-hidden="true">
+          <span class="counter-plus">+</span><span class="counter-num">0</span>
         </div>
       </div>
 
-      <div class="hero-inner">
-        <header class="brand">
-          <h1 class="brand-title glitch-text" data-text="UNO">UNO</h1>
-          <h2 class="brand-subtitle">NO MERCY</h2>
-          <p class="brand-tagline">THE RUTHLESS CARD BATTLE</p>
-        </header>
-
-        <div class="status-line-row" aria-hidden="true">
-          <span class="status-line">
-            <span class="blink">▶</span> SYSTEM: <span class="online">ONLINE</span>
+      <!-- Wordmark — fades in after the explosion -->
+      <div class="hero-wordmark" ref="wordmarkRef">
+        <span class="wm-uno">UNO</span>
+        <span class="wm-row">
+          <span class="wm-no">NO&nbsp;</span>
+          <span class="wm-mercy-wrap">
+            <span class="wm-mercy">MERCY</span>
+            <svg
+              class="wm-strike"
+              ref="strikeRef"
+              viewBox="0 0 100 8"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <line x1="2" y1="4" x2="98" y2="4" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+            </svg>
           </span>
-          <span class="status-line">
-            <span class="blink">▶</span> THREAT: <span class="critical">MAXIMUM</span>
-          </span>
-        </div>
-
-        <LandingStatsBadge class="hero-stats" />
-
-        <Stack gap="3" align="stretch" class="hero-cta">
-          <Button variant="primary" size="lg" block @click="reportAndEmit('playGuest')">
-            PLAY NOW
-          </Button>
-          <Cluster gap="3" justify="center" align="center" class="hero-secondary">
-            <button class="text-link" @click="reportAndEmit('showAuth', 'signup')">
-              CREATE ACCOUNT
-            </button>
-            <span class="text-link-sep" aria-hidden="true">·</span>
-            <button class="text-link" @click="reportAndEmit('showAuth', 'login')">
-              SIGN IN
-            </button>
-          </Cluster>
-        </Stack>
+        </span>
       </div>
 
-      <button class="scroll-cue" @click="scrollPastHero" type="button">
-        <span class="scroll-text">SCROLL FOR THE RULES</span>
-        <svg class="scroll-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
-      </button>
+      <p class="hero-tagline" ref="taglineRef">THE RUTHLESS CARD BATTLE</p>
 
-      <div class="hazard-bar" aria-hidden="true">
-        <div class="hazard-stripe"></div>
-      </div>
+      <LandingStatsBadge class="hero-stats" />
 
-      <!-- Sentinel for sticky-CTA IntersectionObserver -->
+      <!-- Sentinel for sticky-CTA observer -->
       <div ref="heroSentinel" class="hero-sentinel" aria-hidden="true"></div>
     </section>
 
-    <!-- Feature spotlight strip — what was hidden inside the action card now
-         lives at the top of the page so people see *why* it's no-mercy. -->
-    <section class="feature-strip" aria-label="Game features">
-      <div class="feature-strip-inner">
-        <article class="feature">
-          <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="28" height="28" aria-hidden="true">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-          </svg>
-          <h3 class="feature-title">Real-time Multiplayer</h3>
-          <p class="feature-desc">Room codes, 2-10 players, instant draws</p>
-        </article>
-
-        <article class="feature">
-          <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="28" height="28" aria-hidden="true">
-            <rect x="3" y="11" width="18" height="10" rx="2" />
-            <circle cx="12" cy="5" r="3" />
-            <line x1="12" y1="8" x2="12" y2="11" />
-            <circle cx="8" cy="16" r="1" fill="currentColor" />
-            <circle cx="16" cy="16" r="1" fill="currentColor" />
-          </svg>
-          <h3 class="feature-title">VS Ruthless AI</h3>
-          <p class="feature-desc">Single-player chaos when no one's online</p>
-        </article>
-
-        <article class="feature">
-          <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="28" height="28" aria-hidden="true">
-            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-          </svg>
-          <h3 class="feature-title">Stack &amp; Skip Everyone</h3>
-          <p class="feature-desc">Every official No Mercy rule, implemented</p>
-        </article>
-      </div>
-    </section>
-
-    <!-- Scroll Animated Sections (feature deep-dives) -->
-    <LandingScrollSections
-      @playGuest="reportAndEmit('playGuest')"
-      @openFeedback="showFeedback = true"
-    />
+    <!-- Scroll sections (kept from Phase 1) -->
+    <LandingScrollSections @openFeedback="showFeedback = true" />
 
     <div class="hazard-bar" aria-hidden="true">
       <div class="hazard-stripe"></div>
@@ -117,8 +83,7 @@
 
     <SiteFooter />
 
-    <!-- Sticky mobile CTA — teleported to body so position:fixed isn't
-         scoped to .landing-container's animation containing block. -->
+    <!-- Sticky mobile CTA — teleported so containing-block doesn't pin it -->
     <Teleport to="body">
       <Transition name="sticky-cta">
         <div v-show="showStickyCta" class="sticky-cta-wrap">
@@ -134,24 +99,48 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
+import gsap from 'gsap'
 import LandingScrollSections from './LandingScrollSections.vue'
 import SiteFooter from './SiteFooter.vue'
 import FeedbackModal from './FeedbackModal.vue'
 import SettingsButton from './SettingsButton.vue'
 import LandingStatsBadge from './LandingStatsBadge.vue'
+import Card from './game/Card.vue'
 import Button from './ui/Button.vue'
-import Stack from './ui/Stack.vue'
-import Cluster from './ui/Cluster.vue'
+import { useScreenSize } from '../composables/useScreenSize'
 
 const showFeedback = ref(false)
 const showStickyCta = ref(false)
 const heroSentinel = ref<HTMLElement>()
+const heroStage = ref<HTMLElement>()
+const cardRefs = ref<HTMLElement[]>([])
+const counterRef = ref<HTMLElement>()
+const wordmarkRef = ref<HTMLElement>()
+const strikeRef = ref<SVGSVGElement>()
+const taglineRef = ref<HTMLElement>()
 
 const emit = defineEmits<{
   (e: 'showAuth', mode: 'login' | 'signup'): void
   (e: 'playGuest'): void
 }>()
+
+const { isMobile } = useScreenSize()
+const cardSize = computed(() =>
+  isMobile.value ? { width: 84, height: 118 } : { width: 124, height: 174 },
+)
+
+// The hero card sequence — each represents one beat of the stack escalation.
+// Counter values that match: +2, +6, +12, +22 (peak before mercy rule).
+const heroCards = [
+  { id: 'h1', color: 'red', type: 'draw2' },
+  { id: 'h2', color: 'wild', type: 'draw4' },
+  { id: 'h3', color: 'wild', type: 'draw6' },
+  { id: 'h4', color: 'wild', type: 'draw10' },
+  { id: 'h5', color: 'red', type: 'skipEveryone' },
+] as const
+
+const COUNTER_BEATS = [2, 6, 12, 22, 22] // index-matched to heroCards (5th doesn't add)
 
 function reportAndEmit(event: 'playGuest'): void
 function reportAndEmit(event: 'showAuth', mode: 'login' | 'signup'): void
@@ -164,28 +153,251 @@ function reportAndEmit(event: 'playGuest' | 'showAuth', mode?: 'login' | 'signup
   else if (event === 'playGuest') emit('playGuest')
 }
 
-function scrollPastHero() {
-  const target = document.querySelector('.feature-strip')
-  target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-}
-
 let observer: IntersectionObserver | null = null
+let masterTl: gsap.core.Timeline | null = null
+
+const reducedMotion =
+  typeof window !== 'undefined' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 onMounted(() => {
-  if (!heroSentinel.value) return
-  observer = new IntersectionObserver(
-    ([entry]) => {
-      if (entry) showStickyCta.value = !entry.isIntersecting
-    },
-    { threshold: 0 },
-  )
-  observer.observe(heroSentinel.value)
+  if (heroSentinel.value) {
+    observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry) showStickyCta.value = !entry.isIntersecting
+      },
+      { threshold: 0 },
+    )
+    observer.observe(heroSentinel.value)
+  }
+
+  // If reduced motion, set the final state directly and skip the choreography.
+  if (reducedMotion) {
+    setStaticState()
+    return
+  }
+
+  // Defer GSAP setup so refs are wired
+  requestAnimationFrame(() => runHeroChoreography())
 })
 
 onUnmounted(() => {
   observer?.disconnect()
   observer = null
+  masterTl?.kill()
+  masterTl = null
 })
+
+function setStaticState() {
+  // Final pose: cards scattered at low opacity, wordmark visible, strike drawn
+  cardRefs.value.forEach((el, i) => {
+    if (!el) return
+    const pose = scatterPoses[i]
+    if (!pose) return
+    gsap.set(el, { x: pose.x, y: pose.y, rotation: pose.rotation, scale: 0.85, opacity: 0.35 })
+  })
+  gsap.set(counterRef.value!, { opacity: 0 })
+  gsap.set(wordmarkRef.value!, { opacity: 1 })
+  gsap.set(strikeRef.value!.querySelector('line'), { strokeDashoffset: 0 })
+  gsap.set(taglineRef.value!, { opacity: 1, y: 0 })
+}
+
+/**
+ * Final positions for the cards after the explosion — ambient texture
+ * scattered around the wordmark. Pixel offsets from the stage centre.
+ */
+const scatterPoses = [
+  { x: -180, y: -60, rotation: -22 },
+  { x: 160, y: -90, rotation: 18 },
+  { x: -130, y: 80, rotation: 12 },
+  { x: 180, y: 70, rotation: -16 },
+  { x: 0, y: 110, rotation: 4 },
+] as const
+
+function runHeroChoreography() {
+  if (!heroStage.value || cardRefs.value.length < 5) return
+
+  const counterEl = counterRef.value!
+  const counterNum = counterEl.querySelector('.counter-num') as HTMLElement
+  const strikeLine = strikeRef.value!.querySelector('line') as SVGLineElement
+
+  // Initial setup — cards hidden off-stage, counter dim, wordmark + tagline hidden
+  cardRefs.value.forEach((el) => {
+    gsap.set(el, { opacity: 0, scale: 1, x: 0, y: -600, rotation: 0 })
+  })
+  gsap.set(counterEl, { opacity: 0, scale: 0.5 })
+  gsap.set(wordmarkRef.value!, { opacity: 0, y: 20 })
+  gsap.set(strikeLine, { strokeDasharray: 100, strokeDashoffset: 100 })
+  gsap.set(taglineRef.value!, { opacity: 0, y: 12 })
+
+  const tl = gsap.timeline()
+  masterTl = tl
+
+  // Pre-define unique entry trajectories per card — each comes from a
+  // different direction with its own rotation so the stack feels physical.
+  const entries = [
+    { fromX: 0, fromY: -600, fromRot: -8, restRot: -2, restY: 0 },
+    { fromX: 200, fromY: -500, fromRot: 30, restRot: 4, restY: -4 },
+    { fromX: -240, fromY: -450, fromRot: -45, restRot: -3, restY: -8 },
+    { fromX: 260, fromY: -550, fromRot: 60, restRot: 5, restY: -12 },
+    { fromX: 0, fromY: -650, fromRot: -90, restRot: -1, restY: -16 },
+  ]
+
+  // BEAT 1-5: cards slam into stack with counter updates
+  cardRefs.value.forEach((el, i) => {
+    if (!el) return
+    const entry = entries[i]!
+    const beatStart = i * 0.32
+
+    // From-state
+    gsap.set(el, { x: entry.fromX, y: entry.fromY, rotation: entry.fromRot })
+
+    // Slam in
+    tl.to(
+      el,
+      {
+        opacity: 1,
+        x: 0,
+        y: entry.restY,
+        rotation: entry.restRot,
+        duration: 0.28,
+        ease: 'power3.in',
+      },
+      beatStart,
+    )
+
+    // Tiny squash on impact then settle
+    tl.to(
+      el,
+      { scale: 1.04, duration: 0.06, ease: 'power2.out' },
+      beatStart + 0.26,
+    )
+    tl.to(
+      el,
+      { scale: 1, duration: 0.18, ease: 'elastic.out(1, 0.5)' },
+      beatStart + 0.32,
+    )
+
+    // Counter pops in on first beat, then increments
+    if (i === 0) {
+      tl.to(
+        counterEl,
+        { opacity: 1, scale: 1, duration: 0.18, ease: 'back.out(2.5)' },
+        beatStart + 0.2,
+      )
+    }
+    // Animate the number counting up to the new beat value
+    const startValue = i === 0 ? 0 : COUNTER_BEATS[i - 1]!
+    const endValue = COUNTER_BEATS[i]!
+    const obj = { v: startValue }
+    tl.to(
+      obj,
+      {
+        v: endValue,
+        duration: 0.18,
+        ease: 'power2.out',
+        onUpdate: () => {
+          counterNum.textContent = String(Math.round(obj.v))
+        },
+      },
+      beatStart + 0.26,
+    )
+    // Counter punch — scales up on each increment
+    tl.to(
+      counterEl,
+      { scale: 1.18, duration: 0.08, ease: 'power2.out' },
+      beatStart + 0.26,
+    )
+    tl.to(
+      counterEl,
+      { scale: 1, duration: 0.14, ease: 'elastic.out(1, 0.4)' },
+      beatStart + 0.34,
+    )
+  })
+
+  // BEAT 6: levitation — all cards rise then snap back. The screen shakes.
+  const climaxAt = 5 * 0.32 + 0.05
+  tl.to(
+    cardRefs.value,
+    { y: '-=60', duration: 0.18, ease: 'power2.out' },
+    climaxAt,
+  )
+  tl.to(
+    counterEl,
+    { scale: 1.8, duration: 0.18, ease: 'power2.out' },
+    climaxAt,
+  )
+  tl.to(
+    cardRefs.value,
+    { y: '+=60', duration: 0.12, ease: 'power3.in' },
+    climaxAt + 0.18,
+  )
+  tl.to(
+    counterEl,
+    { scale: 1, duration: 0.18, ease: 'elastic.out(1, 0.4)' },
+    climaxAt + 0.2,
+  )
+  // Screen shake — translate the hero stage briefly
+  if (heroStage.value) {
+    tl.to(
+      heroStage.value,
+      {
+        keyframes: [
+          { x: -6 }, { x: 6 }, { x: -4 }, { x: 4 }, { x: -2 }, { x: 0 },
+        ],
+        duration: 0.36,
+        ease: 'power2.out',
+      },
+      climaxAt + 0.16,
+    )
+  }
+
+  // BEAT 7: explosion — cards fly outward to scatter positions, counter fades
+  const explodeAt = climaxAt + 0.4
+  cardRefs.value.forEach((el, i) => {
+    if (!el) return
+    const pose = scatterPoses[i]!
+    tl.to(
+      el,
+      {
+        x: pose.x,
+        y: pose.y,
+        rotation: pose.rotation,
+        scale: 0.85,
+        opacity: 0.35,
+        duration: 0.55,
+        ease: 'power3.out',
+      },
+      explodeAt,
+    )
+  })
+  tl.to(
+    counterEl,
+    { opacity: 0, scale: 0.6, duration: 0.32, ease: 'power2.in' },
+    explodeAt,
+  )
+
+  // BEAT 8: wordmark fades up where the stack was
+  tl.to(
+    wordmarkRef.value!,
+    { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' },
+    explodeAt + 0.2,
+  )
+
+  // BEAT 9: strike-through draws across MERCY
+  tl.to(
+    strikeLine,
+    { strokeDashoffset: 0, duration: 0.42, ease: 'power2.inOut' },
+    explodeAt + 0.55,
+  )
+
+  // BEAT 10: tagline rises in
+  tl.to(
+    taglineRef.value!,
+    { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out' },
+    explodeAt + 0.85,
+  )
+}
 </script>
 
 <style scoped>
@@ -195,187 +407,50 @@ onUnmounted(() => {
   position: relative;
   display: flex;
   flex-direction: column;
-}
-
-.settings-corner {
-  position: fixed;
-  top: var(--spacing-4);
-  right: var(--spacing-4);
-  z-index: var(--z-hud);
-}
-
-/* Atmosphere overlays — pulled forward visually but stay non-interactive */
-.scan-line {
-  position: fixed;
-  inset: 0;
-  background: linear-gradient(to bottom, transparent 50%, rgba(0, 0, 0, 0.2) 51%);
-  background-size: 100% 4px;
-  pointer-events: none;
-  z-index: var(--z-toast);
-}
-
-.noise-overlay {
-  position: fixed;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
-  pointer-events: none;
-  z-index: calc(var(--z-toast) - 1);
-  opacity: 0.4;
-}
-
-.grid-bg {
-  position: fixed;
-  inset: 0;
-  background:
-    repeating-linear-gradient(90deg, transparent, transparent 80px, rgba(255, 42, 42, 0.03) 80px, rgba(255, 42, 42, 0.03) 81px),
-    repeating-linear-gradient(0deg, transparent, transparent 80px, rgba(255, 42, 42, 0.03) 80px, rgba(255, 42, 42, 0.03) 81px);
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* HERO */
-.hero {
   min-height: 100vh;
-  min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
+}
+
+/* TOP BAR — slim, always visible. Three CTAs visible from pixel one. */
+.top-bar {
   position: relative;
-  z-index: var(--z-base);
-}
-
-.danger-tape {
-  background: repeating-linear-gradient(-45deg, var(--color-alert), var(--color-alert) 10px, #000 10px, #000 20px);
-  padding: var(--spacing-1) 0;
-  overflow: hidden;
-  position: relative;
-  z-index: var(--z-cards);
-}
-
-.tape-content {
+  z-index: var(--z-hud);
   display: flex;
-  white-space: nowrap;
-  animation: scroll-tape 30s linear infinite;
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  color: white;
-  letter-spacing: 2px;
-}
-
-.tape-content span {
-  padding: 0 var(--spacing-8);
-}
-
-@keyframes scroll-tape {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tape-content { animation: none; }
-}
-
-.hero-inner {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: var(--spacing-6);
-  padding: var(--spacing-8) var(--spacing-4);
-  max-width: 560px;
-  margin: 0 auto;
-  width: 100%;
-  text-align: center;
-}
-
-.brand {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-1);
-}
-
-.brand-title {
-  font-family: var(--font-display);
-  font-size: clamp(3.5rem, 14vw, 6rem);
-  margin: 0;
-  line-height: 0.9;
-  text-shadow: var(--shadow-glow-red);
-}
-
-.brand-subtitle {
-  font-family: var(--font-display);
-  font-size: clamp(1.5rem, 6vw, 2.5rem);
-  color: var(--color-alert);
-  margin: 0;
-  text-shadow: var(--shadow-glow-red);
-  line-height: 1;
-}
-
-.brand-tagline {
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  letter-spacing: 0.25em;
-  margin: var(--spacing-2) 0 0 0;
-}
-
-.status-line-row {
-  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-bottom: 1px solid rgba(255, 204, 0, 0.08);
+  background: linear-gradient(180deg, rgba(10, 10, 11, 0.95), rgba(10, 10, 11, 0.7));
+  backdrop-filter: blur(8px);
   flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--spacing-4);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  letter-spacing: 0.1em;
 }
 
-.blink {
-  animation: blink 1s step-end infinite;
-  color: var(--color-neon-green);
-  margin-right: var(--spacing-1);
+.brand-mark {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+  text-decoration: none;
+  color: var(--text-primary);
 }
 
-@keyframes blink {
-  50% { opacity: 0; }
+.brand-mark-uno {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  letter-spacing: 0.05em;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .blink { animation: none; }
-}
-
-.online {
-  color: var(--color-neon-green);
-  font-weight: bold;
-}
-
-.critical {
+.brand-mark-nomercy {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  letter-spacing: 0.2em;
   color: var(--color-alert);
-  font-weight: bold;
-  animation: critical-pulse 1s ease-in-out infinite;
+  text-shadow: 0 0 12px rgba(255, 42, 42, 0.5);
 }
 
-@keyframes critical-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .critical { animation: none; }
-}
-
-.hero-stats {
-  margin: 0 auto;
-}
-
-.hero-cta {
-  width: 100%;
-  max-width: 360px;
-  margin: 0 auto;
-}
-
-.hero-secondary {
-  font-family: var(--font-mono);
+.top-bar-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-3);
 }
 
 .text-link {
@@ -388,6 +463,7 @@ onUnmounted(() => {
   cursor: pointer;
   padding: var(--spacing-2);
   transition: color var(--duration-snap) var(--ease-snap);
+  min-height: 44px;
 }
 
 .text-link:hover {
@@ -398,37 +474,143 @@ onUnmounted(() => {
   color: var(--text-muted);
 }
 
-.scroll-cue {
+.top-bar-settings {
+  margin-left: var(--spacing-2);
+}
+
+/* HERO */
+.hero {
+  position: relative;
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--spacing-1);
-  padding: var(--spacing-4) 0;
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-family: var(--font-mono);
+  justify-content: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-12) var(--spacing-4) var(--spacing-16);
+  overflow: hidden;
+  min-height: 560px;
+}
+
+/* The focused radial bloom — replaces the generic full-page atmosphere */
+.hero-bloom {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 720px;
+  height: 720px;
+  max-width: 110vw;
+  max-height: 110vh;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    circle,
+    rgba(255, 42, 42, 0.18) 0%,
+    rgba(255, 42, 42, 0.08) 30%,
+    transparent 65%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.hero-stage {
   position: relative;
+  width: 100%;
+  max-width: 480px;
+  height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-cards);
+}
+
+.hero-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.6));
+  will-change: transform, opacity;
+}
+
+.hero-counter {
+  position: absolute;
+  top: 50%;
+  left: calc(50% + 130px);
+  transform: translate(0, -50%);
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 8vw, 4.5rem);
+  color: var(--color-alert);
+  text-shadow: 0 0 32px rgba(255, 42, 42, 0.7);
+  pointer-events: none;
+  z-index: var(--z-cards);
+  display: flex;
+  align-items: baseline;
+}
+
+.counter-plus {
+  font-size: 0.65em;
+  margin-right: 0.08em;
+  opacity: 0.85;
+}
+
+.hero-wordmark {
+  position: relative;
+  z-index: var(--z-base);
+  text-align: center;
+  font-family: var(--font-display);
+  line-height: 0.95;
+  letter-spacing: 0.04em;
+}
+
+.wm-uno {
+  display: block;
+  font-size: clamp(3.5rem, 13vw, 7rem);
+  text-shadow: 0 0 32px rgba(255, 42, 42, 0.35);
+}
+
+.wm-row {
+  display: inline-flex;
+  align-items: baseline;
+  font-size: clamp(2rem, 7vw, 4rem);
+}
+
+.wm-no {
+  color: var(--text-primary);
+}
+
+.wm-mercy-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.wm-mercy {
+  color: var(--color-alert);
+  text-shadow: 0 0 24px rgba(255, 42, 42, 0.55);
+}
+
+.wm-strike {
+  position: absolute;
+  top: 50%;
+  left: -2%;
+  width: 104%;
+  height: 12%;
+  transform: translateY(-50%) translateY(-2px);
+  color: var(--color-alert);
+  filter: drop-shadow(0 0 8px rgba(255, 42, 42, 0.7));
+}
+
+.hero-tagline {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  margin: 0;
   z-index: var(--z-base);
 }
 
-.scroll-text {
-  font-size: var(--text-xs);
-  letter-spacing: 0.25em;
-}
-
-.scroll-chevron {
-  animation: bounce-down 2s ease-in-out infinite;
-}
-
-@keyframes bounce-down {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(6px); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .scroll-chevron { animation: none; }
+.hero-stats {
+  z-index: var(--z-base);
 }
 
 .hero-sentinel {
@@ -448,7 +630,13 @@ onUnmounted(() => {
 
 .hazard-stripe {
   height: 16px;
-  background: repeating-linear-gradient(-45deg, var(--color-hazard), var(--color-hazard) 10px, #000 10px, #000 20px);
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--color-hazard),
+    var(--color-hazard) 10px,
+    #000 10px,
+    #000 20px
+  );
 }
 
 .warning-text {
@@ -462,70 +650,23 @@ onUnmounted(() => {
   letter-spacing: 2px;
 }
 
-/* FEATURE STRIP */
-.feature-strip {
-  padding: var(--spacing-12) var(--spacing-4);
-  background: var(--bg-concrete);
-  position: relative;
-  z-index: var(--z-base);
-}
-
-.feature-strip-inner {
-  max-width: 960px;
-  margin: 0 auto;
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--spacing-6);
-}
-
-.feature {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-2);
-  text-align: center;
-  padding: var(--spacing-6);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: var(--radius-md);
-}
-
-.feature-icon {
-  color: var(--color-neon-blue);
-  margin-bottom: var(--spacing-2);
-}
-
-.feature-title {
-  font-family: var(--font-display);
-  font-size: var(--text-xl);
-  margin: 0;
-  letter-spacing: 0.05em;
-  color: var(--text-primary);
-}
-
-.feature-desc {
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-  margin: 0;
-  line-height: 1.5;
-}
-
-/* STICKY CTA — mobile only */
+/* STICKY MOBILE CTA */
 .sticky-cta-wrap {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  padding: var(--spacing-3) var(--spacing-4) calc(var(--spacing-3) + env(safe-area-inset-bottom));
+  padding: var(--spacing-3) var(--spacing-4)
+    calc(var(--spacing-3) + env(safe-area-inset-bottom));
   background: linear-gradient(to top, var(--bg-concrete) 70%, transparent);
   z-index: var(--z-toast);
-  pointer-events: auto;
 }
 
 .sticky-cta-enter-active,
 .sticky-cta-leave-active {
-  transition: transform var(--duration-soft) var(--ease-soft), opacity var(--duration-soft) var(--ease-soft);
+  transition:
+    transform var(--duration-soft) var(--ease-soft),
+    opacity var(--duration-soft) var(--ease-soft);
 }
 
 .sticky-cta-enter-from,
@@ -541,57 +682,83 @@ onUnmounted(() => {
   }
 }
 
-/* TABLET */
-@media (min-width: 768px) {
-  .hero-inner {
-    padding: var(--spacing-16) var(--spacing-8);
-    gap: var(--spacing-8);
-    max-width: 720px;
+/* MOBILE TWEAKS */
+@media (max-width: 600px) {
+  .top-bar {
+    padding: var(--spacing-3);
+    gap: var(--spacing-2);
   }
 
-  .feature-strip-inner {
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--spacing-8);
+  .brand-mark-uno {
+    font-size: var(--text-lg);
   }
 
-  .feature {
-    padding: var(--spacing-8);
+  .brand-mark-nomercy {
+    font-size: var(--text-xs);
+    letter-spacing: 0.15em;
   }
 
-  /* Hide sticky CTA on tablet+ — primary CTA is always visible above the fold */
-  .sticky-cta-wrap {
-    display: none;
+  .top-bar-cta {
+    gap: var(--spacing-2);
+  }
+
+  .text-link {
+    font-size: var(--text-xs);
+    padding: var(--spacing-1) var(--spacing-2);
+    letter-spacing: 0.1em;
+  }
+
+  .hero {
+    padding: var(--spacing-8) var(--spacing-4) var(--spacing-16);
+    min-height: 460px;
+  }
+
+  .hero-stage {
+    height: 200px;
+  }
+
+  .hero-counter {
+    left: calc(50% + 90px);
+    font-size: 2.8rem;
   }
 }
 
-/* DESKTOP — scale up the hero so it doesn't look lonely at 1440+ */
+@media (max-width: 420px) {
+  .top-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .brand-mark {
+    justify-content: center;
+  }
+
+  .top-bar-cta {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+}
+
+/* DESKTOP */
 @media (min-width: 1024px) {
-  .hero-inner {
-    max-width: 960px;
-    gap: var(--spacing-12);
-    padding: var(--spacing-24) var(--spacing-12);
+  .top-bar {
+    padding: var(--spacing-4) var(--spacing-8);
   }
 
-  .brand-title {
-    font-size: clamp(6rem, 10vw, 9rem);
+  .brand-mark-uno {
+    font-size: var(--text-2xl);
   }
 
-  .brand-subtitle {
-    font-size: clamp(2.5rem, 4.5vw, 4rem);
-  }
-
-  .brand-tagline {
+  .brand-mark-nomercy {
     font-size: var(--text-base);
-    letter-spacing: 0.35em;
   }
 
-  .hero-cta {
-    max-width: 420px;
+  .hero {
+    min-height: 640px;
   }
 
-  .status-line-row {
-    font-size: var(--text-sm);
-    gap: var(--spacing-8);
+  .sticky-cta-wrap {
+    display: none;
   }
 }
 </style>
