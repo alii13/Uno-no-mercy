@@ -399,11 +399,18 @@ export const useGameStore = defineStore('game', () => {
         // FIX: Do not advance if card is 'skipEveryone' (Play Again)
         if (card.type !== 'skipEveryone') {
             if (turnState.value === 'WAITING_FOR_ACTION' || turnState.value === 'ROULETTE_DRAWING' || turnState.value === 'CHOOSING_ROULETTE_COLOR') {
-                // Note: CHOOSING_ROULETTE_COLOR means we advance to victim to pick color. 
+                // Note: CHOOSING_ROULETTE_COLOR means we advance to victim to pick color.
                 // If wildColorRoulette played, state is CHOOSING_ROULETTE_COLOR (set in applyCardEffect).
                 // We MUST advance so it becomes victim's turn to choose.
                 advanceTurn()
             }
+        } else {
+            // Skip Everyone: turn stays with the current player (play again). advanceTurn
+            // is the only place that resets actionInProgress — without this explicit
+            // reset, the player who just played Skip Everyone is locked out of their
+            // own follow-up turn (canPlay short-circuits on actionInProgress, draw
+            // button bails on the same flag). Stuck game.
+            actionInProgress.value = false
         }
     }
 
