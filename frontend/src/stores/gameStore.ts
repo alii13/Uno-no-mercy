@@ -15,8 +15,28 @@ import { soundEffects } from '../composables/useSoundEffects'
 import { supabase } from '../lib/supabase'
 
 export const useGameStore = defineStore('game', () => {
-    // Bot AI settings
-    const BOT_DELAY_MS = 2000
+    // Timings (single tunable block).
+    //
+    // Two distinct categories — don't blindly cut both:
+    //   BOT_DELAYS         pure dead time waiting on the bot. Cut aggressively.
+    //   COMPREHENSION_STALLS  time the human needs to absorb what just happened
+    //                      (stack landing, roulette spin, mercy elimination).
+    //                      These ARE the drama — over-cutting makes the game feel
+    //                      anaemic even when "snappier" by the stopwatch.
+    const TIMINGS = {
+        // --- BOT_DELAYS (pure dead time) ---
+        botThink: 1100,                 // turn-start -> bot acts (was 2000)
+        botRoulette: 250,               // bot reacts to roulette (was 500)
+        botRouletteColorPick: 600,      // bot picks roulette target color (was 1500)
+
+        // --- COMPREHENSION_STALLS (human reads the moment) ---
+        drawStaggerPenalty: 200,        // per card when human eats a +N stack (was 250 -> 90 too fast, restored drama)
+        drawUntilPlayableRetry: 280,    // between unplayable draws so human reads each card (was 400 -> 150 too fast)
+        drawnPlayableAutoPlay: 750,     // pause to read the drawn card before it auto-plays (was 1000 -> 400 too fast)
+        rouletteSpin: 520,              // between roulette card reveals — the most dramatic beat (was 800 -> 320 too fast)
+        rouletteSafeStall: 1100,        // "Safe!" pause — relief should breathe (was 1500 -> 600 too fast)
+        rouletteEliminatedStall: 1500,  // mercy-elimination during roulette — emotional landing (was 1000 -> 400 way too fast)
+    } as const
 
     // --- State ---
     const gameState = ref<GameState>('LOBBY')
@@ -49,6 +69,18 @@ export const useGameStore = defineStore('game', () => {
     const swapInitiatorId = ref<string | null>(null)
     const hasCalledUno = ref<Record<string, boolean>>({})
     const showUnoButton = ref(false)
+
+    // Re-entrancy guard. Set when a play/draw is in flight so rapid clicks don't queue
+    // up actions while bot delays / draw cascades / animations are still resolving.
+    const actionInProgress = ref(false)
+
+    // When the human throws their own card, PlayerHand already shows a flying-clone
+    // animation arriving on the discard pile. CardPile would otherwise also fire its
+    // "slam from above" on the new top card — double animation. Set this true right
+    // before player-initiated playCard; CardPile reads + resets it. Bot plays leave
+    // it false, so the slam is the ONLY visual (which is correct — there's no clone
+    // for bot throws).
+    const suppressDiscardSlam = ref(false)
 
     // Stacking mode - persists in localStorage so the user keeps their pick across sessions
     function loadStackingMode(): StackingMode {
@@ -187,10 +219,6 @@ export const useGameStore = defineStore('game', () => {
         isDealing.value = false
         turnState.value = 'WAITING_FOR_ACTION'
 
-        // Announce start
-        const p = currentPlayer.value
-        const startMsg = p?.isBot ? `${p.name}'s turn` : "Game Start! Your turn"
-        soundEffects.announceTurn(startMsg)
     }
 
     function drawCardFromDeck(): Card | undefined {
@@ -236,6 +264,8 @@ export const useGameStore = defineStore('game', () => {
     }
 
     function advanceTurn() {
+        // Release the action guard now that the previous player's action has fully resolved.
+        actionInProgress.value = false
         const count = players.value.length
         currentPlayerIndex.value = calculateNextPlayerIndex(
             currentPlayerIndex.value,
@@ -260,12 +290,8 @@ export const useGameStore = defineStore('game', () => {
             sanity++
         }
 
-        // Announce turn
         const p = currentPlayer.value
         if (p) {
-            const text = p.isBot ? `${p.name}'s turn` : "Your turn"
-            soundEffects.announceTurn(text)
-
             // Show UNO button if player has 2 cards and it's their turn
             // (they need to call UNO before playing their second-to-last card)
             if (!p.isBot && p.hand.length === 2) {
@@ -282,7 +308,6 @@ export const useGameStore = defineStore('game', () => {
         showUnoButton.value = false
         const s = playerStats.value[playerId]
         if (s) s.unoCalls++
-        soundEffects.announceTurn("UNO!")
     }
 
     function playCard(playerId: string, card: Card, selectedColor?: CardColor) {
@@ -347,7 +372,6 @@ export const useGameStore = defineStore('game', () => {
                 if (s) s.unoPenalties++
                 drawCardToHand(player)
                 drawCardToHand(player)
-                soundEffects.announceTurn("CAUGHT! Draw 2")
                 advanceTurn()
                 return
             }
@@ -472,7 +496,6 @@ export const useGameStore = defineStore('game', () => {
             if (neededUno && !hasCalledUno.value[player.id]) {
                 drawCardToHand(player)
                 drawCardToHand(player)
-                soundEffects.announceTurn("CAUGHT! Draw 2")
             } else {
                 winnerId.value = player.id
                 applyScoresToWinner(player.id)
@@ -554,6 +577,7 @@ export const useGameStore = defineStore('game', () => {
     function drawCardsForCurrentPlayer() {
         const p = currentPlayer.value
         if (!p) return
+        actionInProgress.value = true
 
         if (drawStack.value > 0) {
             // Stacking Penalty Draw
@@ -571,7 +595,7 @@ export const useGameStore = defineStore('game', () => {
                 if (drawnCount < cardsToDraw) {
                     if (p) drawCardToHand(p)
                     drawnCount++
-                    setTimeout(drawNext, 250)
+                    setTimeout(drawNext, TIMINGS.drawStaggerPenalty)
                 } else {
                     advanceTurn()
                 }
@@ -604,7 +628,7 @@ export const useGameStore = defineStore('game', () => {
                             colorToPick = chooseBotColor(p)
                         }
                         playerActionPlayCard(card, colorToPick)
-                    }, 1000)
+                    }, TIMINGS.drawnPlayableAutoPlay)
                     return
                 } else {
                     // Not playable, check mercy rule (handled in drawCardToHand).
@@ -613,7 +637,7 @@ export const useGameStore = defineStore('game', () => {
                         return
                     }
                     // Draw again
-                    setTimeout(drawUntilPlayable, 400)
+                    setTimeout(drawUntilPlayable, TIMINGS.drawUntilPlayableRetry)
                 }
             }
             drawUntilPlayable()
@@ -651,20 +675,17 @@ export const useGameStore = defineStore('game', () => {
             setTimeout(() => {
                 turnState.value = 'WAITING_FOR_ACTION'
                 advanceTurn()
-            }, 1500)
-
-            // Sound/Speech
-            soundEffects.announceTurn("Safe!")
+            }, TIMINGS.rouletteSafeStall)
 
         } else if (p.isEliminated) {
             // Mercy rule trigger
             setTimeout(() => {
                 turnState.value = 'WAITING_FOR_ACTION'
                 advanceTurn()
-            }, 1000)
+            }, TIMINGS.rouletteEliminatedStall)
         } else {
             // Keep drawing
-            setTimeout(executeRouletteDraw, 800)
+            setTimeout(executeRouletteDraw, TIMINGS.rouletteSpin)
         }
     }
 
@@ -679,7 +700,7 @@ export const useGameStore = defineStore('game', () => {
             if (turnState.value === 'CHOOSING_ROULETTE_COLOR') {
                 setRouletteColor(color)
             }
-        }, 1500)
+        }, TIMINGS.botRouletteColorPick)
     }
 
     function swapHands(targetPlayerId: string) {
@@ -712,6 +733,7 @@ export const useGameStore = defineStore('game', () => {
 
     function playerActionPlayCard(card: Card, selectedColor?: CardColor) {
         if (!currentPlayer.value) return
+        actionInProgress.value = true
         playCard(currentPlayer.value.id, card, selectedColor)
     }
 
@@ -809,7 +831,7 @@ export const useGameStore = defineStore('game', () => {
                 } else {
                     executeBotTurn()
                 }
-            }, turnState.value === 'ROULETTE_DRAWING' ? 500 : BOT_DELAY_MS)
+            }, turnState.value === 'ROULETTE_DRAWING' ? TIMINGS.botRoulette : TIMINGS.botThink)
         } else {
             // Human player logic: 
             // The drawing loop is started by setRouletteColor once they choose.
@@ -903,6 +925,8 @@ export const useGameStore = defineStore('game', () => {
         pendingDiscardAllCards,
         showUnoButton,
         hasCalledUno,
+        actionInProgress,
+        suppressDiscardSlam,
         stackingMode,
         setStackingMode,
         initializeGame,

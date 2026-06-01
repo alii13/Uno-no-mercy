@@ -274,37 +274,6 @@ export function useSoundEffects() {
         volume.value = Math.max(0, Math.min(1, v))
     }
 
-    /**
-     * Announce text using TTS
-     */
-    function announceTurn(text: string) {
-        withMuteCheck(isMuted, () => {
-            // Cancel any current speech
-            window.speechSynthesis.cancel()
-
-            const utterance = new SpeechSynthesisUtterance(text)
-            utterance.volume = volume.value * 1.5 // slightly louder than sfx
-            utterance.rate = 1.0
-            utterance.pitch = 1.1 // slightly higher pitch
-
-            // Try to find a female voice
-            const voices = window.speechSynthesis.getVoices()
-            // Prefer Google US English Female, or similar
-            const femaleVoice = voices.find(v =>
-                v.name.includes('Google US English') ||
-                v.name.includes('Samantha') || // macOS
-                v.name.includes('Female') ||
-                v.name.includes('Zira') // Windows
-            )
-
-            if (femaleVoice) {
-                utterance.voice = femaleVoice
-            }
-
-            window.speechSynthesis.speak(utterance)
-        })
-    }
-
     return {
         isMuted,
         volume,
@@ -313,7 +282,6 @@ export function useSoundEffects() {
         playCardLand,
         playCardShuffle,
         playSpecialCard,
-        announceTurn,
         toggleMute,
         setVolume
     }

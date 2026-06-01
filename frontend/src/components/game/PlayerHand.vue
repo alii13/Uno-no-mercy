@@ -5,9 +5,10 @@
         v-for="(card, index) in hand" 
         :key="card.id"
         class="hand-card-wrapper"
-        :class="{ 
+        :class="{
           'unplayable': isMyTurn && !canPlay(card),
-          'playable-glow': isMyTurn && canPlay(card)
+          'playable-glow': isMyTurn && canPlay(card),
+          'fresh-card': hiddenCardIds.has(card.id)
         }"
         :ref="(el: any) => setCardRef(card.id, el)"
         :style="{ ...getCardStyle(index), marginRight: index < hand.length - 1 ? cardOverlap + 'px' : '0' }"
@@ -34,8 +35,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, inject, watch, type Ref, type ComponentPublicInstance } from 'vue'
+import { ref, computed, inject, watch, nextTick, type Ref, type ComponentPublicInstance } from 'vue'
 import gsap from 'gsap'
+import { Flip } from 'gsap/Flip'
 import type { Card as CardType, CardColor } from '../../types/card'
 import Card from './Card.vue'
 import ColorPickerModal from './ColorPickerModal.vue'
@@ -53,6 +55,33 @@ const props = defineProps<{
 const store = useGameStore()
 const { screenWidth, isMobile, isTablet } = useScreenSize()
 const hoverIndex = ref(-1)
+
+// Cards that just landed in the hand via a draw animation. While in this set
+// they render invisibly so they don't pop in before the flying card-back clone
+// finishes its travel from the deck. Cleared shortly after the clone lands.
+const hiddenCardIds = ref(new Set<string>())
+const knownIds = new Set<string>()
+// Seed knownIds with the initial hand so the deal animation doesn't trigger the
+// "hidden" treatment.
+for (const c of props.hand) knownIds.add(c.id)
+
+watch(() => props.hand.map(c => c.id), (ids) => {
+  const fresh: string[] = []
+  for (const id of ids) {
+    if (!knownIds.has(id)) {
+      fresh.push(id)
+      knownIds.add(id)
+    }
+  }
+  if (fresh.length === 0) return
+  for (const id of fresh) hiddenCardIds.value.add(id)
+  // Match the flying-clone duration (~400ms) with a small buffer for the eye.
+  setTimeout(() => {
+    for (const id of fresh) hiddenCardIds.value.delete(id)
+    // Trigger reactivity since Set mutations aren't reactive on their own
+    hiddenCardIds.value = new Set(hiddenCardIds.value)
+  }, 380)
+})
 
 const baseCardSize = computed(() => {
   if (isMobile.value) return { width: 65, height: 91 }
@@ -100,6 +129,7 @@ watch(() => [store.currentPlayerIndex, store.turnState, props.isMyTurn, store.ga
 // Inject animation-related refs from parent (single-player specific)
 const discardAreaRef = inject<Ref<HTMLElement | null>>('discardAreaRef', ref(null))
 const animationLayer = inject<Ref<HTMLElement | null>>('animationLayer', ref(null))
+const handContainer = ref<HTMLElement | null>(null)
 
 function setCardRef(cardId: string, el: HTMLElement | ComponentPublicInstance | null) {
   if (el) {
@@ -116,12 +146,14 @@ function getCardStyle(index: number) {
 function canPlay(card: CardType) {
   if (!props.isMyTurn) return false
   if (store.turnState !== 'WAITING_FOR_ACTION') return false
+  if (store.actionInProgress) return false
   if (!store.topCard) return false
   return canPlayCard(card, store.topCard, store.currentColor, store.drawStack, store.stackingMode)
 }
 
 function handleCardClick(card: CardType, _event: MouseEvent) {
   if (!canPlay(card)) return
+  if (store.actionInProgress) return
 
   // If Wild and NOT Roulette, show picker first
   // (Roulette color is chosen by the victim AFTER play, so direct play)
@@ -143,7 +175,7 @@ function handleColorSelect(color: CardColor) {
   }
 }
 
-async function executePlayCard(card: CardType, selectedColor?: CardColor) {
+function executePlayCard(card: CardType, selectedColor?: CardColor) {
   const cardEl = cardRefs.value.get(card.id)
   if (!cardEl || !discardAreaRef?.value || !animationLayer?.value) {
     // Fallback: just play without animation
@@ -151,12 +183,20 @@ async function executePlayCard(card: CardType, selectedColor?: CardColor) {
     store.playerActionPlayCard(card, selectedColor)
     return
   }
-  
-  // Get positions
+
   const cardRect = cardEl.getBoundingClientRect()
   const discardRect = discardAreaRef.value.getBoundingClientRect()
-  
-  // Create flying card clone
+
+  // Capture Flip state of remaining hand cards BEFORE the state change so
+  // they can slide into their new positions after the card is removed.
+  const remainingCards = handContainer.value
+    ? handContainer.value.querySelectorAll('.hand-card-wrapper')
+    : null
+  const handFlipState = remainingCards && remainingCards.length > 1
+    ? Flip.getState(remainingCards)
+    : null
+
+  // Flying-card clone — visual only.
   const clone = cardEl.cloneNode(true) as HTMLElement
   clone.style.position = 'fixed'
   clone.style.left = `${cardRect.left}px`
@@ -166,55 +206,125 @@ async function executePlayCard(card: CardType, selectedColor?: CardColor) {
   clone.style.zIndex = '1000'
   clone.style.pointerEvents = 'none'
   clone.style.margin = '0'
-  clone.style.transform = 'none'
-  
-  // If it's a wild card and we picked a color, maybe tint the clone?
-  // For now, keep it simple.
-  
   animationLayer.value.appendChild(clone)
-  
-  // Hide original card
   cardEl.style.opacity = '0'
-  
-  // Play throw sound
+
   soundEffects.playCardThrow()
-  
-  // Calculate target position (center of discard)
+
   const targetX = discardRect.left + discardRect.width / 2 - cardRect.width / 2
   const targetY = discardRect.top + discardRect.height / 2 - cardRect.height / 2
-  
-  // Random rotation for landing
+  const dx = targetX - cardRect.left
+  const dy = targetY - cardRect.top
   const landRotation = gsap.utils.random(-20, 20)
-  
-  // Animate the throw with arc
-  await gsap.to(clone, {
-    left: targetX,
-    top: targetY,
-    rotation: landRotation,
-    scale: 0.85,
-    duration: 0.35,
-    ease: 'power2.out',
-    onUpdate: function() {
-      // Add slight arc by modifying Y during animation
-      const progress = this.progress()
-      const arcHeight = -60 * Math.sin(progress * Math.PI)
-      clone.style.transform = `translateY(${arcHeight}px) rotate(${landRotation * progress}deg) scale(${1 - progress * 0.15})`
-    }
-  })
-  
-  // Play land sound
-  soundEffects.playCardLand()
-  
-  // Remove clone
-  clone.remove()
-  
-  // Play the card (this updates the store)
+
+  // Fire game-state update FIRST so the game advances at click-speed.
+  // The throw is cosmetic theatre that plays in parallel.
+  // Signal CardPile to skip its own "slam from above" — the flying clone IS the visual.
+  store.suppressDiscardSlam = true
   store.playerActionPlayCard(card, selectedColor)
-  
-  // Check if it's a special card and play special sound
   if (card.color === 'wild' || card.type.includes('draw')) {
     soundEffects.playSpecialCard()
   }
+
+  // After Vue removes the played card from the hand DOM, slide the
+  // remaining cards into their new positions instead of popping.
+  if (handFlipState) {
+    nextTick(() => {
+      Flip.from(handFlipState, {
+        duration: 0.35,
+        ease: 'power3.out',
+        stagger: 0.015,
+        absolute: false
+      })
+    })
+  }
+
+  // Arc midpoint — lifts the card halfway between source and target.
+  // ~25% of the diagonal travel as upward lift gives a satisfying toss.
+  const midX = dx / 2
+  const arcHeight = Math.max(80, Math.hypot(dx, dy) * 0.22)
+  const midY = dy / 2 - arcHeight
+
+  const tl = gsap.timeline({
+    onComplete: () => {
+      soundEffects.playCardLand()
+      clone.remove()
+    }
+  })
+
+  // 1. Anticipation — tiny pull-back in the opposite direction of throw.
+  tl.to(clone, {
+    x: -dx * 0.04,
+    y: -dy * 0.04,
+    scale: 0.96,
+    duration: 0.07,
+    ease: 'power2.in'
+  })
+
+  // 2. Throw — MotionPath arc from current position through (midX, midY) to (dx, dy).
+  tl.to(clone, {
+    motionPath: {
+      path: [
+        { x: midX, y: midY },
+        { x: dx, y: dy }
+      ],
+      curviness: 1.5,
+      autoRotate: false
+    },
+    rotation: landRotation,
+    scale: 0.92,
+    duration: 0.32,
+    ease: 'power2.out'
+  })
+
+  // 3. Follow-through — slight overshoot and settle on the pile.
+  tl.to(clone, {
+    scale: 0.82,
+    duration: 0.14,
+    ease: 'back.out(2.2)'
+  })
+
+  // 4. Trigger the pile flash for power cards (runs in parallel with landing).
+  if (card.color === 'wild' || card.type.includes('draw') || card.type === 'skipEveryone') {
+    triggerPileFlash(card.color === 'wild' ? 'wild' : (card.color as CardColor))
+  }
+}
+
+function triggerPileFlash(color: CardColor | 'wild') {
+  if (!discardAreaRef?.value) return
+  const flash = document.createElement('div')
+  flash.className = 'pile-flash'
+  const colorMap: Record<string, string> = {
+    red: 'rgba(255, 60, 60, 0.85)',
+    blue: 'rgba(60, 120, 255, 0.85)',
+    green: 'rgba(60, 220, 120, 0.85)',
+    yellow: 'rgba(255, 220, 60, 0.85)',
+    wild: 'rgba(255, 80, 220, 0.9)'
+  }
+  flash.style.cssText = `
+    position: absolute;
+    inset: -40px;
+    border-radius: 50%;
+    background: radial-gradient(circle, ${colorMap[color] || colorMap.wild} 0%, transparent 70%);
+    mix-blend-mode: screen;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 50;
+    will-change: opacity, transform;
+  `
+  discardAreaRef.value.appendChild(flash)
+  gsap.fromTo(flash,
+    { opacity: 0, scale: 0.4 },
+    {
+      opacity: 1, scale: 1.6, duration: 0.18, ease: 'power2.out',
+      onComplete: () => {
+        gsap.to(flash, {
+          opacity: 0, scale: 1.9, duration: 0.32, ease: 'power2.in',
+          onComplete: () => flash.remove()
+        })
+      }
+    }
+  )
 }
 </script>
 
@@ -240,9 +350,17 @@ async function executePlayCard(card: CardType, selectedColor?: CardColor) {
 
 .hand-card-wrapper {
   position: relative;
-  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), margin-right 0.3s ease;
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s ease-out;
   cursor: pointer;
   transform-origin: bottom center;
+  will-change: transform;
+}
+
+/* Newly-drawn card hides until the flying card-back clone has landed, so the
+   user doesn't see the card pop into the hand AND a clone fly in at the same
+   time. The watch above clears the class ~380ms after the draw. */
+.hand-card-wrapper.fresh-card {
+  opacity: 0;
 }
 
 .hand-card-wrapper:hover {
@@ -251,8 +369,9 @@ async function executePlayCard(card: CardType, selectedColor?: CardColor) {
   position: relative;
 }
 
+/* Static shadow on the wrapper (composited) instead of drop-shadow filter on hover. */
 .hand-card-wrapper:hover .hand-card {
-  filter: drop-shadow(0 20px 30px rgba(0, 0, 0, 0.6));
+  box-shadow: 0 18px 28px rgba(0, 0, 0, 0.55);
 }
 
 .unplayable {
@@ -267,17 +386,35 @@ async function executePlayCard(card: CardType, selectedColor?: CardColor) {
   filter: grayscale(0);
 }
 
+/* Click-down press feedback — quick squash before the throw fires. */
+.hand-card-wrapper.playable-glow:active {
+  transform: translateY(-32px) scale(1.04) !important;
+  transition: transform 0.06s ease-out;
+}
+
+/* Playable glow: keep a static box-shadow + border, pulse opacity on a pseudo-element.
+   Animating opacity stays on the compositor; animating box-shadow forces paint. */
 .playable-glow .hand-card {
-  box-shadow: 0 0 15px rgba(0, 243, 255, 0.5); /* Neon Blue Glow */
+  box-shadow: 0 0 15px rgba(0, 243, 255, 0.5);
   border: 1px solid rgba(0, 243, 255, 0.8);
-  border-radius: 8px; /* Match card radius approx */
-  animation: pulse-glow 2s infinite;
+  border-radius: 8px;
+  position: relative;
+}
+
+.playable-glow .hand-card::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 10px;
+  pointer-events: none;
+  box-shadow: 0 0 22px rgba(0, 243, 255, 0.85);
+  opacity: 0;
+  animation: pulse-glow 2.4s ease-in-out infinite;
 }
 
 @keyframes pulse-glow {
-  0% { box-shadow: 0 0 10px rgba(0, 243, 255, 0.3); border-color: rgba(0, 243, 255, 0.6); }
-  50% { box-shadow: 0 0 25px rgba(0, 243, 255, 0.8); border-color: rgba(0, 243, 255, 1); }
-  100% { box-shadow: 0 0 10px rgba(0, 243, 255, 0.3); border-color: rgba(0, 243, 255, 0.6); }
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
 }
 
 /* When it's not the player's turn, gray out all cards */
