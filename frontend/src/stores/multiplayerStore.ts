@@ -364,8 +364,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     }
                 }
             })
-            .subscribe((status) => {
-            })
+            .subscribe(() => {})
     }
 
     // Start the game (host only)

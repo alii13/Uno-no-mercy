@@ -150,7 +150,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, provide, onMounted } from 'vue'
+import { ref, computed, watch, provide, onMounted, onUnmounted } from 'vue'
+import { music } from '../../composables/useMusic'
 import { useMultiplayerStore } from '../../stores/multiplayerStore'
 import { useAuthStore } from '../../stores/authStore'
 import { soundEffects } from '../../composables/useSoundEffects'
@@ -433,9 +434,25 @@ function triggerOpponentDrawAnimation(targetEl: HTMLElement, count: number) {
   })
 }
 
+// Stop music on unmount (game exit, opponent leaves, etc.)
+onUnmounted(() => {
+  music.stop()
+})
+
+// Music starts when game enters 'playing'; ducks on 'finished'.
+watch(gameStatus, (now, prev) => {
+  if (now === 'playing' && prev !== 'playing') {
+    music.start()
+  } else if (now === 'finished') {
+    music.duck()
+  }
+})
+
 // Initialize component and run initial deal animation if needed
 onMounted(async () => {
-  
+  // If we landed straight into a playing game (refresh / deep link), kick off music.
+  if (gameStatus.value === 'playing') music.start()
+
   // If game is already playing and we have cards, run initial deal animation
   if (gameStatus.value === 'playing' && myHand.value.length > 0) {
     isInitialDeal.value = true
@@ -517,7 +534,9 @@ async function handleCallUno() {
 }
 
 function toggleSound() {
+  // Keep SFX and music mutes in step until the proper settings drawer ships.
   soundEffects.toggleMute()
+  music.toggleMute()
 }
 
 function getGameOverShareText() {
