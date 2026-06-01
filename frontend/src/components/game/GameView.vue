@@ -95,23 +95,19 @@
       @select="(id: string) => store.selectDiscardAllTop(id)"
     />
 
-    <div v-if="store.gameState === 'GAME_OVER'" class="overlay">
-      <div class="modal terminal-modal">
-        <h1 class="glitch-text" data-text="GAME OVER">GAME OVER</h1>
-        <div class="scan-line"></div>
-        <p class="winner-text">VICTOR: {{ getWinnerName() }}</p>
-        <div class="gameover-share">
-          <button @click="shareToTwitter" class="share-social-btn twitter-btn">SHARE ON X</button>
-          <button @click="shareToWhatsApp" class="share-social-btn whatsapp-btn">SHARE ON WHATSAPP</button>
-        </div>
-        <div v-if="authStore.isAnonymous" class="upgrade-prompt">
-          <p class="upgrade-text">Create an account to save your stats and play with friends</p>
-          <button @click="handleUpgrade" class="btn-primary" style="border-color: var(--color-neon-blue); color: var(--color-neon-blue);">CREATE ACCOUNT</button>
-        </div>
-        <button @click="restart" class="btn-primary">REBOOT_SYSTEM</button>
-        <button @click="store.returnToLobby()" class="btn-primary" style="margin-top: 1rem; border-color: #444; color: var(--text-muted);">EXIT</button>
-      </div>
-    </div>
+    <GameOverModal
+      v-if="store.gameState === 'GAME_OVER'"
+      :is-winner="isWinner"
+      :winner-name="getWinnerName()"
+      :stats="gameStats"
+      :is-anonymous="authStore.isAnonymous"
+      mode="sp"
+      @rematch="restart"
+      @back-to-lobby="store.returnToLobby()"
+      @upgrade-account="handleUpgrade"
+      @share-twitter="shareToTwitter"
+      @share-whatsapp="shareToWhatsApp"
+    />
   </div>
 </template>
 
@@ -133,6 +129,7 @@ import SurveillanceBar from './SurveillanceBar.vue'
 import BattlePit from './BattlePit.vue'
 import StatusPanel from './StatusPanel.vue'
 import PlayerConsoleBar from './PlayerConsoleBar.vue'
+import GameOverModal from './GameOverModal.vue'
 
 const store = useGameStore()
 const authStore = useAuthStore()
@@ -279,6 +276,21 @@ function getWinnerName() {
   const w = store.players.find(p => p.id === store.winnerId)
   return w ? w.name : 'UNKNOWN_ENTITY'
 }
+
+// The human is always 'p-0' in single-player.
+const isWinner = computed(() => store.winnerId === 'p-0')
+
+// Pull the per-player stats and shape them for the modal.
+const gameStats = computed(() => {
+  const s = (store as any).playerStats?.['p-0']
+  if (!s) return undefined
+  return {
+    cardsPlayed: s.cardsPlayedTotal || 0,
+    biggestStack: s.biggestStackSurvived || 0,
+    unosCalled: s.unoCalls || 0,
+    peakHand: s.peakCards || 0,
+  }
+})
 
 function restart() {
   store.initializeGame(['You', 'Terminator'])
