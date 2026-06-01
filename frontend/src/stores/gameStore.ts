@@ -16,17 +16,26 @@ import { supabase } from '../lib/supabase'
 
 export const useGameStore = defineStore('game', () => {
     // Timings (single tunable block).
-    // Reduced from older values that produced a "sluggish/stuck" feel on Reddit feedback.
+    //
+    // Two distinct categories — don't blindly cut both:
+    //   BOT_DELAYS         pure dead time waiting on the bot. Cut aggressively.
+    //   COMPREHENSION_STALLS  time the human needs to absorb what just happened
+    //                      (stack landing, roulette spin, mercy elimination).
+    //                      These ARE the drama — over-cutting makes the game feel
+    //                      anaemic even when "snappier" by the stopwatch.
     const TIMINGS = {
-        botThink: 1100,          // ms between turn-start and bot acting (was 2000 -> 700 was too fast to register the play)
-        botRoulette: 250,        // ms before bot reacts to roulette (was 500)
-        drawStaggerPenalty: 90,  // ms per card during stacked-penalty draw (was 250)
-        drawUntilPlayableRetry: 150, // ms between "drew unplayable, draw again" (was 400)
-        drawnPlayableAutoPlay: 400,  // ms stall before auto-playing a drawn-playable card (was 1000)
-        rouletteSpin: 320,       // ms between roulette card reveals (was 800)
-        rouletteSafeStall: 600,  // ms pause on "Safe!" before turn advances (was 1500)
-        rouletteEliminatedStall: 400, // ms pause when mercy eliminates during roulette (was 1000)
-        botRouletteColorPick: 600,   // ms bot waits before picking the roulette target color (was 1500)
+        // --- BOT_DELAYS (pure dead time) ---
+        botThink: 1100,                 // turn-start -> bot acts (was 2000)
+        botRoulette: 250,               // bot reacts to roulette (was 500)
+        botRouletteColorPick: 600,      // bot picks roulette target color (was 1500)
+
+        // --- COMPREHENSION_STALLS (human reads the moment) ---
+        drawStaggerPenalty: 200,        // per card when human eats a +N stack (was 250 -> 90 too fast, restored drama)
+        drawUntilPlayableRetry: 280,    // between unplayable draws so human reads each card (was 400 -> 150 too fast)
+        drawnPlayableAutoPlay: 750,     // pause to read the drawn card before it auto-plays (was 1000 -> 400 too fast)
+        rouletteSpin: 520,              // between roulette card reveals — the most dramatic beat (was 800 -> 320 too fast)
+        rouletteSafeStall: 1100,        // "Safe!" pause — relief should breathe (was 1500 -> 600 too fast)
+        rouletteEliminatedStall: 1500,  // mercy-elimination during roulette — emotional landing (was 1000 -> 400 way too fast)
     } as const
 
     // --- State ---
