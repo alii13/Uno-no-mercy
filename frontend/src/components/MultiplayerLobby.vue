@@ -200,12 +200,9 @@ async function handleCreateGame() {
 
 async function joinGame() {
   if (mpStore.loading) {
-    console.log('Lobby joinGame: already loading, skipping')
     return
   }
-  console.log('Lobby joinGame called, code:', joinCode.value)
   const result = await mpStore.joinGame(joinCode.value)
-  console.log('Lobby joinGame result:', result)
   if (result) {
     showJoinModal.value = false
     joinCode.value = ''
