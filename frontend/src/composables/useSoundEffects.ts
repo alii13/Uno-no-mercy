@@ -61,14 +61,15 @@ function createNoiseBuffer(ctx: AudioContext, options: NoiseBufferOptions): Audi
 // ============================================================
 type SfxName = 'cardThrow' | 'cardPick' | 'cardLand' | 'cardShuffle' | 'specialCard'
 
-// File mapping. Drop matching files into frontend/public/audio/sfx/ and they
-// take over from the synthesis fallback automatically.
+// File mapping. Sourced from Kenney's CC0 casino-audio pack. .ogg works in
+// every modern browser (Vorbis support has been universal since ~2010) and
+// the files are noticeably smaller than mp3 at the same quality.
 const SFX_FILES: Record<SfxName, string> = {
-    cardThrow: '/audio/sfx/card-throw.mp3',
-    cardPick: '/audio/sfx/card-pick.mp3',
-    cardLand: '/audio/sfx/card-land.mp3',
-    cardShuffle: '/audio/sfx/card-shuffle.mp3',
-    specialCard: '/audio/sfx/special-card.mp3',
+    cardThrow: '/audio/sfx/card-throw.ogg',
+    cardPick: '/audio/sfx/card-pick.ogg',
+    cardLand: '/audio/sfx/card-land.ogg',
+    cardShuffle: '/audio/sfx/card-shuffle.ogg',
+    specialCard: '/audio/sfx/special-card.ogg',
 }
 
 // Cache of "did this sample load successfully?" — three states:
