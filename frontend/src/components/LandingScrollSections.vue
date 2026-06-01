@@ -90,19 +90,10 @@
       </div>
     </section>
 
-    <!-- Section 5: CTA -->
-    <section class="scroll-section cta-section" ref="ctaSection">
-      <div class="section-inner cta-inner">
-        <h2 class="cta-heading" ref="ctaH">READY?</h2>
-        <p class="cta-sub" ref="ctaSub">No downloads. No login. Just chaos.</p>
-        <button @click="reportAndPlay" class="cta-btn" ref="ctaBtn">PLAY NOW</button>
-      </div>
-    </section>
-
-    <!-- Section 6: Feedback nudge (last - after you've decided to play, drop us a line) -->
+    <!-- Section 5: Feedback nudge (last - after you've seen the rules, drop us a line) -->
     <section class="scroll-section feedback-section" ref="feedbackSection">
       <div class="section-inner">
-        <div class="section-label">06</div>
+        <div class="section-label">05</div>
         <div class="feedback-stage">
           <div class="bubble bubble-1" ref="bubble1">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -140,18 +131,9 @@ import type { Card as CardType } from '../types/card'
 
 gsap.registerPlugin(ScrollTrigger)
 
-const emit = defineEmits<{
-  (e: 'playGuest'): void
+defineEmits<{
   (e: 'openFeedback'): void
 }>()
-
-function reportAndPlay() {
-  const fn = (window as any).gtag_report_conversion
-  if (typeof fn === 'function') {
-    try { fn() } catch (e) { /* noop */ }
-  }
-  emit('playGuest')
-}
 
 const isMobile = ref(window.innerWidth <= 768)
 function onResize() { isMobile.value = window.innerWidth <= 768 }
@@ -182,10 +164,6 @@ const bubble2 = ref<HTMLElement>()
 const bubble3 = ref<HTMLElement>()
 const feedbackHeading = ref<HTMLElement>()
 const feedbackBtn = ref<HTMLElement>()
-const ctaSection = ref<HTMLElement>()
-const ctaH = ref<HTMLElement>()
-const ctaSub = ref<HTMLElement>()
-const ctaBtn = ref<HTMLElement>()
 
 const dynamicRefs: Record<string, Record<number, HTMLElement>> = {}
 function setRef(group: string, i: number, el: any) {
@@ -222,7 +200,6 @@ function init() {
   initRoulette()
   initMercy()
   initFeedback()
-  initCta()
 }
 
 function initStack() {
@@ -473,23 +450,6 @@ function initFeedback() {
   triggers.push(tl.scrollTrigger!)
 }
 
-function initCta() {
-  if (!ctaSection.value || !ctaH.value || !ctaBtn.value || !ctaSub.value) return
-
-  gsap.set(ctaH.value, { opacity: 0, scale: 0.5, y: 60 })
-  gsap.set(ctaSub.value, { opacity: 0, y: 30 })
-  gsap.set(ctaBtn.value, { opacity: 0, scale: 0.8, y: 20 })
-
-  const tl = gsap.timeline({
-    scrollTrigger: { trigger: ctaSection.value, start: 'top 70%', end: 'top 30%', scrub: 0.8 }
-  })
-
-  tl.to(ctaH.value, { opacity: 1, scale: 1, y: 0, duration: 0.3, ease: 'power3.out' }, 0)
-  tl.to(ctaSub.value, { opacity: 1, y: 0, duration: 0.2 }, 0.15)
-  tl.to(ctaBtn.value, { opacity: 1, scale: 1, y: 0, duration: 0.2, ease: 'back.out(2)' }, 0.25)
-
-  triggers.push(tl.scrollTrigger!)
-}
 </script>
 
 <style scoped>
@@ -828,49 +788,9 @@ function initCta() {
   box-shadow: 0 0 40px rgba(0, 255, 100, 0.35);
 }
 
-/* ========== CTA ========== */
-.cta-section { min-height: 70vh; }
-
-.cta-inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1.5rem;
-}
-
-.cta-heading {
-  font-family: var(--font-display);
-  font-size: 6rem;
-  margin: 0;
-  color: var(--text-primary);
-  text-shadow: 0 0 40px rgba(255,255,255,0.1);
-}
-
-.cta-sub {
-  color: var(--text-muted);
-  font-size: 1.1rem;
-  margin: 0;
-  letter-spacing: 2px;
-}
-
-.cta-btn {
-  padding: 1.5rem 5rem;
-  font-family: var(--font-display);
-  font-size: 1.4rem;
-  background: linear-gradient(145deg, var(--color-alert) 0%, var(--color-alert-dim) 100%);
-  border: 2px solid var(--color-alert);
-  color: white;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.cta-btn:hover {
-  transform: scale(1.08);
-  box-shadow: 0 0 50px rgba(255, 42, 42, 0.6);
-}
-
 /* ========== MOBILE ========== */
 @media (max-width: 768px) {
+  .scroll-section { min-height: 75vh; padding: 4rem 1.5rem; }
   .section-heading { font-size: 2.8rem; }
   .section-desc { font-size: 1rem; margin-bottom: 3rem; }
   .stack-counter { font-size: 4rem; }
@@ -882,14 +802,12 @@ function initCta() {
   .mercy-counter-big { font-size: 3.5rem; }
   .mercy-boom { font-size: 2.2rem; padding: 0.3rem 1.5rem; }
   .mercy-c { margin-right: -26px; }
-  .cta-heading { font-size: 4rem; }
-  .cta-btn { padding: 1.2rem 3rem; font-size: 1.1rem; }
   .feedback-heading { font-size: 2.8rem; }
   .bubble { font-size: 0.85rem; padding: 0.65rem 1rem; }
-  .scroll-section { padding: 4rem 1.5rem; }
 }
 
 @media (max-width: 480px) {
+  .scroll-section { min-height: 70vh; padding: 3rem 1rem; }
   .section-heading { font-size: 2rem; }
   .section-desc { font-size: 0.9rem; margin-bottom: 2rem; }
   .stack-counter { font-size: 3rem; }
@@ -900,13 +818,10 @@ function initCta() {
   .roulette-stream { gap: 0.3rem; }
   .mercy-boom { font-size: 1.3rem; padding: 0.2rem 0.8rem; }
   .mercy-c { margin-right: -32px; }
-  .cta-heading { font-size: 3rem; }
-  .cta-btn { padding: 1rem 2.5rem; font-size: 1rem; }
   .feedback-heading { font-size: 2rem; }
   .feedback-stage { gap: 0.5rem; }
   .bubble { font-size: 0.75rem; padding: 0.5rem 0.85rem; }
   .feedback-cta { padding: 0.9rem 1.5rem; font-size: 0.9rem; }
-  .scroll-section { padding: 3rem 1rem; }
   .impact-flash { width: 200px; height: 200px; }
 }
 </style>

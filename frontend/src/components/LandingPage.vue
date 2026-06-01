@@ -1,124 +1,149 @@
 <template>
   <div class="landing-container">
-    <div class="scan-line"></div>
-    <div class="noise-overlay"></div>
-
-    <!-- Animated Background Grid -->
-    <div class="grid-bg"></div>
+    <!-- Atmosphere -->
+    <div class="scan-line" aria-hidden="true"></div>
+    <div class="noise-overlay" aria-hidden="true"></div>
+    <div class="grid-bg" aria-hidden="true"></div>
 
     <!-- Settings -->
     <div class="settings-corner">
       <SettingsButton />
     </div>
-    
-    <!-- Hero Screen - fits exactly in viewport -->
-    <div class="hero-screen">
-      <!-- Danger Tape Top -->
-      <div class="danger-tape top">
+
+    <!-- HERO — single column, mobile-first. Primary CTA above the fold. -->
+    <section class="hero">
+      <div class="danger-tape" aria-hidden="true">
         <div class="tape-content">
           <span v-for="i in 20" :key="i">// NO MERCY ZONE // ENTER AT YOUR OWN RISK //</span>
         </div>
       </div>
 
-      <!-- Main Content - Split Layout -->
-      <main class="landing-main">
-        <!-- Left Side - Branding -->
-        <div class="brand-section">
-          <h1 class="title glitch-text" data-text="UNO">UNO</h1>
-          <h2 class="subtitle">NO MERCY</h2>
-          <p class="tagline">THE RUTHLESS CARD BATTLE</p>
+      <div class="hero-inner">
+        <header class="brand">
+          <h1 class="brand-title glitch-text" data-text="UNO">UNO</h1>
+          <h2 class="brand-subtitle">NO MERCY</h2>
+          <p class="brand-tagline">THE RUTHLESS CARD BATTLE</p>
+        </header>
 
-          <!-- Status Display -->
-          <div class="status-display">
-            <div class="status-line">
-              <span class="blink">▶</span> SYSTEM: <span class="online">ONLINE</span>
-            </div>
-            <div class="status-line">
-              <span class="blink">▶</span> THREAT LEVEL: <span class="critical">MAXIMUM</span>
-            </div>
-          </div>
-
-          <!-- Lifetime stats — only renders once the player has finished a game -->
-          <LandingStatsBadge class="landing-stats" />
+        <div class="status-line-row" aria-hidden="true">
+          <span class="status-line">
+            <span class="blink">▶</span> SYSTEM: <span class="online">ONLINE</span>
+          </span>
+          <span class="status-line">
+            <span class="blink">▶</span> THREAT: <span class="critical">MAXIMUM</span>
+          </span>
         </div>
 
-        <!-- Right Side - Actions -->
-        <div class="action-section">
-          <div class="action-card">
-            <h3 class="card-title">JOIN THE BATTLE</h3>
+        <LandingStatsBadge class="hero-stats" />
 
-            <button @click="reportAndEmit('playGuest')" class="action-btn primary">
-              PLAY NOW
-            </button>
-
-            <button @click="reportAndEmit('showAuth', 'signup')" class="action-btn secondary">
+        <Stack gap="3" align="stretch" class="hero-cta">
+          <Button variant="primary" size="lg" block @click="reportAndEmit('playGuest')">
+            PLAY NOW
+          </Button>
+          <Cluster gap="3" justify="center" align="center" class="hero-secondary">
+            <button class="text-link" @click="reportAndEmit('showAuth', 'signup')">
               CREATE ACCOUNT
             </button>
-
-            <button @click="reportAndEmit('showAuth', 'login')" class="action-btn tertiary">
-              RETURNING PLAYER
+            <span class="text-link-sep" aria-hidden="true">·</span>
+            <button class="text-link" @click="reportAndEmit('showAuth', 'login')">
+              SIGN IN
             </button>
-
-            <div class="separator"></div>
-
-            <!-- Features List -->
-            <div class="features-list">
-              <div class="feature-item">
-                <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                <span class="feature-text">Real-time Multiplayer</span>
-              </div>
-              <div class="feature-item">
-                <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="11"/><circle cx="8" cy="16" r="1" fill="currentColor"/><circle cx="16" cy="16" r="1" fill="currentColor"/></svg>
-                <span class="feature-text">VS Ruthless AI</span>
-              </div>
-              <div class="feature-item">
-                <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-                <span class="feature-text">Stack Draws & Skip Everyone</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
-
-      <!-- Scroll Indicator -->
-      <div class="scroll-indicator">
-        <span class="scroll-text">SCROLL TO SEE THE CHAOS</span>
-        <svg class="scroll-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><polyline points="6 9 12 15 18 9"/></svg>
+          </Cluster>
+        </Stack>
       </div>
 
-      <!-- Hazard Bar -->
-      <div class="hazard-bar">
+      <button class="scroll-cue" @click="scrollPastHero" type="button">
+        <span class="scroll-text">SCROLL FOR THE RULES</span>
+        <svg class="scroll-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      <div class="hazard-bar" aria-hidden="true">
         <div class="hazard-stripe"></div>
       </div>
-    </div>
 
-    <!-- Scroll Animated Sections -->
+      <!-- Sentinel for sticky-CTA IntersectionObserver -->
+      <div ref="heroSentinel" class="hero-sentinel" aria-hidden="true"></div>
+    </section>
+
+    <!-- Feature spotlight strip — what was hidden inside the action card now
+         lives at the top of the page so people see *why* it's no-mercy. -->
+    <section class="feature-strip" aria-label="Game features">
+      <div class="feature-strip-inner">
+        <article class="feature">
+          <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="28" height="28" aria-hidden="true">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+          <h3 class="feature-title">Real-time Multiplayer</h3>
+          <p class="feature-desc">Room codes, 2-10 players, instant draws</p>
+        </article>
+
+        <article class="feature">
+          <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="28" height="28" aria-hidden="true">
+            <rect x="3" y="11" width="18" height="10" rx="2" />
+            <circle cx="12" cy="5" r="3" />
+            <line x1="12" y1="8" x2="12" y2="11" />
+            <circle cx="8" cy="16" r="1" fill="currentColor" />
+            <circle cx="16" cy="16" r="1" fill="currentColor" />
+          </svg>
+          <h3 class="feature-title">VS Ruthless AI</h3>
+          <p class="feature-desc">Single-player chaos when no one's online</p>
+        </article>
+
+        <article class="feature">
+          <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="28" height="28" aria-hidden="true">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+          </svg>
+          <h3 class="feature-title">Stack &amp; Skip Everyone</h3>
+          <p class="feature-desc">Every official No Mercy rule, implemented</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- Scroll Animated Sections (feature deep-dives) -->
     <LandingScrollSections
-      @playGuest="$emit('playGuest')"
+      @playGuest="reportAndEmit('playGuest')"
       @openFeedback="showFeedback = true"
     />
 
-    <!-- Bottom Hazard Bar -->
-    <div class="hazard-bar">
+    <div class="hazard-bar" aria-hidden="true">
       <div class="hazard-stripe"></div>
       <p class="warning-text">// WARNING: FRIENDSHIPS MAY NOT SURVIVE //</p>
     </div>
 
     <SiteFooter />
 
+    <!-- Sticky mobile CTA — slides up once user scrolls past hero -->
+    <Transition name="sticky-cta">
+      <div v-show="showStickyCta" class="sticky-cta-wrap">
+        <Button variant="primary" size="lg" block @click="reportAndEmit('playGuest')">
+          PLAY NOW
+        </Button>
+      </div>
+    </Transition>
+
     <FeedbackModal v-if="showFeedback" @close="showFeedback = false" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import LandingScrollSections from './LandingScrollSections.vue'
 import SiteFooter from './SiteFooter.vue'
 import FeedbackModal from './FeedbackModal.vue'
 import SettingsButton from './SettingsButton.vue'
 import LandingStatsBadge from './LandingStatsBadge.vue'
+import Button from './ui/Button.vue'
+import Stack from './ui/Stack.vue'
+import Cluster from './ui/Cluster.vue'
 
 const showFeedback = ref(false)
+const showStickyCta = ref(false)
+const heroSentinel = ref<HTMLElement>()
 
 const emit = defineEmits<{
   (e: 'showAuth', mode: 'login' | 'signup'): void
@@ -127,14 +152,37 @@ const emit = defineEmits<{
 
 function reportAndEmit(event: 'playGuest'): void
 function reportAndEmit(event: 'showAuth', mode: 'login' | 'signup'): void
-function reportAndEmit(event: any, mode?: any) {
-  const fn = (window as any).gtag_report_conversion
+function reportAndEmit(event: 'playGuest' | 'showAuth', mode?: 'login' | 'signup') {
+  const fn = (window as unknown as { gtag_report_conversion?: () => void }).gtag_report_conversion
   if (typeof fn === 'function') {
-    try { fn() } catch (e) { /* noop */ }
+    try { fn() } catch { /* noop */ }
   }
-  if (event === 'showAuth') emit('showAuth', mode)
+  if (event === 'showAuth' && mode) emit('showAuth', mode)
   else if (event === 'playGuest') emit('playGuest')
 }
+
+function scrollPastHero() {
+  const target = document.querySelector('.feature-strip')
+  target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+let observer: IntersectionObserver | null = null
+
+onMounted(() => {
+  if (!heroSentinel.value) return
+  observer = new IntersectionObserver(
+    ([entry]) => {
+      if (entry) showStickyCta.value = !entry.isIntersecting
+    },
+    { threshold: 0 },
+  )
+  observer.observe(heroSentinel.value)
+})
+
+onUnmounted(() => {
+  observer?.disconnect()
+  observer = null
+})
 </script>
 
 <style scoped>
@@ -148,58 +196,56 @@ function reportAndEmit(event: any, mode?: any) {
 
 .settings-corner {
   position: fixed;
-  top: 1rem;
-  right: 1rem;
-  z-index: 15;
-}
-@media (max-width: 480px) {
-  .settings-corner { top: 0.6rem; right: 0.6rem; }
+  top: var(--spacing-4);
+  right: var(--spacing-4);
+  z-index: var(--z-hud);
 }
 
-.hero-screen {
-  height: 100vh;
-  height: 100dvh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
+/* Atmosphere overlays — pulled forward visually but stay non-interactive */
 .scan-line {
   position: fixed;
-  top: 0; left: 0; width: 100%; height: 100%;
-  background: linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.2) 51%);
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 50%, rgba(0, 0, 0, 0.2) 51%);
   background-size: 100% 4px;
   pointer-events: none;
-  z-index: 100;
+  z-index: var(--z-toast);
 }
 
 .noise-overlay {
   position: fixed;
-  top: 0; left: 0; width: 100%; height: 100%;
+  inset: 0;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
   pointer-events: none;
-  z-index: 99;
+  z-index: calc(var(--z-toast) - 1);
   opacity: 0.4;
 }
 
-/* Grid Background */
 .grid-bg {
   position: fixed;
   inset: 0;
-  background: 
+  background:
     repeating-linear-gradient(90deg, transparent, transparent 80px, rgba(255, 42, 42, 0.03) 80px, rgba(255, 42, 42, 0.03) 81px),
     repeating-linear-gradient(0deg, transparent, transparent 80px, rgba(255, 42, 42, 0.03) 80px, rgba(255, 42, 42, 0.03) 81px);
   pointer-events: none;
   z-index: 0;
 }
 
-/* Danger Tape */
+/* HERO */
+.hero {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: var(--z-base);
+}
+
 .danger-tape {
   background: repeating-linear-gradient(-45deg, var(--color-alert), var(--color-alert) 10px, #000 10px, #000 20px);
-  padding: 6px 0;
+  padding: var(--spacing-1) 0;
   overflow: hidden;
   position: relative;
-  z-index: 10;
+  z-index: var(--z-cards);
 }
 
 .tape-content {
@@ -207,13 +253,13 @@ function reportAndEmit(event: any, mode?: any) {
   white-space: nowrap;
   animation: scroll-tape 30s linear infinite;
   font-family: var(--font-body);
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
   color: white;
   letter-spacing: 2px;
 }
 
 .tape-content span {
-  padding: 0 2rem;
+  padding: 0 var(--spacing-8);
 }
 
 @keyframes scroll-tape {
@@ -221,71 +267,78 @@ function reportAndEmit(event: any, mode?: any) {
   to { transform: translateX(-50%); }
 }
 
-/* Main Content - Split Layout */
-.landing-main {
+@media (prefers-reduced-motion: reduce) {
+  .tape-content { animation: none; }
+}
+
+.hero-inner {
   flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 3rem;
-  padding: 2rem 4rem;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  position: relative;
-  z-index: 5;
-  max-width: 1400px;
+  justify-content: center;
+  gap: var(--spacing-6);
+  padding: var(--spacing-8) var(--spacing-4);
+  max-width: 560px;
   margin: 0 auto;
   width: 100%;
+  text-align: center;
 }
 
-/* Brand Section */
-.brand-section {
-  text-align: left;
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-1);
 }
 
-.title {
+.brand-title {
   font-family: var(--font-display);
-  font-size: 8rem;
+  font-size: clamp(3.5rem, 14vw, 6rem);
   margin: 0;
   line-height: 0.9;
   text-shadow: var(--shadow-glow-red);
 }
 
-.subtitle {
+.brand-subtitle {
   font-family: var(--font-display);
-  font-size: 3rem;
+  font-size: clamp(1.5rem, 6vw, 2.5rem);
   color: var(--color-alert);
-  margin: 0.5rem 0 1rem 0;
+  margin: 0;
   text-shadow: var(--shadow-glow-red);
+  line-height: 1;
 }
 
-.tagline {
+.brand-tagline {
   color: var(--text-muted);
-  font-size: 1rem;
-  letter-spacing: 0.3rem;
-  margin: 0 0 2rem 0;
+  font-size: var(--text-sm);
+  letter-spacing: 0.25em;
+  margin: var(--spacing-2) 0 0 0;
 }
 
-.status-display {
+.status-line-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--spacing-4);
   font-family: var(--font-body);
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   color: var(--text-muted);
-}
-
-.landing-stats {
-  margin-top: 1.25rem;
-}
-
-.status-line {
-  margin: 0.5rem 0;
+  letter-spacing: 0.1em;
 }
 
 .blink {
   animation: blink 1s step-end infinite;
   color: var(--color-neon-green);
+  margin-right: var(--spacing-1);
 }
 
 @keyframes blink {
   50% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blink { animation: none; }
 }
 
 .online {
@@ -304,129 +357,65 @@ function reportAndEmit(event: any, mode?: any) {
   50% { opacity: 0.6; }
 }
 
-/* Action Section */
-.action-section {
-  display: flex;
-  justify-content: center;
+@media (prefers-reduced-motion: reduce) {
+  .critical { animation: none; }
 }
 
-.action-card {
-  background: rgba(0, 0, 0, 0.6);
-  border: 2px solid #333;
-  padding: 3rem;
+.hero-stats {
+  margin: 0 auto;
+}
+
+.hero-cta {
   width: 100%;
-  max-width: 400px;
+  max-width: 360px;
+  margin: 0 auto;
 }
 
-.card-title {
-  font-family: var(--font-display);
-  font-size: 1.5rem;
-  margin: 0 0 2rem 0;
-  text-align: center;
-  color: var(--color-hazard);
+.hero-secondary {
+  font-family: var(--font-mono);
 }
 
-.action-btn {
-  width: 100%;
-  padding: 1.2rem 2rem;
-  font-family: var(--font-display);
-  font-size: 1rem;
+.text-link {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.15em;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  transition: all 0.3s;
-  margin-bottom: 1rem;
+  padding: var(--spacing-2);
+  transition: color var(--duration-snap) var(--ease-snap);
 }
 
-.action-btn.primary {
-  background: linear-gradient(145deg, var(--color-alert) 0%, var(--color-alert-dim) 100%);
-  border: 2px solid var(--color-alert);
-  color: white;
-}
-
-.action-btn.primary:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-glow-red);
-}
-
-.action-btn.secondary {
-  background: transparent;
-  border: 2px solid var(--color-neon-blue);
+.text-link:hover {
   color: var(--color-neon-blue);
 }
 
-.action-btn.secondary:hover {
-  background: var(--color-neon-blue);
-  color: black;
-  transform: translateY(-2px);
-}
-
-.action-btn.tertiary {
-  background: transparent;
-  border: 1px solid #444;
+.text-link-sep {
   color: var(--text-muted);
 }
 
-.action-btn.tertiary:hover {
-  border-color: var(--text-secondary);
-  color: var(--text-primary);
-  transform: translateY(-2px);
-}
-
-.btn-icon {
-  font-size: 1.2rem;
-}
-
-.separator {
-  height: 1px;
-  background: linear-gradient(90deg, transparent, #333, transparent);
-  margin: 2rem 0;
-}
-
-/* Features List */
-.features-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.feature-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-}
-
-.feature-icon {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-  color: var(--color-neon-blue);
-}
-
-/* Scroll Indicator */
-.scroll-indicator {
+.scroll-cue {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
-  padding: 1.5rem 0;
+  gap: var(--spacing-1);
+  padding: var(--spacing-4) 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: var(--font-mono);
   position: relative;
-  z-index: 5;
+  z-index: var(--z-base);
 }
 
 .scroll-text {
-  font-family: 'Courier New', monospace;
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  letter-spacing: 3px;
+  font-size: var(--text-xs);
+  letter-spacing: 0.25em;
 }
 
 .scroll-chevron {
-  color: var(--text-muted);
   animation: bounce-down 2s ease-in-out infinite;
 }
 
@@ -435,10 +424,23 @@ function reportAndEmit(event: any, mode?: any) {
   50% { transform: translateY(6px); }
 }
 
-/* Hazard Bar */
+@media (prefers-reduced-motion: reduce) {
+  .scroll-chevron { animation: none; }
+}
+
+.hero-sentinel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+/* HAZARD BAR */
 .hazard-bar {
   position: relative;
-  z-index: 10;
+  z-index: var(--z-cards);
 }
 
 .hazard-stripe {
@@ -448,69 +450,114 @@ function reportAndEmit(event: any, mode?: any) {
 
 .warning-text {
   font-family: var(--font-body);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   text-align: center;
   color: var(--color-alert);
   background: var(--bg-concrete);
   margin: 0;
-  padding: 0.75rem;
+  padding: var(--spacing-3);
   letter-spacing: 2px;
 }
 
-/* Responsive */
-@media (max-width: 900px) {
-  .landing-main {
-    grid-template-columns: 1fr;
-    text-align: center;
-    padding: 2rem;
-    gap: 2rem;
-  }
-  
-  .brand-section {
-    text-align: center;
-  }
-  
-  .title { font-size: 5rem; }
-  .subtitle { font-size: 2rem; }
-  .action-card { max-width: 100%; }
+/* FEATURE STRIP */
+.feature-strip {
+  padding: var(--spacing-12) var(--spacing-4);
+  background: var(--bg-concrete);
+  position: relative;
+  z-index: var(--z-base);
 }
 
-@media (max-width: 500px) {
-  .title { font-size: 3.5rem; }
-  .subtitle { font-size: 1.5rem; }
-  .tagline { letter-spacing: 0.1rem; font-size: 0.8rem; }
+.feature-strip-inner {
+  max-width: 960px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-6);
+}
 
-  .action-card {
-    padding: 1.5rem;
-  }
+.feature {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-2);
+  text-align: center;
+  padding: var(--spacing-6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--radius-md);
+}
 
-  .action-btn {
-    padding: 1rem;
-    font-size: 0.9rem;
+.feature-icon {
+  color: var(--color-neon-blue);
+  margin-bottom: var(--spacing-2);
+}
+
+.feature-title {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  margin: 0;
+  letter-spacing: 0.05em;
+  color: var(--text-primary);
+}
+
+.feature-desc {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* STICKY CTA — mobile only */
+.sticky-cta-wrap {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: var(--spacing-3) var(--spacing-4) calc(var(--spacing-3) + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg-concrete) 70%, transparent);
+  z-index: var(--z-toast);
+  pointer-events: auto;
+}
+
+.sticky-cta-enter-active,
+.sticky-cta-leave-active {
+  transition: transform var(--duration-soft) var(--ease-soft), opacity var(--duration-soft) var(--ease-soft);
+}
+
+.sticky-cta-enter-from,
+.sticky-cta-leave-to {
+  transform: translateY(100%);
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sticky-cta-enter-active,
+  .sticky-cta-leave-active {
+    transition: none;
   }
 }
 
-@media (max-width: 375px) {
-  .landing-main {
-    padding: 1rem;
-    gap: 1rem;
+/* DESKTOP */
+@media (min-width: 768px) {
+  .hero-inner {
+    padding: var(--spacing-16) var(--spacing-8);
+    gap: var(--spacing-8);
+    max-width: 720px;
   }
 
-  .title { font-size: 2.8rem; }
-  .subtitle { font-size: 1.2rem; }
-  .tagline { font-size: 0.7rem; }
-
-  .action-card {
-    padding: 1rem;
+  .feature-strip-inner {
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing-8);
   }
 
-  .card-title {
-    font-size: 1.2rem;
-    margin-bottom: 1rem;
+  .feature {
+    padding: var(--spacing-8);
   }
 
-  .feature-item {
-    font-size: 0.8rem;
+  /* Hide sticky CTA on desktop — primary CTA is always visible above the fold */
+  .sticky-cta-wrap {
+    display: none;
   }
 }
 </style>
