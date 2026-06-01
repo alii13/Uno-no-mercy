@@ -1,6 +1,6 @@
 <template>
-  <div 
-    :class="['card-wrapper', { 
+  <div
+    :class="['card-wrapper', {
       playable: card.isPlayable,
       selected: isSelected,
       flipped: isFlipped,
@@ -10,13 +10,23 @@
     @click="handleClick"
     @mouseenter="handleHover"
     :style="{ width: size.width + 'px', height: size.height + 'px' }"
-    v-html="cardSVG"
-  />
+  >
+    <img
+      class="card-image"
+      :src="cardUrl"
+      :width="size.width"
+      :height="size.height"
+      loading="lazy"
+      decoding="async"
+      :alt="cardAlt"
+      draggable="false"
+    />
+  </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { cardGenerator } from '@/utils/cardGenerator'
+import { getCardImageUrl } from '@/utils/cardGenerator'
 import type { Card } from '@/types/card'
 
 interface Props {
@@ -39,9 +49,11 @@ const emit = defineEmits<{
   hover: [card: Card]
 }>()
 
-const cardSVG = computed(() => {
-  const cardWithPlayable = { ...props.card, isPlayable: props.isPlayable }
-  return cardGenerator.generate(cardWithPlayable, props.size)
+const cardUrl = computed(() => getCardImageUrl(props.card))
+const cardAlt = computed(() => {
+  if (props.card.color === 'wild') return `Wild ${props.card.type}`
+  const value = props.card.value !== undefined ? ` ${props.card.value}` : ''
+  return `${props.card.color}${value} ${props.card.type}`.trim()
 })
 
 const handleClick = () => {
@@ -64,18 +76,13 @@ const handleHover = () => {
   user-select: none;
 }
 
-.card-wrapper :deep(svg) {
+.card-wrapper .card-image {
   display: block;
   width: 100%;
   height: 100%;
+  object-fit: contain;
   border-radius: 8px;
-  overflow: hidden;
-}
-
-.card-wrapper :deep(.card-image) {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  pointer-events: none;
 }
 
 @media (hover: hover) {
