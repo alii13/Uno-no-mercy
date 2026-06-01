@@ -19,6 +19,7 @@ const CLIP_MAP: Record<string, string> = {
     'caught! draw 2': 'caught.mp3',
     'safe!': 'safe.mp3',
     'your turn': 'your-turn.mp3',
+    'game start! your turn': 'game-start.mp3',
     // Add as more events are wired (stack lands, swap, mercy, win, etc.)
     'stack!': 'stack.mp3',
     'skip everyone!': 'skip-everyone.mp3',

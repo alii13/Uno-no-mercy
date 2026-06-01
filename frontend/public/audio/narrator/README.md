@@ -14,6 +14,7 @@ a one-shot generation script — open an issue if you want me to add that.
 
 | Filename             | Spoken text          | Triggered by                        |
 | -------------------- | -------------------- | ----------------------------------- |
+| `game-start.mp3`     | "Game Start! Your turn." | Round opens and it's the human's turn |
 | `uno.mp3`            | "Uno!"               | Player has 1 card left              |
 | `caught.mp3`         | "Caught! Draw 2!"    | UNO not called, penalty applied     |
 | `safe.mp3`           | "Safe!"              | Survived a roulette                 |
