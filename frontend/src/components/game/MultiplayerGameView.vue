@@ -359,7 +359,6 @@ watch(gameStatus, async (newStatus, oldStatus) => {
     // Animate dealing to player hand
     const myHandCount = myHand.value.length
     if (myHandCount > 0 && playerHandRef.value) {
-      console.log('Running initial deal animation for', myHandCount, 'cards')
       await animateInitialDeal(playerHandRef.value, myHandCount)
     }
 
@@ -378,7 +377,6 @@ watch(gameStatus, async (newStatus, oldStatus) => {
 watch(
   () => myHand.value.length,
   (newLen, oldLen) => {
-    console.log('myHand length changed:', oldLen, '->', newLen, 'isInitialDeal:', isInitialDeal.value)
     
     // Skip animation during initial deal animation
     if (isInitialDeal.value) {
@@ -388,7 +386,6 @@ watch(
     // Only animate if cards increased (a draw happened) and we had cards before
     if (newLen > (oldLen ?? 0) && (oldLen ?? 0) > 0) {
       const count = newLen - (oldLen ?? 0)
-      console.log('🎴 Animating draw for player:', count, 'cards')
       // Set visible count to old value (freeze current display)
       const startingCount = oldLen ?? 0
       visibleCardCount.value = startingCount
@@ -438,7 +435,6 @@ function triggerOpponentDrawAnimation(targetEl: HTMLElement, count: number) {
 
 // Initialize component and run initial deal animation if needed
 onMounted(async () => {
-  console.log('MultiplayerGameView mounted, gameStatus:', gameStatus.value, 'hand:', myHand.value.length)
   
   // If game is already playing and we have cards, run initial deal animation
   if (gameStatus.value === 'playing' && myHand.value.length > 0) {
@@ -451,7 +447,6 @@ onMounted(async () => {
     // Animate dealing cards to player hand
     const cardCount = myHand.value.length
     if (playerHandRef.value) {
-      console.log('🎴 Running initial deal animation for', cardCount, 'cards')
       await animateInitialDeal(playerHandRef.value, cardCount)
     }
     
