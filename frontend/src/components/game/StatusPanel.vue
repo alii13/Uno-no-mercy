@@ -1,43 +1,29 @@
 <template>
-  <div class="status-panel">
-    <div class="panel-row">
-      <span class="label">TURN</span>
-      <span class="value blink">{{ currentPlayerName }}</span>
-    </div>
-    <div class="panel-row">
-      <span class="label">FLOW</span>
-      <span
-        class="value direction-indicator"
-        :class="{ 'direction-cw': direction === 1, 'direction-ccw': direction === -1 }"
-      >
-        <span class="direction-icon">↻</span>
-        {{ direction === 1 ? 'CLOCKWISE' : 'COUNTER-CW' }}
-      </span>
-    </div>
-    <div class="panel-row" v-if="currentColor && currentColor !== 'wild'">
-      <span class="label">COLOR</span>
-      <span class="value color-indicator" :class="`color-${currentColor}`">
-        {{ currentColor.toUpperCase() }}
-      </span>
-    </div>
-    <div class="panel-row" v-if="drawStack > 0">
-      <span class="label hazard">STACK_LEVEL</span>
-      <span class="value hazard-text">+{{ drawStack }}</span>
-    </div>
-    <div class="panel-row" v-if="message">
-      <span class="message-text" :style="messageStyle">{{ message }}</span>
-    </div>
-    <div v-if="stackingMode && stackingMode !== 'official'" class="panel-row mode-row">
-      <span class="label">RULES</span>
-      <span class="value mode-value">{{ stackingMode.toUpperCase() }}</span>
-    </div>
+  <div class="status-strip" v-if="hasContent">
+    <span
+      class="status-flow"
+      :class="{ 'flow-cw': direction === 1, 'flow-ccw': direction === -1 }"
+      :aria-label="direction === 1 ? 'Clockwise' : 'Counter-clockwise'"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" aria-hidden="true">
+        <polyline points="23 4 23 10 17 10" />
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+      </svg>
+    </span>
+
+    <span v-if="drawStack > 0" class="status-stack" :class="{ critical: drawStack >= 12 }">
+      +{{ drawStack }}
+    </span>
+
+    <span v-if="message" class="status-message" :style="messageStyle">{{ message }}</span>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { CSSProperties } from 'vue'
 
-defineProps<{
+const props = defineProps<{
   currentPlayerName: string
   direction: number
   drawStack: number
@@ -46,46 +32,78 @@ defineProps<{
   messageStyle?: CSSProperties
   stackingMode?: string
 }>()
+
+const hasContent = computed(() => props.drawStack > 0 || !!props.message || props.direction !== undefined)
 </script>
 
 <style scoped>
-.color-indicator {
-  font-weight: bold;
-  padding: 2px 8px;
-  border-radius: 3px;
-  letter-spacing: 2px;
-}
-.mode-row {
-  border-top: 1px dashed #333;
-  padding-top: 4px;
-  margin-top: 2px;
-}
-
-.mode-value {
-  color: var(--color-hazard) !important;
-  font-size: 0.7rem;
-  letter-spacing: 1px;
+.status-strip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-4);
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  letter-spacing: 0.15em;
+  min-height: 32px;
 }
 
-.color-red { color: #ff3333; text-shadow: 0 0 8px rgba(255, 51, 51, 0.6); }
-.color-blue { color: #3388ff; text-shadow: 0 0 8px rgba(51, 136, 255, 0.6); }
-.color-green { color: #33ff66; text-shadow: 0 0 8px rgba(51, 255, 102, 0.6); }
-.color-yellow { color: #ffcc00; text-shadow: 0 0 8px rgba(255, 204, 0, 0.6); }
+.status-flow {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+}
 
-@media (max-width: 480px) {
-  .color-indicator {
-    font-size: 0.7rem;
-    padding: 1px 4px;
-    letter-spacing: 1px;
-  }
+.flow-cw svg {
+  animation: spin-cw 3s linear infinite;
+}
 
-  .direction-indicator {
-    font-size: 0.7rem;
-    gap: 0.25rem;
-  }
+.flow-ccw svg {
+  animation: spin-ccw 3s linear infinite;
+}
 
-  .direction-icon {
-    font-size: 1rem;
-  }
+@keyframes spin-cw {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes spin-ccw {
+  to { transform: rotate(-360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-cw svg, .flow-ccw svg { animation: none; }
+}
+
+.status-stack {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  color: var(--color-hazard);
+  letter-spacing: 0.05em;
+  text-shadow: 0 0 12px rgba(255, 204, 0, 0.4);
+}
+
+.status-stack.critical {
+  color: var(--color-alert);
+  text-shadow: 0 0 14px rgba(255, 42, 42, 0.5);
+  animation: stack-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes stack-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-stack.critical { animation: none; }
+}
+
+.status-message {
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  letter-spacing: 0.1em;
 }
 </style>

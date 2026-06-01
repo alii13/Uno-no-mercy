@@ -31,24 +31,6 @@
     repeating-linear-gradient(0deg, transparent 0, transparent 50px, #000 50px, #000 51px);
 }
 
-.warning-stripes {
-  position: absolute;
-  left: 0;
-  width: 100%;
-  height: 10px;
-  background: repeating-linear-gradient(
-    45deg,
-    var(--color-hazard-dim),
-    var(--color-hazard-dim) 10px,
-    #000 10px,
-    #000 20px
-  );
-  z-index: var(--z-cards);
-  opacity: 0.5;
-}
-.warning-stripes.top { top: 0; }
-.warning-stripes.bottom { bottom: 0; }
-
 .vignette {
   position: absolute;
   inset: 0;
@@ -77,19 +59,13 @@
    ========================================================================== */
 .surveillance-bar {
   flex: 0 0 auto;
-  background: rgba(0,0,0,0.55);
-  border-bottom: 1px solid #333;
-  padding: var(--spacing-2);
+  background: linear-gradient(180deg, rgba(10, 10, 11, 0.95), rgba(10, 10, 11, 0.6));
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: var(--spacing-2) var(--spacing-3);
   z-index: var(--z-hud);
   display: flex;
   flex-direction: column;
-}
-
-.bar-label {
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
-  margin-bottom: var(--spacing-2);
-  text-align: center;
 }
 
 .bar-content {
@@ -153,60 +129,95 @@
   box-shadow: 0 0 8px var(--color-neon-blue);
 }
 
-/* Multiplayer opponent card style */
+/* Multiplayer opponent card — same pill pattern as single-player OpponentHand */
 .opponent-card {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 1rem;
-  padding: 1rem 2rem;
-  background: rgba(0,0,0,0.4);
-  border: 1px solid #333;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3) var(--spacing-2) var(--spacing-2);
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  min-height: 44px;
+  transition:
+    border-color var(--duration-soft) var(--ease-soft),
+    background var(--duration-soft) var(--ease-soft),
+    box-shadow var(--duration-soft) var(--ease-soft);
 }
 
 .opponent-card.active {
   border-color: var(--color-neon-blue);
-  box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
+  background: rgba(0, 243, 255, 0.06);
+  box-shadow: 0 0 16px rgba(0, 243, 255, 0.25);
+  color: var(--text-primary);
+}
+
+.opponent-card.eliminated {
+  opacity: 0.5;
+  border-style: dashed;
 }
 
 .opponent-card .avatar {
-  width: 50px;
-  height: 50px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background: #222;
-  border: 2px solid #444;
+  background: rgba(255, 255, 255, 0.06);
+  border: none;
   display: flex;
-  justify-content: center;
   align-items: center;
-  font-weight: bold;
-  font-size: 1.5rem;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  flex-shrink: 0;
 }
 
 .opponent-card .avatar-active {
-  border-color: var(--color-neon-blue);
-  box-shadow: 0 0 10px var(--color-neon-blue);
+  background: var(--color-neon-blue);
+  color: var(--bg-concrete);
 }
 
 .opponent-card .opponent-info {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.1;
+  min-width: 0;
 }
 
 .opponent-card .name {
-  font-weight: bold;
+  font-size: var(--text-xs);
+  letter-spacing: 0.15em;
   text-transform: uppercase;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 130px;
+}
+
+.opponent-card .card-count {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  color: var(--color-hazard);
+  margin-top: 2px;
+}
+
+.opponent-card.active .card-count {
+  color: var(--color-neon-blue);
+}
+
+.opponent-card .eliminated-text {
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  letter-spacing: 0.2em;
+  color: var(--color-alert);
 }
 
 .opponent-card .status-indicator {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #333;
-}
-
-.opponent-card .status-indicator.active {
-  background: var(--color-neon-blue);
-  box-shadow: 0 0 10px var(--color-neon-blue);
-  animation: pulse 1s infinite;
+  display: none;
 }
 
 /* ==========================================================================
@@ -245,37 +256,6 @@
   justify-content: center;
 }
 
-/* Subtle ambient frame around the play area — corner glows + thin border
-   anchor the pit visually so it reads as "the table" instead of just empty
-   space. Doesn't compete with the cards or the surveillance bar above. */
-.battle-pit::before {
-  content: '';
-  position: absolute;
-  inset: var(--spacing-2) var(--spacing-4);
-  pointer-events: none;
-  border: 1px solid rgba(255, 204, 0, 0.08);
-  border-radius: var(--radius-sm);
-  box-shadow:
-    inset 0 0 60px rgba(255, 204, 0, 0.03),
-    inset 0 -40px 80px -40px rgba(255, 42, 42, 0.05);
-  z-index: 0;
-}
-/* Corner accents — industrial vibe */
-.battle-pit::after {
-  content: '';
-  position: absolute;
-  inset: var(--spacing-2) var(--spacing-4);
-  pointer-events: none;
-  background:
-    linear-gradient(135deg, rgba(255, 204, 0, 0.5) 0 12px, transparent 12px 100%) top left / 24px 24px no-repeat,
-    linear-gradient(225deg, rgba(255, 204, 0, 0.5) 0 12px, transparent 12px 100%) top right / 24px 24px no-repeat,
-    linear-gradient(45deg, rgba(255, 204, 0, 0.5) 0 12px, transparent 12px 100%) bottom left / 24px 24px no-repeat,
-    linear-gradient(-45deg, rgba(255, 204, 0, 0.5) 0 12px, transparent 12px 100%) bottom right / 24px 24px no-repeat;
-  background-clip: padding-box;
-  opacity: 0.3;
-  z-index: 0;
-}
-
 .station {
   display: flex;
   flex-direction: column;
@@ -310,13 +290,45 @@
 }
 
 .action-hint {
-  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
   color: var(--color-neon-blue);
+  letter-spacing: 0.2em;
   animation: flicker 2s infinite;
+  margin-top: var(--spacing-2);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .action-hint { animation: none; }
+}
+
+/* Discard station gets a glowing ring matching the current play color.
+   This is the distinctive in-game visual hook — color state is the core
+   UNO mechanic, surfaced as the visual anchor of the table. */
 .discard-station {
   position: relative;
+  padding: var(--spacing-3);
+  border-radius: var(--radius-lg);
+  transition:
+    box-shadow var(--duration-soft) var(--ease-soft),
+    background var(--duration-soft) var(--ease-soft);
+}
+
+.discard-color-red {
+  background: radial-gradient(circle, rgba(255, 42, 42, 0.14) 0%, transparent 70%);
+  box-shadow: 0 0 36px rgba(255, 42, 42, 0.4), inset 0 0 0 1px rgba(255, 42, 42, 0.3);
+}
+.discard-color-blue {
+  background: radial-gradient(circle, rgba(0, 191, 255, 0.14) 0%, transparent 70%);
+  box-shadow: 0 0 36px rgba(0, 191, 255, 0.4), inset 0 0 0 1px rgba(0, 191, 255, 0.3);
+}
+.discard-color-green {
+  background: radial-gradient(circle, rgba(0, 255, 102, 0.14) 0%, transparent 70%);
+  box-shadow: 0 0 36px rgba(0, 255, 102, 0.4), inset 0 0 0 1px rgba(0, 255, 102, 0.3);
+}
+.discard-color-yellow {
+  background: radial-gradient(circle, rgba(255, 204, 0, 0.14) 0%, transparent 70%);
+  box-shadow: 0 0 36px rgba(255, 204, 0, 0.4), inset 0 0 0 1px rgba(255, 204, 0, 0.3);
 }
 
 /* ==========================================================================
@@ -410,26 +422,26 @@
   flex-shrink: 0;
 }
 
+/* "Your turn" indicator — replaces the prior full-width green strip with a
+   subtle bottom-only halo behind the hand. Visible enough to register as
+   "your move" without competing with the discard-color ring. */
 .floating-hand-wrapper.is-my-turn::after {
   content: '';
   position: absolute;
-  inset: 0 var(--spacing-2);
+  left: 10%;
+  right: 10%;
+  bottom: -8px;
+  height: 18px;
   pointer-events: none;
-  border-top: 1px solid rgba(0, 255, 102, 0.35);
-  box-shadow: inset 0 12px 32px -16px rgba(0, 255, 102, 0.45);
+  background: radial-gradient(ellipse at center, rgba(0, 255, 102, 0.35) 0%, transparent 70%);
+  filter: blur(4px);
   animation: hand-turn-pulse 2.4s ease-in-out infinite;
   z-index: -1;
 }
 
 @keyframes hand-turn-pulse {
-  0%, 100% {
-    opacity: 0.6;
-    box-shadow: inset 0 12px 32px -16px rgba(0, 255, 102, 0.35);
-  }
-  50% {
-    opacity: 1;
-    box-shadow: inset 0 16px 40px -16px rgba(0, 255, 102, 0.7);
-  }
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -465,32 +477,18 @@
    ========================================================================== */
 .player-console-bar {
   flex: 0 0 auto;
-  background: var(--surface-metal-dark);
-  border-top: 2px solid #333;
   padding: var(--spacing-2) var(--spacing-4);
   z-index: var(--z-hud);
   position: relative;
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
-  gap: var(--spacing-8);
-  font-family: 'Courier New', monospace;
-  font-size: 0.8rem;
-  color: var(--text-secondary);
+  gap: var(--spacing-4);
+  pointer-events: none;
 }
 
-.console-cards {
-  color: var(--color-hazard);
-}
-
-.console-cards .card-count {
-  font-weight: bold;
-  font-size: 1.1rem;
-}
-
-.console-status.status-active {
-  color: var(--color-neon-green);
-  text-shadow: 0 0 5px var(--color-neon-green);
+.player-console-bar > * {
+  pointer-events: auto;
 }
 
 /* ==========================================================================

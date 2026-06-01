@@ -3,21 +3,22 @@
     <div class="pit-table">
       <!-- Draw Station -->
       <div class="station draw-station" @click="$emit('draw')">
-        <div class="station-mark">DRAW_PILE</div>
         <slot name="draw-pile"></slot>
         <div class="action-hint" v-if="showDrawHint">
           {{ drawHintText }}
         </div>
       </div>
 
-      <!-- Discard Station -->
-      <div class="station discard-station" ref="discardAreaRef">
-        <div class="station-mark warning">DISCARD_ZONE</div>
+      <!-- Discard Station — wrapped with a current-color ring -->
+      <div
+        class="station discard-station"
+        :class="currentColor && currentColor !== 'wild' ? `discard-color-${currentColor}` : ''"
+        ref="discardAreaRef"
+      >
         <slot name="discard-pile"></slot>
       </div>
     </div>
 
-    <!-- Status Panel — below the table, centered -->
     <div class="pit-status">
       <slot name="status-panel"></slot>
     </div>
@@ -31,10 +32,11 @@ import { useScreenSize } from '../../composables/useScreenSize'
 defineProps<{
   showDrawHint: boolean
   isMuted: boolean
+  currentColor?: string
 }>()
 
 const { isMobile } = useScreenSize()
-const drawHintText = computed(() => (isMobile.value ? '[ TAP TO DRAW ]' : '[ CLICK TO DRAW ]'))
+const drawHintText = computed(() => (isMobile.value ? 'TAP TO DRAW' : 'CLICK TO DRAW'))
 
 defineEmits<{
   draw: []

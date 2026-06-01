@@ -44,6 +44,7 @@
       ref="battlePitRef"
       :show-draw-hint="isMyTurn && turnState === 'WAITING_FOR_ACTION'"
       :is-muted="soundEffects.isMuted.value"
+      :current-color="currentColor"
       @draw="handleDraw"
     >
       <template #draw-pile>

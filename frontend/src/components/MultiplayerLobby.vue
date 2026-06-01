@@ -41,20 +41,22 @@
             {{ mpStore.loading ? 'CREATING...' : 'CREATE GAME' }}
           </Button>
 
-          <div class="mode-row">
-            <span class="mode-label">RULES</span>
-            <div class="mode-pills">
-              <button
-                v-for="m in stackingModes"
-                :key="m.value"
-                class="mode-pill"
-                :class="{ active: selectedStackingMode === m.value }"
-                @click="selectedStackingMode = m.value"
-                :title="m.desc"
-              >
-                {{ m.label }}
-              </button>
+          <div class="mode-card">
+            <div class="mode-row">
+              <span class="mode-label">RULES</span>
+              <div class="mode-pills">
+                <button
+                  v-for="m in stackingModes"
+                  :key="m.value"
+                  class="mode-pill"
+                  :class="{ active: selectedStackingMode === m.value }"
+                  @click="selectedStackingMode = m.value"
+                >
+                  {{ m.label }}
+                </button>
+              </div>
             </div>
+            <p class="mode-desc">{{ currentModeDesc }}</p>
           </div>
         </div>
 
@@ -203,7 +205,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useAuthStore } from '../stores/authStore'
 import { useMultiplayerStore } from '../stores/multiplayerStore'
 import { useGameStore } from '../stores/gameStore'
@@ -228,14 +230,18 @@ const copied = ref(false)
 const selectedStackingMode = ref<StackingMode>(gameStore.stackingMode)
 
 const stackingModes: { value: StackingMode; label: string; desc: string }[] = [
-  { value: 'official', label: 'OFFICIAL', desc: 'Equal or higher value to stack a draw' },
-  { value: 'house', label: 'HOUSE', desc: 'Wild draws stack on anything' },
-  { value: 'casual', label: 'CASUAL', desc: 'Any draw stacks on any draw' },
+  { value: 'official', label: 'OFFICIAL', desc: 'Printed rules — stack a draw only with equal or higher value' },
+  { value: 'house', label: 'HOUSE', desc: 'Wild draws (+4 / +6 / +10) stack on anything; colored draws stay strict' },
+  { value: 'casual', label: 'CASUAL', desc: 'Anything goes — any draw card stacks on any other draw card' },
 ]
 
 function modeLabel(m: StackingMode) {
   return stackingModes.find((x) => x.value === m)?.label || 'OFFICIAL'
 }
+
+const currentModeDesc = computed(
+  () => stackingModes.find((x) => x.value === selectedStackingMode.value)?.desc || '',
+)
 
 async function handleCreateGame() {
   await mpStore.createGame(selectedStackingMode.value)
@@ -402,14 +408,29 @@ function copyRoomCode() {
   gap: var(--spacing-3);
 }
 
+.mode-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
 .mode-row {
   display: flex;
   align-items: center;
   gap: var(--spacing-3);
-  padding: var(--spacing-2) var(--spacing-3);
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: var(--radius-sm);
+}
+
+.mode-desc {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  line-height: 1.5;
+  letter-spacing: 0.04em;
 }
 
 .mode-label {
