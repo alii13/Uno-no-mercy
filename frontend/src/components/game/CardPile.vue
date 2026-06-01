@@ -55,6 +55,8 @@ import type { Card as CardType } from '../../types/card'
 import Card from './Card.vue'
 import CardBack from './CardBack.vue'
 import { useScreenSize } from '../../composables/useScreenSize'
+import { useGameStore } from '../../stores/gameStore'
+import { useMultiplayerStore } from '../../stores/multiplayerStore'
 
 const props = defineProps<{
   cards: CardType[]
@@ -105,9 +107,21 @@ function getScatterStyle(index: number) {
   }
 }
 
+const gameStore = useGameStore()
+const mpStore = useMultiplayerStore()
+
 // Animate new card landing on discard pile
 watch(() => props.cards.length, (newLen, oldLen) => {
   if (props.isDiscard && newLen > oldLen && topCardRef.value) {
+    // The flying-clone in PlayerHand IS the visual when the human throws their
+    // own card — skip our own slam for that beat so the user doesn't see two
+    // animations stacked. Bot plays (and any other state mutation) leave the
+    // flag false, so the slam fires as the only visual.
+    if (gameStore.suppressDiscardSlam || mpStore.suppressDiscardSlam) {
+      gameStore.suppressDiscardSlam = false
+      mpStore.suppressDiscardSlam = false
+      return
+    }
     nextTick(() => {
       if (topCardRef.value) {
         // Dramatic slam — back.out overshoots and settles, less cartoony than bounce.

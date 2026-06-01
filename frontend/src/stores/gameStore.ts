@@ -18,7 +18,7 @@ export const useGameStore = defineStore('game', () => {
     // Timings (single tunable block).
     // Reduced from older values that produced a "sluggish/stuck" feel on Reddit feedback.
     const TIMINGS = {
-        botThink: 700,           // ms between turn-start and bot acting (was 2000)
+        botThink: 1100,          // ms between turn-start and bot acting (was 2000 -> 700 was too fast to register the play)
         botRoulette: 250,        // ms before bot reacts to roulette (was 500)
         drawStaggerPenalty: 90,  // ms per card during stacked-penalty draw (was 250)
         drawUntilPlayableRetry: 150, // ms between "drew unplayable, draw again" (was 400)
@@ -64,6 +64,14 @@ export const useGameStore = defineStore('game', () => {
     // Re-entrancy guard. Set when a play/draw is in flight so rapid clicks don't queue
     // up actions while bot delays / draw cascades / animations are still resolving.
     const actionInProgress = ref(false)
+
+    // When the human throws their own card, PlayerHand already shows a flying-clone
+    // animation arriving on the discard pile. CardPile would otherwise also fire its
+    // "slam from above" on the new top card — double animation. Set this true right
+    // before player-initiated playCard; CardPile reads + resets it. Bot plays leave
+    // it false, so the slam is the ONLY visual (which is correct — there's no clone
+    // for bot throws).
+    const suppressDiscardSlam = ref(false)
 
     // Stacking mode - persists in localStorage so the user keeps their pick across sessions
     function loadStackingMode(): StackingMode {
@@ -909,6 +917,7 @@ export const useGameStore = defineStore('game', () => {
         showUnoButton,
         hasCalledUno,
         actionInProgress,
+        suppressDiscardSlam,
         stackingMode,
         setStackingMode,
         initializeGame,

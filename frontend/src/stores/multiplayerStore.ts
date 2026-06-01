@@ -25,6 +25,10 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     const loading = ref(false)
     const error = ref<string | null>(null)
     const actionInProgress = ref(false) // Prevents double-clicks during async ops
+    // Set true right before our own playCard mutates the discard pile, so CardPile's
+    // own "slam from above" doesn't double up with the flying-clone visual in
+    // MultiplayerPlayerHand. CardPile reads and resets it.
+    const suppressDiscardSlam = ref(false)
     const opponentLeft = ref(false) // True when opponent leaves during game
     const pendingDrawnWildCard = ref<Card | null>(null) // Wild card drawn that needs color selection
     const pendingDiscardAllCards = ref<Card[]>([]) // Cards to choose top from during Discard All
@@ -1546,6 +1550,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         stackingMode,
         opponentLeft,
         actionInProgress,
+        suppressDiscardSlam,
         pendingDrawnWildCard,
         pendingDiscardAllCards,
         createGame,

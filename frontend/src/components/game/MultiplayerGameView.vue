@@ -464,6 +464,7 @@ async function handlePlayCard(card: Card) {
   }
   
   soundEffects.playCardThrow()
+  mpStore.suppressDiscardSlam = true
   await mpStore.playCard(card)
   soundEffects.playCardLand()
 }
@@ -472,6 +473,7 @@ async function handleColorSelect(color: CardColor) {
   showColorPicker.value = false
   if (pendingCard.value) {
     soundEffects.playCardThrow()
+    mpStore.suppressDiscardSlam = true
     await mpStore.playCard(pendingCard.value, color)
     soundEffects.playCardLand()
     pendingCard.value = null

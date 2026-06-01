@@ -5,9 +5,10 @@
         v-for="(card, index) in hand" 
         :key="card.id"
         class="hand-card-wrapper"
-        :class="{ 
+        :class="{
           'unplayable': isMyTurn && !canPlay(card),
-          'playable-glow': isMyTurn && canPlay(card)
+          'playable-glow': isMyTurn && canPlay(card),
+          'fresh-card': hiddenCardIds.has(card.id)
         }"
         :ref="(el: any) => setCardRef(card.id, el)"
         :style="{ ...getCardStyle(index), marginRight: index < hand.length - 1 ? cardOverlap + 'px' : '0' }"
@@ -54,6 +55,33 @@ const props = defineProps<{
 const store = useGameStore()
 const { screenWidth, isMobile, isTablet } = useScreenSize()
 const hoverIndex = ref(-1)
+
+// Cards that just landed in the hand via a draw animation. While in this set
+// they render invisibly so they don't pop in before the flying card-back clone
+// finishes its travel from the deck. Cleared shortly after the clone lands.
+const hiddenCardIds = ref(new Set<string>())
+const knownIds = new Set<string>()
+// Seed knownIds with the initial hand so the deal animation doesn't trigger the
+// "hidden" treatment.
+for (const c of props.hand) knownIds.add(c.id)
+
+watch(() => props.hand.map(c => c.id), (ids) => {
+  const fresh: string[] = []
+  for (const id of ids) {
+    if (!knownIds.has(id)) {
+      fresh.push(id)
+      knownIds.add(id)
+    }
+  }
+  if (fresh.length === 0) return
+  for (const id of fresh) hiddenCardIds.value.add(id)
+  // Match the flying-clone duration (~400ms) with a small buffer for the eye.
+  setTimeout(() => {
+    for (const id of fresh) hiddenCardIds.value.delete(id)
+    // Trigger reactivity since Set mutations aren't reactive on their own
+    hiddenCardIds.value = new Set(hiddenCardIds.value)
+  }, 380)
+})
 
 const baseCardSize = computed(() => {
   if (isMobile.value) return { width: 65, height: 91 }
@@ -191,6 +219,8 @@ function executePlayCard(card: CardType, selectedColor?: CardColor) {
 
   // Fire game-state update FIRST so the game advances at click-speed.
   // The throw is cosmetic theatre that plays in parallel.
+  // Signal CardPile to skip its own "slam from above" — the flying clone IS the visual.
+  store.suppressDiscardSlam = true
   store.playerActionPlayCard(card, selectedColor)
   if (card.color === 'wild' || card.type.includes('draw')) {
     soundEffects.playSpecialCard()
@@ -320,10 +350,17 @@ function triggerPileFlash(color: CardColor | 'wild') {
 
 .hand-card-wrapper {
   position: relative;
-  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s ease-out;
   cursor: pointer;
   transform-origin: bottom center;
   will-change: transform;
+}
+
+/* Newly-drawn card hides until the flying card-back clone has landed, so the
+   user doesn't see the card pop into the hand AND a clone fly in at the same
+   time. The watch above clears the class ~380ms after the draw. */
+.hand-card-wrapper.fresh-card {
+  opacity: 0;
 }
 
 .hand-card-wrapper:hover {
