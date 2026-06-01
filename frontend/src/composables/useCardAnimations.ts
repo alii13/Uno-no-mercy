@@ -72,19 +72,22 @@ export function useCardAnimations() {
         const fromRect = fromEl.getBoundingClientRect()
         const toRect = toEl.getBoundingClientRect()
 
-        // Set initial position at deck
+        // Set initial position at deck. `left`/`top` are static — animation rides on transform.
         gsap.set(cardEl, {
             position: 'fixed',
             left: fromRect.left,
             top: fromRect.top,
+            x: 0,
+            y: 0,
             zIndex: 1000,
             scale: 1,
-            rotation: 0
+            rotation: 0,
+            willChange: 'transform'
         })
 
         return gsap.to(cardEl, {
-            left: toRect.left,
-            top: toRect.top,
+            x: toRect.left - fromRect.left,
+            y: toRect.top - fromRect.top,
             rotation: gsap.utils.random(-5, 5),
             duration: options.duration || 0.5,
             ease: options.ease || 'power2.out',
@@ -108,18 +111,24 @@ export function useCardAnimations() {
         const clone = cardEl.cloneNode(true) as HTMLElement
         document.body.appendChild(clone)
 
+        const targetX = toRect.left + toRect.width / 2 - cardRect.width / 2
+        const targetY = toRect.top + toRect.height / 2 - cardRect.height / 2
+
         gsap.set(clone, {
             position: 'fixed',
             left: cardRect.left,
             top: cardRect.top,
             width: cardRect.width,
             height: cardRect.height,
-            zIndex: 1000
+            x: 0,
+            y: 0,
+            zIndex: 1000,
+            willChange: 'transform'
         })
 
         return gsap.to(clone, {
-            left: toRect.left + toRect.width / 2 - cardRect.width / 2,
-            top: toRect.top + toRect.height / 2 - cardRect.height / 2,
+            x: targetX - cardRect.left,
+            y: targetY - cardRect.top,
             rotation: gsap.utils.random(-15, 15),
             scale: 0.8,
             duration: options.duration || 0.4,
@@ -259,10 +268,15 @@ export function useCardAnimations() {
         positionAtRect(cardEl, deckRect)
         document.body.appendChild(cardEl)
 
+        const targetLeft = targetRect.left + targetRect.width / 2 - 30
+        const targetTop = targetRect.top + targetRect.height / 2 - 42
+
+        gsap.set(cardEl, { x: 0, y: 0, willChange: 'transform' })
+
         return new Promise<void>((resolve) => {
             gsap.to(cardEl, {
-                left: targetRect.left + targetRect.width / 2 - 30,
-                top: targetRect.top + targetRect.height / 2 - 42,
+                x: targetLeft - deckRect.left,
+                y: targetTop - deckRect.top,
                 rotation: gsap.utils.random(-10, 10),
                 duration: options.duration || 0.3,
                 delay: options.delay || 0,
@@ -319,14 +333,18 @@ export function useCardAnimations() {
         const targetRect = targetEl.getBoundingClientRect()
         const staggerDelay = options.staggerDelay ?? 0.12
 
+        const targetLeft = targetRect.left + targetRect.width / 2 - 30
+        const targetTop = targetRect.top + targetRect.height / 2 - 42
+
         for (let i = 0; i < count; i++) {
             const cardEl = createCardBackElement()
             positionAtRect(cardEl, deckRect)
             document.body.appendChild(cardEl)
+            gsap.set(cardEl, { x: 0, y: 0, willChange: 'transform' })
 
             gsap.to(cardEl, {
-                left: targetRect.left + targetRect.width / 2 - 30,
-                top: targetRect.top + targetRect.height / 2 - 42,
+                x: targetLeft - deckRect.left,
+                y: targetTop - deckRect.top,
                 rotation: gsap.utils.random(-10, 10),
                 duration: options.duration || 0.3,
                 delay: i * staggerDelay,

@@ -116,12 +116,14 @@ function getCardStyle(index: number) {
 function canPlay(card: CardType) {
   if (!props.isMyTurn) return false
   if (store.turnState !== 'WAITING_FOR_ACTION') return false
+  if (store.actionInProgress) return false
   if (!store.topCard) return false
   return canPlayCard(card, store.topCard, store.currentColor, store.drawStack, store.stackingMode)
 }
 
 function handleCardClick(card: CardType, _event: MouseEvent) {
   if (!canPlay(card)) return
+  if (store.actionInProgress) return
 
   // If Wild and NOT Roulette, show picker first
   // (Roulette color is chosen by the victim AFTER play, so direct play)
@@ -143,7 +145,7 @@ function handleColorSelect(color: CardColor) {
   }
 }
 
-async function executePlayCard(card: CardType, selectedColor?: CardColor) {
+function executePlayCard(card: CardType, selectedColor?: CardColor) {
   const cardEl = cardRefs.value.get(card.id)
   if (!cardEl || !discardAreaRef?.value || !animationLayer?.value) {
     // Fallback: just play without animation
@@ -151,12 +153,11 @@ async function executePlayCard(card: CardType, selectedColor?: CardColor) {
     store.playerActionPlayCard(card, selectedColor)
     return
   }
-  
-  // Get positions
+
   const cardRect = cardEl.getBoundingClientRect()
   const discardRect = discardAreaRef.value.getBoundingClientRect()
-  
-  // Create flying card clone
+
+  // Flying-card clone — visual only.
   const clone = cardEl.cloneNode(true) as HTMLElement
   clone.style.position = 'fixed'
   clone.style.left = `${cardRect.left}px`
@@ -166,55 +167,38 @@ async function executePlayCard(card: CardType, selectedColor?: CardColor) {
   clone.style.zIndex = '1000'
   clone.style.pointerEvents = 'none'
   clone.style.margin = '0'
-  clone.style.transform = 'none'
-  
-  // If it's a wild card and we picked a color, maybe tint the clone?
-  // For now, keep it simple.
-  
   animationLayer.value.appendChild(clone)
-  
-  // Hide original card
   cardEl.style.opacity = '0'
-  
-  // Play throw sound
+
   soundEffects.playCardThrow()
-  
-  // Calculate target position (center of discard)
+
   const targetX = discardRect.left + discardRect.width / 2 - cardRect.width / 2
   const targetY = discardRect.top + discardRect.height / 2 - cardRect.height / 2
-  
-  // Random rotation for landing
+  const dx = targetX - cardRect.left
+  const dy = targetY - cardRect.top
   const landRotation = gsap.utils.random(-20, 20)
-  
-  // Animate the throw with arc
-  await gsap.to(clone, {
-    left: targetX,
-    top: targetY,
-    rotation: landRotation,
-    scale: 0.85,
-    duration: 0.35,
-    ease: 'power2.out',
-    onUpdate: function() {
-      // Add slight arc by modifying Y during animation
-      const progress = this.progress()
-      const arcHeight = -60 * Math.sin(progress * Math.PI)
-      clone.style.transform = `translateY(${arcHeight}px) rotate(${landRotation * progress}deg) scale(${1 - progress * 0.15})`
-    }
-  })
-  
-  // Play land sound
-  soundEffects.playCardLand()
-  
-  // Remove clone
-  clone.remove()
-  
-  // Play the card (this updates the store)
+
+  // Fire game-state update FIRST so the game advances at click-speed.
+  // The throw is cosmetic theatre that plays in parallel.
   store.playerActionPlayCard(card, selectedColor)
-  
-  // Check if it's a special card and play special sound
   if (card.color === 'wild' || card.type.includes('draw')) {
     soundEffects.playSpecialCard()
   }
+
+  // Single transform tween — compositor-only, no layout.
+  // Arc is added in section C+ via MotionPath. For now keep it straight + fast.
+  gsap.to(clone, {
+    x: dx,
+    y: dy,
+    rotation: landRotation,
+    scale: 0.85,
+    duration: 0.28,
+    ease: 'power3.out',
+    onComplete: () => {
+      soundEffects.playCardLand()
+      clone.remove()
+    }
+  })
 }
 </script>
 
@@ -240,9 +224,10 @@ async function executePlayCard(card: CardType, selectedColor?: CardColor) {
 
 .hand-card-wrapper {
   position: relative;
-  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), margin-right 0.3s ease;
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   cursor: pointer;
   transform-origin: bottom center;
+  will-change: transform;
 }
 
 .hand-card-wrapper:hover {
@@ -251,8 +236,9 @@ async function executePlayCard(card: CardType, selectedColor?: CardColor) {
   position: relative;
 }
 
+/* Static shadow on the wrapper (composited) instead of drop-shadow filter on hover. */
 .hand-card-wrapper:hover .hand-card {
-  filter: drop-shadow(0 20px 30px rgba(0, 0, 0, 0.6));
+  box-shadow: 0 18px 28px rgba(0, 0, 0, 0.55);
 }
 
 .unplayable {
@@ -267,17 +253,29 @@ async function executePlayCard(card: CardType, selectedColor?: CardColor) {
   filter: grayscale(0);
 }
 
+/* Playable glow: keep a static box-shadow + border, pulse opacity on a pseudo-element.
+   Animating opacity stays on the compositor; animating box-shadow forces paint. */
 .playable-glow .hand-card {
-  box-shadow: 0 0 15px rgba(0, 243, 255, 0.5); /* Neon Blue Glow */
+  box-shadow: 0 0 15px rgba(0, 243, 255, 0.5);
   border: 1px solid rgba(0, 243, 255, 0.8);
-  border-radius: 8px; /* Match card radius approx */
-  animation: pulse-glow 2s infinite;
+  border-radius: 8px;
+  position: relative;
+}
+
+.playable-glow .hand-card::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 10px;
+  pointer-events: none;
+  box-shadow: 0 0 22px rgba(0, 243, 255, 0.85);
+  opacity: 0;
+  animation: pulse-glow 2.4s ease-in-out infinite;
 }
 
 @keyframes pulse-glow {
-  0% { box-shadow: 0 0 10px rgba(0, 243, 255, 0.3); border-color: rgba(0, 243, 255, 0.6); }
-  50% { box-shadow: 0 0 25px rgba(0, 243, 255, 0.8); border-color: rgba(0, 243, 255, 1); }
-  100% { box-shadow: 0 0 10px rgba(0, 243, 255, 0.3); border-color: rgba(0, 243, 255, 0.6); }
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
 }
 
 /* When it's not the player's turn, gray out all cards */

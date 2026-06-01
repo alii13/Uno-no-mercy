@@ -197,22 +197,22 @@ function triggerDrawAnimation(playerId: string, count: number) {
     })
 }
 
-// Watch for hand size increases to animate draws (Flying Cards)
-// Skip animation during initial dealing - that has its own animation
-watch(() => store.players, (newPlayers) => {
-  newPlayers.forEach(p => {
-    const oldLen = prevHandLengths.value[p.id] || 0
-    
-    // Only animate if NOT during initial deal AND cards increased
-    if (!store.isDealing && p.hand.length > oldLen && oldLen > 0) {
-      const count = p.hand.length - oldLen
-      triggerDrawAnimation(p.id, count)
-    }
-    
-    // Always update tracking (even during dealing)
-    prevHandLengths.value[p.id] = p.hand.length
-  })
-}, { deep: true, immediate: true })
+// Watch for hand size increases to animate draws (Flying Cards).
+// Watch a derived (id, length) tuple array so Vue doesn't have to deep-traverse
+// every card on every mutation.
+watch(
+  () => store.players.map(p => [p.id, p.hand.length] as const),
+  (next) => {
+    next.forEach(([id, len]) => {
+      const oldLen = prevHandLengths.value[id] || 0
+      if (!store.isDealing && len > oldLen && oldLen > 0) {
+        triggerDrawAnimation(id, len - oldLen)
+      }
+      prevHandLengths.value[id] = len
+    })
+  },
+  { immediate: true }
+)
 
 const gameMessage = computed(() => {
   if (store.turnState === 'CHOOSING_PLAYER_TO_SWAP') return isMyTurn.value ? "SELECT PLAYER TO SWAP HANDS" : "BOT IS CHOOSING SWAP TARGET..."
@@ -260,6 +260,7 @@ function triggerShake() {
 
 function drawCard() {
   if (!isMyTurn.value || store.turnState !== 'WAITING_FOR_ACTION') return
+  if (store.actionInProgress) return
   // Only allow drawing when no playable cards exist (except during draw stack)
   if (store.drawStack === 0 && store.topCard && myPlayer.value) {
     const hasPlayable = myPlayer.value.hand.some(c =>
