@@ -88,6 +88,12 @@ const volume = ref(initial.volume)
 const isMuted = ref(initial.isMuted)
 const isPlaying = ref(false)
 const isDucked = ref(false)
+// Increments every time stop() is called. Any in-flight start() captures
+// the value at call time; if the value differs when its play() promise
+// resolves, the start was cancelled while async and must NOT fade up.
+// Without this guard the user can see music keep playing on the lobby
+// after exiting a game, because the play() promise resolves after unmount.
+let stopGeneration = 0
 
 watch([volume, isMuted], () => {
     saveSettings({ volume: volume.value, isMuted: isMuted.value })
@@ -107,14 +113,21 @@ export function useMusic() {
     function start(): void {
         const el = ensureAudio()
         if (!el || isMuted.value) return
-        // Browsers block autoplay until user gesture. start() is called
-        // after the user clicks PLAY NOW / VS BOT, so the play promise
-        // usually resolves. If it rejects (very-restrictive autoplay
-        // policy), we just stay silent.
+        // Capture the stop generation at call time. If stop() runs while
+        // the play() promise is pending, the captured value will be stale
+        // and we'll bail out of the fade-up instead of resurrecting paused
+        // audio after the user has already navigated away.
+        const myGen = stopGeneration
         el.volume = 0
         const p = el.play()
         if (p && typeof p.then === 'function') {
             p.then(() => {
+                if (myGen !== stopGeneration) {
+                    // We were cancelled mid-play(). Pause again in case the
+                    // browser un-paused us, and don't fade up.
+                    el.pause()
+                    return
+                }
                 isPlaying.value = true
                 fadeTo(el, effectiveVolume(), 1200)
             }).catch(() => { /* autoplay blocked — stay silent */ })
@@ -122,9 +135,15 @@ export function useMusic() {
     }
 
     function stop(): void {
-        if (!audio) return
-        fadeTo(audio, 0, 600)
+        // Bump generation FIRST so any in-flight start() sees the change.
+        stopGeneration++
         isPlaying.value = false
+        if (!audio) return
+        // Pause synchronously so even if a stale play().then() fires before
+        // fadeTo finishes its 600ms interval, the audio is already silent.
+        audio.pause()
+        // Then fade volume to 0 for the next start() to begin from zero.
+        fadeTo(audio, 0, 600)
     }
 
     function duck(): void {
