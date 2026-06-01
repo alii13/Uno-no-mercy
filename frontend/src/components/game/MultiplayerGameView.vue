@@ -169,6 +169,7 @@ import PlayerConsoleBar from './PlayerConsoleBar.vue'
 import GameOverModal from './GameOverModal.vue'
 import type { Card, CardColor } from '../../types/card'
 import { useStackEscalation } from '../../composables/useStackEscalation'
+import { playDealerIntro } from '../../composables/useDealerIntro'
 
 const mpStore = useMultiplayerStore()
 const authStore = useAuthStore()
@@ -359,6 +360,9 @@ watch(gameStatus, async (newStatus, oldStatus) => {
     // Wait a moment for DOM to update
     await new Promise(r => setTimeout(r, 200))
 
+    // Dealer ceremony before the deal
+    await playDealerIntro()
+
     // Animate dealing to player hand
     const myHandCount = myHand.value.length
     if (myHandCount > 0 && playerHandRef.value) {
@@ -459,10 +463,13 @@ onMounted(async () => {
   if (gameStatus.value === 'playing' && myHand.value.length > 0) {
     isInitialDeal.value = true
     showHand.value = false  // Hide cards initially
-    
+
     // Wait for DOM to be ready
     await new Promise(r => setTimeout(r, 100))
-    
+
+    // Dealer ceremony — riffle the deck before any cards fly to the hand
+    await playDealerIntro()
+
     // Animate dealing cards to player hand
     const cardCount = myHand.value.length
     if (playerHandRef.value) {
