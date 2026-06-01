@@ -24,6 +24,7 @@
         <div class="switch-label">AUDIO</div>
         <div class="switch-indicator" :class="{ active: !isMuted }"></div>
       </div>
+      <SettingsButton class="utilities-settings" />
     </div>
   </div>
 </template>
@@ -31,6 +32,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useScreenSize } from '../../composables/useScreenSize'
+import SettingsButton from '../SettingsButton.vue'
 
 defineProps<{
   showDrawHint: boolean

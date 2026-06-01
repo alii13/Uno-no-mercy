@@ -76,6 +76,9 @@
       @showAuth="handleShowAuth('signup')"
       @showStats="showDashboard = true"
     />
+
+    <!-- Always-mounted global settings drawer (Teleport'd to body) -->
+    <SettingsDrawer />
   </div>
 </template>
 
@@ -87,6 +90,7 @@ import MultiplayerLobby from './components/MultiplayerLobby.vue'
 import PlayerDashboard from './components/PlayerDashboard.vue'
 import GameView from './components/game/GameView.vue'
 import MultiplayerGameView from './components/game/MultiplayerGameView.vue'
+import SettingsDrawer from './components/SettingsDrawer.vue'
 import { useAuthStore } from './stores/authStore'
 import { supabase } from './lib/supabase'
 import { useMultiplayerStore } from './stores/multiplayerStore'

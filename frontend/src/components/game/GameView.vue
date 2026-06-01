@@ -115,6 +115,7 @@
 import { computed, ref, provide, watch, onMounted, onUnmounted, toRef } from 'vue'
 import { music } from '../../composables/useMusic'
 import { useStackEscalation } from '../../composables/useStackEscalation'
+import { playDealerIntro } from '../../composables/useDealerIntro'
 import { useRetentionStore } from '../../stores/retentionStore'
 import { useGameStore } from '../../stores/gameStore'
 import { useAuthStore } from '../../stores/authStore'
@@ -167,6 +168,7 @@ const prevHandLengths = ref<Record<string, number>>({})
 onMounted(async () => {
   music.start()
   if (store.isDealing) {
+    await playDealerIntro()
     await store.dealInitialCards(animateSingleCardDeal)
   }
 })
@@ -178,6 +180,7 @@ onMounted(async () => {
 // the modal closes but the hands stay empty and turnState stays 'DEALING'.
 watch(() => store.isDealing, async (dealing) => {
   if (dealing) {
+    await playDealerIntro()
     await store.dealInitialCards(animateSingleCardDeal)
   }
 })

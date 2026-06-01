@@ -11,6 +11,21 @@ import App from './App.vue'
 // every x/y/opacity/scale tween logs "Missing plugin?" warnings and no-ops.
 gsap.registerPlugin(CSSPlugin, Flip, MotionPathPlugin)
 
+// Global reduced-motion guard. When prefers-reduced-motion: reduce is set
+// (or the user toggles motion off in our settings drawer), shrink every
+// GSAP duration to ~0 so animations effectively jump-cut instead of moving.
+// This avoids having to wrap every individual gsap.to() call in code.
+const motionMatcher = window.matchMedia('(prefers-reduced-motion: reduce)')
+function applyMotionPreference(reduced: boolean) {
+    gsap.defaults({ duration: reduced ? 0.001 : undefined })
+}
+applyMotionPreference(motionMatcher.matches)
+motionMatcher.addEventListener?.('change', (e) => applyMotionPreference(e.matches))
+// Also listen for our own manual override (set by the settings drawer).
+window.addEventListener('uno:motion-override', ((e: CustomEvent<{ reduced: boolean }>) => {
+    applyMotionPreference(e.detail.reduced)
+}) as EventListener)
+
 const app = createApp(App)
 const pinia = createPinia()
 
