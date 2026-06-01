@@ -1,3 +1,23 @@
+/* ==========================================================================
+   PHASE 0 — TOKEN SCAFFOLD
+   Tailwind v4 theme layer only. No preflight, no utilities yet. This wires
+   the @theme pipeline so Phase 1 can populate token values when Landing
+   forces real spacing/radius/elevation/motion decisions. Until then, the
+   existing :root { --color-* } block below remains the source of truth.
+   ========================================================================== */
+@import "tailwindcss/theme.css" layer(theme);
+
+@theme {
+  /* color    — populated Phase 1 */
+  /* spacing  — populated Phase 1 (4px base scale) */
+  /* radius   — populated Phase 1 */
+  /* opacity  — populated Phase 1 */
+  /* shadow   — populated Phase 1 (elevation + neon glows) */
+  /* motion   — populated Phase 1 (duration + easing tokens) */
+  /* type     — populated Phase 1 */
+  /* z-index  — populated Phase 2 (in-game stress-tests the scale) */
+}
+
 :root {
   /* Industrial Chaos Palette */
   --bg-concrete: #0a0a0b;
@@ -52,6 +72,14 @@ body {
 
 button {
   font-family: var(--font-body);
+}
+
+/* Opt-in keyboard focus ring. Applied via v-focus-ring directive; no
+   effect until a component sets the class. Phase 1+ components consume it. */
+.focus-ring:focus-visible {
+  outline: 2px solid var(--focus-ring-color, var(--color-neon-blue));
+  outline-offset: 2px;
+  border-radius: inherit;
 }
 
 /* Scrollbar styling for any scrollable areas */
