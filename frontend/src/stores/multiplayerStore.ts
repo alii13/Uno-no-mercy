@@ -32,6 +32,10 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     const opponentLeft = ref(false) // True when opponent leaves during game
     const pendingDrawnWildCard = ref<Card | null>(null) // Wild card drawn that needs color selection
     const pendingDiscardAllCards = ref<Card[]>([]) // Cards to choose top from during Discard All
+    // Realtime channel connectivity — surfaced in the UI as a reconnecting pill
+    // when Supabase loses the WS to game updates. Values mirror what the
+    // .subscribe() callback reports: 'SUBSCRIBED' once we're live.
+    const realtimeStatus = ref<'SUBSCRIBED' | 'CHANNEL_ERROR' | 'TIMED_OUT' | 'CLOSED' | 'CONNECTING'>('CONNECTING')
     let gameChannel: RealtimeChannel | null = null
 
     // --- In-game stat tracking ---
@@ -364,7 +368,13 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     }
                 }
             })
-            .subscribe(() => {})
+            .subscribe((status) => {
+                // status is one of: SUBSCRIBED | CHANNEL_ERROR | TIMED_OUT | CLOSED
+                if (status === 'SUBSCRIBED' || status === 'CHANNEL_ERROR'
+                    || status === 'TIMED_OUT' || status === 'CLOSED') {
+                    realtimeStatus.value = status
+                }
+            })
     }
 
     // Start the game (host only)
@@ -1524,6 +1534,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         roomCode,
         stackingMode,
         opponentLeft,
+        realtimeStatus,
         actionInProgress,
         suppressDiscardSlam,
         pendingDrawnWildCard,

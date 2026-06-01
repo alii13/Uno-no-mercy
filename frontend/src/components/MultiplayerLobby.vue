@@ -11,6 +11,7 @@
         <span>{{ authStore.username }}</span>
         <button v-if="authStore.isAnonymous" @click="upgradeAccount" class="logout-btn" style="border-color: var(--color-neon-blue); color: var(--color-neon-blue);">CREATE ACCOUNT</button>
         <button @click="authStore.signOut()" class="logout-btn">LOGOUT</button>
+        <SettingsButton />
       </div>
     </div>
     
@@ -166,6 +167,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useMultiplayerStore } from '../stores/multiplayerStore'
 import { useGameStore } from '../stores/gameStore'
 import SiteFooter from './SiteFooter.vue'
+import SettingsButton from './SettingsButton.vue'
 import type { StackingMode } from '../utils/gameRules'
 
 const emit = defineEmits<{
