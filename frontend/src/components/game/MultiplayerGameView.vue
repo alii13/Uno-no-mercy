@@ -133,22 +133,19 @@
       </div>
     </div>
 
-    <!-- Game Over -->
-    <div v-if="gameStatus === 'finished' && !opponentLeft" class="overlay">
-      <div class="modal terminal-modal">
-        <h1 class="glitch-text" data-text="GAME OVER">GAME OVER</h1>
-        <p class="winner-text">VICTOR: {{ winnerName }}</p>
-        <div class="gameover-share">
-          <button @click="shareToTwitter" class="share-social-btn twitter-btn">SHARE ON X</button>
-          <button @click="shareToWhatsApp" class="share-social-btn whatsapp-btn">SHARE ON WHATSAPP</button>
-        </div>
-        <div v-if="authStore.isAnonymous" class="upgrade-prompt">
-          <p class="upgrade-text">Create an account to save your stats and play with friends anytime</p>
-          <button @click="handleUpgrade" class="btn-primary" style="border-color: var(--color-neon-blue); color: var(--color-neon-blue);">CREATE ACCOUNT</button>
-        </div>
-        <button @click="leaveGame" class="btn-primary">RETURN TO LOBBY</button>
-      </div>
-    </div>
+    <GameOverModal
+      v-if="gameStatus === 'finished' && !opponentLeft"
+      :is-winner="isMpWinner"
+      :winner-name="winnerName"
+      :stats="mpGameStats"
+      :is-anonymous="authStore.isAnonymous"
+      mode="mp"
+      @rematch="leaveGame"
+      @back-to-lobby="leaveGame"
+      @upgrade-account="handleUpgrade"
+      @share-twitter="shareToTwitter"
+      @share-whatsapp="shareToWhatsApp"
+    />
   </div>
 </template>
 
@@ -168,6 +165,7 @@ import SurveillanceBar from './SurveillanceBar.vue'
 import BattlePit from './BattlePit.vue'
 import StatusPanel from './StatusPanel.vue'
 import PlayerConsoleBar from './PlayerConsoleBar.vue'
+import GameOverModal from './GameOverModal.vue'
 import type { Card, CardColor } from '../../types/card'
 
 const mpStore = useMultiplayerStore()
@@ -236,6 +234,19 @@ const winnerName = computed(() => {
   if (currentGame.value.winner_id === authStore.user?.id) return 'YOU!'
   const winner = mpStore.gamePlayers.find(p => p.user_id === currentGame.value?.winner_id)
   return winner?.name || 'Opponent'
+})
+
+const isMpWinner = computed(() => currentGame.value?.winner_id === authStore.user?.id)
+
+const mpGameStats = computed(() => {
+  const s = (mpStore as any).mpStats?.value || (mpStore as any).mpStats
+  if (!s) return undefined
+  return {
+    cardsPlayed: s.cardsPlayedTotal || 0,
+    biggestStack: s.biggestStackSurvived || 0,
+    unosCalled: s.unoCalls || 0,
+    peakHand: s.peakCards || 0,
+  }
 })
 
 // Display deck (just show a placeholder array for the pile)
