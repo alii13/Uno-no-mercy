@@ -8,7 +8,7 @@
       </a>
 
       <div class="top-bar-cta">
-        <Button variant="primary" size="md" @click="reportAndEmit('playGuest')">
+        <Button variant="primary" size="sm" @click="reportAndEmit('playGuest')">
           PLAY NOW
         </Button>
         <button class="text-link" @click="reportAndEmit('showAuth', 'signup')">
@@ -18,7 +18,6 @@
         <button class="text-link" @click="reportAndEmit('showAuth', 'login')">
           SIGN IN
         </button>
-        <SettingsButton class="top-bar-settings" />
       </div>
     </header>
 
@@ -59,13 +58,19 @@
               preserveAspectRatio="none"
               aria-hidden="true"
             >
-              <line x1="2" y1="4" x2="98" y2="4" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+              <line x1="2" y1="4" x2="98" y2="4" stroke="currentColor" stroke-width="5" stroke-linecap="round" />
             </svg>
           </span>
         </span>
       </div>
 
       <p class="hero-tagline" ref="taglineRef">THE RUTHLESS CARD BATTLE</p>
+
+      <div class="hero-cta" ref="heroCtaRef">
+        <Button variant="primary" size="lg" @click="reportAndEmit('playGuest')">
+          PLAY NOW
+        </Button>
+      </div>
 
       <LandingStatsBadge class="hero-stats" />
 
@@ -104,7 +109,6 @@ import gsap from 'gsap'
 import LandingScrollSections from './LandingScrollSections.vue'
 import SiteFooter from './SiteFooter.vue'
 import FeedbackModal from './FeedbackModal.vue'
-import SettingsButton from './SettingsButton.vue'
 import LandingStatsBadge from './LandingStatsBadge.vue'
 import Card from './game/Card.vue'
 import Button from './ui/Button.vue'
@@ -119,6 +123,7 @@ const counterRef = ref<HTMLElement>()
 const wordmarkRef = ref<HTMLElement>()
 const strikeRef = ref<SVGSVGElement>()
 const taglineRef = ref<HTMLElement>()
+const heroCtaRef = ref<HTMLElement>()
 
 const emit = defineEmits<{
   (e: 'showAuth', mode: 'login' | 'signup'): void
@@ -189,29 +194,29 @@ onUnmounted(() => {
 })
 
 function setStaticState() {
-  // Final pose: cards scattered at low opacity, wordmark visible, strike drawn
-  cardRefs.value.forEach((el, i) => {
+  // Final pose: cards offscreen, wordmark + strike + tagline + CTA visible
+  cardRefs.value.forEach((el) => {
     if (!el) return
-    const pose = scatterPoses[i]
-    if (!pose) return
-    gsap.set(el, { x: pose.x, y: pose.y, rotation: pose.rotation, scale: 0.85, opacity: 0.35 })
+    gsap.set(el, { opacity: 0 })
   })
   gsap.set(counterRef.value!, { opacity: 0 })
-  gsap.set(wordmarkRef.value!, { opacity: 1 })
+  gsap.set(wordmarkRef.value!, { opacity: 1, y: 0 })
   gsap.set(strikeRef.value!.querySelector('line'), { strokeDashoffset: 0 })
   gsap.set(taglineRef.value!, { opacity: 1, y: 0 })
+  gsap.set(heroCtaRef.value!, { opacity: 1, y: 0 })
 }
 
 /**
- * Final positions for the cards after the explosion — ambient texture
- * scattered around the wordmark. Pixel offsets from the stage centre.
+ * Exit trajectories — cards fly off-screen entirely after the climax so the
+ * wordmark stands alone. Was scatter-behind-wordmark; that competed with
+ * the typography and read as noise.
  */
-const scatterPoses = [
-  { x: -180, y: -60, rotation: -22 },
-  { x: 160, y: -90, rotation: 18 },
-  { x: -130, y: 80, rotation: 12 },
-  { x: 180, y: 70, rotation: -16 },
-  { x: 0, y: 110, rotation: 4 },
+const exitPoses = [
+  { x: -800, y: -400, rotation: -180 },
+  { x: 800, y: -500, rotation: 220 },
+  { x: -700, y: 500, rotation: -160 },
+  { x: 750, y: 600, rotation: 240 },
+  { x: 0, y: -800, rotation: -360 },
 ] as const
 
 function runHeroChoreography() {
@@ -229,6 +234,7 @@ function runHeroChoreography() {
   gsap.set(wordmarkRef.value!, { opacity: 0, y: 20 })
   gsap.set(strikeLine, { strokeDasharray: 100, strokeDashoffset: 100 })
   gsap.set(taglineRef.value!, { opacity: 0, y: 12 })
+  gsap.set(heroCtaRef.value!, { opacity: 0, y: 16 })
 
   const tl = gsap.timeline()
   masterTl = tl
@@ -352,21 +358,22 @@ function runHeroChoreography() {
     )
   }
 
-  // BEAT 7: explosion — cards fly outward to scatter positions, counter fades
+  // BEAT 7: explosion — cards FLY OFFSCREEN entirely, leaving wordmark clean.
+  // No more scatter-behind-wordmark (that was noise, not premium texture).
   const explodeAt = climaxAt + 0.4
   cardRefs.value.forEach((el, i) => {
     if (!el) return
-    const pose = scatterPoses[i]!
+    const pose = exitPoses[i]!
     tl.to(
       el,
       {
         x: pose.x,
         y: pose.y,
         rotation: pose.rotation,
-        scale: 0.85,
-        opacity: 0.35,
-        duration: 0.55,
-        ease: 'power3.out',
+        scale: 0.7,
+        opacity: 0,
+        duration: 0.7,
+        ease: 'power3.in',
       },
       explodeAt,
     )
@@ -377,7 +384,7 @@ function runHeroChoreography() {
     explodeAt,
   )
 
-  // BEAT 8: wordmark fades up where the stack was
+  // BEAT 8: wordmark fades up where the stack was — now uncontested
   tl.to(
     wordmarkRef.value!,
     { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' },
@@ -396,6 +403,13 @@ function runHeroChoreography() {
     taglineRef.value!,
     { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out' },
     explodeAt + 0.85,
+  )
+
+  // BEAT 11: hero CTA — the conversion moment, anchors the bottom of the hero
+  tl.to(
+    heroCtaRef.value!,
+    { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out' },
+    explodeAt + 1.05,
   )
 }
 </script>
@@ -453,6 +467,10 @@ function runHeroChoreography() {
   gap: var(--spacing-3);
 }
 
+.top-bar-cta :deep(.btn--sm) {
+  letter-spacing: 0.12em;
+}
+
 .text-link {
   background: none;
   border: none;
@@ -472,10 +490,6 @@ function runHeroChoreography() {
 
 .text-link-sep {
   color: var(--text-muted);
-}
-
-.top-bar-settings {
-  margin-left: var(--spacing-2);
 }
 
 /* HERO */
@@ -591,12 +605,13 @@ function runHeroChoreography() {
 .wm-strike {
   position: absolute;
   top: 50%;
-  left: -2%;
-  width: 104%;
-  height: 12%;
-  transform: translateY(-50%) translateY(-2px);
+  left: -4%;
+  width: 108%;
+  height: 18%;
+  transform: translateY(-50%);
   color: var(--color-alert);
-  filter: drop-shadow(0 0 8px rgba(255, 42, 42, 0.7));
+  filter: drop-shadow(0 0 12px rgba(255, 42, 42, 0.85));
+  pointer-events: none;
 }
 
 .hero-tagline {
@@ -607,6 +622,12 @@ function runHeroChoreography() {
   text-transform: uppercase;
   margin: 0;
   z-index: var(--z-base);
+}
+
+.hero-cta {
+  position: relative;
+  z-index: var(--z-base);
+  margin-top: var(--spacing-2);
 }
 
 .hero-stats {
