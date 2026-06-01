@@ -1,46 +1,66 @@
 <template>
   <div class="app-container">
-    <div class="scan-line"></div>
-    <div class="noise-overlay"></div>
-    
     <!-- Loading state -->
-    <div v-if="authStore.loading" class="loading-screen">
-      <div class="loader"></div>
-      <p>INITIALIZING...</p>
+    <div v-if="authStore.loading" class="loading-screen" role="status" aria-label="Loading">
+      <h1 class="loading-brand">
+        <span class="loading-uno">UNO</span>
+        <span class="loading-nomercy">NO MERCY</span>
+      </h1>
+      <div class="loading-dot" aria-hidden="true"></div>
+      <p class="loading-text">INITIALIZING</p>
     </div>
-    
+
     <!-- Password recovery mode -->
     <template v-else-if="showPasswordReset">
       <div class="reset-container">
         <div class="reset-card">
-          <h1 class="reset-title glitch-text" data-text="UNO">UNO</h1>
-          <h2 class="reset-subtitle">SET NEW PASSWORD</h2>
-          <form @submit.prevent="handlePasswordUpdate">
-            <div class="reset-input-group">
-              <label>NEW PASSWORD</label>
+          <h1 class="reset-brand">
+            <span class="reset-uno">UNO</span>
+            <span class="reset-nomercy">NO MERCY</span>
+          </h1>
+          <p class="reset-tagline">SET A NEW PASSWORD</p>
+
+          <form class="reset-form" @submit.prevent="handlePasswordUpdate">
+            <label class="field">
+              <span class="field-label">NEW PASSWORD</span>
               <input
                 v-model="newPassword"
+                v-focus-ring
                 type="password"
-                placeholder="Enter new password"
+                placeholder="At least 6 characters"
                 required
                 minlength="6"
+                autocomplete="new-password"
+                class="field-input"
               />
-            </div>
-            <div class="reset-input-group">
-              <label>CONFIRM PASSWORD</label>
+            </label>
+
+            <label class="field">
+              <span class="field-label">CONFIRM PASSWORD</span>
               <input
                 v-model="confirmPassword"
+                v-focus-ring
                 type="password"
-                placeholder="Confirm new password"
+                placeholder="Re-enter password"
                 required
                 minlength="6"
+                autocomplete="new-password"
+                class="field-input"
               />
-            </div>
-            <div v-if="resetError" class="reset-error">{{ resetError }}</div>
-            <div v-if="resetSuccess" class="reset-success">{{ resetSuccess }}</div>
-            <button type="submit" class="reset-btn" :disabled="resetLoading">
+            </label>
+
+            <p v-if="resetError" class="msg msg-error">{{ resetError }}</p>
+            <p v-if="resetSuccess" class="msg msg-success">{{ resetSuccess }}</p>
+
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              block
+              :disabled="resetLoading"
+            >
               {{ resetLoading ? 'UPDATING...' : 'UPDATE PASSWORD' }}
-            </button>
+            </Button>
           </form>
         </div>
       </div>
@@ -51,10 +71,7 @@
 
     <!-- Not authenticated -->
     <template v-else-if="!authStore.isAuthenticated">
-      <!-- Show auth view if user clicked login/signup -->
       <AuthView v-if="showAuthView" @back="showAuthView = false" :initial-mode="authMode" />
-
-      <!-- Otherwise show landing page -->
       <LandingPage v-else @showAuth="handleShowAuth" @playGuest="playAsGuest" />
     </template>
 
@@ -91,6 +108,8 @@ import PlayerDashboard from './components/PlayerDashboard.vue'
 import GameView from './components/game/GameView.vue'
 import MultiplayerGameView from './components/game/MultiplayerGameView.vue'
 import SettingsDrawer from './components/SettingsDrawer.vue'
+import Button from './components/ui/Button.vue'
+import { vFocusRing } from './directives/focusRing'
 import { useAuthStore } from './stores/authStore'
 import { supabase } from './lib/supabase'
 import { useMultiplayerStore } from './stores/multiplayerStore'
@@ -113,7 +132,6 @@ const resetLoading = ref(false)
 onMounted(() => {
   authStore.initialize()
 
-  // Listen for password recovery event
   supabase.auth.onAuthStateChange((event) => {
     if (event === 'PASSWORD_RECOVERY') {
       showPasswordReset.value = true
@@ -162,7 +180,6 @@ async function playAsGuest() {
   if (!result.success) {
     console.error('Guest sign-in failed:', result.error)
   }
-  // Once authenticated (even anonymously), App.vue will show the lobby
 }
 
 function startLocalGame(mode?: 'official' | 'house' | 'casual') {
@@ -188,38 +205,7 @@ function startLocalGame(mode?: 'official' | 'house' | 'casual') {
   }
 }
 
-.scan-line {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    to bottom,
-    transparent 50%,
-    rgba(0, 0, 0, 0.2) 51%
-  );
-  background-size: 100% 4px;
-  pointer-events: none;
-  z-index: 10;
-}
-
-.noise-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
-  pointer-events: none;
-  z-index: 9;
-  opacity: 0.4;
-}
-
-/* Anchor to the viewport directly so the spinner centers reliably regardless of
-   .app-container's height behaviour. `height: 100%` only resolves when the
-   parent has an explicit height — `min-height` doesn't count, which left the
-   loading screen shrunk to its content (~70px) and stuck at the top. */
+/* LOADING SCREEN — brand-led, single pulsing dot, no spinner */
 .loading-screen {
   position: fixed;
   inset: 0;
@@ -227,128 +213,182 @@ function startLocalGame(mode?: 'official' | 'house' | 'casual') {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 1rem;
-  z-index: 100;
+  gap: var(--spacing-6);
+  z-index: var(--z-toast);
   background: var(--bg-concrete);
 }
 
-.loader {
-  width: 50px;
-  height: 50px;
-  border: 3px solid #333;
-  border-top-color: var(--color-neon-blue);
+.loading-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin: 0;
+}
+
+.loading-uno {
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 8vw, 3.5rem);
+  letter-spacing: 0.05em;
+  color: var(--text-primary);
+}
+
+.loading-nomercy {
+  font-family: var(--font-display);
+  font-size: clamp(0.875rem, 3vw, 1.25rem);
+  letter-spacing: 0.3em;
+  color: var(--color-alert);
+  text-shadow: 0 0 12px rgba(255, 42, 42, 0.5);
+}
+
+.loading-dot {
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  background: var(--color-alert);
+  box-shadow: 0 0 16px var(--color-alert);
+  animation: loading-pulse 1.4s ease-in-out infinite;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+@keyframes loading-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.6);
+    opacity: 1;
+  }
 }
 
-.loading-screen p {
+.loading-text {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
   color: var(--text-muted);
-  letter-spacing: 3px;
+  letter-spacing: 0.4em;
+  margin: 0;
 }
 
-/* Same fix as .loading-screen — anchor to viewport so the reset card centers
-   reliably regardless of .app-container's min-height. */
+@media (prefers-reduced-motion: reduce) {
+  .loading-dot {
+    animation: none;
+    opacity: 0.8;
+  }
+}
+
+/* PASSWORD RESET CARD — matches auth card styling */
 .reset-container {
   position: fixed;
   inset: 0;
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 50;
-  padding: 2rem;
+  z-index: var(--z-modal);
+  padding: var(--spacing-4);
   background: var(--bg-concrete);
 }
 
 .reset-card {
-  background: rgba(0, 0, 0, 0.6);
-  border: 2px solid #333;
-  padding: 3rem;
-  max-width: 400px;
   width: 100%;
+  max-width: 440px;
+  background: linear-gradient(180deg, #18191b 0%, #0a0a0b 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-8) var(--spacing-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
 }
 
-.reset-title {
-  font-family: var(--font-display);
-  font-size: 4rem;
-  text-align: center;
+.reset-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-1);
   margin: 0;
 }
 
-.reset-subtitle {
+.reset-uno {
   font-family: var(--font-display);
-  font-size: 1.2rem;
+  font-size: clamp(2.5rem, 8vw, 3.5rem);
+  letter-spacing: 0.05em;
+  color: var(--text-primary);
+}
+
+.reset-nomercy {
+  font-family: var(--font-display);
+  font-size: clamp(0.875rem, 3vw, 1.25rem);
+  letter-spacing: 0.3em;
+  color: var(--color-alert);
+  text-shadow: 0 0 12px rgba(255, 42, 42, 0.5);
+}
+
+.reset-tagline {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  letter-spacing: 0.2em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
   text-align: center;
-  color: var(--color-hazard);
-  margin: 0 0 2rem 0;
 }
 
-.reset-input-group {
-  margin-bottom: 1.5rem;
+.reset-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
 }
 
-.reset-input-group label {
-  display: block;
-  font-size: 0.8rem;
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.field-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
   color: var(--text-muted);
-  margin-bottom: 0.5rem;
-  letter-spacing: 1px;
+  letter-spacing: 0.18em;
 }
 
-.reset-input-group input {
+.field-input {
   width: 100%;
-  padding: 1rem;
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid #444;
-  color: white;
-  font-size: 1rem;
+  padding: var(--spacing-3) var(--spacing-4);
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  border-radius: var(--radius-sm);
+  transition: border-color var(--duration-snap) var(--ease-snap);
+  min-height: 44px;
 }
 
-.reset-input-group input:focus {
+.field-input:focus {
   outline: none;
   border-color: var(--color-neon-blue);
 }
 
-.reset-error {
-  background: rgba(255, 0, 0, 0.1);
-  border: 1px solid #ff4444;
-  color: #ff6666;
-  padding: 1rem;
-  margin-bottom: 1rem;
-  font-size: 0.9rem;
+.msg {
+  margin: 0;
+  padding: var(--spacing-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  border-radius: var(--radius-sm);
+  border: 1px solid;
+  text-align: center;
 }
 
-.reset-success {
-  background: rgba(0, 255, 100, 0.1);
-  border: 1px solid var(--color-neon-green);
+.msg-error {
+  background: rgba(255, 42, 42, 0.08);
+  border-color: var(--color-alert);
+  color: var(--color-alert);
+}
+
+.msg-success {
+  background: rgba(0, 255, 102, 0.08);
+  border-color: var(--color-neon-green);
   color: var(--color-neon-green);
-  padding: 1rem;
-  margin-bottom: 1rem;
-  font-size: 0.9rem;
-}
-
-.reset-btn {
-  width: 100%;
-  padding: 1.2rem;
-  background: linear-gradient(145deg, var(--color-hazard) 0%, var(--color-hazard-dim) 100%);
-  border: none;
-  color: black;
-  font-family: var(--font-display);
-  font-size: 1.2rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.reset-btn:hover:not(:disabled) {
-  transform: scale(1.02);
-  box-shadow: var(--shadow-glow-yellow);
-}
-
-.reset-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 </style>
