@@ -167,6 +167,17 @@ onMounted(async () => {
   }
 })
 
+// Run the deal animation any time isDealing flips true, not just on initial
+// mount. Rematch is the obvious case: GameView stays mounted while the
+// game-over modal is shown, so when `restart()` calls initializeGame and
+// flips isDealing back on, onMounted has long since fired. Without this,
+// the modal closes but the hands stay empty and turnState stays 'DEALING'.
+watch(() => store.isDealing, async (dealing) => {
+  if (dealing) {
+    await store.dealInitialCards(animateSingleCardDeal)
+  }
+})
+
 // Stop music on unmount (game exit or route change away from GameView).
 onUnmounted(() => {
   music.stop()
