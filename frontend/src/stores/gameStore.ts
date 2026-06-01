@@ -202,10 +202,6 @@ export const useGameStore = defineStore('game', () => {
         isDealing.value = false
         turnState.value = 'WAITING_FOR_ACTION'
 
-        // Announce start
-        const p = currentPlayer.value
-        const startMsg = p?.isBot ? `${p.name}'s turn` : "Game Start! Your turn"
-        soundEffects.announceTurn(startMsg)
     }
 
     function drawCardFromDeck(): Card | undefined {
@@ -277,12 +273,8 @@ export const useGameStore = defineStore('game', () => {
             sanity++
         }
 
-        // Announce turn
         const p = currentPlayer.value
         if (p) {
-            const text = p.isBot ? `${p.name}'s turn` : "Your turn"
-            soundEffects.announceTurn(text)
-
             // Show UNO button if player has 2 cards and it's their turn
             // (they need to call UNO before playing their second-to-last card)
             if (!p.isBot && p.hand.length === 2) {
@@ -299,7 +291,6 @@ export const useGameStore = defineStore('game', () => {
         showUnoButton.value = false
         const s = playerStats.value[playerId]
         if (s) s.unoCalls++
-        soundEffects.announceTurn("UNO!")
     }
 
     function playCard(playerId: string, card: Card, selectedColor?: CardColor) {
@@ -364,7 +355,6 @@ export const useGameStore = defineStore('game', () => {
                 if (s) s.unoPenalties++
                 drawCardToHand(player)
                 drawCardToHand(player)
-                soundEffects.announceTurn("CAUGHT! Draw 2")
                 advanceTurn()
                 return
             }
@@ -489,7 +479,6 @@ export const useGameStore = defineStore('game', () => {
             if (neededUno && !hasCalledUno.value[player.id]) {
                 drawCardToHand(player)
                 drawCardToHand(player)
-                soundEffects.announceTurn("CAUGHT! Draw 2")
             } else {
                 winnerId.value = player.id
                 applyScoresToWinner(player.id)
@@ -670,9 +659,6 @@ export const useGameStore = defineStore('game', () => {
                 turnState.value = 'WAITING_FOR_ACTION'
                 advanceTurn()
             }, TIMINGS.rouletteSafeStall)
-
-            // Sound/Speech
-            soundEffects.announceTurn("Safe!")
 
         } else if (p.isEliminated) {
             // Mercy rule trigger

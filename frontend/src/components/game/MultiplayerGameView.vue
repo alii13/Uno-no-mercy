@@ -505,7 +505,6 @@ async function handleDraw() {
 }
 
 async function handleCallUno() {
-  soundEffects.announceTurn("UNO!")
   await mpStore.callUno()
 }
 

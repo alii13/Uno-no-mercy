@@ -4,7 +4,6 @@
  */
 
 import { ref } from 'vue'
-import { narrator } from './useNarrator'
 
 // Audio context singleton
 let audioContext: AudioContext | null = null
@@ -275,16 +274,6 @@ export function useSoundEffects() {
         volume.value = Math.max(0, Math.min(1, v))
     }
 
-    /**
-     * Narrate an event. Delegates to the clip-pack narrator (which falls back
-     * to speechSynthesis for unmapped strings).
-     */
-    function announceTurn(text: string) {
-        withMuteCheck(isMuted, () => {
-            narrator.announce(text, Math.min(1, volume.value * 1.5))
-        })
-    }
-
     return {
         isMuted,
         volume,
@@ -293,7 +282,6 @@ export function useSoundEffects() {
         playCardLand,
         playCardShuffle,
         playSpecialCard,
-        announceTurn,
         toggleMute,
         setVolume
     }
