@@ -45,6 +45,9 @@
       :show-draw-hint="isMyTurn && turnState === 'WAITING_FOR_ACTION'"
       :is-muted="soundEffects.isMuted.value"
       :current-color="currentColor"
+      :direction="direction"
+      :draw-stack="drawStack"
+      :my-card-count="myHand.length"
       @draw="handleDraw"
     >
       <template #draw-pile>

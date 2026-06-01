@@ -222,9 +222,10 @@
 
 /* ==========================================================================
    BATTLE PIT (Main game area)
-   Centered table — draw + discard piles sit as a pair in the middle, with
-   the status panel below. No more 200px side gutters scattering the layout;
-   audio + settings moved out into the SurveillanceBar HUD.
+   A felt-style table surface anchors the play area visually so it reads as
+   "the table" instead of empty void. Top light + dark vignette frame the
+   draw/discard pair as the focal point. A persistent HUD strip below the
+   pair shows direction / current color / draw stack / Mercy tension meter.
    ========================================================================== */
 .battle-pit {
   flex: 1;
@@ -237,6 +238,28 @@
   justify-content: center;
   gap: var(--spacing-6);
   padding: var(--spacing-8) var(--spacing-4);
+  overflow: hidden;
+}
+
+/* The felt-table surface — soft warm radial light + dark inner vignette so
+   the pair of cards reads as sitting on a surface, not floating in void. */
+.pit-surface {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      ellipse 60% 50% at 50% 42%,
+      rgba(255, 196, 122, 0.05) 0%,
+      rgba(255, 196, 122, 0.02) 35%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 90% 70% at 50% 60%,
+      rgba(0, 0, 0, 0.55) 50%,
+      rgba(0, 0, 0, 0.25) 80%,
+      transparent 100%
+    );
 }
 
 .pit-table {
@@ -248,12 +271,162 @@
   z-index: var(--z-cards);
 }
 
-.pit-status {
+/* --- HUD STRIP below the table --- */
+.pit-hud {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.25));
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-pill);
   position: relative;
   z-index: var(--z-cards);
+  backdrop-filter: blur(8px);
+}
+
+.hud-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.15em;
+  color: var(--text-secondary);
+  padding: var(--spacing-1) var(--spacing-3);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.hud-cell:last-child {
+  border-right: none;
+}
+
+.hud-direction svg {
+  animation: spin-cw 3s linear infinite;
+}
+
+.hud-direction.ccw svg {
+  animation: spin-ccw 3s linear infinite;
+}
+
+@keyframes spin-cw { to { transform: rotate(360deg); } }
+@keyframes spin-ccw { to { transform: rotate(-360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-direction svg, .hud-direction.ccw svg { animation: none; }
+}
+
+.color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.dot-red { background: #ff4444; color: #ff4444; }
+.dot-blue { background: #00bfff; color: #00bfff; }
+.dot-green { background: #00ff66; color: #00ff66; }
+.dot-yellow { background: #ffcc00; color: #ffcc00; }
+
+.hud-stack {
+  color: var(--color-hazard);
+}
+
+.hud-stack.critical {
+  color: var(--color-alert);
+  animation: stack-pulse 1.6s ease-in-out infinite;
+}
+
+.stack-label {
+  color: var(--text-muted);
+  font-size: 0.65rem;
+}
+
+.stack-value {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+}
+
+@keyframes stack-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-stack.critical { animation: none; }
+}
+
+/* Mercy meter — the signature tension element. The bar fills toward the
+   25-card elimination threshold, shifting yellow→red as it approaches. */
+.hud-mercy {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+  border-right: none;
+  padding-right: 0;
+}
+
+.mercy-head {
+  display: inline-flex;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.18em;
+  color: var(--text-muted);
+}
+
+.mercy-value {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  letter-spacing: 0.05em;
+  color: var(--text-primary);
+}
+
+.mercy-of {
+  color: var(--text-muted);
+}
+
+.mercy-bar {
   width: 100%;
-  display: flex;
-  justify-content: center;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.mercy-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-neon-green), var(--color-hazard));
+  transition: width var(--duration-soft) var(--ease-soft), background var(--duration-soft) var(--ease-soft);
+  border-radius: 2px;
+}
+
+.hud-mercy.warning .mercy-fill {
+  background: linear-gradient(90deg, var(--color-hazard), #ff8800);
+}
+
+.hud-mercy.warning .mercy-value { color: var(--color-hazard); }
+
+.hud-mercy.critical .mercy-fill {
+  background: linear-gradient(90deg, #ff8800, var(--color-alert));
+  box-shadow: 0 0 12px rgba(255, 42, 42, 0.5);
+  animation: mercy-pulse 1.2s ease-in-out infinite;
+}
+
+.hud-mercy.critical .mercy-value {
+  color: var(--color-alert);
+  text-shadow: 0 0 8px rgba(255, 42, 42, 0.5);
+}
+
+@keyframes mercy-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(255, 42, 42, 0.4); }
+  50% { box-shadow: 0 0 16px rgba(255, 42, 42, 0.75); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-mercy.critical .mercy-fill { animation: none; }
 }
 
 .station {
