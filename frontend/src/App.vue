@@ -241,14 +241,17 @@ function startLocalGame(mode?: 'official' | 'house' | 'casual') {
   letter-spacing: 3px;
 }
 
+/* Same fix as .loading-screen — anchor to viewport so the reset card centers
+   reliably regardless of .app-container's min-height. */
 .reset-container {
-  height: 100%;
+  position: fixed;
+  inset: 0;
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 5;
-  position: relative;
+  z-index: 50;
   padding: 2rem;
+  background: var(--bg-concrete);
 }
 
 .reset-card {

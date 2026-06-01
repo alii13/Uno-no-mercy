@@ -112,7 +112,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, provide, watch, onMounted } from 'vue'
+import { computed, ref, provide, watch, onMounted, onUnmounted } from 'vue'
+import { music } from '../../composables/useMusic'
 import { useGameStore } from '../../stores/gameStore'
 import { useAuthStore } from '../../stores/authStore'
 import { canPlayCard } from '../../utils/gameRules'
@@ -156,10 +157,28 @@ const playerHandRef = ref<HTMLElement | null>(null)
 const opponentRefs = ref<Record<string, HTMLElement>>({})
 const prevHandLengths = ref<Record<string, number>>({})
 
-// Initial Deal Animation
+// Initial Deal Animation + start background music. Music has to start
+// AFTER a user gesture (the PLAY NOW / VS BOT click that led here counts),
+// so the play() in music.start() usually resolves cleanly.
 onMounted(async () => {
+  music.start()
   if (store.isDealing) {
     await store.dealInitialCards(animateSingleCardDeal)
+  }
+})
+
+// Stop music on unmount (game exit or route change away from GameView).
+onUnmounted(() => {
+  music.stop()
+})
+
+// Duck the music when the game ends so the modal entrance + win/loss
+// sting can cut through; restore on rematch.
+watch(() => store.gameState, (now, prev) => {
+  if (now === 'GAME_OVER') {
+    music.duck()
+  } else if (prev === 'GAME_OVER' && now === 'PLAYING') {
+    music.unduck()
   }
 })
 
@@ -270,7 +289,10 @@ function drawCard() {
 }
 
 function toggleSound() {
+  // Toggle SFX and keep music in step. If music wasn't playing yet (e.g.
+  // the audio file isn't deployed), this is a no-op for music.
   soundEffects.toggleMute()
+  music.toggleMute()
 }
 
 function getWinnerName() {
