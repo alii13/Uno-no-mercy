@@ -4,23 +4,79 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="description" content="Play UNO No Mercy online - free, no download, no login required. Real-time multiplayer or vs AI." />
+    <meta name="theme-color" content="#0a0a0b" />
+
+    <!-- Primary SEO -->
+    <title>UNO No Mercy Online - Play Free in Browser, No Download, Multiplayer + AI</title>
+    <meta name="description" content="Play UNO No Mercy online free in your browser. Real-time multiplayer with friends (2-10 players), vs AI mode, every official rule including Draw 6, Draw 10, Skip Everyone, Color Roulette, hand swaps, mercy elimination. No download, no login required." />
+    <meta name="keywords" content="uno no mercy, uno no mercy online, uno no mercy free, play uno no mercy, uno no mercy rules, uno online, uno multiplayer, free uno game, uno card game online, draw 6, draw 10, color roulette, no mercy rules" />
+    <meta name="author" content="alii13" />
+    <link rel="canonical" href="https://uno-no-mercy.com/" />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://uno-no-mercy.com" />
-    <meta property="og:title" content="UNO No Mercy - Play Online Free" />
+    <meta property="og:url" content="https://uno-no-mercy.com/" />
+    <meta property="og:title" content="UNO No Mercy Online - Play Free in Browser" />
     <meta property="og:description" content="The ruthless UNO card game - fully digital. Draw 6, Draw 10, Skip Everyone, Color Roulette. Play with friends or vs AI. No login required." />
     <meta property="og:image" content="https://uno-no-mercy.com/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
+    <meta property="og:site_name" content="UNO No Mercy" />
+    <meta property="og:locale" content="en_US" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:url" content="https://uno-no-mercy.com" />
-    <meta name="twitter:title" content="UNO No Mercy - Play Online Free" />
+    <meta name="twitter:url" content="https://uno-no-mercy.com/" />
+    <meta name="twitter:title" content="UNO No Mercy Online - Play Free in Browser" />
     <meta name="twitter:description" content="The ruthless UNO card game - fully digital. Draw 6, Draw 10, Skip Everyone, Color Roulette. Play with friends or vs AI. No login required." />
     <meta name="twitter:image" content="https://uno-no-mercy.com/og-image.png" />
+
+    <!-- Structured Data: VideoGame -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "VideoGame",
+      "name": "UNO No Mercy",
+      "alternateName": ["UNO No Mercy Online", "Online UNO No Mercy"],
+      "description": "Free online version of UNO No Mercy. Every official rule from the physical deck - Draw 6, Draw 10, Skip Everyone, Color Roulette, hand swaps on 7, hand rotations on 0, and elimination at 25 cards. Real-time multiplayer for 2-10 players, or solo vs AI.",
+      "url": "https://uno-no-mercy.com/",
+      "image": "https://uno-no-mercy.com/og-image.png",
+      "genre": ["Card Game", "Multiplayer", "Casual", "Family"],
+      "gamePlatform": ["Web Browser", "PC", "Mac", "Mobile"],
+      "playMode": ["MultiPlayer", "SinglePlayer"],
+      "numberOfPlayers": {
+        "@type": "QuantitativeValue",
+        "minValue": 1,
+        "maxValue": 10
+      },
+      "applicationCategory": "Game",
+      "operatingSystem": "Any (Web Browser)",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD",
+        "availability": "https://schema.org/InStock"
+      },
+      "author": {
+        "@type": "Person",
+        "name": "alii13",
+        "url": "https://github.com/alii13"
+      },
+      "isAccessibleForFree": true,
+      "inLanguage": "en"
+    }
+    </script>
+
+    <!-- Structured Data: WebSite (for sitelinks search box) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "UNO No Mercy",
+      "url": "https://uno-no-mercy.com/",
+      "description": "Play UNO No Mercy online free - no download, no login, real-time multiplayer or vs AI."
+    }
+    </script>
 
     <!-- Google Analytics + Google Ads -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-HF9GCTVQ7J"></script>
@@ -50,10 +106,64 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Chakra+Petch:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300&display=swap" rel="stylesheet">
-    <title>UNO No Mercy - Play Online Free</title>
+
+    <style>
+      /* Crawler-visible SEO content - shown until Vue mounts and replaces #app */
+      .seo-fallback {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 3rem 1.5rem;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        color: #e6e6e6;
+        background: #0a0a0b;
+        min-height: 100vh;
+      }
+      .seo-fallback h1 { font-size: 2.5rem; margin: 0 0 0.5rem; }
+      .seo-fallback h2 { font-size: 1.2rem; color: #ff2a2a; margin: 0 0 1.5rem; }
+      .seo-fallback p { line-height: 1.6; color: #a1a1aa; margin: 0 0 1rem; }
+      .seo-fallback ul { color: #a1a1aa; line-height: 1.8; padding-left: 1.5rem; }
+      .seo-fallback a { color: #00f3ff; }
+      .seo-loading { opacity: 0.5; font-size: 0.85rem; margin-top: 2rem; }
+    </style>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <!-- Crawler-visible content. Vue replaces this on mount. -->
+      <div class="seo-fallback">
+        <h1>UNO No Mercy - Play Online Free</h1>
+        <h2>The Ruthless Card Game, Fully Digital</h2>
+        <p>
+          Play UNO No Mercy online in your browser - no download, no login required.
+          Real-time multiplayer with friends (2-10 players) via shared room codes,
+          or solo against an AI opponent.
+        </p>
+        <p>
+          Every official No Mercy rule is implemented:
+        </p>
+        <ul>
+          <li><strong>Draw 6</strong> and <strong>Draw 10</strong> cards with full stacking</li>
+          <li><strong>Skip Everyone</strong> - skip all opponents and play again</li>
+          <li><strong>Color Roulette</strong> - victim draws until matching the chosen color</li>
+          <li><strong>Discard All</strong> - dump every card of the matching color at once</li>
+          <li><strong>7 - Swap</strong> - swap hands with any player</li>
+          <li><strong>0 - Rotate</strong> - all hands rotate in play direction</li>
+          <li><strong>Wild Reverse Draw 4</strong> - reverse direction and add +4</li>
+          <li><strong>Mercy Rule</strong> - eliminated at 25 cards</li>
+        </ul>
+        <p>
+          Want the full rule set? Read the
+          <a href="/rules">UNO No Mercy rules guide</a>.
+        </p>
+        <p class="seo-loading">Loading game...</p>
+      </div>
+    </div>
+    <noscript>
+      <div style="max-width: 800px; margin: 2rem auto; padding: 2rem; color: #e6e6e6; background: #0a0a0b; font-family: sans-serif;">
+        <h1>UNO No Mercy</h1>
+        <p>This game requires JavaScript to play. Please enable JavaScript in your browser.</p>
+        <p>Read the <a href="/rules" style="color: #00f3ff;">rules guide</a> instead.</p>
+      </div>
+    </noscript>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

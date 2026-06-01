@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0a0a0b" />
+
+    <!-- Primary SEO -->
+    <title>UNO No Mercy Rules - Full Guide (Draw 6, Draw 10, Color Roulette, Mercy)</title>
+    <meta name="description" content="Complete UNO No Mercy rules guide. Every card explained: Draw 6, Draw 10, Skip Everyone, Color Roulette, Wild Reverse Draw 4, hand swap on 7, rotate on 0, and the mercy elimination rule at 25 cards. With draw stacking variations and strategy tips." />
+    <meta name="keywords" content="uno no mercy rules, uno no mercy how to play, draw 6 uno, draw 10 uno, color roulette uno, skip everyone uno, uno no mercy cards, mercy rule uno, uno no mercy guide" />
+    <meta name="author" content="alii13" />
+    <link rel="canonical" href="https://uno-no-mercy.com/rules" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://uno-no-mercy.com/rules" />
+    <meta property="og:title" content="UNO No Mercy Rules - Full Guide" />
+    <meta property="og:description" content="Every card and rule from UNO No Mercy explained. Draw 6, Draw 10, Color Roulette, mercy elimination, and more." />
+    <meta property="og:image" content="https://uno-no-mercy.com/og-image.png" />
+    <meta property="og:site_name" content="UNO No Mercy" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="UNO No Mercy Rules - Full Guide" />
+    <meta name="twitter:description" content="Every card and rule from UNO No Mercy explained." />
+    <meta name="twitter:image" content="https://uno-no-mercy.com/og-image.png" />
+
+    <!-- Structured Data: Article + Breadcrumb -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      "headline": "UNO No Mercy Rules - Complete Guide",
+      "description": "Complete rules guide for UNO No Mercy. Every card type, every special effect, draw stacking variations, and elimination mechanics explained.",
+      "image": "https://uno-no-mercy.com/og-image.png",
+      "url": "https://uno-no-mercy.com/rules",
+      "author": {
+        "@type": "Person",
+        "name": "alii13",
+        "url": "https://github.com/alii13"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "UNO No Mercy",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://uno-no-mercy.com/favicon.svg"
+        }
+      },
+      "mainEntityOfPage": "https://uno-no-mercy.com/rules"
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://uno-no-mercy.com/" },
+        { "@type": "ListItem", "position": 2, "name": "Rules", "item": "https://uno-no-mercy.com/rules" }
+      ]
+    }
+    </script>
+
+    <!-- Google Analytics + Google Ads -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-HF9GCTVQ7J"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-HF9GCTVQ7J');
+      gtag('config', 'AW-18192424425');
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Chakra+Petch:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+    <style>
+      :root {
+        --bg: #0a0a0b;
+        --surface: #18191b;
+        --text: #e6e6e6;
+        --text-dim: #a1a1aa;
+        --text-muted: #6a6a72;
+        --red: #ff2a2a;
+        --red-dim: #801515;
+        --yellow: #ffcc00;
+        --blue: #00f3ff;
+        --green: #00ff66;
+        --border: #2a2a2a;
+        --display-font: 'Black Ops One', cursive;
+        --body-font: 'Chakra Petch', sans-serif;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--body-font);
+        line-height: 1.7;
+        background-image:
+          repeating-linear-gradient(45deg, rgba(0,0,0,0.05) 0, rgba(0,0,0,0.05) 2px, transparent 2px, transparent 8px),
+          radial-gradient(circle at center, #18191b, var(--bg));
+        min-height: 100vh;
+      }
+      .container { max-width: 880px; margin: 0 auto; padding: 0 1.5rem; }
+
+      /* Hazard tape */
+      .hazard-tape {
+        height: 12px;
+        background: repeating-linear-gradient(-45deg, var(--red), var(--red) 10px, #000 10px, #000 20px);
+      }
+
+      /* Header */
+      header {
+        padding: 1.25rem 0;
+        border-bottom: 1px solid var(--border);
+        background: rgba(0,0,0,0.5);
+      }
+      .header-inner { display: flex; align-items: center; justify-content: space-between; }
+      .logo a {
+        font-family: var(--display-font);
+        text-decoration: none;
+        color: var(--text);
+        font-size: 1.4rem;
+      }
+      .logo .accent { color: var(--red); margin-left: 0.5rem; font-size: 0.85rem; }
+      nav a {
+        color: var(--text-dim);
+        text-decoration: none;
+        font-size: 0.8rem;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        padding: 0.5rem 1rem;
+        border: 1px solid var(--border);
+        transition: all 0.2s;
+      }
+      nav a:hover { color: var(--red); border-color: var(--red); }
+
+      /* Breadcrumb */
+      .breadcrumb {
+        padding: 1rem 0;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        font-family: 'Courier New', monospace;
+      }
+      .breadcrumb a { color: var(--text-dim); text-decoration: none; }
+      .breadcrumb a:hover { color: var(--blue); }
+      .breadcrumb .sep { margin: 0 0.5rem; color: var(--text-muted); }
+
+      /* Hero */
+      .hero { padding: 2rem 0 3rem; text-align: center; }
+      h1 {
+        font-family: var(--display-font);
+        font-size: 3rem;
+        line-height: 1.1;
+        margin-bottom: 0.5rem;
+        text-shadow: 0 0 20px rgba(255, 42, 42, 0.3);
+      }
+      h1 .accent { color: var(--red); display: block; font-size: 1.5rem; margin-top: 0.5rem; }
+      .lead {
+        color: var(--text-dim);
+        font-size: 1.1rem;
+        max-width: 600px;
+        margin: 1.5rem auto 0;
+      }
+
+      /* CTA */
+      .cta-row {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        margin: 2rem 0;
+        flex-wrap: wrap;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.85rem 1.75rem;
+        font-family: var(--display-font);
+        font-size: 0.9rem;
+        letter-spacing: 2px;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 2px solid transparent;
+      }
+      .btn-primary { background: linear-gradient(145deg, var(--red), var(--red-dim)); color: white; border-color: var(--red); }
+      .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 0 30px rgba(255, 42, 42, 0.4); }
+      .btn-ghost { color: var(--blue); border-color: var(--blue); background: transparent; }
+      .btn-ghost:hover { background: var(--blue); color: black; }
+
+      /* TOC */
+      .toc {
+        background: rgba(0,0,0,0.4);
+        border: 1px solid var(--border);
+        padding: 1.5rem 2rem;
+        margin: 2rem 0 3rem;
+      }
+      .toc-title {
+        font-family: var(--display-font);
+        font-size: 0.85rem;
+        color: var(--yellow);
+        letter-spacing: 3px;
+        margin-bottom: 1rem;
+      }
+      .toc ol { padding-left: 1.5rem; }
+      .toc li { margin-bottom: 0.5rem; }
+      .toc a { color: var(--text-dim); text-decoration: none; transition: color 0.2s; }
+      .toc a:hover { color: var(--blue); }
+
+      /* Sections */
+      section { margin: 3rem 0; scroll-margin-top: 2rem; }
+      h2 {
+        font-family: var(--display-font);
+        font-size: 1.75rem;
+        margin-bottom: 1rem;
+        border-bottom: 2px solid var(--red);
+        padding-bottom: 0.75rem;
+        color: var(--text);
+      }
+      h3 {
+        font-family: var(--display-font);
+        font-size: 1.15rem;
+        margin: 1.75rem 0 0.75rem;
+        color: var(--yellow);
+        letter-spacing: 1px;
+      }
+      p { color: var(--text-dim); margin-bottom: 1rem; }
+      strong { color: var(--text); }
+
+      ul, ol { color: var(--text-dim); margin: 0 0 1rem 1.5rem; }
+      li { margin-bottom: 0.5rem; }
+
+      /* Card table */
+      .card-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.95rem;
+      }
+      .card-table th, .card-table td {
+        padding: 0.85rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+      }
+      .card-table th {
+        background: rgba(0,0,0,0.4);
+        font-family: var(--display-font);
+        letter-spacing: 1px;
+        font-size: 0.8rem;
+        color: var(--yellow);
+      }
+      .card-table tbody tr:hover { background: rgba(0, 243, 255, 0.03); }
+      .card-table td:first-child { color: var(--text); font-weight: 600; min-width: 180px; }
+
+      /* Callouts */
+      .callout {
+        background: rgba(255, 204, 0, 0.05);
+        border-left: 4px solid var(--yellow);
+        padding: 1rem 1.25rem;
+        margin: 1.5rem 0;
+        color: var(--text-dim);
+      }
+      .callout strong { color: var(--yellow); }
+      .callout.danger { background: rgba(255, 42, 42, 0.05); border-left-color: var(--red); }
+      .callout.danger strong { color: var(--red); }
+      .callout.success { background: rgba(0, 255, 100, 0.05); border-left-color: var(--green); }
+      .callout.success strong { color: var(--green); }
+
+      /* FAQ */
+      .faq-item {
+        margin-bottom: 1.25rem;
+        padding-bottom: 1.25rem;
+        border-bottom: 1px solid var(--border);
+      }
+      .faq-item:last-child { border-bottom: none; }
+      .faq-q {
+        font-family: var(--display-font);
+        font-size: 1rem;
+        color: var(--blue);
+        margin-bottom: 0.5rem;
+        letter-spacing: 1px;
+      }
+
+      /* Final CTA */
+      .final-cta {
+        background: rgba(0,0,0,0.5);
+        border: 2px solid var(--red);
+        padding: 3rem 2rem;
+        text-align: center;
+        margin: 4rem 0 2rem;
+      }
+      .final-cta h2 { border: none; padding: 0; margin-bottom: 0.75rem; }
+      .final-cta p { margin-bottom: 1.5rem; }
+
+      /* Footer */
+      footer {
+        background: rgba(0,0,0,0.7);
+        border-top: 1px solid var(--border);
+        padding: 1rem 1.5rem;
+        text-align: center;
+        font-family: 'Courier New', monospace;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-top: 3rem;
+      }
+      footer a { color: var(--text); font-weight: bold; text-decoration: none; }
+      footer a:hover { color: var(--yellow); }
+
+      @media (max-width: 600px) {
+        h1 { font-size: 2rem; }
+        h1 .accent { font-size: 1.1rem; }
+        h2 { font-size: 1.4rem; }
+        h3 { font-size: 1rem; }
+        .toc { padding: 1rem 1.25rem; }
+        .card-table { font-size: 0.85rem; }
+        .card-table th, .card-table td { padding: 0.6rem 0.5rem; }
+        .card-table td:first-child { min-width: 110px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="hazard-tape" aria-hidden="true"></div>
+
+    <header>
+      <div class="container header-inner">
+        <div class="logo">
+          <a href="/">UNO<span class="accent">NO MERCY</span></a>
+        </div>
+        <nav>
+          <a href="/">Play</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="container">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href="/">Home</a>
+        <span class="sep">/</span>
+        <span>Rules</span>
+      </nav>
+
+      <div class="hero">
+        <h1>
+          UNO No Mercy Rules
+          <span class="accent">The Complete Guide</span>
+        </h1>
+        <p class="lead">
+          Every card, every special effect, every edge case. The complete rule set for UNO No Mercy - the ruthless expansion that turned every UNO night into a battlefield.
+        </p>
+        <div class="cta-row">
+          <a href="/" class="btn btn-primary">Play Now Free</a>
+          <a href="#cards" class="btn btn-ghost">Jump to Cards</a>
+        </div>
+      </div>
+
+      <div class="toc">
+        <div class="toc-title">// CONTENTS</div>
+        <ol>
+          <li><a href="#what-is">What is UNO No Mercy?</a></li>
+          <li><a href="#setup">Setup &amp; Goal</a></li>
+          <li><a href="#basic-play">Basic Play</a></li>
+          <li><a href="#cards">All Cards &amp; Effects</a></li>
+          <li><a href="#stacking">Draw Stacking Rules</a></li>
+          <li><a href="#mercy">The Mercy Rule (Elimination at 25)</a></li>
+          <li><a href="#uno-call">UNO Call &amp; Penalty</a></li>
+          <li><a href="#scoring">Scoring</a></li>
+          <li><a href="#two-player">2-Player Variants</a></li>
+          <li><a href="#strategy">Strategy Tips</a></li>
+          <li><a href="#faq">Frequently Asked Questions</a></li>
+        </ol>
+      </div>
+
+      <section id="what-is">
+        <h2>What is UNO No Mercy?</h2>
+        <p>
+          UNO No Mercy is an official rule expansion released by Mattel that takes the chaos of classic UNO and amplifies it. New cards force opponents to draw 6, 10, or even more cards. Players who hold 25+ cards are <strong>eliminated</strong> from the round entirely. Draw cards stack on top of each other, building penalties that can wipe a player out in a single turn.
+        </p>
+        <p>
+          It's UNO with the safety rails removed. One bad turn and you're holding half the deck. Two bad turns and you're out.
+        </p>
+        <p>
+          This page covers every official rule, plus common variants you might play with friends.
+        </p>
+      </section>
+
+      <section id="setup">
+        <h2>Setup &amp; Goal</h2>
+        <h3>Players</h3>
+        <p>2 to 10 players. Best with 3-6.</p>
+
+        <h3>Deck</h3>
+        <p>The No Mercy deck has 168 cards total - the classic 108 UNO cards plus 60 new "No Mercy" cards.</p>
+
+        <h3>Goal</h3>
+        <p>Be the last player standing. You win by either:</p>
+        <ul>
+          <li>Emptying your hand first, or</li>
+          <li>Surviving while every other player is eliminated by the mercy rule.</li>
+        </ul>
+
+        <h3>Deal</h3>
+        <p>Each player is dealt <strong>7 cards</strong>. The next card is placed face-up as the starting discard. The rest forms the draw pile.</p>
+
+        <h3>First Card</h3>
+        <p>If the first flipped card is a special card, it takes effect immediately:</p>
+        <ul>
+          <li><strong>Skip</strong> - the first player is skipped.</li>
+          <li><strong>Reverse</strong> - reverses turn order (in 2-player games, acts as Skip).</li>
+          <li><strong>Draw 2 / Draw 4</strong> - the first player must draw and is skipped.</li>
+          <li><strong>Skip Everyone</strong> - dealer plays again.</li>
+        </ul>
+      </section>
+
+      <section id="basic-play">
+        <h2>Basic Play</h2>
+        <p>On your turn, play one card that matches the top discard by <strong>color</strong>, <strong>number</strong>, or <strong>symbol</strong>. Wild cards can be played on any color.</p>
+        <p>If you can't play, draw cards from the deck until you draw a playable one - then you <strong>must</strong> play it immediately.</p>
+        <div class="callout">
+          <strong>House rule alternative:</strong> Many groups let you draw just one card per turn instead of "draw until playable." Decide before the round starts.
+        </div>
+      </section>
+
+      <section id="cards">
+        <h2>All Cards &amp; Effects</h2>
+        <p>
+          The No Mercy deck includes every classic UNO card plus seven new card types. Here's what each one does.
+        </p>
+
+        <h3>Classic UNO Cards</h3>
+        <table class="card-table">
+          <thead>
+            <tr><th>Card</th><th>Effect</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Number (0-9)</td><td>Match by color or number. The 0 and 7 have special No Mercy effects (see below).</td></tr>
+            <tr><td>Skip</td><td>Next player loses their turn.</td></tr>
+            <tr><td>Reverse</td><td>Reverses turn direction. In 2-player games, acts as a Skip.</td></tr>
+            <tr><td>Draw 2 (+2)</td><td>Next player draws 2 cards and loses their turn (unless stacked).</td></tr>
+            <tr><td>Wild</td><td>Play on any color. The player who plays it chooses the next color.</td></tr>
+            <tr><td>Wild Draw 4 (+4)</td><td>Next player draws 4 and loses their turn. Choose the next color.</td></tr>
+          </tbody>
+        </table>
+
+        <h3>No Mercy Cards</h3>
+        <table class="card-table">
+          <thead>
+            <tr><th>Card</th><th>Effect</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Draw 6 (+6)</td>
+              <td>Next player draws 6 cards. Stackable with other draw cards.</td>
+            </tr>
+            <tr>
+              <td>Draw 10 (+10)</td>
+              <td>Next player draws 10 cards. The most devastating single card in the game.</td>
+            </tr>
+            <tr>
+              <td>Skip Everyone</td>
+              <td>All other players are skipped. You play again on the same turn.</td>
+            </tr>
+            <tr>
+              <td>Discard All</td>
+              <td>
+                Discard every card of the matching color from your hand at once.
+                You choose which card stays on top of the pile (the next player must match that one).
+              </td>
+            </tr>
+            <tr>
+              <td>7 - Swap</td>
+              <td>
+                When you play a 7, you may swap your entire hand with another player.
+                In our online version, you can also choose to keep your own hand.
+              </td>
+            </tr>
+            <tr>
+              <td>0 - Rotate</td>
+              <td>
+                When you play a 0, every player's hand rotates one seat in the current play direction.
+              </td>
+            </tr>
+            <tr>
+              <td>Wild Reverse Draw 4</td>
+              <td>
+                Wild + Draw 4 + reverses direction. In 2-player games, the +4 goes to your opponent
+                (we follow this rule; some house rules send it back to you).
+              </td>
+            </tr>
+            <tr>
+              <td>Wild Color Roulette</td>
+              <td>
+                The next player must draw from the deck until they hit the color you chose. Can be 1 card. Can be 15.
+                Wild cards drawn during roulette do not count - they keep drawing.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="stacking">
+        <h2>Draw Stacking Rules</h2>
+        <p>
+          Stacking is the most-debated rule in UNO No Mercy. When a Draw card is played, the next player can sometimes "stack" their own Draw card on top, passing the accumulated penalty to the player after them. Three common rule variants exist:
+        </p>
+
+        <h3>Official Rule (Equal or Higher)</h3>
+        <p>
+          A Draw card can only be stacked if its value is <strong>equal to or higher than</strong> the top card.
+          So a +4 cannot go on a +10, but a +10 can go on a +6.
+        </p>
+        <p>
+          This is the printed rule and the default we use. It rewards holding higher-value Draw cards.
+        </p>
+
+        <h3>House Rule (Wild Cards Stack on Anything)</h3>
+        <p>
+          Wild Draw cards (Wild +4, Wild Reverse Draw 4) can stack on any colored Draw card regardless of value.
+          Colored Draw cards still follow the equal-or-higher rule. This is one of the most common house rules.
+        </p>
+
+        <h3>Casual Rule (Anything Goes)</h3>
+        <p>
+          Any Draw card stacks on any Draw card. A +2 can go on a +10. The game becomes more chaotic and luck-based.
+        </p>
+
+        <div class="callout success">
+          <strong>On our site:</strong> the host of each multiplayer game picks the stacking rule when creating the room. The selection is shown in the waiting room so joiners know what they're getting into.
+        </div>
+
+        <h3>What Happens When You Can't Stack</h3>
+        <p>
+          If you don't have a stackable Draw card, you must draw the full accumulated penalty. So if a +10 was played and then a +6 was stacked on it, the next player who can't continue stacking draws all 16 cards.
+        </p>
+      </section>
+
+      <section id="mercy">
+        <h2>The Mercy Rule (Elimination at 25 Cards)</h2>
+        <div class="callout danger">
+          <strong>If your hand reaches 25 cards at any point, you are eliminated from the round.</strong> Your remaining cards are discarded and you're out until the next game.
+        </div>
+        <p>
+          This is the most defining rule of No Mercy. Drawing penalties can pile up fast - a +10 followed by another +10 is enough to push a 6-card hand over the line.
+        </p>
+        <p>
+          The mercy rule applies at any moment during play. If you're forced to draw cards (from a Draw stack, a Roulette, or normal drawing) and your hand crosses 25, elimination is immediate.
+        </p>
+        <p>
+          If all but one player is eliminated, the surviving player wins the round - even if their hand isn't empty.
+        </p>
+      </section>
+
+      <section id="uno-call">
+        <h2>UNO Call &amp; Penalty</h2>
+        <p>
+          When you play your second-to-last card (going from 2 cards to 1), you must call <strong>"UNO!"</strong> before the next player takes their turn.
+        </p>
+        <p>
+          If you forget and the next player catches it, you draw <strong>2 cards</strong> as a penalty.
+        </p>
+        <div class="callout">
+          <strong>Exception:</strong> If a card effect (like Discard All) drops you from many cards to 0 in a single play, you don't need to have called UNO - there was no chance.
+        </div>
+      </section>
+
+      <section id="scoring">
+        <h2>Scoring</h2>
+        <p>
+          When a round ends, the winner scores points based on the cards left in opponents' hands:
+        </p>
+        <ul>
+          <li><strong>Number cards (0-9):</strong> face value</li>
+          <li><strong>Action cards</strong> (Skip, Reverse, Draw 2, etc.): 20 points each</li>
+          <li><strong>Wild cards</strong>: 50 points each</li>
+          <li><strong>Eliminated player bonus:</strong> 250 points to the winner for each player eliminated by the mercy rule</li>
+        </ul>
+        <p>
+          Multi-round games typically play to a target score (500 or 1000).
+        </p>
+      </section>
+
+      <section id="two-player">
+        <h2>2-Player Variants</h2>
+        <p>Some rules change when only two players are at the table:</p>
+        <ul>
+          <li><strong>Reverse</strong> acts as a Skip.</li>
+          <li><strong>Wild Reverse Draw 4:</strong> we send the +4 penalty to your opponent (since reverse skips them in 2-player, this is the cleanest read). Some house rules send the +4 back to you instead - decide before play.</li>
+          <li><strong>0 - Rotate</strong> is essentially a hand swap.</li>
+          <li><strong>7 - Swap</strong> only has one possible target.</li>
+        </ul>
+      </section>
+
+      <section id="strategy">
+        <h2>Strategy Tips</h2>
+        <h3>Hold Your High-Value Draws</h3>
+        <p>
+          A +10 in hand is insurance. If someone plays a Draw chain, you're the only one who can stack on top - or at least force them to absorb it. Don't waste your +10 on an opening play.
+        </p>
+
+        <h3>Time Your Skip Everyone</h3>
+        <p>
+          The Skip Everyone is most valuable when you're about to call UNO. Playing it as your second-to-last card lets you slip in your final card before anyone else can react.
+        </p>
+
+        <h3>Color Roulette is a Gamble Both Ways</h3>
+        <p>
+          Roulette can be devastating, but the deck is finite. If your opponent has a lot of cards of the color you chose already, they may draw quickly. If you have most of that color in hand, choose differently.
+        </p>
+
+        <h3>Track Card Counts</h3>
+        <p>
+          In No Mercy, knowing who's close to elimination matters more than in regular UNO. If a player has 20+ cards, push them to elimination with Draw cards or Color Roulette before they can recover.
+        </p>
+
+        <h3>The 7 Card is a Defensive Tool</h3>
+        <p>
+          If your hand is bloated, a 7 can save you - swap with whoever has the smallest hand. The player you swap with may end up close to mercy elimination on their next turn.
+        </p>
+      </section>
+
+      <section id="faq">
+        <h2>Frequently Asked Questions</h2>
+
+        <div class="faq-item">
+          <div class="faq-q">Can I play UNO No Mercy with a regular UNO deck?</div>
+          <p>You can play the variant rules (mercy, 7-swap, 0-rotate) with a regular deck, but you won't have the special cards (Draw 6, Draw 10, Skip Everyone, etc.). It's a watered-down version.</p>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">What happens if the deck runs out during a draw penalty?</div>
+          <p>Shuffle the discard pile (except the top card) and use it as the new deck. The penalty continues - if the player only got 4 cards out of a +6 penalty before the deck ran out, they draw the remaining 2 after the reshuffle.</p>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Can I play a Wild card on top of a Draw stack?</div>
+          <p>Only Wild Draw 4 and Wild Reverse Draw 4 can be played on a Draw stack (and stacking still depends on your selected rule variant). Regular Wild cards don't have a draw value, so they can't be played to continue the stack.</p>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Does the 7 - Swap have to be played?</div>
+          <p>In the printed rules, yes. In our online version, the player can choose to "keep my hand" instead of swapping. This avoids the awkwardness of being forced into a swap when no opponent has fewer cards.</p>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">What if I'm forced to draw mid-game and my hand hits 25?</div>
+          <p>You're immediately eliminated. The cards you drew that pushed you over count - you don't stop at 24.</p>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Is there an online version?</div>
+          <p>Yes - <a href="/">uno-no-mercy.com</a> is a free browser game with every official rule, real-time multiplayer (2-10 players), and a solo vs AI mode. No download, no login required.</p>
+        </div>
+      </section>
+
+      <div class="final-cta">
+        <h2>Ready to Play?</h2>
+        <p>Test these rules in a real game. Free, no download, no login.</p>
+        <div class="cta-row">
+          <a href="/" class="btn btn-primary">Play UNO No Mercy Now</a>
+        </div>
+      </div>
+    </main>
+
+    <footer>
+      Built by
+      <a href="https://github.com/alii13" target="_blank" rel="noopener noreferrer">alii13</a>
+      &middot;
+      <a href="/">uno-no-mercy.com</a>
+    </footer>
+  </body>
+</html>
