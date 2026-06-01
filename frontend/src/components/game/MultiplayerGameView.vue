@@ -124,6 +124,19 @@
       @select="handleDiscardAllTopSelect"
     />
 
+    <!-- Realtime reconnect pill -->
+    <Transition name="rt-pill">
+      <div
+        v-if="mpStore.realtimeStatus !== 'SUBSCRIBED' && !opponentLeft"
+        class="reconnect-pill"
+        role="status"
+        aria-live="polite"
+      >
+        <span class="rt-dot"></span>
+        {{ mpStore.realtimeStatus === 'CONNECTING' ? 'CONNECTING…' : 'RECONNECTING…' }}
+      </div>
+    </Transition>
+
     <!-- Opponent Left -->
     <div v-if="opponentLeft" class="overlay">
       <div class="modal terminal-modal">
@@ -581,5 +594,52 @@ async function handleUpgrade() {
 .eliminated-text {
   color: var(--color-alert) !important;
   font-size: 0.7rem;
+}
+
+/* Realtime reconnect pill — top-center floating indicator */
+.reconnect-pill {
+  position: fixed;
+  top: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 42, 42, 0.9);
+  color: #fff;
+  padding: 0.4rem 0.95rem;
+  border-radius: 999px;
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  z-index: 150;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: 0 4px 16px rgba(255, 42, 42, 0.4);
+}
+
+.rt-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff;
+  animation: rt-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes rt-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.6); }
+}
+
+.rt-pill-enter-active, .rt-pill-leave-active {
+  transition: opacity 0.2s, transform 0.2s;
+}
+.rt-pill-enter-from, .rt-pill-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rt-dot { animation: none; }
 }
 </style>

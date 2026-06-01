@@ -2,9 +2,14 @@
   <div class="landing-container">
     <div class="scan-line"></div>
     <div class="noise-overlay"></div>
-    
+
     <!-- Animated Background Grid -->
     <div class="grid-bg"></div>
+
+    <!-- Settings -->
+    <div class="settings-corner">
+      <SettingsButton />
+    </div>
     
     <!-- Hero Screen - fits exactly in viewport -->
     <div class="hero-screen">
@@ -107,6 +112,7 @@ import { ref } from 'vue'
 import LandingScrollSections from './LandingScrollSections.vue'
 import SiteFooter from './SiteFooter.vue'
 import FeedbackModal from './FeedbackModal.vue'
+import SettingsButton from './SettingsButton.vue'
 
 const showFeedback = ref(false)
 
@@ -134,6 +140,16 @@ function reportAndEmit(event: any, mode?: any) {
   position: relative;
   display: flex;
   flex-direction: column;
+}
+
+.settings-corner {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 15;
+}
+@media (max-width: 480px) {
+  .settings-corner { top: 0.6rem; right: 0.6rem; }
 }
 
 .hero-screen {
