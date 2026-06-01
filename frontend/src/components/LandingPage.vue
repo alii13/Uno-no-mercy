@@ -117,14 +117,17 @@
 
     <SiteFooter />
 
-    <!-- Sticky mobile CTA — slides up once user scrolls past hero -->
-    <Transition name="sticky-cta">
-      <div v-show="showStickyCta" class="sticky-cta-wrap">
-        <Button variant="primary" size="lg" block @click="reportAndEmit('playGuest')">
-          PLAY NOW
-        </Button>
-      </div>
-    </Transition>
+    <!-- Sticky mobile CTA — teleported to body so position:fixed isn't
+         scoped to .landing-container's animation containing block. -->
+    <Teleport to="body">
+      <Transition name="sticky-cta">
+        <div v-show="showStickyCta" class="sticky-cta-wrap">
+          <Button variant="primary" size="lg" block @click="reportAndEmit('playGuest')">
+            PLAY NOW
+          </Button>
+        </div>
+      </Transition>
+    </Teleport>
 
     <FeedbackModal v-if="showFeedback" @close="showFeedback = false" />
   </div>
@@ -310,7 +313,7 @@ onUnmounted(() => {
 }
 
 .brand-tagline {
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: var(--text-sm);
   letter-spacing: 0.25em;
   margin: var(--spacing-2) 0 0 0;
@@ -538,7 +541,7 @@ onUnmounted(() => {
   }
 }
 
-/* DESKTOP */
+/* TABLET */
 @media (min-width: 768px) {
   .hero-inner {
     padding: var(--spacing-16) var(--spacing-8);
@@ -555,9 +558,40 @@ onUnmounted(() => {
     padding: var(--spacing-8);
   }
 
-  /* Hide sticky CTA on desktop — primary CTA is always visible above the fold */
+  /* Hide sticky CTA on tablet+ — primary CTA is always visible above the fold */
   .sticky-cta-wrap {
     display: none;
+  }
+}
+
+/* DESKTOP — scale up the hero so it doesn't look lonely at 1440+ */
+@media (min-width: 1024px) {
+  .hero-inner {
+    max-width: 960px;
+    gap: var(--spacing-12);
+    padding: var(--spacing-24) var(--spacing-12);
+  }
+
+  .brand-title {
+    font-size: clamp(6rem, 10vw, 9rem);
+  }
+
+  .brand-subtitle {
+    font-size: clamp(2.5rem, 4.5vw, 4rem);
+  }
+
+  .brand-tagline {
+    font-size: var(--text-base);
+    letter-spacing: 0.35em;
+  }
+
+  .hero-cta {
+    max-width: 420px;
+  }
+
+  .status-line-row {
+    font-size: var(--text-sm);
+    gap: var(--spacing-8);
   }
 }
 </style>

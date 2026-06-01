@@ -6,7 +6,11 @@
    ========================================================================== */
 @import "tailwindcss/theme.css" layer(theme);
 
-@theme {
+/* @theme static — disable tree-shaking so every token is emitted as a CSS
+   custom property at :root, even when scoped Vue styles are the only
+   consumers. (Default @theme only emits variables referenced inside this
+   file, which strips ~80% of our scale.) */
+@theme static {
   /* Industrial chaos palette */
   --bg-concrete: #0a0a0b;
   --bg-concrete-light: #18191b;
