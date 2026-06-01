@@ -195,8 +195,6 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         error.value = null
 
         try {
-            console.log('joinGame: user =', authStore.user?.id, 'profile =', authStore.profile?.username)
-            console.log('Joining game with code:', roomCode.toUpperCase())
 
             // Find the game
             const { data: game, error: gameError } = await supabase
@@ -206,7 +204,6 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 .eq('status', 'waiting')
                 .single()
 
-            console.log('Game lookup result:', { game, gameError })
 
             if (gameError) {
                 console.error('Game lookup failed:', gameError)
@@ -221,7 +218,6 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 .eq('user_id', authStore.user.id)
                 .maybeSingle()
 
-            console.log('Existing player check:', existingPlayer)
 
             if (existingPlayer) {
                 currentGame.value = game
@@ -237,7 +233,6 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 .select('*', { count: 'exact', head: true })
                 .eq('game_id', game.id)
 
-            console.log('Player count:', count)
 
             if ((count || 0) >= 10) {
                 throw new Error('Game is full (max 10 players)')
@@ -257,7 +252,6 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
             if (playerError) throw playerError
 
-            console.log('Joined as player:', player)
 
             currentGame.value = game
             myPlayer.value = player
@@ -320,7 +314,6 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
     // Subscribe to realtime updates
     function subscribeToGame(gameId: string) {
-        console.log('subscribeToGame:', gameId)
 
         // Unsubscribe from previous
         if (gameChannel) {
@@ -335,7 +328,6 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 table: 'games',
                 filter: `id=eq.${gameId}`
             }, (payload) => {
-                console.log('Realtime: games table changed', payload)
                 if (payload.new) {
                     // Merge to avoid dropping fields not present in realtime payload
                     currentGame.value = {
@@ -349,14 +341,11 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 schema: 'public',
                 table: 'game_players'
             }, async (payload: any) => {
-                console.log('Realtime: game_players changed', payload)
                 // Filter to our game
                 if (payload.new?.game_id === gameId || payload.old?.game_id === gameId) {
-                    console.log('Realtime: Reloading players for our game')
 
                     // Check for player leaving during active game
                     if (payload.eventType === 'DELETE' && payload.old?.user_id !== authStore.user?.id) {
-                        console.log('Realtime: A player left the game!')
                     }
 
                     await loadGamePlayers(gameId)
@@ -375,31 +364,20 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     }
                 }
             })
-            .subscribe((status) => {
-                console.log('Realtime subscription status:', status)
-            })
+            .subscribe(() => {})
     }
 
     // Start the game (host only)
     async function startGame() {
-        console.log('startGame called:', {
-            currentGame: currentGame.value?.id,
-            isHost: isHost.value,
-            playerCount: gamePlayers.value.length,
-            players: gamePlayers.value.map(p => p.name)
-        })
 
         if (!currentGame.value || !isHost.value) {
-            console.log('startGame: Early return - not host or no game')
             return
         }
         if (gamePlayers.value.length < 2) {
-            console.log('startGame: Need 2 players')
             error.value = 'Need 2 players to start'
             return
         }
 
-        console.log('startGame: Starting game...')
         loading.value = true
 
         try {
@@ -425,7 +403,6 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 firstCard = deck.pop()
             }
 
-            console.log('startGame: Updating player hands...')
 
             // Update player hands
             for (let i = 0; i < gamePlayers.value.length; i++) {
@@ -440,7 +417,6 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 if (updateError) throw updateError
             }
 
-            console.log('startGame: Updating game state...')
 
             // Update game state with first card effects
             const firstPlayer = gamePlayers.value[0]
@@ -483,7 +459,6 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
             if (gameError) throw gameError
 
-            console.log('startGame: Game started successfully!')
             resetMpStats()
 
         } catch (err: any) {

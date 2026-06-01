@@ -57,13 +57,18 @@ function createNoiseBuffer(ctx: AudioContext, options: NoiseBufferOptions): Audi
 }
 
 // ============================================================
-// Sampled audio pool
+// Sampled audio — decoded into AudioBuffer once, played instantly forever.
+//
+// Earlier version used HTMLAudioElement + canplaythrough gating, but that
+// had a real race: between module init and the canplaythrough event, any
+// play call missed the sample and fell through to the synthesis fallback.
+// Vite HMR made it worse — when the module re-runs the pool resets to
+// empty, and the first few card clicks land before canplaythrough refires.
+// AudioBuffer doesn't have this problem: once decoded the buffer is hot in
+// memory and source.start(0) is synchronous.
 // ============================================================
 type SfxName = 'cardThrow' | 'cardPick' | 'cardLand' | 'cardShuffle' | 'specialCard'
 
-// File mapping. Sourced from Kenney's CC0 casino-audio pack. .ogg works in
-// every modern browser (Vorbis support has been universal since ~2010) and
-// the files are noticeably smaller than mp3 at the same quality.
 const SFX_FILES: Record<SfxName, string> = {
     cardThrow: '/audio/sfx/card-throw.ogg',
     cardPick: '/audio/sfx/card-pick.ogg',
@@ -72,39 +77,46 @@ const SFX_FILES: Record<SfxName, string> = {
     specialCard: '/audio/sfx/special-card.ogg',
 }
 
-// Cache of "did this sample load successfully?" — three states:
-//   undefined: not yet probed
-//   HTMLAudioElement: loaded, ready to clone-and-play
-//   null: failed to load (file missing or decoding error) — synthesis fallback
-const sfxPool = new Map<SfxName, HTMLAudioElement | null>()
+// null = load attempted and failed (file missing / decode error) -> synthesis fallback
+// undefined = not yet loaded -> synthesis fallback for now, will populate when fetch resolves
+const sampleBuffers = new Map<SfxName, AudioBuffer | null>()
 
-function probeSample(name: SfxName): void {
-    if (sfxPool.has(name)) return
-    const audio = new Audio(SFX_FILES[name])
-    audio.preload = 'auto'
-    // canplaythrough fires once the browser thinks it can play start-to-end
-    // without buffering. error fires for 404 or decode failure.
-    audio.addEventListener('canplaythrough', () => sfxPool.set(name, audio), { once: true })
-    audio.addEventListener('error', () => sfxPool.set(name, null), { once: true })
-    // Kick off the load.
-    audio.load()
+async function loadSample(name: SfxName): Promise<void> {
+    try {
+        const response = await fetch(SFX_FILES[name])
+        if (!response.ok) {
+            sampleBuffers.set(name, null)
+            return
+        }
+        const arrayBuffer = await response.arrayBuffer()
+        const ctx = getAudioContext()
+        const buffer = await ctx.decodeAudioData(arrayBuffer)
+        sampleBuffers.set(name, buffer)
+    } catch {
+        sampleBuffers.set(name, null)
+    }
 }
 
 function playSample(name: SfxName, volume: number): boolean {
-    const cached = sfxPool.get(name)
-    if (!cached) return false
-    const clone = cached.cloneNode() as HTMLAudioElement
-    clone.volume = Math.max(0, Math.min(1, volume))
-    const p = clone.play()
-    if (p && typeof p.catch === 'function') {
-        p.catch(() => { /* autoplay block or decode race — silent */ })
-    }
+    const buffer = sampleBuffers.get(name)
+    if (!buffer) return false
+    const ctx = getAudioContext()
+    const source = ctx.createBufferSource()
+    source.buffer = buffer
+    const gain = ctx.createGain()
+    gain.gain.value = Math.max(0, Math.min(1, volume))
+    source.connect(gain)
+    gain.connect(ctx.destination)
+    source.start(0)
     return true
 }
 
-// Probe all samples on module load so the cache is populated by the time the
-// first play call fires.
-for (const name of Object.keys(SFX_FILES) as SfxName[]) probeSample(name)
+// Kick off sample loads on module init. The fetches resolve in the background;
+// any play calls that fire before the buffer lands fall through to synthesis
+// for that one call.
+for (const name of Object.keys(SFX_FILES) as SfxName[]) {
+    loadSample(name)
+}
 
 // ============================================================
 // LocalStorage persistence for volume + mute

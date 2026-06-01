@@ -29,7 +29,6 @@ export const useAuthStore = defineStore('auth', () => {
         // IMPORTANT: Per Supabase docs, avoid await inside this callback!
         // Use setTimeout to defer Supabase calls to avoid deadlocks
         supabase.auth.onAuthStateChange((event, session) => {
-            console.log('Auth event:', event)
 
             // Always sync user and token state immediately (non-async)
             user.value = session?.user || null
@@ -200,12 +199,10 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     async function signOut() {
-        console.log('signOut called')
         try {
             await supabase.auth.signOut()
             user.value = null
             profile.value = null
-            console.log('signOut complete')
         } catch (err: any) {
             console.error('signOut error:', err)
         }

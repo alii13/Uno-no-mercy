@@ -212,15 +212,20 @@ function startLocalGame(mode?: 'official' | 'house' | 'casual') {
   opacity: 0.4;
 }
 
+/* Anchor to the viewport directly so the spinner centers reliably regardless of
+   .app-container's height behaviour. `height: 100%` only resolves when the
+   parent has an explicit height — `min-height` doesn't count, which left the
+   loading screen shrunk to its content (~70px) and stuck at the top. */
 .loading-screen {
-  height: 100%;
+  position: fixed;
+  inset: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   gap: 1rem;
-  z-index: 5;
-  position: relative;
+  z-index: 100;
+  background: var(--bg-concrete);
 }
 
 .loader {
