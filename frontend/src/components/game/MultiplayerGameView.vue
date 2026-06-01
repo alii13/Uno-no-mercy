@@ -183,6 +183,7 @@ import GameOverModal from './GameOverModal.vue'
 import type { Card, CardColor } from '../../types/card'
 import { useStackEscalation } from '../../composables/useStackEscalation'
 import { playDealerIntro } from '../../composables/useDealerIntro'
+import { useRetentionStore } from '../../stores/retentionStore'
 
 const mpStore = useMultiplayerStore()
 const authStore = useAuthStore()
@@ -459,11 +460,24 @@ onUnmounted(() => {
 })
 
 // Music starts when game enters 'playing'; ducks on 'finished'.
+const retention = useRetentionStore()
 watch(gameStatus, (now, prev) => {
   if (now === 'playing' && prev !== 'playing') {
     music.start()
-  } else if (now === 'finished') {
+  } else if (now === 'finished' && prev !== 'finished') {
     music.duck()
+    // Persist lifetime stats once per game-end.
+    const s: any = (mpStore as any).mpStats?.value || (mpStore as any).mpStats
+    if (s) {
+      retention.recordGameResult({
+        won: isMpWinner.value,
+        cardsPlayed: s.cardsPlayedTotal || 0,
+        biggestStackSurvived: s.biggestStackSurvived || 0,
+        unoCalls: s.unoCalls || 0,
+        peakHand: s.peakCards || 0,
+        mode: 'mp',
+      })
+    }
   }
 })
 

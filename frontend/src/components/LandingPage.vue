@@ -37,6 +37,9 @@
               <span class="blink">▶</span> THREAT LEVEL: <span class="critical">MAXIMUM</span>
             </div>
           </div>
+
+          <!-- Lifetime stats — only renders once the player has finished a game -->
+          <LandingStatsBadge class="landing-stats" />
         </div>
 
         <!-- Right Side - Actions -->
@@ -113,6 +116,7 @@ import LandingScrollSections from './LandingScrollSections.vue'
 import SiteFooter from './SiteFooter.vue'
 import FeedbackModal from './FeedbackModal.vue'
 import SettingsButton from './SettingsButton.vue'
+import LandingStatsBadge from './LandingStatsBadge.vue'
 
 const showFeedback = ref(false)
 
@@ -265,6 +269,10 @@ function reportAndEmit(event: any, mode?: any) {
   font-family: var(--font-body);
   font-size: 0.85rem;
   color: var(--text-muted);
+}
+
+.landing-stats {
+  margin-top: 1.25rem;
 }
 
 .status-line {
