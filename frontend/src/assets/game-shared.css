@@ -168,6 +168,37 @@
   padding: 0 2rem;
 }
 
+/* Subtle ambient frame around the play area — corner glows + thin border
+   anchor the pit visually so it reads as "the table" instead of just empty
+   space. Doesn't compete with the cards or the surveillance bar above. */
+.battle-pit::before {
+  content: '';
+  position: absolute;
+  inset: 0.5rem 1rem;
+  pointer-events: none;
+  border: 1px solid rgba(255, 204, 0, 0.08);
+  border-radius: 4px;
+  box-shadow:
+    inset 0 0 60px rgba(255, 204, 0, 0.03),
+    inset 0 -40px 80px -40px rgba(255, 42, 42, 0.05);
+  z-index: 0;
+}
+/* Corner accents — Reka-Like industrial vibe */
+.battle-pit::after {
+  content: '';
+  position: absolute;
+  inset: 0.5rem 1rem;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, rgba(255, 204, 0, 0.5) 0 12px, transparent 12px 100%) top left / 24px 24px no-repeat,
+    linear-gradient(225deg, rgba(255, 204, 0, 0.5) 0 12px, transparent 12px 100%) top right / 24px 24px no-repeat,
+    linear-gradient(45deg, rgba(255, 204, 0, 0.5) 0 12px, transparent 12px 100%) bottom left / 24px 24px no-repeat,
+    linear-gradient(-45deg, rgba(255, 204, 0, 0.5) 0 12px, transparent 12px 100%) bottom right / 24px 24px no-repeat;
+  background-clip: padding-box;
+  opacity: 0.3;
+  z-index: 0;
+}
+
 .station {
   display: flex;
   flex-direction: column;
@@ -297,6 +328,25 @@
   min-height: 180px;
   overflow: visible;
   flex-shrink: 0;
+}
+
+/* Hand tray gradient — bottom of the screen darkens behind the hand so the
+   player's cards visually anchor to "the edge of the table" instead of
+   floating in the middle of nothing. Sits behind cards (z-index < 1000),
+   above the battle pit (z-index > 2). */
+.floating-hand-wrapper::before {
+  content: '';
+  position: absolute;
+  inset: -40px -2rem -2rem;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 0.35) 35%,
+    rgba(0, 0, 0, 0.65) 70%,
+    rgba(0, 0, 0, 0.85) 100%
+  );
+  pointer-events: none;
+  z-index: -1;
 }
 
 /* ==========================================================================

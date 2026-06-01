@@ -87,22 +87,30 @@ const topCard = computed(() => {
 })
 
 function getStackStyle(index: number) {
-  const offset = index * 3 // Taller stack visual
+  // Real 3D depth — each card recedes slightly behind the one above via
+  // translate3d's Z axis (requires `perspective` on an ancestor to render).
+  // Tiny rotation jitter per card so the stack doesn't look machine-perfect.
+  const yLift = index * 2
+  const zPush = index * -1.5
+  const seed = index * 23
+  const rot = ((seed % 8) - 4) * 0.5 // -2deg to +2deg
   return {
-    transform: `translateY(${-offset}px)`,
+    transform: `translate3d(0, ${-yLift}px, ${zPush}px) rotate(${rot}deg)`,
     zIndex: index,
-    filter: `brightness(${1 - index * 0.05})`
+    filter: `brightness(${1 - index * 0.04})`
   }
 }
 
 function getScatterStyle(index: number) {
-  // Use deterministic pseudo-random based on index
+  // Discard pile scatter — slightly more chaotic than the draw stack since
+  // these were thrown, not placed. Each card has 3D depth too.
   const seed = index * 17
   const rotation = ((seed % 30) - 15)
   const offsetX = ((seed * 7) % 20) - 10
   const offsetY = ((seed * 13) % 16) - 8
+  const zPush = index * -2.5
   return {
-    transform: `translate(${offsetX}px, ${offsetY}px) rotate(${rotation}deg)`,
+    transform: `translate3d(${offsetX}px, ${offsetY}px, ${zPush}px) rotate(${rotation}deg)`,
     zIndex: index
   }
 }
@@ -153,15 +161,23 @@ watch(() => props.cards.length, (newLen, oldLen) => {
   flex-direction: column;
   align-items: center;
   position: relative;
+  /* Perspective enables real 3D depth on the translate3d children below.
+     Without this, the per-card Z offsets collapse to 2D. */
+  perspective: 800px;
+  perspective-origin: 50% 30%;
 }
 
 .card-pile {
   position: relative;
   cursor: pointer;
-  transition: transform 0.1s ease;
+  transition: transform 0.18s ease;
+  transform-style: preserve-3d;
 }
 
-/* Pile Interaction */
+/* Pile Interaction — draw pile lifts subtly on hover, presses on click */
+.card-pile.is-draw:hover {
+  transform: translateY(-3px) scale(1.02);
+}
 .card-pile.is-draw:active {
   transform: translateY(2px);
 }
@@ -170,27 +186,32 @@ watch(() => props.cards.length, (newLen, oldLen) => {
   position: relative;
   width: 100%;
   height: 100%;
+  transform-style: preserve-3d;
 }
 
 .stacked-card {
   position: absolute;
   top: 0;
   left: 0;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+  border-radius: 6px;
+  backface-visibility: hidden;
 }
 
 .discard-scatter {
   position: relative;
   width: 100%;
   height: 100%;
+  transform-style: preserve-3d;
 }
 
 .scattered-card-back {
   position: absolute;
   top: 0;
   left: 0;
-  opacity: 0.7;
-  filter: grayscale(0.8); /* Make old discard cards darker */
+  opacity: 0.55;
+  filter: grayscale(0.6) brightness(0.7); /* Old discards desaturated + dimmed */
+  backface-visibility: hidden;
 }
 
 .top-card {

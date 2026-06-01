@@ -112,8 +112,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, provide, watch, onMounted, onUnmounted } from 'vue'
+import { computed, ref, provide, watch, onMounted, onUnmounted, toRef } from 'vue'
 import { music } from '../../composables/useMusic'
+import { useStackEscalation } from '../../composables/useStackEscalation'
 import { useGameStore } from '../../stores/gameStore'
 import { useAuthStore } from '../../stores/authStore'
 import { canPlayCard } from '../../utils/gameRules'
@@ -133,6 +134,8 @@ import PlayerConsoleBar from './PlayerConsoleBar.vue'
 import GameOverModal from './GameOverModal.vue'
 
 const store = useGameStore()
+// Wire stack-chain escalation — vignette + shake when drawStack grows
+useStackEscalation(toRef(store, 'drawStack'))
 const authStore = useAuthStore()
 const { animateFlyingCard, animateDrawCardsStaggered } = useCardAnimations()
 

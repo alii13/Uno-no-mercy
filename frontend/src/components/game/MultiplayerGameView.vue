@@ -168,6 +168,7 @@ import StatusPanel from './StatusPanel.vue'
 import PlayerConsoleBar from './PlayerConsoleBar.vue'
 import GameOverModal from './GameOverModal.vue'
 import type { Card, CardColor } from '../../types/card'
+import { useStackEscalation } from '../../composables/useStackEscalation'
 
 const mpStore = useMultiplayerStore()
 const authStore = useAuthStore()
@@ -218,6 +219,7 @@ const opponentLeft = computed(() => mpStore.opponentLeft)
 const currentGame = computed(() => mpStore.currentGame)
 const direction = computed(() => currentGame.value?.direction || 1)
 const drawStack = computed(() => currentGame.value?.draw_stack || 0)
+useStackEscalation(drawStack)
 const currentColor = computed(() => (currentGame.value?.current_color || 'red') as CardColor)
 const turnState = computed(() => currentGame.value?.turn_state || 'WAITING_FOR_ACTION')
 const discardPile = computed(() => (currentGame.value?.discard_pile as Card[]) || [])
