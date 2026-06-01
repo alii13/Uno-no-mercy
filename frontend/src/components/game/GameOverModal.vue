@@ -46,7 +46,7 @@
         <!-- Share row (win only — sharing a loss is tone-deaf) -->
         <div v-if="isWinner && mode === 'sp'" class="share-row">
           <button class="share-btn share-x" @click="$emit('share-twitter')">
-            <span class="share-icon">𝕏</span> Share win
+            <span class="share-icon">𝕏</span> X
           </button>
           <button class="share-btn share-wa" @click="$emit('share-whatsapp')">
             <span class="share-icon">⬤</span> WhatsApp
@@ -179,11 +179,11 @@ function confettiStyle(i: number) {
 .game-over-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: var(--z-modal);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
+  padding: var(--spacing-4);
   background: rgba(0, 0, 0, 0.75);
   animation: overlay-in 0.25s ease-out;
 }
