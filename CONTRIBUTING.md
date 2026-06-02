@@ -104,6 +104,15 @@ The full No Mercy rules are documented in `UNO "No Mercy" Comprehensive Rules Gu
 - Don't reformat files you didn't change
 - Don't add features without opening an issue first for discussion
 
+## If you fork and deploy
+
+The repo ships with analytics, ad, and AdSense tags wired to the upstream owner's accounts:
+
+- `frontend/index.html` — Google Analytics (`G-HF9GCTVQ7J`), Google Ads conversion (`AW-18192424425`), and Google AdSense (`ca-pub-5481263585202262`)
+- `frontend/public/ads.txt` — authorized-sellers declaration for the same AdSense publisher
+
+**Before you deploy a fork to a public URL, remove or replace those tags with your own.** Leaving them in routes your traffic to the upstream accounts and, more importantly, can get the upstream AdSense account flagged for invalid traffic on a domain Google hasn't authorized. Same goes for the `og:url` / `canonical` / `sitemap.xml` host strings — point them at your domain.
+
 ## Reporting bugs
 
 Open an issue with:
