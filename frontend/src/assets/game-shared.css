@@ -84,10 +84,11 @@
 
 .opponents-grid {
   display: flex;
-  justify-content: flex-start;
+  justify-content: center;
   gap: var(--spacing-3);
   flex: 1;
   min-width: 0;
+  flex-wrap: wrap;
 }
 
 /* HUD audio toggle — compact tactical button that sits in the
