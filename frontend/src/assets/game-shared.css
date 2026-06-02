@@ -297,37 +297,6 @@
   z-index: 2;
 }
 
-/* LAYER 4 — Oversized "NO MERCY" typographic watermark behind the play
-   area. The brand IS the composition. Tracking-locked, low opacity. */
-.pit-watermark {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  font-family: var(--font-display);
-  letter-spacing: -0.02em;
-  line-height: 0.78;
-  z-index: 3;
-  user-select: none;
-  text-align: center;
-}
-
-.pit-watermark .wm-no,
-.pit-watermark .wm-mercy {
-  display: block;
-  font-size: clamp(7rem, 18vw, 13rem);
-  color: rgba(255, 255, 255, 0.012);
-  text-shadow: 0 0 40px rgba(255, 42, 42, calc(var(--mercy-intensity) * 0.18));
-  transition: text-shadow var(--duration-soft) var(--ease-soft);
-}
-
-.pit-watermark .wm-mercy {
-  color: rgba(255, 42, 42, 0.014);
-}
-
 /* LAYER 5 — Left vertical control rail (desktop). Industrial control panel
    with direction / color / stack indicators on top and a tall MERCY
    thermometer filling the remaining height. */
@@ -505,12 +474,71 @@
   perspective: 1200px;
 }
 
-/* Draw + discard sit on the table with slight perspective tilt so cards feel
-   laid down rather than floating in space. */
+/* Each station sits on a subtle "slot" pad — radial shadow base + thin
+   inset frame — so the deck and discard read as resting in holders. */
 .station {
-  transform: perspective(800px) rotateX(4deg);
-  transform-origin: center bottom;
-  filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.65));
+  position: relative;
+  padding: 14px;
+  filter: drop-shadow(0 18px 28px rgba(0, 0, 0, 0.6));
+}
+
+/* The slot pad: a soft radial shadow under the cards suggesting they're
+   sitting in a depression in the table surface. */
+.station::before {
+  content: '';
+  position: absolute;
+  inset: -4px -4px 0;
+  background: radial-gradient(
+    ellipse 80% 50% at 50% 100%,
+    rgba(0, 0, 0, 0.55) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Corner brackets — thin L-marks at each corner of the slot. Suggest a
+   "card stand" / dealer's tray without going full sci-fi HUD frame. */
+.station::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(to right, rgba(255, 204, 0, 0.22) 0 14px, transparent 14px) top left / 14px 1px no-repeat,
+    linear-gradient(to bottom, rgba(255, 204, 0, 0.22) 0 14px, transparent 14px) top left / 1px 14px no-repeat,
+    linear-gradient(to left, rgba(255, 204, 0, 0.22) 0 14px, transparent 14px) top right / 14px 1px no-repeat,
+    linear-gradient(to bottom, rgba(255, 204, 0, 0.22) 0 14px, transparent 14px) top right / 1px 14px no-repeat,
+    linear-gradient(to right, rgba(255, 204, 0, 0.22) 0 14px, transparent 14px) bottom left / 14px 1px no-repeat,
+    linear-gradient(to top, rgba(255, 204, 0, 0.22) 0 14px, transparent 14px) bottom left / 1px 14px no-repeat,
+    linear-gradient(to left, rgba(255, 204, 0, 0.22) 0 14px, transparent 14px) bottom right / 14px 1px no-repeat,
+    linear-gradient(to top, rgba(255, 204, 0, 0.22) 0 14px, transparent 14px) bottom right / 1px 14px no-repeat;
+}
+
+/* Draw station gets a periodic holographic shine sweep — like the cards
+   are emitting a faint light. Subtle, plays once every 8s. */
+.draw-station::after {
+  background-image:
+    linear-gradient(to right, rgba(0, 243, 255, 0.3) 0 14px, transparent 14px),
+    linear-gradient(to bottom, rgba(0, 243, 255, 0.3) 0 14px, transparent 14px),
+    linear-gradient(to left, rgba(0, 243, 255, 0.3) 0 14px, transparent 14px),
+    linear-gradient(to bottom, rgba(0, 243, 255, 0.3) 0 14px, transparent 14px),
+    linear-gradient(to right, rgba(0, 243, 255, 0.3) 0 14px, transparent 14px),
+    linear-gradient(to top, rgba(0, 243, 255, 0.3) 0 14px, transparent 14px),
+    linear-gradient(to left, rgba(0, 243, 255, 0.3) 0 14px, transparent 14px),
+    linear-gradient(to top, rgba(0, 243, 255, 0.3) 0 14px, transparent 14px);
+  background-position: top left, top left, top right, top right, bottom left, bottom left, bottom right, bottom right;
+  background-size: 14px 1px, 1px 14px, 14px 1px, 1px 14px, 14px 1px, 1px 14px, 14px 1px, 1px 14px;
+  background-repeat: no-repeat;
+}
+
+.draw-station::before {
+  background: radial-gradient(
+    ellipse 80% 50% at 50% 100%,
+    rgba(0, 243, 255, 0.12) 0%,
+    rgba(0, 0, 0, 0.55) 40%,
+    transparent 80%
+  );
 }
 
 /* --- MOBILE HUD (replaces the desktop left rail under ≤768px) --- */
@@ -806,6 +834,56 @@
 .discard-color-yellow {
   background: radial-gradient(circle, rgba(255, 204, 0, 0.14) 0%, transparent 70%);
   box-shadow: 0 0 36px rgba(255, 204, 0, 0.4), inset 0 0 0 1px rgba(255, 204, 0, 0.3);
+}
+
+/* Card-throw flash — when a card lands on discard, the colored ring
+   briefly amplifies into a burst, then settles back to the steady glow.
+   This is the visual hit the user remembered. Triggered by adding the
+   .discard-flash class via watch in CardPile.vue. */
+.discard-station.discard-flash {
+  animation: discard-flash-burst 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes discard-flash-burst {
+  0%   { transform: scale(1); }
+  18%  { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.discard-color-red.discard-flash { animation: flash-red 600ms cubic-bezier(0.22, 1, 0.36, 1); }
+.discard-color-blue.discard-flash { animation: flash-blue 600ms cubic-bezier(0.22, 1, 0.36, 1); }
+.discard-color-green.discard-flash { animation: flash-green 600ms cubic-bezier(0.22, 1, 0.36, 1); }
+.discard-color-yellow.discard-flash { animation: flash-yellow 600ms cubic-bezier(0.22, 1, 0.36, 1); }
+
+@keyframes flash-red {
+  0%   { box-shadow: 0 0 36px rgba(255, 42, 42, 0.4), inset 0 0 0 1px rgba(255, 42, 42, 0.3); transform: scale(1); }
+  18%  { box-shadow: 0 0 80px rgba(255, 42, 42, 1), 0 0 140px rgba(255, 42, 42, 0.55), inset 0 0 0 2px rgba(255, 42, 42, 0.8); transform: scale(1.05); }
+  100% { box-shadow: 0 0 36px rgba(255, 42, 42, 0.4), inset 0 0 0 1px rgba(255, 42, 42, 0.3); transform: scale(1); }
+}
+@keyframes flash-blue {
+  0%   { box-shadow: 0 0 36px rgba(0, 191, 255, 0.4), inset 0 0 0 1px rgba(0, 191, 255, 0.3); transform: scale(1); }
+  18%  { box-shadow: 0 0 80px rgba(0, 191, 255, 1), 0 0 140px rgba(0, 191, 255, 0.55), inset 0 0 0 2px rgba(0, 191, 255, 0.8); transform: scale(1.05); }
+  100% { box-shadow: 0 0 36px rgba(0, 191, 255, 0.4), inset 0 0 0 1px rgba(0, 191, 255, 0.3); transform: scale(1); }
+}
+@keyframes flash-green {
+  0%   { box-shadow: 0 0 36px rgba(0, 255, 102, 0.4), inset 0 0 0 1px rgba(0, 255, 102, 0.3); transform: scale(1); }
+  18%  { box-shadow: 0 0 80px rgba(0, 255, 102, 1), 0 0 140px rgba(0, 255, 102, 0.55), inset 0 0 0 2px rgba(0, 255, 102, 0.8); transform: scale(1.05); }
+  100% { box-shadow: 0 0 36px rgba(0, 255, 102, 0.4), inset 0 0 0 1px rgba(0, 255, 102, 0.3); transform: scale(1); }
+}
+@keyframes flash-yellow {
+  0%   { box-shadow: 0 0 36px rgba(255, 204, 0, 0.4), inset 0 0 0 1px rgba(255, 204, 0, 0.3); transform: scale(1); }
+  18%  { box-shadow: 0 0 80px rgba(255, 204, 0, 1), 0 0 140px rgba(255, 204, 0, 0.55), inset 0 0 0 2px rgba(255, 204, 0, 0.8); transform: scale(1.05); }
+  100% { box-shadow: 0 0 36px rgba(255, 204, 0, 0.4), inset 0 0 0 1px rgba(255, 204, 0, 0.3); transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .discard-station.discard-flash,
+  .discard-color-red.discard-flash,
+  .discard-color-blue.discard-flash,
+  .discard-color-green.discard-flash,
+  .discard-color-yellow.discard-flash {
+    animation: none;
+  }
 }
 
 /* ==========================================================================

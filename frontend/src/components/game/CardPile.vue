@@ -118,6 +118,21 @@ function getScatterStyle(index: number) {
 const gameStore = useGameStore()
 const mpStore = useMultiplayerStore()
 
+// Trigger the colored ring burst on the parent discard-station whenever a
+// card lands. Lives separately from the slam so it ALWAYS fires (even when
+// the human throws their own card and the slam is suppressed).
+function flashDiscardRing() {
+  if (!topCardRef.value) return
+  const station = topCardRef.value.closest('.discard-station') as HTMLElement | null
+  if (!station) return
+  // Remove + re-add to retrigger the CSS animation
+  station.classList.remove('discard-flash')
+  // Force reflow so the re-added class triggers a fresh animation cycle
+  void station.offsetWidth
+  station.classList.add('discard-flash')
+  setTimeout(() => station.classList.remove('discard-flash'), 650)
+}
+
 // Animate new card landing on discard pile
 watch(() => props.cards.length, (newLen, oldLen) => {
   if (props.isDiscard && newLen > oldLen && topCardRef.value) {
@@ -125,9 +140,12 @@ watch(() => props.cards.length, (newLen, oldLen) => {
     // own card — skip our own slam for that beat so the user doesn't see two
     // animations stacked. Bot plays (and any other state mutation) leave the
     // flag false, so the slam fires as the only visual.
-    if (gameStore.suppressDiscardSlam || mpStore.suppressDiscardSlam) {
+    const suppressSlam = gameStore.suppressDiscardSlam || mpStore.suppressDiscardSlam
+    if (suppressSlam) {
       gameStore.suppressDiscardSlam = false
       mpStore.suppressDiscardSlam = false
+      // Still fire the ring flash — that's the visual confirmation of the play
+      nextTick(flashDiscardRing)
       return
     }
     nextTick(() => {
@@ -150,6 +168,7 @@ watch(() => props.cards.length, (newLen, oldLen) => {
           }
         )
       }
+      flashDiscardRing()
     })
   }
 })

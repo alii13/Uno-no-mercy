@@ -9,13 +9,6 @@
     <!-- Layer 3: Danger gradient bleeding from top-right, intensity scales with Mercy % -->
     <div class="pit-danger-gradient" aria-hidden="true"></div>
 
-    <!-- Layer 4: Oversized typographic watermark — the brand IS the composition.
-         Sits behind the play area as low-opacity background type. -->
-    <div class="pit-watermark" aria-hidden="true">
-      <span class="wm-no">NO</span>
-      <span class="wm-mercy">MERCY</span>
-    </div>
-
     <!-- Layer 5: Left vertical rail — industrial control panel. Direction, color,
          stack, and a TALL Mercy thermometer. Desktop only. -->
     <aside class="pit-rail" aria-label="Game state">
