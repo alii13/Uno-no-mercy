@@ -78,8 +78,11 @@ const cardSize = computed(() => {
   return { width: 80, height: 112 }
 })
 
-const stackDepth = computed(() => Math.min(Math.ceil(props.cards.length / 10), 8))
-const scatterCount = computed(() => Math.min(props.cards.length, 5))
+// Show 7 visible cards in the deck stack so it reads as a real pile — was
+// 8 max but offsets were too tight to differentiate.
+const stackDepth = computed(() => Math.min(Math.max(Math.ceil(props.cards.length / 8), 3), 7))
+// Discard scatter: up to 5 history cards peek behind the top card
+const scatterCount = computed(() => Math.min(Math.max(props.cards.length - 1, 0), 5))
 
 const topCard = computed(() => {
   if (props.cards.length === 0) return undefined
@@ -87,31 +90,38 @@ const topCard = computed(() => {
 })
 
 function getStackStyle(index: number) {
-  // Real 3D depth — each card recedes slightly behind the one above via
-  // translate3d's Z axis (requires `perspective` on an ancestor to render).
-  // Tiny rotation jitter per card so the stack doesn't look machine-perfect.
-  const yLift = index * 2
-  const zPush = index * -1.5
+  // Each card in the deck lifts diagonally — visible 4px Y + 1.5px X offset
+  // per layer, with a real rotation jitter. Reads as a leaning tower of
+  // cards, not a flat rectangle. The deepest card is offset enough that
+  // its corner is unmistakably visible behind the top card.
+  const yLift = index * 4
+  const xLift = index * 1.4
   const seed = index * 23
-  const rot = ((seed % 8) - 4) * 0.5 // -2deg to +2deg
+  const rot = ((seed % 14) - 7) * 0.45 // approx -3 to +3 deg per card
+  const zPush = index * -2
+  // Edge shadow intensifies with depth, giving the bottom of the stack weight
+  const shadowDepth = 2 + index * 0.6
   return {
-    transform: `translate3d(0, ${-yLift}px, ${zPush}px) rotate(${rot}deg)`,
+    transform: `translate3d(${xLift}px, ${-yLift}px, ${zPush}px) rotate(${rot}deg)`,
     zIndex: index,
-    filter: `brightness(${1 - index * 0.04})`
+    filter: `brightness(${1 - index * 0.05})`,
+    boxShadow: `0 ${shadowDepth}px ${shadowDepth * 2}px rgba(0, 0, 0, 0.55)`,
   }
 }
 
 function getScatterStyle(index: number) {
-  // Discard pile scatter — slightly more chaotic than the draw stack since
-  // these were thrown, not placed. Each card has 3D depth too.
-  const seed = index * 17
-  const rotation = ((seed % 30) - 15)
-  const offsetX = ((seed * 7) % 20) - 10
-  const offsetY = ((seed * 13) % 16) - 8
-  const zPush = index * -2.5
+  // Discard history cards — each previously-played card peeks out at a
+  // sharper rotation than the deck (these were thrown, not placed) with
+  // wider XY offsets so multiple show clearly behind the top card.
+  const seed = index * 31 + 7
+  const rotation = ((seed % 50) - 25) // -25 to +25 deg
+  const offsetX = ((seed * 11) % 44) - 22 // -22 to +22 px
+  const offsetY = ((seed * 17) % 30) - 15 // -15 to +15 px
+  const zPush = index * -3
   return {
     transform: `translate3d(${offsetX}px, ${offsetY}px, ${zPush}px) rotate(${rotation}deg)`,
-    zIndex: index
+    zIndex: index,
+    boxShadow: `0 ${4 + index * 0.5}px ${10 + index}px rgba(0, 0, 0, 0.5)`,
   }
 }
 
@@ -186,6 +196,22 @@ watch(() => props.cards.length, (newLen, oldLen) => {
   perspective-origin: 50% 30%;
 }
 
+/* Subtle base shadow under each pile — implies the cards sit on a surface
+   rather than float. Width tapers in (60% of card width) so the shadow
+   reads as cast from a stack, not a billboard behind it. */
+.card-pile::before {
+  content: '';
+  position: absolute;
+  left: 20%;
+  right: 20%;
+  bottom: -8px;
+  height: 18px;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.7) 0%, transparent 70%);
+  filter: blur(6px);
+  pointer-events: none;
+  z-index: -1;
+}
+
 .card-pile {
   position: relative;
   cursor: pointer;
@@ -212,9 +238,14 @@ watch(() => props.cards.length, (newLen, oldLen) => {
   position: absolute;
   top: 0;
   left: 0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
   border-radius: 6px;
   backface-visibility: hidden;
+}
+
+/* The top card of the deck lifts a touch when the pile is hovered so the
+   draw target reads as interactive. */
+.card-pile.is-draw:hover .stacked-card {
+  filter: brightness(1.05);
 }
 
 .discard-scatter {
@@ -224,13 +255,16 @@ watch(() => props.cards.length, (newLen, oldLen) => {
   transform-style: preserve-3d;
 }
 
+/* Discard history cards — visible behind the top card so the pile reads
+   as a real pile of played cards, not a single floating card. */
 .scattered-card-back {
   position: absolute;
   top: 0;
   left: 0;
-  opacity: 0.55;
-  filter: grayscale(0.6) brightness(0.7); /* Old discards desaturated + dimmed */
+  opacity: 0.78;
+  filter: grayscale(0.25) brightness(0.78);
   backface-visibility: hidden;
+  border-radius: 6px;
 }
 
 .top-card {
