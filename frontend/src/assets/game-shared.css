@@ -1275,15 +1275,33 @@
     min-height: 140px;
   }
 
+  /* On mobile the absolute-positioned bar-controls would overlap the
+     centered opponents row; flow it inline and let the opponents grid take
+     the remaining width. */
+  .bar-content {
+    justify-content: space-between;
+    gap: var(--spacing-2);
+  }
+
   .opponents-grid {
+    flex: 1 1 0;
+    min-width: 0;
     overflow-x: auto;
-    gap: var(--spacing-3);
+    gap: var(--spacing-2);
     justify-content: flex-start;
     padding-bottom: var(--spacing-1);
+    scrollbar-width: none;
+  }
+
+  .opponents-grid::-webkit-scrollbar {
+    display: none;
   }
 
   .bar-controls {
+    position: static;
+    transform: none;
     gap: var(--spacing-2);
+    flex-shrink: 0;
   }
 
   .opponent-card {
@@ -1353,6 +1371,19 @@
 
   .bar-controls {
     gap: var(--spacing-1);
+  }
+
+  /* Drop the "AUDIO" word at phone widths — the colored dot already
+     communicates state and the label was the main source of overflow
+     against the opponent pill. */
+  .hud-audio-label {
+    display: none;
+  }
+
+  .hud-audio {
+    padding: var(--spacing-2);
+    min-width: 44px;
+    justify-content: center;
   }
 
   .opponents-grid {

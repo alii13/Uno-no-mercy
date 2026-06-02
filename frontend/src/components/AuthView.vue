@@ -441,5 +441,12 @@ async function handleForgotPassword() {
   .auth-tagline {
     font-size: var(--text-xs);
   }
+
+  /* Footer trio fits on one line at 360px when letter-spacing is dropped. */
+  .trust-list {
+    gap: var(--spacing-1);
+    letter-spacing: 0.05em;
+    font-size: 0.65rem;
+  }
 }
 </style>
