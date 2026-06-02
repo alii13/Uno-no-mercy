@@ -84,8 +84,8 @@
 
 .opponents-grid {
   display: flex;
-  justify-content: center;
-  gap: var(--spacing-8);
+  justify-content: flex-start;
+  gap: var(--spacing-3);
   flex: 1;
   min-width: 0;
 }
@@ -221,68 +221,372 @@
 }
 
 /* ==========================================================================
-   BATTLE PIT (Main game area)
-   A felt-style table surface anchors the play area visually so it reads as
-   "the table" instead of empty void. Top light + dark vignette frame the
-   draw/discard pair as the focal point. A persistent HUD strip below the
-   pair shows direction / current color / draw stack / Mercy tension meter.
+   BATTLE PIT (Main game area) — Industrial Brutalist composition
+   Layered: hatching → felt surface → danger gradient → watermark type →
+   left rail → asymmetric draw+discard table → mobile HUD → toast.
+   The wordmark IS the composition; left rail is a control panel; the
+   top-right glows redder as Mercy approaches 25.
    ========================================================================== */
 .battle-pit {
   flex: 1;
   min-height: 0;
   position: relative;
   z-index: var(--z-cards);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-6);
-  padding: var(--spacing-8) var(--spacing-4);
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  grid-template-rows: 1fr auto;
+  grid-template-areas:
+    "rail table"
+    "rail hud-mobile";
+  gap: 0;
+  padding: var(--spacing-6) var(--spacing-8);
   overflow: hidden;
+  /* --mercy-intensity is set inline on the element (0..1) — used by the
+     top-right danger gradient to bleed redder as the player approaches the
+     elimination threshold. */
+  --mercy-intensity: 0;
 }
 
-/* The felt-table surface — soft warm radial light + dark inner vignette so
-   the pair of cards reads as sitting on a surface, not floating in void. */
+/* LAYER 1 — Diagonal industrial hatching, 2% opacity. Floor markings, not noise. */
+.pit-hatching {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.018) 0 2px,
+    transparent 2px 22px
+  );
+  z-index: 0;
+}
+
+/* LAYER 2 — Felt table surface with top-down warm light + dark vignette */
 .pit-surface {
   position: absolute;
   inset: 0;
   pointer-events: none;
   background:
     radial-gradient(
-      ellipse 60% 50% at 50% 42%,
-      rgba(255, 196, 122, 0.05) 0%,
+      ellipse 65% 55% at 55% 40%,
+      rgba(255, 196, 122, 0.06) 0%,
       rgba(255, 196, 122, 0.02) 35%,
       transparent 70%
     ),
     radial-gradient(
-      ellipse 90% 70% at 50% 60%,
-      rgba(0, 0, 0, 0.55) 50%,
-      rgba(0, 0, 0, 0.25) 80%,
+      ellipse 90% 80% at 55% 60%,
+      rgba(0, 0, 0, 0.5) 50%,
+      rgba(0, 0, 0, 0.2) 80%,
       transparent 100%
     );
+  z-index: 1;
+}
+
+/* LAYER 3 — Danger gradient from top-right. Opacity = --mercy-intensity.
+   The room "darkens with red" as the player approaches elimination. */
+.pit-danger-gradient {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 70% 60% at 95% -10%,
+    rgba(255, 42, 42, calc(var(--mercy-intensity) * 0.35)) 0%,
+    rgba(255, 42, 42, calc(var(--mercy-intensity) * 0.12)) 30%,
+    transparent 70%
+  );
+  transition: background var(--duration-soft) var(--ease-soft);
+  z-index: 2;
+}
+
+/* LAYER 4 — Oversized "NO MERCY" typographic watermark behind the play
+   area. The brand IS the composition. Tracking-locked, low opacity. */
+.pit-watermark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+  line-height: 0.78;
+  z-index: 3;
+  user-select: none;
+  text-align: center;
+}
+
+.pit-watermark .wm-no,
+.pit-watermark .wm-mercy {
+  display: block;
+  font-size: clamp(7rem, 18vw, 13rem);
+  color: rgba(255, 255, 255, 0.012);
+  text-shadow: 0 0 40px rgba(255, 42, 42, calc(var(--mercy-intensity) * 0.18));
+  transition: text-shadow var(--duration-soft) var(--ease-soft);
+}
+
+.pit-watermark .wm-mercy {
+  color: rgba(255, 42, 42, 0.014);
+}
+
+/* LAYER 5 — Left vertical control rail (desktop). Industrial control panel
+   with direction / color / stack indicators on top and a tall MERCY
+   thermometer filling the remaining height. */
+.pit-rail {
+  grid-area: rail;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-2);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.25));
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  position: relative;
+  z-index: var(--z-cards);
+  backdrop-filter: blur(8px);
+}
+
+.rail-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: var(--spacing-2) 0;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  color: var(--text-secondary);
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
+}
+
+.rail-cell:last-of-type {
+  border-bottom: none;
+}
+
+.rail-direction svg { animation: spin-cw 3s linear infinite; color: var(--color-neon-blue); }
+.rail-direction.ccw svg { animation: spin-ccw 3s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rail-direction svg { animation: none; }
+}
+
+.rail-color .color-dot {
+  width: 14px;
+  height: 14px;
+}
+
+.rail-stack {
+  color: var(--color-hazard);
+}
+
+.rail-stack.critical {
+  color: var(--color-alert);
+  animation: stack-pulse 1.6s ease-in-out infinite;
+}
+
+.rail-cell-label {
+  font-size: 0.55rem;
+  letter-spacing: 0.25em;
+  color: var(--text-muted);
+}
+
+.rail-cell-value {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  letter-spacing: 0.05em;
+  color: inherit;
+}
+
+/* Mercy thermometer — fills bottom→top toward 25. Two tick marks at the
+   warning (15) and critical (20) thresholds. */
+.rail-mercy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex: 1;
+  padding: var(--spacing-3) 0 var(--spacing-2);
+}
+
+.mercy-track {
+  position: relative;
+  width: 16px;
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  min-height: 80px;
+}
+
+.mercy-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(180deg, var(--color-hazard) 0%, var(--color-neon-green) 100%);
+  transition: height var(--duration-soft) var(--ease-soft), background var(--duration-soft) var(--ease-soft);
+  border-radius: var(--radius-pill);
+}
+
+.mercy-tick {
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.mercy-tick-warn { bottom: 60%; } /* 15/25 */
+.mercy-tick-crit { bottom: 80%; background: rgba(255, 42, 42, 0.4); } /* 20/25 */
+
+.rail-mercy.warning .mercy-fill {
+  background: linear-gradient(180deg, #ff8800 0%, var(--color-hazard) 100%);
+}
+
+.rail-mercy.critical .mercy-fill {
+  background: linear-gradient(180deg, var(--color-alert) 0%, #ff8800 100%);
+  box-shadow: 0 0 14px rgba(255, 42, 42, 0.5);
+  animation: mercy-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes mercy-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(255, 42, 42, 0.4); }
+  50% { box-shadow: 0 0 18px rgba(255, 42, 42, 0.85); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail-mercy.critical .mercy-fill { animation: none; }
+}
+
+.mercy-readout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+.mercy-num {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.rail-mercy.warning .mercy-num { color: var(--color-hazard); }
+.rail-mercy.critical .mercy-num {
+  color: var(--color-alert);
+  text-shadow: 0 0 12px rgba(255, 42, 42, 0.5);
+}
+
+.mercy-of {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+}
+
+.mercy-label-text {
+  font-size: 0.55rem;
+  letter-spacing: 0.3em;
+  color: var(--text-muted);
+  margin-top: 2px;
 }
 
 .pit-table {
+  grid-area: table;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: var(--spacing-16);
   position: relative;
   z-index: var(--z-cards);
+  perspective: 1200px;
 }
 
-/* --- HUD STRIP below the table --- */
-.pit-hud {
-  display: inline-flex;
+/* Draw + discard sit on the table with slight perspective tilt so cards feel
+   laid down rather than floating in space. */
+.station {
+  transform: perspective(800px) rotateX(4deg);
+  transform-origin: center bottom;
+  filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.65));
+}
+
+/* --- MOBILE HUD (replaces the desktop left rail under ≤768px) --- */
+.pit-hud-mobile {
+  grid-area: hud-mobile;
+  display: none;
   align-items: center;
   gap: var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-3);
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.25));
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.25));
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: var(--radius-pill);
   position: relative;
   z-index: var(--z-cards);
   backdrop-filter: blur(8px);
+  justify-self: center;
+  margin-top: var(--spacing-4);
+}
+
+.hud-stack-mobile {
+  font-family: var(--font-display);
+  color: var(--color-hazard);
+  font-size: var(--text-base);
+}
+
+.hud-stack-mobile.critical {
+  color: var(--color-alert);
+  animation: stack-pulse 1.6s ease-in-out infinite;
+}
+
+.hud-mercy-mobile {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex: 1;
+  min-width: 110px;
+}
+
+.mobile-mercy-bar {
+  position: relative;
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.mobile-mercy-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, var(--color-neon-green), var(--color-hazard));
+  border-radius: 2px;
+  transition: width var(--duration-soft) var(--ease-soft);
+}
+
+.hud-mercy-mobile.warning .mobile-mercy-fill {
+  background: linear-gradient(90deg, var(--color-hazard), #ff8800);
+}
+
+.hud-mercy-mobile.critical .mobile-mercy-fill {
+  background: linear-gradient(90deg, #ff8800, var(--color-alert));
+}
+
+.mobile-mercy-text {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.hud-mercy-mobile.warning .mobile-mercy-text { color: var(--color-hazard); }
+.hud-mercy-mobile.critical .mobile-mercy-text { color: var(--color-alert); }
+
+/* Legacy .pit-hud (kept as a no-op for older callers) */
+.pit-hud {
+  display: none;
 }
 
 .hud-cell {
@@ -847,7 +1151,7 @@
 }
 
 /* ==========================================================================
-   RESPONSIVE — TABLET (768px)
+   RESPONSIVE — TABLET (768px) — collapse left rail, show mobile HUD
    ========================================================================== */
 @media (max-width: 768px) {
   .game-view {
@@ -856,8 +1160,26 @@
   }
 
   .battle-pit {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+    grid-template-areas:
+      "table"
+      "hud-mobile";
     padding: var(--spacing-4) var(--spacing-2);
     gap: var(--spacing-4);
+  }
+
+  .pit-rail {
+    display: none;
+  }
+
+  .pit-hud-mobile {
+    display: inline-flex;
+  }
+
+  .pit-watermark .wm-no,
+  .pit-watermark .wm-mercy {
+    font-size: clamp(6rem, 28vw, 10rem);
   }
 
   .pit-table {
