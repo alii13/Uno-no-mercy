@@ -76,7 +76,7 @@ const cardSize = computed(() => {
 const cardOverlap = computed(() => {
   const count = props.hand.length
   if (count <= 1) return 0
-  const padding = isMobile.value ? 20 : isTablet.value ? 20 : 40
+  const padding = isMobile.value ? 48 : isTablet.value ? 40 : 60
   const available = screenWidth.value - padding
   const totalWidth = count * cardSize.value.width
   if (totalWidth <= available) {
@@ -218,25 +218,27 @@ function animateAndPlay(card: CardType) {
   will-change: transform;
 }
 
-.hand-card-wrapper:hover {
-  z-index: 9999 !important;
-  transform: translateY(-40px) scale(1.12) !important;
-}
+@media (hover: hover) and (pointer: fine) {
+  .hand-card-wrapper:hover {
+    z-index: 9999 !important;
+    transform: translateY(-40px) scale(1.12) !important;
+  }
 
-.hand-card-wrapper:hover .hand-card {
-  box-shadow: 0 18px 28px rgba(0, 0, 0, 0.55);
+  .hand-card-wrapper:hover .hand-card {
+    box-shadow: 0 18px 28px rgba(0, 0, 0, 0.55);
+  }
+
+  .hand-card-wrapper:hover .unplayable {
+    transform: translateY(-30px) scale(1.05);
+    opacity: 1;
+    filter: grayscale(0);
+  }
 }
 
 .unplayable {
   opacity: 0.7;
   filter: brightness(0.75);
   transform: translateY(10px);
-}
-
-.hand-card-wrapper:hover .unplayable {
-  transform: translateY(-30px) scale(1.05);
-  opacity: 1;
-  filter: grayscale(0);
 }
 
 .hand-card-wrapper.playable-glow:active {
@@ -277,8 +279,10 @@ function animateAndPlay(card: CardType) {
   cursor: not-allowed;
 }
 
-.not-my-turn .hand-card-wrapper:hover {
-  transform: translateY(-20px) scale(1.05) !important;
+@media (hover: hover) and (pointer: fine) {
+  .not-my-turn .hand-card-wrapper:hover {
+    transform: translateY(-20px) scale(1.05) !important;
+  }
 }
 
 @media (max-width: 768px) {
@@ -286,7 +290,9 @@ function animateAndPlay(card: CardType) {
     height: 160px;
     padding: 30px 10px 10px;
   }
+}
 
+@media (max-width: 768px) and (hover: hover) and (pointer: fine) {
   .hand-card-wrapper:hover {
     transform: translateY(-30px) scale(1.1) !important;
   }
@@ -298,7 +304,9 @@ function animateAndPlay(card: CardType) {
     padding: 20px 5px 5px;
     overflow: visible;
   }
+}
 
+@media (max-width: 480px) and (hover: hover) and (pointer: fine) {
   .hand-card-wrapper:hover {
     transform: translateY(-15px) scale(1.05) !important;
   }
