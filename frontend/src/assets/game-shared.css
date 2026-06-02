@@ -302,9 +302,9 @@
 
 /* LAYER 5 — Left vertical control rail. Floats absolutely on the left edge
    so it doesn't shift the table content to the right of the viewport
-   centerline. Opponent + table + hand all share the same vertical axis. */ (desktop). Industrial control panel
-   with direction / color / stack indicators on top and a tall MERCY
-   thermometer filling the remaining height. */
+   centerline. Opponent + table + hand all share the same vertical axis.
+   Industrial control panel: direction / color / stack indicators on top
+   and a tall MERCY thermometer filling the remaining height. */
 .pit-rail {
   position: absolute;
   top: var(--spacing-6);
