@@ -90,22 +90,22 @@ const topCard = computed(() => {
 })
 
 function getStackStyle(index: number) {
-  // Each card in the deck lifts diagonally — visible 4px Y + 1.5px X offset
-  // per layer, with a real rotation jitter. Reads as a leaning tower of
-  // cards, not a flat rectangle. The deepest card is offset enough that
-  // its corner is unmistakably visible behind the top card.
-  const yLift = index * 4
-  const xLift = index * 1.4
-  const seed = index * 23
-  const rot = ((seed % 14) - 7) * 0.45 // approx -3 to +3 deg per card
-  const zPush = index * -2
-  // Edge shadow intensifies with depth, giving the bottom of the stack weight
-  const shadowDepth = 2 + index * 0.6
+  // Visible pile depth: top card (i=1) sits at origin, cards behind peek
+  // out down-and-right at ~6px Y / ~2.5px X per layer with rotation
+  // jitter. Z-index INVERTED so i=1 is on top (the "drawable" card), not
+  // the deepest card. Stronger rotation per card so the pile doesn't
+  // look machine-stacked.
+  const i = Math.max(0, index - 1) // 0-based: 0 = top, 6 = deepest
+  const yLift = i * 6
+  const xLift = i * 2.5
+  const seed = i * 31 + 7
+  const rot = ((seed % 20) - 10) * 0.5 // ±5 deg
+  const shadowDepth = 2 + i * 0.7
   return {
-    transform: `translate3d(${xLift}px, ${-yLift}px, ${zPush}px) rotate(${rot}deg)`,
-    zIndex: index,
-    filter: `brightness(${1 - index * 0.05})`,
-    boxShadow: `0 ${shadowDepth}px ${shadowDepth * 2}px rgba(0, 0, 0, 0.55)`,
+    transform: `translate3d(${xLift}px, ${yLift}px, 0) rotate(${rot}deg)`,
+    zIndex: 20 - index,
+    filter: `brightness(${1 - i * 0.05})`,
+    boxShadow: `0 ${shadowDepth}px ${shadowDepth * 2}px rgba(0, 0, 0, 0.6)`,
   }
 }
 
