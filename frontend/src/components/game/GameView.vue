@@ -118,6 +118,7 @@
       v-if="store.gameState === 'GAME_OVER'"
       :is-winner="isWinner"
       :winner-name="getWinnerName()"
+      :opponent-name="opponentDisplayName"
       :stats="gameStats"
       :is-anonymous="authStore.isAnonymous"
       mode="sp"
@@ -356,7 +357,7 @@ const isWinner = computed(() => store.winnerId === 'p-0')
 
 // Pull the per-player stats and shape them for the modal.
 const gameStats = computed(() => {
-  const s = (store as any).playerStats?.['p-0']
+  const s = store.playerStats['p-0']
   if (!s) return undefined
   return {
     cardsPlayed: s.cardsPlayedTotal || 0,
@@ -364,6 +365,15 @@ const gameStats = computed(() => {
     unosCalled: s.unoCalls || 0,
     peakHand: s.peakCards || 0,
   }
+})
+
+// Name to render in the share image sub-line. The sub-line reads
+// "I broke {x}" on win and "{x} broke me" on loss, so we want the loser
+// in the first case and the winner in the second — i.e. always the
+// "other side."
+const opponentDisplayName = computed(() => {
+  const other = store.players.find(p => p.id !== 'p-0')
+  return other?.name ?? 'opponent'
 })
 
 function restart() {

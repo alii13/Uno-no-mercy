@@ -935,6 +935,7 @@ export const useGameStore = defineStore('game', () => {
         actionInProgress,
         suppressDiscardSlam,
         stackingMode,
+        playerStats,
         setStackingMode,
         initializeGame,
         drawCardFromDeck,

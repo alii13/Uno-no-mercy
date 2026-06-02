@@ -81,6 +81,7 @@ interface Stats {
 const props = defineProps<{
   isWinner: boolean
   winnerName: string
+  opponentName: string
   stats?: Stats
   isAnonymous: boolean
   mode: 'sp' | 'mp'
@@ -120,7 +121,7 @@ async function onShareImage() {
   try {
     const blob = await generateShareImage({
       isWinner: props.isWinner,
-      opponentName: props.winnerName,
+      opponentName: props.opponentName,
       cardsPlayed: props.stats?.cardsPlayed ?? 0,
       biggestStack: props.stats?.biggestStack ?? 0,
       unosCalled: props.stats?.unosCalled ?? 0,

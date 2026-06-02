@@ -169,6 +169,7 @@
       v-if="gameStatus === 'finished' && !opponentLeft"
       :is-winner="isMpWinner"
       :winner-name="winnerName"
+      :opponent-name="opponentDisplayName"
       :stats="mpGameStats"
       :is-anonymous="authStore.isAnonymous"
       mode="mp"
@@ -274,10 +275,23 @@ const winnerName = computed(() => {
   return winner?.name || 'Opponent'
 })
 
+// Always the "other side" — loser when we won, winner when we lost. Used in
+// the share-image sub-line so it never reads "I broke You."
+const opponentDisplayName = computed(() => {
+  const meId = authStore.user?.id
+  if (!meId) return 'opponent'
+  const winnerId = currentGame.value?.winner_id
+  const otherId = winnerId === meId
+    ? mpStore.gamePlayers.find(p => p.user_id !== meId)?.user_id
+    : winnerId
+  const other = mpStore.gamePlayers.find(p => p.user_id === otherId)
+  return other?.name || 'opponent'
+})
+
 const isMpWinner = computed(() => currentGame.value?.winner_id === authStore.user?.id)
 
 const mpGameStats = computed(() => {
-  const s = (mpStore as any).mpStats?.value || (mpStore as any).mpStats
+  const s = mpStore.mpStats
   if (!s) return undefined
   return {
     cardsPlayed: s.cardsPlayedTotal || 0,

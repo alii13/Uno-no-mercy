@@ -1539,6 +1539,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         suppressDiscardSlam,
         pendingDrawnWildCard,
         pendingDiscardAllCards,
+        mpStats,
         createGame,
         joinGame,
         startGame,
