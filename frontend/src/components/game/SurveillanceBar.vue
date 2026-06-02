@@ -1,13 +1,17 @@
 <template>
   <div class="surveillance-bar">
-    <div class="bar-label">OPPONENT_FEED_LIVE</div>
-    <div class="opponents-grid">
-      <slot></slot>
+    <div class="bar-content">
+      <div class="opponents-grid">
+        <slot></slot>
+      </div>
+      <div class="bar-controls" v-if="$slots.controls">
+        <slot name="controls"></slot>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-// This is a simple wrapper component that provides the styled container
-// for displaying opponents. Content is passed via slot for flexibility.
+/* Top HUD strip. Opponents in default slot, audio + settings in `controls`.
+   Dropped the "OPPONENT_FEED_LIVE" cosplay label that lived above the row. */
 </script>

@@ -1,27 +1,105 @@
-:root {
-  /* Industrial Chaos Palette */
+/* ==========================================================================
+   DESIGN TOKENS — @theme block is the single source of truth.
+   Color, spacing, radius, opacity, elevation, motion, type, z-index.
+   Existing names (--bg-concrete, --color-hazard, --text-primary, ...) are
+   preserved so existing CSS keeps working unchanged. New scales added on top.
+   ========================================================================== */
+@import "tailwindcss/theme.css" layer(theme);
+
+/* @theme static — disable tree-shaking so every token is emitted as a CSS
+   custom property at :root, even when scoped Vue styles are the only
+   consumers. (Default @theme only emits variables referenced inside this
+   file, which strips ~80% of our scale.) */
+@theme static {
+  /* Industrial chaos palette */
   --bg-concrete: #0a0a0b;
   --bg-concrete-light: #18191b;
   --surface-metal: #1f2226;
   --surface-metal-dark: #121416;
-  
-  --color-hazard: #ffcc00; /* Yellow Warning */
+
+  --color-hazard: #ffcc00;
   --color-hazard-dim: #997a00;
-  --color-alert: #ff2a2a; /* Red Strobe */
+  --color-alert: #ff2a2a;
   --color-alert-dim: #801515;
   --color-neon-blue: #00f3ff;
   --color-neon-green: #00ff66;
-  
+  --color-neon-magenta: #ff66dd;
+
   --text-primary: #e6e6e6;
   --text-secondary: #a1a1aa;
   --text-muted: #52525b;
 
+  /* Typography */
   --font-display: 'Black Ops One', cursive;
   --font-body: 'Chakra Petch', sans-serif;
-  
-  --shadow-glow-red: 0 0 20px rgba(255, 42, 42, 0.4);
-  --shadow-glow-yellow: 0 0 20px rgba(255, 204, 0, 0.3);
-  
+  --font-mono: 'Courier New', monospace;
+
+  /* Type scale */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 2rem;
+  --text-display: 3rem;
+  --text-hero: 5rem;
+
+  /* Spacing — 4px base */
+  --spacing-0: 0;
+  --spacing-1: 0.25rem;
+  --spacing-2: 0.5rem;
+  --spacing-3: 0.75rem;
+  --spacing-4: 1rem;
+  --spacing-6: 1.5rem;
+  --spacing-8: 2rem;
+  --spacing-12: 3rem;
+  --spacing-16: 4rem;
+  --spacing-24: 6rem;
+
+  /* Radius */
+  --radius-none: 0;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 9999px;
+
+  /* Elevation + neon glows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.6);
+  --shadow-glow-red: 0 0 24px rgba(255, 42, 42, 0.4);
+  --shadow-glow-yellow: 0 0 24px rgba(255, 204, 0, 0.35);
+  --shadow-glow-cyan: 0 0 24px rgba(0, 243, 255, 0.4);
+  --shadow-glow-lime: 0 0 24px rgba(0, 255, 102, 0.4);
+  --shadow-glow-magenta: 0 0 24px rgba(255, 102, 221, 0.4);
+
+  /* Motion duration + easing — these mirror useMotion.ts presets */
+  --duration-snap: 180ms;
+  --duration-soft: 320ms;
+  --duration-bounce: 500ms;
+  --duration-strut: 800ms;
+  --ease-snap: cubic-bezier(0.33, 1, 0.68, 1);
+  --ease-soft: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-strut: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Z-index scale — hand sits ABOVE hud bars so cards float over the
+     bottom console (Phase 2 fixed the prior 1001>1000 clipping bug). */
+  --z-base: 1;
+  --z-cards: 10;
+  --z-hud: 50;
+  --z-hand: 200;
+  --z-toast: 500;
+  --z-modal: 1000;
+  --z-drag: 2000;
+
+  /* Focus ring */
+  --focus-ring-color: var(--color-neon-blue);
+}
+
+:root {
+  /* Composite tokens that aren't single-value theme atoms */
   --border-hazard: 2px dashed var(--color-hazard-dim);
 }
 
@@ -52,6 +130,14 @@ body {
 
 button {
   font-family: var(--font-body);
+}
+
+/* Opt-in keyboard focus ring. Applied via v-focus-ring directive; no
+   effect until a component sets the class. Phase 1+ components consume it. */
+.focus-ring:focus-visible {
+  outline: 2px solid var(--focus-ring-color, var(--color-neon-blue));
+  outline-offset: 2px;
+  border-radius: inherit;
 }
 
 /* Scrollbar styling for any scrollable areas */

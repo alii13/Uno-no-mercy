@@ -1,37 +1,9 @@
 <template>
-  <div class="status-panel">
-    <div class="panel-row">
-      <span class="label">TURN</span>
-      <span class="value blink">{{ currentPlayerName }}</span>
+  <Transition name="toast">
+    <div v-if="message" class="status-toast" :style="messageStyle" role="status" aria-live="polite">
+      {{ message }}
     </div>
-    <div class="panel-row">
-      <span class="label">FLOW</span>
-      <span
-        class="value direction-indicator"
-        :class="{ 'direction-cw': direction === 1, 'direction-ccw': direction === -1 }"
-      >
-        <span class="direction-icon">↻</span>
-        {{ direction === 1 ? 'CLOCKWISE' : 'COUNTER-CW' }}
-      </span>
-    </div>
-    <div class="panel-row" v-if="currentColor && currentColor !== 'wild'">
-      <span class="label">COLOR</span>
-      <span class="value color-indicator" :class="`color-${currentColor}`">
-        {{ currentColor.toUpperCase() }}
-      </span>
-    </div>
-    <div class="panel-row" v-if="drawStack > 0">
-      <span class="label hazard">STACK_LEVEL</span>
-      <span class="value hazard-text">+{{ drawStack }}</span>
-    </div>
-    <div class="panel-row" v-if="message">
-      <span class="message-text" :style="messageStyle">{{ message }}</span>
-    </div>
-    <div v-if="stackingMode && stackingMode !== 'official'" class="panel-row mode-row">
-      <span class="label">RULES</span>
-      <span class="value mode-value">{{ stackingMode.toUpperCase() }}</span>
-    </div>
-  </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">
@@ -49,43 +21,31 @@ defineProps<{
 </script>
 
 <style scoped>
-.color-indicator {
-  font-weight: bold;
-  padding: 2px 8px;
-  border-radius: 3px;
-  letter-spacing: 2px;
-}
-.mode-row {
-  border-top: 1px dashed #333;
-  padding-top: 4px;
-  margin-top: 2px;
-}
-
-.mode-value {
-  color: var(--color-hazard) !important;
-  font-size: 0.7rem;
-  letter-spacing: 1px;
+.status-toast {
+  display: inline-block;
+  padding: var(--spacing-2) var(--spacing-4);
+  background: linear-gradient(180deg, rgba(255, 42, 42, 0.18), rgba(255, 42, 42, 0.06));
+  border: 1px solid var(--color-alert);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  letter-spacing: 0.12em;
+  color: var(--text-primary);
+  text-align: center;
+  box-shadow: 0 0 24px rgba(255, 42, 42, 0.25);
+  max-width: min(560px, 90vw);
 }
 
-.color-red { color: #ff3333; text-shadow: 0 0 8px rgba(255, 51, 51, 0.6); }
-.color-blue { color: #3388ff; text-shadow: 0 0 8px rgba(51, 136, 255, 0.6); }
-.color-green { color: #33ff66; text-shadow: 0 0 8px rgba(51, 255, 102, 0.6); }
-.color-yellow { color: #ffcc00; text-shadow: 0 0 8px rgba(255, 204, 0, 0.6); }
+.toast-enter-active, .toast-leave-active {
+  transition: opacity var(--duration-soft) var(--ease-soft), transform var(--duration-soft) var(--ease-soft);
+}
 
-@media (max-width: 480px) {
-  .color-indicator {
-    font-size: 0.7rem;
-    padding: 1px 4px;
-    letter-spacing: 1px;
-  }
+.toast-enter-from, .toast-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
 
-  .direction-indicator {
-    font-size: 0.7rem;
-    gap: 0.25rem;
-  }
-
-  .direction-icon {
-    font-size: 1rem;
-  }
+@media (prefers-reduced-motion: reduce) {
+  .toast-enter-active, .toast-leave-active { transition: none; }
 }
 </style>

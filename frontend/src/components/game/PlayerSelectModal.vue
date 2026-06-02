@@ -1,38 +1,40 @@
 <template>
-  <div class="player-select-overlay">
-    <div class="tactical-hud">
-      <div class="hud-header header-hazard">
-        <svg class="warning-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        <span>SELECT TARGET FOR HAND SWAP</span>
-      </div>
-      
-      <div class="players-list">
-        <button 
-          v-for="player in eligiblePlayers" 
-          :key="player.id"
-          class="player-btn"
-          @click="$emit('select', player.id)"
-        >
-          <div class="btn-inner">
-            <span class="player-name">{{ player.name }}</span>
-            <span class="card-count">{{ player.hand.length }} CARDS</span>
-          </div>
-        </button>
-      </div>
-      
-      <button class="skip-btn" @click="$emit('skip')">
-        KEEP MY HAND
-      </button>
+  <Modal :close-on-esc="false" aria-label="Select a player to swap hands with">
+    <div class="select-card">
+      <header class="select-header">
+        <svg class="select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+          <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
+        </svg>
+        <h3 class="select-title">SWAP HANDS</h3>
+      </header>
 
-      <div class="hud-footer">
-        AUTHORIZATION REQUIRED...
-      </div>
+      <p class="select-desc">Pick a player to swap your hand with.</p>
+
+      <ul class="players-list">
+        <li v-for="player in eligiblePlayers" :key="player.id">
+          <button
+            v-focus-ring
+            class="player-btn"
+            @click="$emit('select', player.id)"
+          >
+            <span class="player-name">{{ player.name }}</span>
+            <span class="player-cards">{{ player.hand.length }} cards</span>
+          </button>
+        </li>
+      </ul>
+
+      <Button variant="ghost" size="md" block @click="$emit('skip')">
+        KEEP MY HAND
+      </Button>
     </div>
-  </div>
+  </Modal>
 </template>
 
 <script setup lang="ts">
 import type { Player } from '../../types/card'
+import { vFocusRing } from '../../directives/focusRing'
+import Modal from '../ui/Modal.vue'
+import Button from '../ui/Button.vue'
 
 defineProps<{
   eligiblePlayers: Player[]
@@ -45,127 +47,99 @@ defineEmits<{
 </script>
 
 <style scoped>
-.player-select-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0, 0, 0, 0.9);
+.select-card {
+  background: linear-gradient(180deg, #18191b 0%, #0a0a0b 100%);
+  border: 1px solid rgba(255, 204, 0, 0.2);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-6);
+  width: 100%;
+  max-width: 420px;
   display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 2100;
-  backdrop-filter: blur(8px);
-}
-
-.tactical-hud {
-  background: #111;
-  border: 1px solid var(--color-hazard);
-  padding: 2rem;
-  width: 400px;
+  flex-direction: column;
+  gap: var(--spacing-4);
   box-shadow: 0 0 40px rgba(255, 204, 0, 0.1);
 }
 
-.hud-header {
+.select-header {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: var(--spacing-3);
+}
+
+.select-icon {
   color: var(--color-hazard);
-  font-family: monospace;
-  margin-bottom: 2rem;
-  border-bottom: 1px dashed #444;
-  padding-bottom: 1rem;
+  flex-shrink: 0;
 }
 
-.header-hazard {
-  animation: hazard-pulse 1s infinite alternate;
+.select-title {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  color: var(--color-hazard);
+  letter-spacing: 0.15em;
+  margin: 0;
 }
 
-@keyframes hazard-pulse {
-  from { opacity: 0.8; }
-  to { opacity: 1; filter: brightness(1.2); }
+.select-desc {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin: 0;
 }
 
 .players-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--spacing-2);
 }
 
 .player-btn {
-  background: #222;
-  border: 1px solid #333;
-  color: white;
-  padding: 1rem;
-  cursor: pointer;
-  font-family: var(--font-display);
-  transition: all 0.2s;
-  text-align: left;
-}
-
-.btn-inner {
+  width: 100%;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  min-height: 44px;
+  transition:
+    border-color var(--duration-snap) var(--ease-snap),
+    background var(--duration-snap) var(--ease-snap),
+    transform var(--duration-snap) var(--ease-snap);
 }
 
 .player-btn:hover {
-  background: #333;
   border-color: var(--color-hazard);
-  transform: translateX(5px);
+  background: rgba(255, 204, 0, 0.06);
+  transform: translateX(4px);
 }
 
-.card-count {
-  font-size: 0.8rem;
-  color: #888;
-  font-family: monospace;
+.player-name {
+  font-weight: bold;
 }
 
-.skip-btn {
-  width: 100%;
-  margin-top: 1.5rem;
-  padding: 0.75rem;
-  background: transparent;
-  border: 1px solid #555;
-  color: var(--text-secondary);
-  font-family: var(--font-display);
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.2s;
+.player-cards {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
 }
 
-.skip-btn:hover {
-  border-color: var(--color-neon-blue);
-  color: var(--color-neon-blue);
-}
-
-.hud-footer {
-  margin-top: 1rem;
-  text-align: right;
-  font-family: monospace;
-  font-size: 0.7rem;
-  color: #444;
+.player-btn:hover .player-cards {
+  color: var(--color-hazard);
 }
 
 @media (max-width: 480px) {
-  .tactical-hud {
-    width: 95vw;
-    padding: 1rem;
-  }
-
-  .hud-header {
-    font-size: 0.75rem;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-  }
-
-  .player-btn {
-    padding: 0.75rem;
-  }
-}
-
-@media (max-width: 768px) and (min-width: 481px) {
-  .tactical-hud {
-    width: 90vw;
-    padding: 1.5rem;
+  .select-card {
+    padding: var(--spacing-4);
   }
 }
 </style>

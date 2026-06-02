@@ -31,30 +31,12 @@
     repeating-linear-gradient(0deg, transparent 0, transparent 50px, #000 50px, #000 51px);
 }
 
-.warning-stripes {
-  position: absolute;
-  left: 0;
-  width: 100%;
-  height: 10px;
-  background: repeating-linear-gradient(
-    45deg,
-    var(--color-hazard-dim),
-    var(--color-hazard-dim) 10px,
-    #000 10px,
-    #000 20px
-  );
-  z-index: 10;
-  opacity: 0.5;
-}
-.warning-stripes.top { top: 0; }
-.warning-stripes.bottom { bottom: 0; }
-
 .vignette {
   position: absolute;
   inset: 0;
   background: radial-gradient(circle, transparent 40%, rgba(0,0,0,0.8));
   pointer-events: none;
-  z-index: 1;
+  z-index: var(--z-base);
 }
 
 .mechanical-cog {
@@ -73,137 +55,723 @@
 }
 
 /* ==========================================================================
-   SURVEILLANCE BAR (Top opponents area)
+   SURVEILLANCE BAR (Top HUD — opponents + audio + settings)
    ========================================================================== */
 .surveillance-bar {
   flex: 0 0 auto;
-  background: rgba(0,0,0,0.55);
-  border-bottom: 1px solid #333;
-  padding: 0.5rem;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
+  background: linear-gradient(180deg, rgba(10, 10, 11, 0.95), rgba(10, 10, 11, 0.6));
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: var(--spacing-2) var(--spacing-3);
+  z-index: var(--z-hud);
+  position: relative;
 }
 
-.bar-label {
-  font-size: 0.7rem;
-  color: var(--text-secondary);
-  margin-bottom: 0.5rem;
-  text-align: center;
+.bar-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-4);
+}
+
+/* Audio + settings float on the right edge of the bar so the opponent
+   row can center to the full viewport, sharing the same vertical axis
+   as the play area below. */
+.bar-controls {
+  position: absolute;
+  top: 50%;
+  right: var(--spacing-3);
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
 }
 
 .opponents-grid {
   display: flex;
   justify-content: center;
-  gap: 2rem;
+  gap: var(--spacing-3);
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
-/* Multiplayer opponent card style */
-.opponent-card {
-  display: flex;
+/* HUD audio toggle — compact tactical button that sits in the
+   SurveillanceBar's controls slot. */
+.hud-audio {
+  display: inline-flex;
   align-items: center;
-  gap: 1rem;
-  padding: 1rem 2rem;
-  background: rgba(0,0,0,0.4);
+  gap: var(--spacing-2);
+  background: rgba(0, 0, 0, 0.5);
   border: 1px solid #333;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.15em;
+  padding: var(--spacing-2) var(--spacing-3);
+  cursor: pointer;
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+  transition:
+    border-color var(--duration-snap) var(--ease-snap),
+    color var(--duration-snap) var(--ease-snap);
+}
+
+.hud-audio:hover {
+  border-color: var(--color-neon-blue);
+  color: var(--color-neon-blue);
+}
+
+.hud-audio-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #333;
+  transition: background var(--duration-snap) var(--ease-snap), box-shadow var(--duration-snap) var(--ease-snap);
+}
+
+.hud-audio.active .hud-audio-dot {
+  background: var(--color-neon-blue);
+  box-shadow: 0 0 8px var(--color-neon-blue);
+}
+
+/* Multiplayer opponent card — same pill pattern as single-player OpponentHand */
+.opponent-card {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3) var(--spacing-2) var(--spacing-2);
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  min-height: 44px;
+  transition:
+    border-color var(--duration-soft) var(--ease-soft),
+    background var(--duration-soft) var(--ease-soft),
+    box-shadow var(--duration-soft) var(--ease-soft);
 }
 
 .opponent-card.active {
   border-color: var(--color-neon-blue);
-  box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
+  background: rgba(0, 243, 255, 0.06);
+  box-shadow: 0 0 16px rgba(0, 243, 255, 0.25);
+  color: var(--text-primary);
+}
+
+.opponent-card.eliminated {
+  opacity: 0.5;
+  border-style: dashed;
 }
 
 .opponent-card .avatar {
-  width: 50px;
-  height: 50px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background: #222;
-  border: 2px solid #444;
+  background: rgba(255, 255, 255, 0.06);
+  border: none;
   display: flex;
-  justify-content: center;
   align-items: center;
-  font-weight: bold;
-  font-size: 1.5rem;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  flex-shrink: 0;
 }
 
 .opponent-card .avatar-active {
-  border-color: var(--color-neon-blue);
-  box-shadow: 0 0 10px var(--color-neon-blue);
+  background: var(--color-neon-blue);
+  color: var(--bg-concrete);
 }
 
 .opponent-card .opponent-info {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.1;
+  min-width: 0;
 }
 
 .opponent-card .name {
-  font-weight: bold;
+  font-size: var(--text-xs);
+  letter-spacing: 0.15em;
   text-transform: uppercase;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 130px;
+}
+
+.opponent-card .card-count {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  color: var(--color-hazard);
+  margin-top: 2px;
+}
+
+.opponent-card.active .card-count {
+  color: var(--color-neon-blue);
+}
+
+.opponent-card .eliminated-text {
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  letter-spacing: 0.2em;
+  color: var(--color-alert);
 }
 
 .opponent-card .status-indicator {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #333;
-}
-
-.opponent-card .status-indicator.active {
-  background: var(--color-neon-blue);
-  box-shadow: 0 0 10px var(--color-neon-blue);
-  animation: pulse 1s infinite;
+  display: none;
 }
 
 /* ==========================================================================
-   BATTLE PIT (Main game area)
+   BATTLE PIT (Main game area) — Industrial Brutalist composition
+   Layered: hatching → felt surface → danger gradient → watermark type →
+   left rail → asymmetric draw+discard table → mobile HUD → toast.
+   The wordmark IS the composition; left rail is a control panel; the
+   top-right glows redder as Mercy approaches 25.
    ========================================================================== */
 .battle-pit {
   flex: 1;
   min-height: 0;
   position: relative;
-  z-index: 2;
-  display: grid;
-  grid-template-columns: 200px 1fr 200px;
+  z-index: var(--z-cards);
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  padding: 0 2rem;
+  justify-content: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-6) var(--spacing-8);
+  overflow: hidden;
+  /* --mercy-intensity is set inline on the element (0..1) — used by the
+     top-right danger gradient to bleed redder as the player approaches the
+     elimination threshold. */
+  --mercy-intensity: 0;
 }
 
-/* Subtle ambient frame around the play area — corner glows + thin border
-   anchor the pit visually so it reads as "the table" instead of just empty
-   space. Doesn't compete with the cards or the surveillance bar above. */
-.battle-pit::before {
-  content: '';
+/* LAYER 1 — Diagonal industrial hatching, 2% opacity. Floor markings, not noise. */
+.pit-hatching {
   position: absolute;
-  inset: 0.5rem 1rem;
+  inset: 0;
   pointer-events: none;
-  border: 1px solid rgba(255, 204, 0, 0.08);
-  border-radius: 4px;
-  box-shadow:
-    inset 0 0 60px rgba(255, 204, 0, 0.03),
-    inset 0 -40px 80px -40px rgba(255, 42, 42, 0.05);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.018) 0 2px,
+    transparent 2px 22px
+  );
   z-index: 0;
 }
-/* Corner accents — Reka-Like industrial vibe */
-.battle-pit::after {
-  content: '';
+
+/* LAYER 2 — Felt table surface with top-down warm light + dark vignette */
+.pit-surface {
   position: absolute;
-  inset: 0.5rem 1rem;
+  inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(135deg, rgba(255, 204, 0, 0.5) 0 12px, transparent 12px 100%) top left / 24px 24px no-repeat,
-    linear-gradient(225deg, rgba(255, 204, 0, 0.5) 0 12px, transparent 12px 100%) top right / 24px 24px no-repeat,
-    linear-gradient(45deg, rgba(255, 204, 0, 0.5) 0 12px, transparent 12px 100%) bottom left / 24px 24px no-repeat,
-    linear-gradient(-45deg, rgba(255, 204, 0, 0.5) 0 12px, transparent 12px 100%) bottom right / 24px 24px no-repeat;
-  background-clip: padding-box;
-  opacity: 0.3;
-  z-index: 0;
+    radial-gradient(
+      ellipse 65% 55% at 55% 40%,
+      rgba(255, 196, 122, 0.06) 0%,
+      rgba(255, 196, 122, 0.02) 35%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 90% 80% at 55% 60%,
+      rgba(0, 0, 0, 0.5) 50%,
+      rgba(0, 0, 0, 0.2) 80%,
+      transparent 100%
+    );
+  z-index: 1;
+}
+
+/* LAYER 3 — Danger gradient from top-right. Opacity = --mercy-intensity.
+   The room "darkens with red" as the player approaches elimination. */
+.pit-danger-gradient {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 70% 60% at 95% -10%,
+    rgba(255, 42, 42, calc(var(--mercy-intensity) * 0.35)) 0%,
+    rgba(255, 42, 42, calc(var(--mercy-intensity) * 0.12)) 30%,
+    transparent 70%
+  );
+  transition: background var(--duration-soft) var(--ease-soft);
+  z-index: 2;
+}
+
+/* LAYER 5 — Left vertical control rail. Floats absolutely on the left edge
+   so it doesn't shift the table content to the right of the viewport
+   centerline. Opponent + table + hand all share the same vertical axis.
+   Industrial control panel: direction / color / stack indicators on top
+   and a tall MERCY thermometer filling the remaining height. */
+.pit-rail {
+  position: absolute;
+  top: var(--spacing-6);
+  bottom: var(--spacing-6);
+  left: var(--spacing-6);
+  width: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-2);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.25));
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  z-index: calc(var(--z-cards) + 1);
+  backdrop-filter: blur(8px);
+}
+
+.rail-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: var(--spacing-2) 0;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  color: var(--text-secondary);
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
+}
+
+.rail-cell:last-of-type {
+  border-bottom: none;
+}
+
+.rail-direction svg { animation: spin-cw 3s linear infinite; color: var(--color-neon-blue); }
+.rail-direction.ccw svg { animation: spin-ccw 3s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rail-direction svg { animation: none; }
+}
+
+.rail-color .color-dot {
+  width: 14px;
+  height: 14px;
+}
+
+.rail-stack {
+  color: var(--color-hazard);
+}
+
+.rail-stack.critical {
+  color: var(--color-alert);
+  animation: stack-pulse 1.6s ease-in-out infinite;
+}
+
+.rail-cell-label {
+  font-size: 0.55rem;
+  letter-spacing: 0.25em;
+  color: var(--text-muted);
+}
+
+.rail-cell-value {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  letter-spacing: 0.05em;
+  color: inherit;
+}
+
+/* Mercy thermometer — fills bottom→top toward 25. Two tick marks at the
+   warning (15) and critical (20) thresholds. */
+.rail-mercy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex: 1;
+  padding: var(--spacing-3) 0 var(--spacing-2);
+}
+
+.mercy-track {
+  position: relative;
+  width: 16px;
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  min-height: 80px;
+}
+
+.mercy-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(180deg, var(--color-hazard) 0%, var(--color-neon-green) 100%);
+  transition: height var(--duration-soft) var(--ease-soft), background var(--duration-soft) var(--ease-soft);
+  border-radius: var(--radius-pill);
+}
+
+.mercy-tick {
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.mercy-tick-warn { bottom: 60%; } /* 15/25 */
+.mercy-tick-crit { bottom: 80%; background: rgba(255, 42, 42, 0.4); } /* 20/25 */
+
+.rail-mercy.warning .mercy-fill {
+  background: linear-gradient(180deg, #ff8800 0%, var(--color-hazard) 100%);
+}
+
+.rail-mercy.critical .mercy-fill {
+  background: linear-gradient(180deg, var(--color-alert) 0%, #ff8800 100%);
+  box-shadow: 0 0 14px rgba(255, 42, 42, 0.5);
+  animation: mercy-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes mercy-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(255, 42, 42, 0.4); }
+  50% { box-shadow: 0 0 18px rgba(255, 42, 42, 0.85); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail-mercy.critical .mercy-fill { animation: none; }
+}
+
+.mercy-readout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+.mercy-num {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.rail-mercy.warning .mercy-num { color: var(--color-hazard); }
+.rail-mercy.critical .mercy-num {
+  color: var(--color-alert);
+  text-shadow: 0 0 12px rgba(255, 42, 42, 0.5);
+}
+
+.mercy-of {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+}
+
+.mercy-label-text {
+  font-size: 0.55rem;
+  letter-spacing: 0.3em;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.pit-table {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-16);
+  position: relative;
+  z-index: var(--z-cards);
+  perspective: 1200px;
+}
+
+/* Each station sits on a subtle "slot" pad — radial shadow base + thin
+   inset frame — so the deck and discard read as resting in holders. */
+.station {
+  position: relative;
+  padding: 14px;
+  filter: drop-shadow(0 18px 28px rgba(0, 0, 0, 0.6));
+}
+
+/* The slot pad: a soft radial shadow under the cards suggesting they're
+   sitting in a depression in the table surface. */
+.station::before {
+  content: '';
+  position: absolute;
+  inset: -4px -4px 0;
+  background: radial-gradient(
+    ellipse 80% 50% at 50% 100%,
+    rgba(0, 0, 0, 0.55) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Corner brackets — thin L-marks at each corner of the slot. Suggest a
+   "card stand" / dealer's tray without going full sci-fi HUD frame. */
+.station::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(to right, rgba(255, 204, 0, 0.22) 0 14px, transparent 14px) top left / 14px 1px no-repeat,
+    linear-gradient(to bottom, rgba(255, 204, 0, 0.22) 0 14px, transparent 14px) top left / 1px 14px no-repeat,
+    linear-gradient(to left, rgba(255, 204, 0, 0.22) 0 14px, transparent 14px) top right / 14px 1px no-repeat,
+    linear-gradient(to bottom, rgba(255, 204, 0, 0.22) 0 14px, transparent 14px) top right / 1px 14px no-repeat,
+    linear-gradient(to right, rgba(255, 204, 0, 0.22) 0 14px, transparent 14px) bottom left / 14px 1px no-repeat,
+    linear-gradient(to top, rgba(255, 204, 0, 0.22) 0 14px, transparent 14px) bottom left / 1px 14px no-repeat,
+    linear-gradient(to left, rgba(255, 204, 0, 0.22) 0 14px, transparent 14px) bottom right / 14px 1px no-repeat,
+    linear-gradient(to top, rgba(255, 204, 0, 0.22) 0 14px, transparent 14px) bottom right / 1px 14px no-repeat;
+}
+
+/* Draw station gets a periodic holographic shine sweep — like the cards
+   are emitting a faint light. Subtle, plays once every 8s. */
+.draw-station::after {
+  background-image:
+    linear-gradient(to right, rgba(0, 243, 255, 0.3) 0 14px, transparent 14px),
+    linear-gradient(to bottom, rgba(0, 243, 255, 0.3) 0 14px, transparent 14px),
+    linear-gradient(to left, rgba(0, 243, 255, 0.3) 0 14px, transparent 14px),
+    linear-gradient(to bottom, rgba(0, 243, 255, 0.3) 0 14px, transparent 14px),
+    linear-gradient(to right, rgba(0, 243, 255, 0.3) 0 14px, transparent 14px),
+    linear-gradient(to top, rgba(0, 243, 255, 0.3) 0 14px, transparent 14px),
+    linear-gradient(to left, rgba(0, 243, 255, 0.3) 0 14px, transparent 14px),
+    linear-gradient(to top, rgba(0, 243, 255, 0.3) 0 14px, transparent 14px);
+  background-position: top left, top left, top right, top right, bottom left, bottom left, bottom right, bottom right;
+  background-size: 14px 1px, 1px 14px, 14px 1px, 1px 14px, 14px 1px, 1px 14px, 14px 1px, 1px 14px;
+  background-repeat: no-repeat;
+}
+
+.draw-station::before {
+  background: radial-gradient(
+    ellipse 80% 50% at 50% 100%,
+    rgba(0, 243, 255, 0.12) 0%,
+    rgba(0, 0, 0, 0.55) 40%,
+    transparent 80%
+  );
+}
+
+/* --- MOBILE HUD (replaces the desktop left rail under ≤768px) --- */
+.pit-hud-mobile {
+  display: none;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.25));
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-pill);
+  position: relative;
+  z-index: var(--z-cards);
+  backdrop-filter: blur(8px);
+  justify-self: center;
+  margin-top: var(--spacing-4);
+}
+
+.hud-stack-mobile {
+  font-family: var(--font-display);
+  color: var(--color-hazard);
+  font-size: var(--text-base);
+}
+
+.hud-stack-mobile.critical {
+  color: var(--color-alert);
+  animation: stack-pulse 1.6s ease-in-out infinite;
+}
+
+.hud-mercy-mobile {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex: 1;
+  min-width: 110px;
+}
+
+.mobile-mercy-bar {
+  position: relative;
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.mobile-mercy-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, var(--color-neon-green), var(--color-hazard));
+  border-radius: 2px;
+  transition: width var(--duration-soft) var(--ease-soft);
+}
+
+.hud-mercy-mobile.warning .mobile-mercy-fill {
+  background: linear-gradient(90deg, var(--color-hazard), #ff8800);
+}
+
+.hud-mercy-mobile.critical .mobile-mercy-fill {
+  background: linear-gradient(90deg, #ff8800, var(--color-alert));
+}
+
+.mobile-mercy-text {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.hud-mercy-mobile.warning .mobile-mercy-text { color: var(--color-hazard); }
+.hud-mercy-mobile.critical .mobile-mercy-text { color: var(--color-alert); }
+
+/* Legacy .pit-hud (kept as a no-op for older callers) */
+.pit-hud {
+  display: none;
+}
+
+.hud-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.15em;
+  color: var(--text-secondary);
+  padding: var(--spacing-1) var(--spacing-3);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.hud-cell:last-child {
+  border-right: none;
+}
+
+.hud-direction svg {
+  animation: spin-cw 3s linear infinite;
+}
+
+.hud-direction.ccw svg {
+  animation: spin-ccw 3s linear infinite;
+}
+
+@keyframes spin-cw { to { transform: rotate(360deg); } }
+@keyframes spin-ccw { to { transform: rotate(-360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-direction svg, .hud-direction.ccw svg { animation: none; }
+}
+
+.color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.dot-red { background: #ff4444; color: #ff4444; }
+.dot-blue { background: #00bfff; color: #00bfff; }
+.dot-green { background: #00ff66; color: #00ff66; }
+.dot-yellow { background: #ffcc00; color: #ffcc00; }
+
+.hud-stack {
+  color: var(--color-hazard);
+}
+
+.hud-stack.critical {
+  color: var(--color-alert);
+  animation: stack-pulse 1.6s ease-in-out infinite;
+}
+
+.stack-label {
+  color: var(--text-muted);
+  font-size: 0.65rem;
+}
+
+.stack-value {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+}
+
+@keyframes stack-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-stack.critical { animation: none; }
+}
+
+/* Mercy meter — the signature tension element. The bar fills toward the
+   25-card elimination threshold, shifting yellow→red as it approaches. */
+.hud-mercy {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+  border-right: none;
+  padding-right: 0;
+}
+
+.mercy-head {
+  display: inline-flex;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.18em;
+  color: var(--text-muted);
+}
+
+.mercy-value {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  letter-spacing: 0.05em;
+  color: var(--text-primary);
+}
+
+.mercy-of {
+  color: var(--text-muted);
+}
+
+.mercy-bar {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.mercy-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-neon-green), var(--color-hazard));
+  transition: width var(--duration-soft) var(--ease-soft), background var(--duration-soft) var(--ease-soft);
+  border-radius: 2px;
+}
+
+.hud-mercy.warning .mercy-fill {
+  background: linear-gradient(90deg, var(--color-hazard), #ff8800);
+}
+
+.hud-mercy.warning .mercy-value { color: var(--color-hazard); }
+
+.hud-mercy.critical .mercy-fill {
+  background: linear-gradient(90deg, #ff8800, var(--color-alert));
+  box-shadow: 0 0 12px rgba(255, 42, 42, 0.5);
+  animation: mercy-pulse 1.2s ease-in-out infinite;
+}
+
+.hud-mercy.critical .mercy-value {
+  color: var(--color-alert);
+  text-shadow: 0 0 8px rgba(255, 42, 42, 0.5);
+}
+
+@keyframes mercy-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(255, 42, 42, 0.4); }
+  50% { box-shadow: 0 0 16px rgba(255, 42, 42, 0.75); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-mercy.critical .mercy-fill { animation: none; }
 }
 
 .station {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
+  gap: var(--spacing-4);
   position: relative;
 }
 
@@ -233,26 +801,108 @@
 }
 
 .action-hint {
-  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
   color: var(--color-neon-blue);
+  letter-spacing: 0.2em;
   animation: flicker 2s infinite;
+  margin-top: var(--spacing-2);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .action-hint { animation: none; }
+}
+
+/* Discard station gets a glowing ring matching the current play color.
+   This is the distinctive in-game visual hook — color state is the core
+   UNO mechanic, surfaced as the visual anchor of the table. */
 .discard-station {
   position: relative;
+  padding: var(--spacing-3);
+  border-radius: var(--radius-lg);
+  transition:
+    box-shadow var(--duration-soft) var(--ease-soft),
+    background var(--duration-soft) var(--ease-soft);
+}
+
+.discard-color-red {
+  background: radial-gradient(circle, rgba(255, 42, 42, 0.14) 0%, transparent 70%);
+  box-shadow: 0 0 36px rgba(255, 42, 42, 0.4), inset 0 0 0 1px rgba(255, 42, 42, 0.3);
+}
+.discard-color-blue {
+  background: radial-gradient(circle, rgba(0, 191, 255, 0.14) 0%, transparent 70%);
+  box-shadow: 0 0 36px rgba(0, 191, 255, 0.4), inset 0 0 0 1px rgba(0, 191, 255, 0.3);
+}
+.discard-color-green {
+  background: radial-gradient(circle, rgba(0, 255, 102, 0.14) 0%, transparent 70%);
+  box-shadow: 0 0 36px rgba(0, 255, 102, 0.4), inset 0 0 0 1px rgba(0, 255, 102, 0.3);
+}
+.discard-color-yellow {
+  background: radial-gradient(circle, rgba(255, 204, 0, 0.14) 0%, transparent 70%);
+  box-shadow: 0 0 36px rgba(255, 204, 0, 0.4), inset 0 0 0 1px rgba(255, 204, 0, 0.3);
+}
+
+/* Card-throw flash — when a card lands on discard, the colored ring
+   briefly amplifies into a burst, then settles back to the steady glow.
+   This is the visual hit the user remembered. Triggered by adding the
+   .discard-flash class via watch in CardPile.vue. */
+.discard-station.discard-flash {
+  animation: discard-flash-burst 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes discard-flash-burst {
+  0%   { transform: scale(1); }
+  18%  { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.discard-color-red.discard-flash { animation: flash-red 600ms cubic-bezier(0.22, 1, 0.36, 1); }
+.discard-color-blue.discard-flash { animation: flash-blue 600ms cubic-bezier(0.22, 1, 0.36, 1); }
+.discard-color-green.discard-flash { animation: flash-green 600ms cubic-bezier(0.22, 1, 0.36, 1); }
+.discard-color-yellow.discard-flash { animation: flash-yellow 600ms cubic-bezier(0.22, 1, 0.36, 1); }
+
+@keyframes flash-red {
+  0%   { box-shadow: 0 0 36px rgba(255, 42, 42, 0.4), inset 0 0 0 1px rgba(255, 42, 42, 0.3); transform: scale(1); }
+  18%  { box-shadow: 0 0 80px rgba(255, 42, 42, 1), 0 0 140px rgba(255, 42, 42, 0.55), inset 0 0 0 2px rgba(255, 42, 42, 0.8); transform: scale(1.05); }
+  100% { box-shadow: 0 0 36px rgba(255, 42, 42, 0.4), inset 0 0 0 1px rgba(255, 42, 42, 0.3); transform: scale(1); }
+}
+@keyframes flash-blue {
+  0%   { box-shadow: 0 0 36px rgba(0, 191, 255, 0.4), inset 0 0 0 1px rgba(0, 191, 255, 0.3); transform: scale(1); }
+  18%  { box-shadow: 0 0 80px rgba(0, 191, 255, 1), 0 0 140px rgba(0, 191, 255, 0.55), inset 0 0 0 2px rgba(0, 191, 255, 0.8); transform: scale(1.05); }
+  100% { box-shadow: 0 0 36px rgba(0, 191, 255, 0.4), inset 0 0 0 1px rgba(0, 191, 255, 0.3); transform: scale(1); }
+}
+@keyframes flash-green {
+  0%   { box-shadow: 0 0 36px rgba(0, 255, 102, 0.4), inset 0 0 0 1px rgba(0, 255, 102, 0.3); transform: scale(1); }
+  18%  { box-shadow: 0 0 80px rgba(0, 255, 102, 1), 0 0 140px rgba(0, 255, 102, 0.55), inset 0 0 0 2px rgba(0, 255, 102, 0.8); transform: scale(1.05); }
+  100% { box-shadow: 0 0 36px rgba(0, 255, 102, 0.4), inset 0 0 0 1px rgba(0, 255, 102, 0.3); transform: scale(1); }
+}
+@keyframes flash-yellow {
+  0%   { box-shadow: 0 0 36px rgba(255, 204, 0, 0.4), inset 0 0 0 1px rgba(255, 204, 0, 0.3); transform: scale(1); }
+  18%  { box-shadow: 0 0 80px rgba(255, 204, 0, 1), 0 0 140px rgba(255, 204, 0, 0.55), inset 0 0 0 2px rgba(255, 204, 0, 0.8); transform: scale(1.05); }
+  100% { box-shadow: 0 0 36px rgba(255, 204, 0, 0.4), inset 0 0 0 1px rgba(255, 204, 0, 0.3); transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .discard-station.discard-flash,
+  .discard-color-red.discard-flash,
+  .discard-color-blue.discard-flash,
+  .discard-color-green.discard-flash,
+  .discard-color-yellow.discard-flash {
+    animation: none;
+  }
 }
 
 /* ==========================================================================
    STATUS PANEL
    ========================================================================== */
 .status-panel {
-  margin-top: 2rem;
   background: rgba(0,0,0,0.6);
   border: 1px solid #333;
-  padding: 0.5rem;
-  width: 200px;
+  padding: var(--spacing-3);
+  width: 240px;
   position: relative;
-  z-index: 1;
+  z-index: var(--z-base);
+  border-radius: var(--radius-sm);
 }
 
 .panel-row {
@@ -318,16 +968,48 @@
 
 /* ==========================================================================
    FLOATING HAND WRAPPER
+   Sits above the console bar (--z-hand > --z-hud) so card lift transforms
+   never get clipped by the bottom strip. Pulses with a soft border glow
+   when it's the player's turn — a passive cue beyond the console text.
    ========================================================================== */
 .floating-hand-wrapper {
   position: relative;
-  z-index: 1000;
+  z-index: var(--z-hand);
   display: flex;
   justify-content: center;
-  padding: 0 1rem;
+  padding: 0 var(--spacing-4);
   min-height: 180px;
   overflow: visible;
   flex-shrink: 0;
+}
+
+/* "Your turn" indicator — replaces the prior full-width green strip with a
+   subtle bottom-only halo behind the hand. Visible enough to register as
+   "your move" without competing with the discard-color ring. */
+.floating-hand-wrapper.is-my-turn::after {
+  content: '';
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  bottom: -8px;
+  height: 18px;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(0, 255, 102, 0.35) 0%, transparent 70%);
+  filter: blur(4px);
+  animation: hand-turn-pulse 2.4s ease-in-out infinite;
+  z-index: -1;
+}
+
+@keyframes hand-turn-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .floating-hand-wrapper.is-my-turn::after {
+    animation: none;
+    opacity: 0.7;
+  }
 }
 
 /* Hand tray gradient — bottom of the screen darkens behind the hand so the
@@ -351,35 +1033,23 @@
 
 /* ==========================================================================
    PLAYER CONSOLE BAR (Bottom)
+   Sits BELOW the hand stack (--z-hud < --z-hand) so card lift transforms
+   never get clipped by the console strip. Was the 1001 > 1000 bug.
    ========================================================================== */
 .player-console-bar {
   flex: 0 0 auto;
-  background: var(--surface-metal-dark);
-  border-top: 2px solid #333;
-  padding: 0.5rem 1rem;
-  z-index: 1001;
+  padding: var(--spacing-2) var(--spacing-4);
+  z-index: var(--z-hud);
   position: relative;
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
-  gap: 2rem;
-  font-family: 'Courier New', monospace;
-  font-size: 0.8rem;
-  color: var(--text-secondary);
+  gap: var(--spacing-4);
+  pointer-events: none;
 }
 
-.console-cards {
-  color: var(--color-hazard);
-}
-
-.console-cards .card-count {
-  font-weight: bold;
-  font-size: 1.1rem;
-}
-
-.console-status.status-active {
-  color: var(--color-neon-green);
-  text-shadow: 0 0 5px var(--color-neon-green);
+.player-console-bar > * {
+  pointer-events: auto;
 }
 
 /* ==========================================================================
@@ -428,7 +1098,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 2000;
+  z-index: var(--z-modal);
 }
 
 .terminal-modal {
@@ -565,7 +1235,7 @@
 }
 
 /* ==========================================================================
-   RESPONSIVE — TABLET (768px)
+   RESPONSIVE — TABLET (768px) — collapse left rail, show mobile HUD
    ========================================================================== */
 @media (max-width: 768px) {
   .game-view {
@@ -574,12 +1244,31 @@
   }
 
   .battle-pit {
-    grid-template-columns: 120px 1fr 60px;
-    padding: 0 0.5rem;
+    padding: var(--spacing-4) var(--spacing-2);
+    gap: var(--spacing-4);
+  }
+
+  .pit-rail {
+    display: none;
+  }
+
+  .pit-hud-mobile {
+    display: inline-flex;
+  }
+
+  .pit-watermark .wm-no,
+  .pit-watermark .wm-mercy {
+    font-size: clamp(6rem, 28vw, 10rem);
+  }
+
+  .pit-table {
+    gap: var(--spacing-8);
   }
 
   .status-panel {
-    width: 120px;
+    width: 100%;
+    max-width: 320px;
+    padding: var(--spacing-2);
   }
 
   .floating-hand-wrapper {
@@ -588,14 +1277,18 @@
 
   .opponents-grid {
     overflow-x: auto;
-    gap: 0.75rem;
+    gap: var(--spacing-3);
     justify-content: flex-start;
-    padding-bottom: 0.25rem;
+    padding-bottom: var(--spacing-1);
+  }
+
+  .bar-controls {
+    gap: var(--spacing-2);
   }
 
   .opponent-card {
-    padding: 0.5rem 0.75rem;
-    gap: 0.5rem;
+    padding: var(--spacing-2) var(--spacing-3);
+    gap: var(--spacing-2);
   }
 
   .opponent-card .avatar {
@@ -606,13 +1299,13 @@
 
   .terminal-modal {
     width: 90vw;
-    padding: 2rem;
+    padding: var(--spacing-8);
   }
 
   .player-console-bar {
-    gap: 1rem;
-    padding: 0.5rem 0.75rem;
-    font-size: 0.75rem;
+    gap: var(--spacing-4);
+    padding: var(--spacing-2) var(--spacing-3);
+    font-size: var(--text-sm);
   }
 
   .mechanical-cog {
@@ -621,7 +1314,7 @@
 
   .uno-btn {
     min-height: 44px;
-    padding: 0.3rem 1rem;
+    padding: var(--spacing-1) var(--spacing-4);
   }
 }
 
@@ -630,21 +1323,36 @@
    ========================================================================== */
 @media (max-width: 480px) {
   .battle-pit {
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto auto;
-    padding: 0 0.25rem;
-    gap: 0.5rem;
+    padding: var(--spacing-3) var(--spacing-2);
+    gap: var(--spacing-3);
+  }
+
+  .pit-table {
+    gap: var(--spacing-6);
   }
 
   .status-panel {
     width: 100%;
-    grid-column: 1 / -1;
-    margin-top: 0.5rem;
+    max-width: none;
+    margin: 0;
+    padding: var(--spacing-2);
+  }
+
+  .panel-row {
+    font-size: var(--text-sm);
   }
 
   .floating-hand-wrapper {
     min-height: 100px;
-    padding: 0 0.25rem;
+    padding: 0 var(--spacing-1);
+  }
+
+  .bar-content {
+    gap: var(--spacing-2);
+  }
+
+  .bar-controls {
+    gap: var(--spacing-1);
   }
 
   .opponents-grid {

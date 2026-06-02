@@ -1,66 +1,79 @@
 <template>
-  <div class="feedback-overlay" @click.self="$emit('close')">
-    <div class="feedback-modal">
-      <div class="modal-header">
-        <h3 class="modal-title">SEND FEEDBACK</h3>
-        <button class="close-btn" @click="$emit('close')" aria-label="close">×</button>
-      </div>
+  <Modal aria-label="Send feedback" @close="$emit('close')">
+    <div class="feedback-card">
+      <header class="feedback-header">
+        <h3 class="feedback-title">SEND FEEDBACK</h3>
+        <button class="close-btn" @click="$emit('close')" aria-label="Close">×</button>
+      </header>
 
       <template v-if="!submitted">
-        <p class="modal-desc">
-          Found a bug? Got an idea? Want to say hi? Drop a message - we read everything.
+        <p class="feedback-desc">
+          Found a bug? Got an idea? Want to say hi? Drop a message — we read everything.
         </p>
 
-        <form @submit.prevent="submit" class="modal-form">
-          <div class="form-row">
-            <label class="form-label">MESSAGE</label>
+        <form class="feedback-form" @submit.prevent="submit">
+          <label class="field">
+            <span class="field-label">MESSAGE</span>
             <textarea
               v-model="message"
-              class="form-textarea"
-              placeholder="Tell us anything..."
+              v-focus-ring
+              class="field-input field-textarea"
+              placeholder="Tell us anything…"
               required
               :disabled="submitting"
               maxlength="2000"
               rows="5"
             ></textarea>
-          </div>
+          </label>
 
-          <div class="form-row">
-            <label class="form-label">EMAIL (optional)</label>
+          <label class="field">
+            <span class="field-label">EMAIL (OPTIONAL)</span>
             <input
               v-model="email"
+              v-focus-ring
               type="email"
-              class="form-input"
+              class="field-input"
               placeholder="So we can reply"
               :disabled="submitting"
             />
-          </div>
+          </label>
 
-          <div v-if="error" class="form-error">{{ error }}</div>
+          <p v-if="error" class="msg msg-error">{{ error }}</p>
 
-          <button type="submit" class="submit-btn" :disabled="submitting || !message.trim()">
-            <span v-if="submitting">SENDING...</span>
-            <span v-else>SEND</span>
-          </button>
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            block
+            :disabled="submitting || !message.trim()"
+          >
+            {{ submitting ? 'SENDING...' : 'SEND' }}
+          </Button>
         </form>
       </template>
 
       <template v-else>
         <div class="success-state">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="48" height="48"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="40" height="40">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
           <h4 class="success-title">FEEDBACK SENT</h4>
           <p class="success-desc">Thanks for taking the time. We appreciate it.</p>
-          <button class="submit-btn" @click="$emit('close')">CLOSE</button>
+          <Button variant="primary" size="md" @click="$emit('close')">CLOSE</Button>
         </div>
       </template>
     </div>
-  </div>
+  </Modal>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
+import { vFocusRing } from '../directives/focusRing'
+import Modal from './ui/Modal.vue'
+import Button from './ui/Button.vue'
 
 defineEmits<{
   (e: 'close'): void
@@ -88,17 +101,14 @@ async function submit() {
   }
 
   try {
-    // 1) Insert into Supabase (source of truth)
     const { error: dbError } = await supabase.from('feedback').insert(payload)
     if (dbError) throw dbError
 
-    // 2) Fire-and-forget email via FormSubmit (don't block on this)
-    //    FormSubmit will require a one-time confirmation on first email
     fetch('https://formsubmit.co/ajax/shekhaliul44@gmail.com', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
+        Accept: 'application/json',
       },
       body: JSON.stringify({
         _subject: 'UNO No Mercy - New feedback',
@@ -109,7 +119,7 @@ async function submit() {
         page: payload.page,
         user_agent: payload.user_agent,
       }),
-    }).catch(() => { /* email is best-effort; supabase is the source of truth */ })
+    }).catch(() => { /* email is best-effort; supabase is source of truth */ })
 
     submitted.value = true
   } catch (e: any) {
@@ -121,130 +131,120 @@ async function submit() {
 </script>
 
 <style scoped>
-.feedback-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(6px);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 3000;
-  padding: 1rem;
-}
-
-.feedback-modal {
-  background: #0e0e0f;
-  border: 2px solid var(--color-hazard);
+.feedback-card {
+  background: linear-gradient(180deg, #18191b 0%, #0a0a0b 100%);
+  border: 1px solid rgba(255, 204, 0, 0.18);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-6);
   width: 100%;
   max-width: 480px;
-  box-shadow: 0 0 60px rgba(255, 204, 0, 0.15);
-  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  box-shadow: 0 0 40px rgba(255, 204, 0, 0.08);
 }
 
-.modal-header {
+.feedback-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px dashed #333;
-  padding-bottom: 0.75rem;
-  margin-bottom: 1rem;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+  padding-bottom: var(--spacing-3);
 }
 
-.modal-title {
+.feedback-title {
   font-family: var(--font-display);
   color: var(--color-hazard);
   margin: 0;
-  font-size: 1.1rem;
-  letter-spacing: 2px;
+  font-size: var(--text-lg);
+  letter-spacing: 0.15em;
 }
 
 .close-btn {
   background: none;
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--text-muted);
-  font-size: 1.5rem;
+  font-size: var(--text-xl);
   line-height: 1;
   cursor: pointer;
-  padding: 0 0.4rem;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  transition:
+    border-color var(--duration-snap) var(--ease-snap),
+    color var(--duration-snap) var(--ease-snap);
 }
 
 .close-btn:hover {
+  border-color: var(--color-alert);
   color: var(--color-alert);
 }
 
-.modal-desc {
-  font-size: 0.85rem;
+.feedback-desc {
+  font-size: var(--text-sm);
   color: var(--text-secondary);
-  margin: 0 0 1.25rem;
+  margin: 0;
   line-height: 1.5;
 }
 
-.modal-form {
+.feedback-form {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--spacing-4);
 }
 
-.form-row {
+.field {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: var(--spacing-2);
 }
 
-.form-label {
-  font-family: 'Courier New', monospace;
-  font-size: 0.7rem;
+.field-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
   color: var(--text-muted);
-  letter-spacing: 2px;
+  letter-spacing: 0.18em;
 }
 
-.form-textarea,
-.form-input {
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid #333;
+.field-input {
+  width: 100%;
+  padding: var(--spacing-3);
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--text-primary);
-  padding: 0.75rem;
-  font-family: inherit;
-  font-size: 0.9rem;
-  resize: vertical;
-  transition: border-color 0.2s;
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  border-radius: var(--radius-sm);
+  transition: border-color var(--duration-snap) var(--ease-snap);
+  min-height: 44px;
 }
 
-.form-textarea:focus,
-.form-input:focus {
+.field-textarea {
+  resize: vertical;
+  min-height: 100px;
+  font-family: var(--font-body);
+}
+
+.field-input:focus {
   outline: none;
   border-color: var(--color-neon-blue);
 }
 
-.form-error {
-  background: rgba(255, 42, 42, 0.1);
-  border: 1px solid var(--color-alert);
+.msg {
+  margin: 0;
+  padding: var(--spacing-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  border-radius: var(--radius-sm);
+  border: 1px solid;
+  text-align: center;
+}
+
+.msg-error {
+  background: rgba(255, 42, 42, 0.08);
+  border-color: var(--color-alert);
   color: var(--color-alert);
-  padding: 0.6rem 0.75rem;
-  font-size: 0.85rem;
-}
-
-.submit-btn {
-  background: linear-gradient(145deg, var(--color-alert) 0%, var(--color-alert-dim) 100%);
-  border: 2px solid var(--color-alert);
-  color: white;
-  padding: 0.9rem 1.5rem;
-  font-family: var(--font-display);
-  font-size: 1rem;
-  letter-spacing: 2px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.submit-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 0 24px rgba(255, 42, 42, 0.4);
-}
-
-.submit-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .success-state {
@@ -252,27 +252,31 @@ async function submit() {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 1rem;
-  padding: 1.5rem 0;
+  gap: var(--spacing-3);
+  padding: var(--spacing-6) 0;
   color: var(--color-neon-green);
 }
 
 .success-title {
   font-family: var(--font-display);
-  font-size: 1.2rem;
+  font-size: var(--text-lg);
   margin: 0;
-  letter-spacing: 2px;
+  letter-spacing: 0.15em;
 }
 
 .success-desc {
   color: var(--text-secondary);
-  font-size: 0.85rem;
-  margin: 0 0 0.5rem;
+  font-size: var(--text-sm);
+  margin: 0;
 }
 
 @media (max-width: 480px) {
-  .feedback-modal { padding: 1rem; }
-  .modal-title { font-size: 1rem; }
-  .modal-desc { font-size: 0.8rem; }
+  .feedback-card {
+    padding: var(--spacing-4);
+  }
+
+  .feedback-title {
+    font-size: var(--text-base);
+  }
 }
 </style>

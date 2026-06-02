@@ -6,6 +6,7 @@ import { Flip } from 'gsap/Flip'
 import { MotionPathPlugin } from 'gsap/MotionPathPlugin'
 import './style.css'
 import App from './App.vue'
+import { vFocusRing } from './directives/focusRing'
 
 // CSSPlugin must be explicitly registered under Vite tree-shaking — without it
 // every x/y/opacity/scale tween logs "Missing plugin?" warnings and no-ops.
@@ -30,4 +31,5 @@ const app = createApp(App)
 const pinia = createPinia()
 
 app.use(pinia)
+app.directive('focus-ring', vFocusRing)
 app.mount('#app')

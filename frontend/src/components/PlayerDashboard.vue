@@ -1,182 +1,216 @@
 <template>
   <div class="dashboard-container">
-    <div class="dashboard-header">
-      <button @click="$emit('back')" class="back-btn">← BACK</button>
-      <h2 class="dash-title">COMMAND CENTER</h2>
-      <button @click="generateShareCard" class="share-btn">SHARE STATS</button>
+    <!-- Top bar — mirrors landing/lobby pattern -->
+    <header class="dashboard-top-bar">
+      <button class="back-link" @click="$emit('back')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" aria-hidden="true">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+        BACK
+      </button>
+
+      <a class="brand-mark" href="#" @click.prevent>
+        <span class="brand-mark-uno">UNO</span>
+        <span class="brand-mark-nomercy">NO MERCY</span>
+      </a>
+
+      <button
+        v-if="gamesPlayed > 0"
+        class="share-link"
+        @click="generateShareCard"
+      >
+        SHARE STATS
+      </button>
+      <span v-else class="share-link-placeholder" aria-hidden="true"></span>
+    </header>
+
+    <div v-if="loading" class="state-screen">
+      <p class="state-text">LOADING INTEL…</p>
     </div>
 
-    <div v-if="loading" class="loading-state">
-      <p>LOADING INTEL...</p>
-    </div>
-
-    <div v-else-if="gamesPlayed === 0" class="empty-state">
-      <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="7" width="4" height="14"/><rect x="17" y="3" width="4" height="18"/></svg>
-      <p class="empty-title">NO DATA YET</p>
-      <p class="empty-desc">Play your first game to start tracking stats.</p>
+    <div v-else-if="gamesPlayed === 0" class="state-screen">
+      <svg class="state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40">
+        <rect x="3" y="12" width="4" height="9" />
+        <rect x="10" y="7" width="4" height="14" />
+        <rect x="17" y="3" width="4" height="18" />
+      </svg>
+      <h2 class="state-title">NO DATA YET</h2>
+      <p class="state-desc">Play your first game to start tracking stats.</p>
     </div>
 
     <div v-else class="dashboard-content">
-      <!-- Identity Card -->
-      <div class="identity-card">
+      <!-- Identity card — hero -->
+      <section class="identity">
         <div class="identity-avatar">{{ username.charAt(0).toUpperCase() }}</div>
         <div class="identity-info">
           <div class="identity-name">{{ username }}</div>
-          <div class="identity-rank" :style="{ color: rank.color }">{{ rank.title }}</div>
+          <div class="identity-rank" :style="{ color: rank.color }">
+            {{ rank.title }}
+          </div>
           <div v-if="nextRank" class="identity-progress">
             {{ nextRank.winsNeeded }} wins to {{ nextRank.title }}
           </div>
         </div>
-      </div>
+      </section>
 
-      <!-- Core Stats Row -->
-      <div class="stats-row">
+      <!-- Primary stats: 4 dominant numbers -->
+      <section class="primary-stats">
         <div class="stat-card">
           <div class="stat-value">{{ gamesPlayed }}</div>
           <div class="stat-label">GAMES</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value highlight">{{ winRate }}%</div>
+          <div class="stat-value stat-win">{{ winRate }}%</div>
           <div class="stat-label">WIN RATE</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" :class="currentStreak.type === 'W' ? 'streak-win' : 'streak-loss'">
+          <div
+            class="stat-value"
+            :class="currentStreak.type === 'W' ? 'stat-win' : 'stat-loss'"
+          >
             {{ currentStreak.type }}{{ currentStreak.count }}
           </div>
           <div class="stat-label">STREAK</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value ruthless">{{ ruthlessness }}</div>
+          <div class="stat-value stat-hazard">{{ ruthlessness }}</div>
           <div class="stat-label">RUTHLESS</div>
         </div>
-      </div>
+      </section>
 
-      <!-- Battle Record -->
-      <div class="section">
+      <!-- Battle record bar + key splits -->
+      <section class="record-section">
         <h3 class="section-title">BATTLE RECORD</h3>
-        <div class="battle-bar" v-if="gamesPlayed > 0">
-          <div class="bar-segment bar-won" :style="{ width: (gamesWon / gamesPlayed * 100) + '%' }">{{ gamesWon }}W</div>
-          <div class="bar-segment bar-lost" :style="{ width: (gamesLost / gamesPlayed * 100) + '%' }">{{ gamesLost }}L</div>
-          <div v-if="gamesEliminated > 0" class="bar-segment bar-elim" :style="{ width: (gamesEliminated / gamesPlayed * 100) + '%' }">{{ gamesEliminated }}E</div>
-        </div>
-        <div class="battle-details">
-          <div class="detail-row">
-            <span class="detail-label">Best win streak</span>
-            <span class="detail-value">{{ bestWinStreak }}</span>
+        <div class="battle-bar">
+          <div
+            class="bar-segment bar-won"
+            :style="{ width: (gamesWon / gamesPlayed * 100) + '%' }"
+          >
+            {{ gamesWon }}W
           </div>
-          <div class="detail-row">
-            <span class="detail-label">Bot win rate</span>
-            <span class="detail-value">{{ botWinRate }}%</span>
+          <div
+            class="bar-segment bar-lost"
+            :style="{ width: (gamesLost / gamesPlayed * 100) + '%' }"
+          >
+            {{ gamesLost }}L
           </div>
-          <div class="detail-row">
-            <span class="detail-label">Multiplayer win rate</span>
-            <span class="detail-value">{{ mpWinRate }}%</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">Avg game duration</span>
-            <span class="detail-value">{{ formatDuration(avgGameDuration) }}</span>
+          <div
+            v-if="gamesEliminated > 0"
+            class="bar-segment bar-elim"
+            :style="{ width: (gamesEliminated / gamesPlayed * 100) + '%' }"
+          >
+            {{ gamesEliminated }}E
           </div>
         </div>
-      </div>
+        <dl class="splits">
+          <div class="split-row">
+            <dt class="split-label">Best win streak</dt>
+            <dd class="split-value">{{ bestWinStreak }}</dd>
+          </div>
+          <div class="split-row">
+            <dt class="split-label">Bot win rate</dt>
+            <dd class="split-value">{{ botWinRate }}%</dd>
+          </div>
+          <div class="split-row">
+            <dt class="split-label">Multiplayer win rate</dt>
+            <dd class="split-value">{{ mpWinRate }}%</dd>
+          </div>
+          <div class="split-row">
+            <dt class="split-label">Avg game duration</dt>
+            <dd class="split-value">{{ formatDuration(avgGameDuration) }}</dd>
+          </div>
+        </dl>
+      </section>
 
-      <!-- Card Mastery -->
-      <div class="section">
-        <h3 class="section-title">CARD MASTERY</h3>
-        <div class="mastery-grid">
-          <div class="mastery-item">
-            <div class="mastery-value">{{ totalCardsPlayed }}</div>
-            <div class="mastery-label">Cards played</div>
+      <!-- Lifetime record — consolidated. Used to be 3 separate sections
+           (mastery / survival / aggression) competing for attention; merged
+           into one 6-cell grid of the most impressive lifetime numbers. -->
+      <section class="record-section">
+        <h3 class="section-title">LIFETIME RECORD</h3>
+        <div class="lifetime-grid">
+          <div class="lifetime-cell">
+            <div class="lifetime-value">+{{ biggestStackSurvived }}</div>
+            <div class="lifetime-label">Biggest stack survived</div>
           </div>
-          <div class="mastery-item">
-            <div class="mastery-value">{{ totalWildCardsPlayed }}</div>
-            <div class="mastery-label">Wild cards</div>
+          <div class="lifetime-cell">
+            <div class="lifetime-value">{{ peakCardsEver }}</div>
+            <div class="lifetime-label">Peak cards held</div>
           </div>
-          <div class="mastery-item">
-            <div class="mastery-value">{{ totalDrawCardsPlayed }}</div>
-            <div class="mastery-label">Draw cards</div>
+          <div class="lifetime-cell">
+            <div class="lifetime-value">{{ totalCardsPlayed }}</div>
+            <div class="lifetime-label">Cards played</div>
           </div>
-          <div class="mastery-item">
-            <div class="mastery-value">{{ avgCardsRemainingOnLoss }}</div>
-            <div class="mastery-label">Avg cards on loss</div>
+          <div class="lifetime-cell">
+            <div class="lifetime-value">{{ totalUnoCalls }}</div>
+            <div class="lifetime-label">UNO calls</div>
           </div>
-        </div>
-      </div>
-
-      <!-- Survival Stats -->
-      <div class="section">
-        <h3 class="section-title">SURVIVAL</h3>
-        <div class="mastery-grid">
-          <div class="mastery-item">
-            <div class="mastery-value danger">{{ gamesEliminated }}</div>
-            <div class="mastery-label">Eliminations</div>
+          <div class="lifetime-cell">
+            <div class="lifetime-value">{{ totalSkipsDealt }}</div>
+            <div class="lifetime-label">Skips dealt</div>
           </div>
-          <div class="mastery-item">
-            <div class="mastery-value">{{ peakCardsEver }}</div>
-            <div class="mastery-label">Peak cards held</div>
-          </div>
-          <div class="mastery-item">
-            <div class="mastery-value">+{{ biggestStackSurvived }}</div>
-            <div class="mastery-label">Biggest stack survived</div>
-          </div>
-          <div class="mastery-item">
-            <div class="mastery-value">{{ totalDrawsTaken }}</div>
-            <div class="mastery-label">Total draws</div>
+          <div class="lifetime-cell">
+            <div class="lifetime-value lifetime-danger">{{ gamesEliminated }}</div>
+            <div class="lifetime-label">Eliminations</div>
           </div>
         </div>
-      </div>
+      </section>
 
-      <!-- Aggression Stats -->
-      <div class="section">
-        <h3 class="section-title">AGGRESSION</h3>
-        <div class="mastery-grid">
-          <div class="mastery-item">
-            <div class="mastery-value">{{ totalSkipsDealt }}</div>
-            <div class="mastery-label">Skips dealt</div>
-          </div>
-          <div class="mastery-item">
-            <div class="mastery-value">{{ totalSwapsMade }}</div>
-            <div class="mastery-label">Hand swaps</div>
-          </div>
-          <div class="mastery-item">
-            <div class="mastery-value">{{ totalUnoCalls }}</div>
-            <div class="mastery-label">UNO calls</div>
-          </div>
-          <div class="mastery-item">
-            <div class="mastery-value danger">{{ totalUnoPenalties }}</div>
-            <div class="mastery-label">UNO penalties</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Recent Games -->
-      <div class="section">
+      <!-- Recent games -->
+      <section class="record-section">
         <h3 class="section-title">RECENT GAMES</h3>
-        <div class="recent-list">
-          <div v-for="game in recentGames" :key="game.id" class="recent-game">
-            <span class="recent-badge" :class="'badge-' + game.result">{{ game.result.charAt(0).toUpperCase() }}</span>
+        <ul class="recent-list">
+          <li
+            v-for="game in recentGames"
+            :key="game.id"
+            class="recent-row"
+          >
+            <span class="recent-badge" :class="'badge-' + game.result">
+              {{ game.result.charAt(0).toUpperCase() }}
+            </span>
             <span class="recent-type">{{ game.is_bot_game ? 'BOT' : 'PVP' }}</span>
             <span class="recent-cards">{{ game.cards_played_total }} cards</span>
             <span class="recent-duration">{{ formatDuration(game.game_duration_secs) }}</span>
             <span class="recent-date">{{ formatDate(game.played_at) }}</span>
-          </div>
-        </div>
-      </div>
+          </li>
+        </ul>
+      </section>
     </div>
 
-    <!-- Share Modal -->
-    <div v-if="showShareModal" class="share-overlay" @click.self="showShareModal = false">
-      <div class="share-modal">
-        <h3 class="share-title">SHARE YOUR STATS</h3>
-        <canvas ref="shareCanvas" width="600" height="400" class="share-preview"></canvas>
-        <div class="share-buttons">
-          <button @click="downloadCard" class="share-action">DOWNLOAD PNG</button>
-          <button @click="shareToTwitter" class="share-action twitter">TWITTER / X</button>
-          <button @click="shareToWhatsApp" class="share-action whatsapp">WHATSAPP</button>
-          <button @click="copyShareLink" class="share-action">{{ copied ? 'COPIED!' : 'COPY LINK' }}</button>
+    <!-- Share modal -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div
+          v-if="showShareModal"
+          class="share-overlay"
+          @click.self="showShareModal = false"
+        >
+          <div class="share-modal">
+            <h3 class="share-modal-title">SHARE YOUR STATS</h3>
+            <canvas
+              ref="shareCanvas"
+              width="600"
+              height="400"
+              class="share-preview"
+            ></canvas>
+            <div class="share-actions">
+              <Button variant="primary" size="md" block @click="downloadCard">
+                DOWNLOAD PNG
+              </Button>
+              <Button variant="secondary" size="md" block @click="shareToTwitter">
+                SHARE TO X
+              </Button>
+              <Button variant="secondary" size="md" block @click="shareToWhatsApp">
+                WHATSAPP
+              </Button>
+              <Button variant="ghost" size="md" block @click="copyShareLink">
+                {{ copied ? 'COPIED' : 'COPY LINK' }}
+              </Button>
+            </div>
+            <button class="link" @click="showShareModal = false">CLOSE</button>
+          </div>
         </div>
-        <button @click="showShareModal = false" class="share-close">CLOSE</button>
-      </div>
-    </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -184,6 +218,7 @@
 import { ref } from 'vue'
 import { usePlayerStats } from '../composables/usePlayerStats'
 import { useAuthStore } from '../stores/authStore'
+import Button from './ui/Button.vue'
 
 defineEmits<{
   (e: 'back'): void
@@ -198,11 +233,10 @@ const copied = ref(false)
 const {
   loading, gamesPlayed, gamesWon, gamesLost, gamesEliminated,
   winRate, botWinRate, mpWinRate, currentStreak, bestWinStreak,
-  totalCardsPlayed, totalDrawCardsPlayed, totalWildCardsPlayed,
-  totalSkipsDealt, totalSwapsMade, totalDrawsTaken,
-  totalUnoCalls, totalUnoPenalties, biggestStackSurvived,
-  peakCardsEver, avgCardsRemainingOnLoss, ruthlessness,
-  rank, nextRank, recentGames, avgGameDuration
+  totalCardsPlayed, totalSkipsDealt,
+  totalUnoCalls, biggestStackSurvived,
+  peakCardsEver, ruthlessness,
+  rank, nextRank, recentGames, avgGameDuration,
 } = usePlayerStats()
 
 function formatDuration(secs: number): string {
@@ -327,300 +361,462 @@ function copyShareLink() {
   const text = getShareText() + '\n\nhttps://uno-no-mercy.com'
   navigator.clipboard?.writeText(text)
   copied.value = true
-  setTimeout(() => copied.value = false, 2000)
+  setTimeout(() => (copied.value = false), 2000)
 }
 </script>
 
 <style scoped>
 .dashboard-container {
   min-height: 100vh;
-  height: 100vh;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
   background: var(--bg-concrete);
   color: var(--text-primary);
   display: flex;
   flex-direction: column;
 }
 
-.dashboard-header {
-  display: flex;
+/* TOP BAR */
+.dashboard-top-bar {
+  position: relative;
+  z-index: var(--z-hud);
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  padding: 0.75rem 1.5rem;
-  border-bottom: 2px solid #333;
-  flex-shrink: 0;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-bottom: 1px solid rgba(255, 204, 0, 0.08);
+  background: linear-gradient(180deg, rgba(10, 10, 11, 0.95), rgba(10, 10, 11, 0.7));
 }
 
-.back-btn {
-  background: transparent;
+.back-link,
+.share-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  background: none;
   border: none;
   color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.2em;
   cursor: pointer;
-  font-size: 0.9rem;
-  padding: 0.5rem;
+  padding: var(--spacing-2);
+  min-height: 44px;
+  transition: color var(--duration-snap) var(--ease-snap);
 }
 
-.back-btn:hover { color: var(--color-neon-blue); }
+.back-link {
+  justify-self: flex-start;
+}
 
-.dash-title {
-  flex: 1;
-  text-align: center;
-  font-family: var(--font-display);
-  font-size: 1.2rem;
-  margin: 0;
+.share-link {
+  justify-self: flex-end;
+  color: var(--color-neon-blue);
+}
+
+.share-link-placeholder {
+  justify-self: flex-end;
+}
+
+.back-link:hover {
+  color: var(--color-neon-blue);
+}
+
+.share-link:hover {
   color: var(--color-hazard);
 }
 
-.share-btn {
-  background: transparent;
-  border: 1px solid var(--color-neon-blue);
-  color: var(--color-neon-blue);
-  padding: 0.4rem 1rem;
-  cursor: pointer;
-  font-size: 0.75rem;
+.brand-mark {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+  text-decoration: none;
+  color: var(--text-primary);
+  justify-self: center;
+}
+
+.brand-mark-uno {
   font-family: var(--font-display);
-  transition: all 0.2s;
+  font-size: var(--text-lg);
+  letter-spacing: 0.05em;
 }
 
-.share-btn:hover {
-  background: var(--color-neon-blue);
-  color: black;
+.brand-mark-nomercy {
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  letter-spacing: 0.2em;
+  color: var(--color-alert);
+  text-shadow: 0 0 12px rgba(255, 42, 42, 0.5);
 }
 
+/* CONTENT */
 .dashboard-content {
-  padding: 1rem 1.5rem 3rem;
-  max-width: 700px;
-  margin: 0 auto;
+  flex: 1;
+  padding: var(--spacing-6) var(--spacing-4) var(--spacing-12);
+  max-width: 720px;
   width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
 }
 
-.loading-state, .empty-state {
+/* STATE SCREEN — loading / empty */
+.state-screen {
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-8);
   color: var(--text-muted);
 }
 
-.empty-icon { color: var(--text-muted); margin-bottom: 1rem; }
-.empty-title { font-family: var(--font-display); font-size: 1.5rem; margin: 0 0 0.5rem; }
-.empty-desc { color: var(--text-muted); margin: 0; }
+.state-icon {
+  color: var(--text-muted);
+}
 
-/* Identity Card */
-.identity-card {
+.state-title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  letter-spacing: 0.1em;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.state-desc,
+.state-text {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin: 0;
+  letter-spacing: 0.1em;
+}
+
+/* IDENTITY */
+.identity {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  background: rgba(0,0,0,0.4);
-  border: 1px solid #333;
-  margin-bottom: 1rem;
+  gap: var(--spacing-4);
+  padding: var(--spacing-6);
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
 }
 
 .identity-avatar {
-  width: 50px;
-  height: 50px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   background: var(--color-neon-blue);
-  color: black;
+  color: var(--bg-concrete);
   display: flex;
-  justify-content: center;
   align-items: center;
-  font-size: 1.5rem;
-  font-weight: bold;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  flex-shrink: 0;
+}
+
+.identity-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-width: 0;
 }
 
 .identity-name {
+  font-family: var(--font-body);
+  font-size: var(--text-lg);
   font-weight: bold;
-  font-size: 1.1rem;
+  color: var(--text-primary);
 }
 
 .identity-rank {
   font-family: var(--font-display);
-  font-size: 0.9rem;
+  font-size: var(--text-base);
+  letter-spacing: 0.1em;
 }
 
 .identity-progress {
-  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
   color: var(--text-muted);
-  font-family: 'Courier New', monospace;
+  letter-spacing: 0.1em;
 }
 
-/* Stats Row */
-.stats-row {
+/* PRIMARY STATS — 4 cells */
+.primary-stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
+  gap: var(--spacing-2);
 }
 
 .stat-card {
-  background: rgba(0,0,0,0.4);
-  border: 1px solid #333;
-  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: var(--spacing-3);
   text-align: center;
+  border-radius: var(--radius-sm);
 }
 
 .stat-value {
   font-family: var(--font-display);
-  font-size: 1.5rem;
+  font-size: var(--text-xl);
   color: var(--text-primary);
+  line-height: 1;
 }
 
-.stat-value.highlight { color: var(--color-neon-green); }
-.stat-value.streak-win { color: var(--color-neon-green); }
-.stat-value.streak-loss { color: var(--color-alert); }
-.stat-value.ruthless { color: var(--color-hazard); }
-.stat-value.danger { color: var(--color-alert); }
+.stat-value.stat-win {
+  color: var(--color-neon-green);
+}
+
+.stat-value.stat-loss {
+  color: var(--color-alert);
+}
+
+.stat-value.stat-hazard {
+  color: var(--color-hazard);
+}
 
 .stat-label {
-  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
   color: var(--text-muted);
-  letter-spacing: 1px;
-  margin-top: 0.25rem;
+  letter-spacing: 0.15em;
+  margin-top: var(--spacing-1);
 }
 
-/* Sections */
-.section {
-  margin-bottom: 1.5rem;
+/* SECTION (BATTLE RECORD, LIFETIME, RECENT) */
+.record-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
 }
 
 .section-title {
   font-family: var(--font-display);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--color-hazard);
-  margin: 0 0 0.75rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px dashed #333;
+  letter-spacing: 0.15em;
+  margin: 0;
+  padding-bottom: var(--spacing-2);
+  border-bottom: 1px dashed rgba(255, 204, 0, 0.18);
 }
 
-/* Battle Bar */
+/* BATTLE BAR */
 .battle-bar {
   display: flex;
-  height: 24px;
-  margin-bottom: 0.75rem;
+  height: 28px;
   overflow: hidden;
+  border-radius: var(--radius-sm);
 }
 
 .bar-segment {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
   font-weight: bold;
-  min-width: 30px;
+  min-width: 32px;
 }
 
-.bar-won { background: var(--color-neon-green); color: black; }
-.bar-lost { background: var(--color-alert); color: white; }
-.bar-elim { background: #666; color: white; }
-
-.battle-details { display: flex; flex-direction: column; gap: 0.4rem; }
-
-.detail-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.8rem;
-  font-family: 'Courier New', monospace;
+.bar-won {
+  background: var(--color-neon-green);
+  color: var(--bg-concrete);
 }
 
-.detail-label { color: var(--text-muted); }
-.detail-value { color: var(--text-primary); font-weight: bold; }
-
-/* Mastery Grid */
-.mastery-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.5rem;
+.bar-lost {
+  background: var(--color-alert);
+  color: white;
 }
 
-.mastery-item {
-  background: rgba(0,0,0,0.3);
-  border: 1px solid #222;
-  padding: 0.75rem;
-  text-align: center;
+.bar-elim {
+  background: var(--text-muted);
+  color: white;
 }
 
-.mastery-value {
-  font-family: var(--font-display);
-  font-size: 1.3rem;
-  color: var(--text-primary);
-}
-
-.mastery-value.danger { color: var(--color-alert); }
-
-.mastery-label {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  margin-top: 0.2rem;
-}
-
-/* Recent Games */
-.recent-list {
+/* SPLITS */
+.splits {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: var(--spacing-2);
+  margin: 0;
 }
 
-.recent-game {
+.split-row {
   display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.split-label {
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.split-value {
+  color: var(--text-primary);
+  margin: 0;
+  font-weight: bold;
+}
+
+/* LIFETIME GRID */
+.lifetime-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-2);
+}
+
+.lifetime-cell {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  padding: var(--spacing-3);
+  text-align: center;
+  border-radius: var(--radius-sm);
+}
+
+.lifetime-value {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.lifetime-value.lifetime-danger {
+  color: var(--color-alert);
+}
+
+.lifetime-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: var(--spacing-1);
+  letter-spacing: 0.1em;
+}
+
+/* RECENT GAMES */
+.recent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.recent-row {
+  display: grid;
+  grid-template-columns: 28px 40px 1fr auto auto;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem 0.75rem;
-  background: rgba(0,0,0,0.3);
-  border: 1px solid #222;
-  font-size: 0.8rem;
-  font-family: 'Courier New', monospace;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
 }
 
 .recent-badge {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  font-size: 0.7rem;
-  flex-shrink: 0;
+  font-size: var(--text-xs);
+  border-radius: var(--radius-sm);
 }
 
-.badge-won { background: var(--color-neon-green); color: black; }
-.badge-lost { background: var(--color-alert); color: white; }
-.badge-eliminated { background: #666; color: white; }
-.badge-abandoned { background: #444; color: #888; }
+.badge-won {
+  background: var(--color-neon-green);
+  color: var(--bg-concrete);
+}
 
-.recent-type { color: var(--text-muted); min-width: 30px; }
-.recent-cards { color: var(--text-secondary); flex: 1; }
-.recent-duration { color: var(--text-muted); }
-.recent-date { color: var(--text-muted); margin-left: auto; }
+.badge-lost {
+  background: var(--color-alert);
+  color: white;
+}
 
-/* Share Modal */
+.badge-eliminated {
+  background: var(--text-muted);
+  color: white;
+}
+
+.badge-abandoned {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+}
+
+.recent-type {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+}
+
+.recent-cards {
+  color: var(--text-primary);
+}
+
+.recent-duration,
+.recent-date {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+/* SHARE MODAL */
 .share-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.9);
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(6px);
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 2000;
-  padding: 1rem;
+  z-index: var(--z-modal);
+  padding: var(--spacing-4);
+}
+
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity var(--duration-soft) var(--ease-soft);
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-enter-active,
+  .modal-leave-active {
+    transition: none;
+  }
 }
 
 .share-modal {
-  background: #111;
-  border: 2px solid var(--color-hazard);
-  padding: 1.5rem;
-  max-width: 650px;
+  background: linear-gradient(180deg, #18191b 0%, #0a0a0b 100%);
+  border: 1px solid rgba(255, 204, 0, 0.25);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-6);
+  max-width: 640px;
   width: 100%;
-  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  box-shadow: 0 0 40px rgba(255, 204, 0, 0.12);
 }
 
-.share-title {
+.share-modal-title {
   font-family: var(--font-display);
+  font-size: var(--text-xl);
+  letter-spacing: 0.1em;
   color: var(--color-hazard);
-  margin: 0 0 1rem;
-  font-size: 1.1rem;
+  margin: 0;
+  text-align: center;
 }
 
 .share-preview {
@@ -628,78 +824,83 @@ function copyShareLink() {
   width: 100%;
   max-width: 600px;
   height: auto;
-  border: 1px solid #333;
-  margin: 0 auto 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  margin: 0 auto;
 }
 
-.share-buttons {
+.share-actions {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 0.5rem;
-  margin-bottom: 1rem;
+  gap: var(--spacing-2);
 }
 
-.share-action {
-  padding: 0.75rem;
-  background: #222;
-  border: 1px solid #444;
-  color: var(--text-primary);
-  cursor: pointer;
-  font-family: var(--font-display);
-  font-size: 0.8rem;
-  transition: all 0.2s;
-}
-
-.share-action:hover {
-  border-color: var(--color-neon-blue);
-  color: var(--color-neon-blue);
-}
-
-.share-action.twitter {
-  border-color: #1DA1F2;
-  color: #1DA1F2;
-}
-
-.share-action.twitter:hover {
-  background: #1DA1F2;
-  color: black;
-}
-
-.share-action.whatsapp {
-  border-color: #25D366;
-  color: #25D366;
-}
-
-.share-action.whatsapp:hover {
-  background: #25D366;
-  color: black;
-}
-
-.share-close {
-  background: transparent;
-  border: 1px solid #444;
+.link {
+  background: none;
+  border: none;
   color: var(--text-muted);
-  padding: 0.5rem 2rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.2em;
   cursor: pointer;
-  font-size: 0.8rem;
+  padding: var(--spacing-2);
+  text-align: center;
+  transition: color var(--duration-snap) var(--ease-snap);
 }
 
-.share-close:hover {
-  border-color: var(--text-secondary);
+.link:hover {
   color: var(--text-secondary);
 }
 
-/* Mobile */
-@media (max-width: 480px) {
-  .dashboard-content { padding: 0.75rem 0.75rem 2rem; }
-  .stats-row { grid-template-columns: repeat(2, 1fr); }
-  .stat-value { font-size: 1.2rem; }
-  .mastery-value { font-size: 1.1rem; }
-  .dashboard-header { padding: 0.5rem 0.75rem; }
-  .dash-title { font-size: 1rem; }
-  .share-btn { padding: 0.3rem 0.5rem; font-size: 0.7rem; }
-  .recent-game { font-size: 0.7rem; gap: 0.5rem; }
-  .share-buttons { grid-template-columns: 1fr; }
-  .share-modal { padding: 1rem; }
+/* MOBILE */
+@media (max-width: 600px) {
+  .dashboard-top-bar {
+    padding: var(--spacing-3);
+  }
+
+  .brand-mark-uno {
+    font-size: var(--text-base);
+  }
+
+  .brand-mark-nomercy {
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+  }
+
+  .dashboard-content {
+    padding: var(--spacing-4) var(--spacing-3) var(--spacing-8);
+    gap: var(--spacing-4);
+  }
+
+  .identity {
+    padding: var(--spacing-4);
+  }
+
+  .identity-avatar {
+    width: 48px;
+    height: 48px;
+    font-size: var(--text-xl);
+  }
+
+  .primary-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .lifetime-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .recent-row {
+    grid-template-columns: 24px 36px 1fr auto;
+    font-size: var(--text-xs);
+  }
+
+  .recent-date {
+    display: none;
+  }
+
+  .share-actions {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

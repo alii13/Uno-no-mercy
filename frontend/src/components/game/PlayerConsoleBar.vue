@@ -1,25 +1,20 @@
 <template>
-  <div class="player-console-bar">
-    <div class="console-id">PLAYER: {{ playerName }}</div>
-    
-    <!-- UNO Button -->
-    <button 
-      v-if="showUnoButton" 
-      @click="$emit('call-uno')" 
-      class="uno-btn blink"
+  <div v-if="showUnoButton || showLeaveButton" class="player-console-bar">
+    <button
+      v-if="showUnoButton"
+      @click="$emit('call-uno')"
+      class="uno-btn"
+      type="button"
     >
-      YELL_UNO
+      UNO!
     </button>
 
-    <div class="console-cards">
-      CARDS: <span class="card-count">{{ cardCount }}</span>
-    </div>
-    <div class="console-status" :class="{ 'status-active': isMyTurn }">
-      STATUS: {{ isMyTurn ? 'ACTION_REQUIRED' : 'STANDBY' }}
-    </div>
-    
-    <!-- Optional leave button for multiplayer -->
-    <button v-if="showLeaveButton" @click="$emit('leave')" class="leave-btn">
+    <button
+      v-if="showLeaveButton"
+      @click="$emit('leave')"
+      class="leave-btn"
+      type="button"
+    >
       LEAVE
     </button>
   </div>
@@ -36,6 +31,6 @@ defineProps<{
 
 defineEmits<{
   'call-uno': []
-  'leave': []
+  leave: []
 }>()
 </script>

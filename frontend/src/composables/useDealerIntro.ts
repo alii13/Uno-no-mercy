@@ -95,10 +95,17 @@ export async function playDealerIntro(): Promise<void> {
         stagger: { each: 0.025, from: 'random' },
     }, 0.05)
 
+    // Cards land at the stack-style resting positions (matches the formula
+    // in CardPile.vue's getStackStyle). GSAP's stagger gives a 0-based
+    // index — same 0-based as the "i" inside getStackStyle (which does
+    // index - 1 internally), so no offset needed.
     tl.to(cards, {
-        x: 0,
-        y: 0,
-        rotation: (i: number) => i * 0.4,
+        x: (i: number) => i * 2.5,
+        y: (i: number) => i * 6,
+        rotation: (i: number) => {
+            const seed = i * 31 + 7
+            return ((seed % 20) - 10) * 0.5
+        },
         duration: 0.3,
         ease: 'back.out(1.6)',
         stagger: 0.015,

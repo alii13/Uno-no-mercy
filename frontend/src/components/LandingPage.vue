@@ -1,139 +1,408 @@
 <template>
   <div class="landing-container">
-    <div class="scan-line"></div>
-    <div class="noise-overlay"></div>
+    <!-- Top bar — all three CTAs visible from the first pixel, no scroll needed -->
+    <header class="top-bar">
+      <a class="brand-mark" href="#" @click.prevent>
+        <span class="brand-mark-uno">UNO</span>
+        <span class="brand-mark-nomercy">NO MERCY</span>
+      </a>
 
-    <!-- Animated Background Grid -->
-    <div class="grid-bg"></div>
+      <div class="top-bar-cta">
+        <button class="text-link" @click="reportAndEmit('showAuth', 'signup')">
+          SIGN UP
+        </button>
+        <span class="text-link-sep" aria-hidden="true">·</span>
+        <button class="text-link" @click="reportAndEmit('showAuth', 'login')">
+          SIGN IN
+        </button>
+      </div>
+    </header>
 
-    <!-- Settings -->
-    <div class="settings-corner">
-      <SettingsButton />
-    </div>
-    
-    <!-- Hero Screen - fits exactly in viewport -->
-    <div class="hero-screen">
-      <!-- Danger Tape Top -->
-      <div class="danger-tape top">
-        <div class="tape-content">
-          <span v-for="i in 20" :key="i">// NO MERCY ZONE // ENTER AT YOUR OWN RISK //</span>
+    <!-- HERO — cinematic card-stack choreography -->
+    <section class="hero">
+      <div class="hero-bloom" aria-hidden="true"></div>
+
+      <div class="hero-stage" ref="heroStage">
+        <!-- The 5-card stack. Each card has a unique entry trajectory. After
+             the explosion beat they scatter to ambient positions behind the
+             wordmark. Refs are GSAP-driven. -->
+        <div
+          v-for="(card, idx) in heroCards"
+          :key="card.id"
+          class="hero-card"
+          :ref="(el) => { if (el) cardRefs[idx] = el as HTMLElement }"
+        >
+          <Card :card="card" :size="cardSize" />
+        </div>
+
+        <!-- The counter — typographic centerpiece during the stack beats -->
+        <div class="hero-counter" ref="counterRef" aria-hidden="true">
+          <span class="counter-plus">+</span><span class="counter-num">0</span>
         </div>
       </div>
 
-      <!-- Main Content - Split Layout -->
-      <main class="landing-main">
-        <!-- Left Side - Branding -->
-        <div class="brand-section">
-          <h1 class="title glitch-text" data-text="UNO">UNO</h1>
-          <h2 class="subtitle">NO MERCY</h2>
-          <p class="tagline">THE RUTHLESS CARD BATTLE</p>
-
-          <!-- Status Display -->
-          <div class="status-display">
-            <div class="status-line">
-              <span class="blink">▶</span> SYSTEM: <span class="online">ONLINE</span>
-            </div>
-            <div class="status-line">
-              <span class="blink">▶</span> THREAT LEVEL: <span class="critical">MAXIMUM</span>
-            </div>
-          </div>
-
-          <!-- Lifetime stats — only renders once the player has finished a game -->
-          <LandingStatsBadge class="landing-stats" />
-        </div>
-
-        <!-- Right Side - Actions -->
-        <div class="action-section">
-          <div class="action-card">
-            <h3 class="card-title">JOIN THE BATTLE</h3>
-
-            <button @click="reportAndEmit('playGuest')" class="action-btn primary">
-              PLAY NOW
-            </button>
-
-            <button @click="reportAndEmit('showAuth', 'signup')" class="action-btn secondary">
-              CREATE ACCOUNT
-            </button>
-
-            <button @click="reportAndEmit('showAuth', 'login')" class="action-btn tertiary">
-              RETURNING PLAYER
-            </button>
-
-            <div class="separator"></div>
-
-            <!-- Features List -->
-            <div class="features-list">
-              <div class="feature-item">
-                <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                <span class="feature-text">Real-time Multiplayer</span>
-              </div>
-              <div class="feature-item">
-                <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="11"/><circle cx="8" cy="16" r="1" fill="currentColor"/><circle cx="16" cy="16" r="1" fill="currentColor"/></svg>
-                <span class="feature-text">VS Ruthless AI</span>
-              </div>
-              <div class="feature-item">
-                <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-                <span class="feature-text">Stack Draws & Skip Everyone</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
-
-      <!-- Scroll Indicator -->
-      <div class="scroll-indicator">
-        <span class="scroll-text">SCROLL TO SEE THE CHAOS</span>
-        <svg class="scroll-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><polyline points="6 9 12 15 18 9"/></svg>
+      <!-- Wordmark — fades in after the explosion -->
+      <div class="hero-wordmark" ref="wordmarkRef">
+        <span class="wm-uno">UNO</span>
+        <span class="wm-row">
+          <span class="wm-no">NO&nbsp;</span>
+          <span class="wm-mercy-wrap">
+            <span class="wm-mercy">MERCY</span>
+            <svg
+              class="wm-strike"
+              ref="strikeRef"
+              viewBox="0 0 100 8"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <line x1="2" y1="4" x2="98" y2="4" stroke="currentColor" stroke-width="5" stroke-linecap="round" />
+            </svg>
+          </span>
+        </span>
       </div>
 
-      <!-- Hazard Bar -->
-      <div class="hazard-bar">
-        <div class="hazard-stripe"></div>
+      <p class="hero-tagline" ref="taglineRef">THE RUTHLESS CARD BATTLE</p>
+
+      <div class="hero-cta" ref="heroCtaRef">
+        <Button variant="primary" size="lg" @click="reportAndEmit('playGuest')">
+          PLAY NOW
+        </Button>
       </div>
-    </div>
 
-    <!-- Scroll Animated Sections -->
-    <LandingScrollSections
-      @playGuest="$emit('playGuest')"
-      @openFeedback="showFeedback = true"
-    />
+      <LandingStatsBadge class="hero-stats" />
 
-    <!-- Bottom Hazard Bar -->
-    <div class="hazard-bar">
-      <div class="hazard-stripe"></div>
-      <p class="warning-text">// WARNING: FRIENDSHIPS MAY NOT SURVIVE //</p>
-    </div>
+      <!-- Sentinel for sticky-CTA observer -->
+      <div ref="heroSentinel" class="hero-sentinel" aria-hidden="true"></div>
+    </section>
+
+    <!-- Scroll sections (kept from Phase 1) -->
+    <LandingScrollSections @openFeedback="showFeedback = true" />
 
     <SiteFooter />
+
+    <!-- Sticky mobile CTA — teleported so containing-block doesn't pin it -->
+    <Teleport to="body">
+      <Transition name="sticky-cta">
+        <div v-show="showStickyCta" class="sticky-cta-wrap">
+          <Button variant="primary" size="lg" block @click="reportAndEmit('playGuest')">
+            PLAY NOW
+          </Button>
+        </div>
+      </Transition>
+    </Teleport>
 
     <FeedbackModal v-if="showFeedback" @close="showFeedback = false" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
+import gsap from 'gsap'
 import LandingScrollSections from './LandingScrollSections.vue'
 import SiteFooter from './SiteFooter.vue'
 import FeedbackModal from './FeedbackModal.vue'
-import SettingsButton from './SettingsButton.vue'
 import LandingStatsBadge from './LandingStatsBadge.vue'
+import Card from './game/Card.vue'
+import Button from './ui/Button.vue'
+import { useScreenSize } from '../composables/useScreenSize'
 
 const showFeedback = ref(false)
+const showStickyCta = ref(false)
+const heroSentinel = ref<HTMLElement>()
+const heroStage = ref<HTMLElement>()
+const cardRefs = ref<HTMLElement[]>([])
+const counterRef = ref<HTMLElement>()
+const wordmarkRef = ref<HTMLElement>()
+const strikeRef = ref<SVGSVGElement>()
+const taglineRef = ref<HTMLElement>()
+const heroCtaRef = ref<HTMLElement>()
 
 const emit = defineEmits<{
   (e: 'showAuth', mode: 'login' | 'signup'): void
   (e: 'playGuest'): void
 }>()
 
+const { isMobile } = useScreenSize()
+const cardSize = computed(() =>
+  isMobile.value ? { width: 84, height: 118 } : { width: 124, height: 174 },
+)
+
+// The hero card sequence — each represents one beat of the stack escalation.
+// Counter values that match: +2, +6, +12, +22 (peak before mercy rule).
+const heroCards = [
+  { id: 'h1', color: 'red', type: 'draw2' },
+  { id: 'h2', color: 'wild', type: 'draw4' },
+  { id: 'h3', color: 'wild', type: 'draw6' },
+  { id: 'h4', color: 'wild', type: 'draw10' },
+  { id: 'h5', color: 'red', type: 'skipEveryone' },
+] as const
+
+const COUNTER_BEATS = [2, 6, 12, 22, 22] // index-matched to heroCards (5th doesn't add)
+
 function reportAndEmit(event: 'playGuest'): void
 function reportAndEmit(event: 'showAuth', mode: 'login' | 'signup'): void
-function reportAndEmit(event: any, mode?: any) {
-  const fn = (window as any).gtag_report_conversion
+function reportAndEmit(event: 'playGuest' | 'showAuth', mode?: 'login' | 'signup') {
+  const fn = (window as unknown as { gtag_report_conversion?: () => void }).gtag_report_conversion
   if (typeof fn === 'function') {
-    try { fn() } catch (e) { /* noop */ }
+    try { fn() } catch { /* noop */ }
   }
-  if (event === 'showAuth') emit('showAuth', mode)
+  if (event === 'showAuth' && mode) emit('showAuth', mode)
   else if (event === 'playGuest') emit('playGuest')
+}
+
+let observer: IntersectionObserver | null = null
+let masterTl: gsap.core.Timeline | null = null
+
+const reducedMotion =
+  typeof window !== 'undefined' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+onMounted(() => {
+  if (heroSentinel.value) {
+    observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry) showStickyCta.value = !entry.isIntersecting
+      },
+      { threshold: 0 },
+    )
+    observer.observe(heroSentinel.value)
+  }
+
+  // If reduced motion, set the final state directly and skip the choreography.
+  if (reducedMotion) {
+    setStaticState()
+    return
+  }
+
+  // Defer GSAP setup so refs are wired
+  requestAnimationFrame(() => runHeroChoreography())
+})
+
+onUnmounted(() => {
+  observer?.disconnect()
+  observer = null
+  masterTl?.kill()
+  masterTl = null
+})
+
+function setStaticState() {
+  // Final pose: cards offscreen, wordmark + strike + tagline + CTA visible
+  cardRefs.value.forEach((el) => {
+    if (!el) return
+    gsap.set(el, { opacity: 0 })
+  })
+  gsap.set(counterRef.value!, { opacity: 0 })
+  gsap.set(wordmarkRef.value!, { opacity: 1, y: 0 })
+  gsap.set(strikeRef.value!.querySelector('line'), { strokeDashoffset: 0 })
+  gsap.set(taglineRef.value!, { opacity: 1, y: 0 })
+  gsap.set(heroCtaRef.value!, { opacity: 1, y: 0 })
+}
+
+/**
+ * Exit trajectories — cards fly off-screen entirely after the climax so the
+ * wordmark stands alone. Was scatter-behind-wordmark; that competed with
+ * the typography and read as noise.
+ */
+const exitPoses = [
+  { x: -800, y: -400, rotation: -180 },
+  { x: 800, y: -500, rotation: 220 },
+  { x: -700, y: 500, rotation: -160 },
+  { x: 750, y: 600, rotation: 240 },
+  { x: 0, y: -800, rotation: -360 },
+] as const
+
+function runHeroChoreography() {
+  if (!heroStage.value || cardRefs.value.length < 5) return
+
+  const counterEl = counterRef.value!
+  const counterNum = counterEl.querySelector('.counter-num') as HTMLElement
+  const strikeLine = strikeRef.value!.querySelector('line') as SVGLineElement
+
+  // Initial setup — cards hidden off-stage, counter dim, wordmark + tagline hidden
+  cardRefs.value.forEach((el) => {
+    gsap.set(el, { opacity: 0, scale: 1, x: 0, y: -600, rotation: 0 })
+  })
+  gsap.set(counterEl, { opacity: 0, scale: 0.5 })
+  gsap.set(wordmarkRef.value!, { opacity: 0, y: 20 })
+  gsap.set(strikeLine, { strokeDasharray: 100, strokeDashoffset: 100 })
+  gsap.set(taglineRef.value!, { opacity: 0, y: 12 })
+  gsap.set(heroCtaRef.value!, { opacity: 0, y: 16 })
+
+  const tl = gsap.timeline()
+  masterTl = tl
+
+  // Pre-define unique entry trajectories per card — each comes from a
+  // different direction with its own rotation so the stack feels physical.
+  const entries = [
+    { fromX: 0, fromY: -600, fromRot: -8, restRot: -2, restY: 0 },
+    { fromX: 200, fromY: -500, fromRot: 30, restRot: 4, restY: -4 },
+    { fromX: -240, fromY: -450, fromRot: -45, restRot: -3, restY: -8 },
+    { fromX: 260, fromY: -550, fromRot: 60, restRot: 5, restY: -12 },
+    { fromX: 0, fromY: -650, fromRot: -90, restRot: -1, restY: -16 },
+  ]
+
+  // BEAT 1-5: cards slam into stack with counter updates
+  cardRefs.value.forEach((el, i) => {
+    if (!el) return
+    const entry = entries[i]!
+    const beatStart = i * 0.32
+
+    // From-state
+    gsap.set(el, { x: entry.fromX, y: entry.fromY, rotation: entry.fromRot })
+
+    // Slam in
+    tl.to(
+      el,
+      {
+        opacity: 1,
+        x: 0,
+        y: entry.restY,
+        rotation: entry.restRot,
+        duration: 0.28,
+        ease: 'power3.in',
+      },
+      beatStart,
+    )
+
+    // Tiny squash on impact then settle
+    tl.to(
+      el,
+      { scale: 1.04, duration: 0.06, ease: 'power2.out' },
+      beatStart + 0.26,
+    )
+    tl.to(
+      el,
+      { scale: 1, duration: 0.18, ease: 'elastic.out(1, 0.5)' },
+      beatStart + 0.32,
+    )
+
+    // Counter pops in on first beat, then increments
+    if (i === 0) {
+      tl.to(
+        counterEl,
+        { opacity: 1, scale: 1, duration: 0.18, ease: 'back.out(2.5)' },
+        beatStart + 0.2,
+      )
+    }
+    // Animate the number counting up to the new beat value
+    const startValue = i === 0 ? 0 : COUNTER_BEATS[i - 1]!
+    const endValue = COUNTER_BEATS[i]!
+    const obj = { v: startValue }
+    tl.to(
+      obj,
+      {
+        v: endValue,
+        duration: 0.18,
+        ease: 'power2.out',
+        onUpdate: () => {
+          counterNum.textContent = String(Math.round(obj.v))
+        },
+      },
+      beatStart + 0.26,
+    )
+    // Counter punch — scales up on each increment
+    tl.to(
+      counterEl,
+      { scale: 1.18, duration: 0.08, ease: 'power2.out' },
+      beatStart + 0.26,
+    )
+    tl.to(
+      counterEl,
+      { scale: 1, duration: 0.14, ease: 'elastic.out(1, 0.4)' },
+      beatStart + 0.34,
+    )
+  })
+
+  // BEAT 6: levitation — all cards rise then snap back. The screen shakes.
+  const climaxAt = 5 * 0.32 + 0.05
+  tl.to(
+    cardRefs.value,
+    { y: '-=60', duration: 0.18, ease: 'power2.out' },
+    climaxAt,
+  )
+  tl.to(
+    counterEl,
+    { scale: 1.8, duration: 0.18, ease: 'power2.out' },
+    climaxAt,
+  )
+  tl.to(
+    cardRefs.value,
+    { y: '+=60', duration: 0.12, ease: 'power3.in' },
+    climaxAt + 0.18,
+  )
+  tl.to(
+    counterEl,
+    { scale: 1, duration: 0.18, ease: 'elastic.out(1, 0.4)' },
+    climaxAt + 0.2,
+  )
+  // Screen shake — translate the hero stage briefly
+  if (heroStage.value) {
+    tl.to(
+      heroStage.value,
+      {
+        keyframes: [
+          { x: -6 }, { x: 6 }, { x: -4 }, { x: 4 }, { x: -2 }, { x: 0 },
+        ],
+        duration: 0.36,
+        ease: 'power2.out',
+      },
+      climaxAt + 0.16,
+    )
+  }
+
+  // BEAT 7: explosion — cards FLY OFFSCREEN entirely, leaving wordmark clean.
+  // No more scatter-behind-wordmark (that was noise, not premium texture).
+  const explodeAt = climaxAt + 0.4
+  cardRefs.value.forEach((el, i) => {
+    if (!el) return
+    const pose = exitPoses[i]!
+    tl.to(
+      el,
+      {
+        x: pose.x,
+        y: pose.y,
+        rotation: pose.rotation,
+        scale: 0.7,
+        opacity: 0,
+        duration: 0.7,
+        ease: 'power3.in',
+      },
+      explodeAt,
+    )
+  })
+  tl.to(
+    counterEl,
+    { opacity: 0, scale: 0.6, duration: 0.32, ease: 'power2.in' },
+    explodeAt,
+  )
+
+  // BEAT 8: wordmark fades up where the stack was — now uncontested
+  tl.to(
+    wordmarkRef.value!,
+    { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' },
+    explodeAt + 0.2,
+  )
+
+  // BEAT 9: strike-through draws across MERCY
+  tl.to(
+    strikeLine,
+    { strokeDashoffset: 0, duration: 0.42, ease: 'power2.inOut' },
+    explodeAt + 0.55,
+  )
+
+  // BEAT 10: tagline rises in
+  tl.to(
+    taglineRef.value!,
+    { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out' },
+    explodeAt + 0.85,
+  )
+
+  // BEAT 11: hero CTA — the conversion moment, anchors the bottom of the hero
+  tl.to(
+    heroCtaRef.value!,
+    { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out' },
+    explodeAt + 1.05,
+  )
 }
 </script>
 
@@ -144,373 +413,341 @@ function reportAndEmit(event: any, mode?: any) {
   position: relative;
   display: flex;
   flex-direction: column;
+  min-height: 100vh;
 }
 
-.settings-corner {
-  position: fixed;
-  top: 1rem;
-  right: 1rem;
-  z-index: 15;
-}
-@media (max-width: 480px) {
-  .settings-corner { top: 0.6rem; right: 0.6rem; }
+/* TOP BAR — slim, always visible. Three CTAs visible from pixel one. */
+.top-bar {
+  position: relative;
+  z-index: var(--z-hud);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-bottom: 1px solid rgba(255, 204, 0, 0.08);
+  background: linear-gradient(180deg, rgba(10, 10, 11, 0.95), rgba(10, 10, 11, 0.7));
+  backdrop-filter: blur(8px);
+  flex-wrap: wrap;
 }
 
-.hero-screen {
-  height: 100vh;
-  height: 100dvh;
+.brand-mark {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+  text-decoration: none;
+  color: var(--text-primary);
+}
+
+.brand-mark-uno {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  letter-spacing: 0.05em;
+}
+
+.brand-mark-nomercy {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  letter-spacing: 0.2em;
+  color: var(--color-alert);
+  text-shadow: 0 0 12px rgba(255, 42, 42, 0.5);
+}
+
+.top-bar-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.top-bar-cta :deep(.btn--sm) {
+  letter-spacing: 0.12em;
+}
+
+.text-link {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.15em;
+  cursor: pointer;
+  padding: var(--spacing-2);
+  transition: color var(--duration-snap) var(--ease-snap);
+  min-height: 44px;
+}
+
+.text-link:hover {
+  color: var(--color-neon-blue);
+}
+
+.text-link-sep {
+  color: var(--text-muted);
+}
+
+/* HERO */
+.hero {
+  position: relative;
+  flex: 1;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-12) var(--spacing-4) var(--spacing-16);
   overflow: hidden;
+  min-height: 560px;
 }
 
-.scan-line {
-  position: fixed;
-  top: 0; left: 0; width: 100%; height: 100%;
-  background: linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.2) 51%);
-  background-size: 100% 4px;
-  pointer-events: none;
-  z-index: 100;
-}
-
-.noise-overlay {
-  position: fixed;
-  top: 0; left: 0; width: 100%; height: 100%;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
-  pointer-events: none;
-  z-index: 99;
-  opacity: 0.4;
-}
-
-/* Grid Background */
-.grid-bg {
-  position: fixed;
-  inset: 0;
-  background: 
-    repeating-linear-gradient(90deg, transparent, transparent 80px, rgba(255, 42, 42, 0.03) 80px, rgba(255, 42, 42, 0.03) 81px),
-    repeating-linear-gradient(0deg, transparent, transparent 80px, rgba(255, 42, 42, 0.03) 80px, rgba(255, 42, 42, 0.03) 81px);
+/* The focused radial bloom — replaces the generic full-page atmosphere */
+.hero-bloom {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 720px;
+  height: 720px;
+  max-width: 110vw;
+  max-height: 110vh;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    circle,
+    rgba(255, 42, 42, 0.18) 0%,
+    rgba(255, 42, 42, 0.08) 30%,
+    transparent 65%
+  );
   pointer-events: none;
   z-index: 0;
 }
 
-/* Danger Tape */
-.danger-tape {
-  background: repeating-linear-gradient(-45deg, var(--color-alert), var(--color-alert) 10px, #000 10px, #000 20px);
-  padding: 6px 0;
-  overflow: hidden;
-  position: relative;
-  z-index: 10;
-}
-
-.tape-content {
+.hero-stage {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  max-width: 480px;
+  height: 240px;
   display: flex;
-  white-space: nowrap;
-  animation: scroll-tape 30s linear infinite;
-  font-family: var(--font-body);
-  font-size: 0.7rem;
-  color: white;
-  letter-spacing: 2px;
-}
-
-.tape-content span {
-  padding: 0 2rem;
-}
-
-@keyframes scroll-tape {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-
-/* Main Content - Split Layout */
-.landing-main {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 3rem;
-  padding: 2rem 4rem;
   align-items: center;
-  position: relative;
-  z-index: 5;
-  max-width: 1400px;
-  margin: 0 auto;
-  width: 100%;
-}
-
-/* Brand Section */
-.brand-section {
-  text-align: left;
-}
-
-.title {
-  font-family: var(--font-display);
-  font-size: 8rem;
-  margin: 0;
-  line-height: 0.9;
-  text-shadow: var(--shadow-glow-red);
-}
-
-.subtitle {
-  font-family: var(--font-display);
-  font-size: 3rem;
-  color: var(--color-alert);
-  margin: 0.5rem 0 1rem 0;
-  text-shadow: var(--shadow-glow-red);
-}
-
-.tagline {
-  color: var(--text-muted);
-  font-size: 1rem;
-  letter-spacing: 0.3rem;
-  margin: 0 0 2rem 0;
-}
-
-.status-display {
-  font-family: var(--font-body);
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
-.landing-stats {
-  margin-top: 1.25rem;
-}
-
-.status-line {
-  margin: 0.5rem 0;
-}
-
-.blink {
-  animation: blink 1s step-end infinite;
-  color: var(--color-neon-green);
-}
-
-@keyframes blink {
-  50% { opacity: 0; }
-}
-
-.online {
-  color: var(--color-neon-green);
-  font-weight: bold;
-}
-
-.critical {
-  color: var(--color-alert);
-  font-weight: bold;
-  animation: critical-pulse 1s ease-in-out infinite;
-}
-
-@keyframes critical-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
-}
-
-/* Action Section */
-.action-section {
-  display: flex;
   justify-content: center;
+  z-index: var(--z-cards);
+  pointer-events: none;
 }
 
-.action-card {
-  background: rgba(0, 0, 0, 0.6);
-  border: 2px solid #333;
-  padding: 3rem;
-  width: 100%;
-  max-width: 400px;
+.hero-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.6));
+  will-change: transform, opacity;
 }
 
-.card-title {
+.hero-counter {
+  position: absolute;
+  top: 50%;
+  left: calc(50% + 130px);
+  transform: translate(0, -50%);
   font-family: var(--font-display);
-  font-size: 1.5rem;
-  margin: 0 0 2rem 0;
+  font-size: clamp(2.5rem, 8vw, 4.5rem);
+  color: var(--color-alert);
+  text-shadow: 0 0 32px rgba(255, 42, 42, 0.7);
+  pointer-events: none;
+  z-index: var(--z-cards);
+  display: flex;
+  align-items: baseline;
+}
+
+.counter-plus {
+  font-size: 0.65em;
+  margin-right: 0.08em;
+  opacity: 0.85;
+}
+
+.hero-wordmark {
+  position: relative;
+  z-index: var(--z-base);
   text-align: center;
-  color: var(--color-hazard);
-}
-
-.action-btn {
-  width: 100%;
-  padding: 1.2rem 2rem;
   font-family: var(--font-display);
-  font-size: 1rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  transition: all 0.3s;
-  margin-bottom: 1rem;
+  line-height: 0.95;
+  letter-spacing: 0.04em;
 }
 
-.action-btn.primary {
-  background: linear-gradient(145deg, var(--color-alert) 0%, var(--color-alert-dim) 100%);
-  border: 2px solid var(--color-alert);
-  color: white;
+.wm-uno {
+  display: block;
+  font-size: clamp(3.5rem, 13vw, 7rem);
+  text-shadow: 0 0 32px rgba(255, 42, 42, 0.35);
 }
 
-.action-btn.primary:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-glow-red);
+.wm-row {
+  display: inline-flex;
+  align-items: baseline;
+  font-size: clamp(2rem, 7vw, 4rem);
 }
 
-.action-btn.secondary {
-  background: transparent;
-  border: 2px solid var(--color-neon-blue);
-  color: var(--color-neon-blue);
-}
-
-.action-btn.secondary:hover {
-  background: var(--color-neon-blue);
-  color: black;
-  transform: translateY(-2px);
-}
-
-.action-btn.tertiary {
-  background: transparent;
-  border: 1px solid #444;
-  color: var(--text-muted);
-}
-
-.action-btn.tertiary:hover {
-  border-color: var(--text-secondary);
+.wm-no {
   color: var(--text-primary);
-  transform: translateY(-2px);
 }
 
-.btn-icon {
-  font-size: 1.2rem;
-}
-
-.separator {
-  height: 1px;
-  background: linear-gradient(90deg, transparent, #333, transparent);
-  margin: 2rem 0;
-}
-
-/* Features List */
-.features-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.feature-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-}
-
-.feature-icon {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-  color: var(--color-neon-blue);
-}
-
-/* Scroll Indicator */
-.scroll-indicator {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 1.5rem 0;
+.wm-mercy-wrap {
   position: relative;
-  z-index: 5;
+  display: inline-block;
 }
 
-.scroll-text {
-  font-family: 'Courier New', monospace;
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  letter-spacing: 3px;
-}
-
-.scroll-chevron {
-  color: var(--text-muted);
-  animation: bounce-down 2s ease-in-out infinite;
-}
-
-@keyframes bounce-down {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(6px); }
-}
-
-/* Hazard Bar */
-.hazard-bar {
-  position: relative;
-  z-index: 10;
-}
-
-.hazard-stripe {
-  height: 16px;
-  background: repeating-linear-gradient(-45deg, var(--color-hazard), var(--color-hazard) 10px, #000 10px, #000 20px);
-}
-
-.warning-text {
-  font-family: var(--font-body);
-  font-size: 0.8rem;
-  text-align: center;
+.wm-mercy {
   color: var(--color-alert);
-  background: var(--bg-concrete);
+  text-shadow: 0 0 24px rgba(255, 42, 42, 0.55);
+}
+
+.wm-strike {
+  position: absolute;
+  top: 50%;
+  left: -4%;
+  width: 108%;
+  height: 18%;
+  transform: translateY(-50%);
+  color: var(--color-alert);
+  filter: drop-shadow(0 0 12px rgba(255, 42, 42, 0.85));
+  pointer-events: none;
+}
+
+.hero-tagline {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
   margin: 0;
-  padding: 0.75rem;
-  letter-spacing: 2px;
+  z-index: var(--z-base);
 }
 
-/* Responsive */
-@media (max-width: 900px) {
-  .landing-main {
-    grid-template-columns: 1fr;
-    text-align: center;
-    padding: 2rem;
-    gap: 2rem;
-  }
-  
-  .brand-section {
-    text-align: center;
-  }
-  
-  .title { font-size: 5rem; }
-  .subtitle { font-size: 2rem; }
-  .action-card { max-width: 100%; }
+.hero-cta {
+  position: relative;
+  z-index: var(--z-base);
+  margin-top: var(--spacing-2);
 }
 
-@media (max-width: 500px) {
-  .title { font-size: 3.5rem; }
-  .subtitle { font-size: 1.5rem; }
-  .tagline { letter-spacing: 0.1rem; font-size: 0.8rem; }
+.hero-stats {
+  z-index: var(--z-base);
+}
 
-  .action-card {
-    padding: 1.5rem;
-  }
+.hero-sentinel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
 
-  .action-btn {
-    padding: 1rem;
-    font-size: 0.9rem;
+/* STICKY MOBILE CTA */
+.sticky-cta-wrap {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: var(--spacing-3) var(--spacing-4)
+    calc(var(--spacing-3) + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg-concrete) 70%, transparent);
+  z-index: var(--z-toast);
+}
+
+.sticky-cta-enter-active,
+.sticky-cta-leave-active {
+  transition:
+    transform var(--duration-soft) var(--ease-soft),
+    opacity var(--duration-soft) var(--ease-soft);
+}
+
+.sticky-cta-enter-from,
+.sticky-cta-leave-to {
+  transform: translateY(100%);
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sticky-cta-enter-active,
+  .sticky-cta-leave-active {
+    transition: none;
   }
 }
 
-@media (max-width: 375px) {
-  .landing-main {
-    padding: 1rem;
-    gap: 1rem;
+/* MOBILE TWEAKS */
+@media (max-width: 600px) {
+  .top-bar {
+    padding: var(--spacing-3);
+    gap: var(--spacing-2);
   }
 
-  .title { font-size: 2.8rem; }
-  .subtitle { font-size: 1.2rem; }
-  .tagline { font-size: 0.7rem; }
-
-  .action-card {
-    padding: 1rem;
+  .brand-mark-uno {
+    font-size: var(--text-lg);
   }
 
-  .card-title {
-    font-size: 1.2rem;
-    margin-bottom: 1rem;
+  .brand-mark-nomercy {
+    font-size: var(--text-xs);
+    letter-spacing: 0.15em;
   }
 
-  .feature-item {
-    font-size: 0.8rem;
+  .top-bar-cta {
+    gap: var(--spacing-2);
+  }
+
+  .text-link {
+    font-size: var(--text-xs);
+    padding: var(--spacing-1) var(--spacing-2);
+    letter-spacing: 0.1em;
+  }
+
+  .hero {
+    padding: var(--spacing-8) var(--spacing-4) var(--spacing-16);
+    min-height: 460px;
+  }
+
+  .hero-stage {
+    height: 200px;
+  }
+
+  .hero-counter {
+    left: calc(50% + 90px);
+    font-size: 2.8rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .top-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .brand-mark {
+    justify-content: center;
+  }
+
+  .top-bar-cta {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+}
+
+/* DESKTOP */
+@media (min-width: 1024px) {
+  .top-bar {
+    padding: var(--spacing-4) var(--spacing-8);
+  }
+
+  .brand-mark-uno {
+    font-size: var(--text-2xl);
+  }
+
+  .brand-mark-nomercy {
+    font-size: var(--text-base);
+  }
+
+  .hero {
+    min-height: 640px;
+  }
+
+  .sticky-cta-wrap {
+    display: none;
   }
 }
 </style>
