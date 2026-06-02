@@ -64,31 +64,35 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   padding: var(--spacing-2) var(--spacing-3);
   z-index: var(--z-hud);
-  display: flex;
-  flex-direction: column;
+  position: relative;
 }
 
 .bar-content {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: var(--spacing-4);
 }
 
+/* Audio + settings float on the right edge of the bar so the opponent
+   row can center to the full viewport, sharing the same vertical axis
+   as the play area below. */
 .bar-controls {
+  position: absolute;
+  top: 50%;
+  right: var(--spacing-3);
+  transform: translateY(-50%);
   display: flex;
   align-items: center;
   gap: var(--spacing-3);
-  flex-shrink: 0;
 }
 
 .opponents-grid {
   display: flex;
   justify-content: center;
   gap: var(--spacing-3);
-  flex: 1;
-  min-width: 0;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 /* HUD audio toggle — compact tactical button that sits in the
@@ -233,13 +237,11 @@
   min-height: 0;
   position: relative;
   z-index: var(--z-cards);
-  display: grid;
-  grid-template-columns: 96px 1fr;
-  grid-template-rows: 1fr auto;
-  grid-template-areas:
-    "rail table"
-    "rail hud-mobile";
-  gap: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-4);
   padding: var(--spacing-6) var(--spacing-8);
   overflow: hidden;
   /* --mercy-intensity is set inline on the element (0..1) — used by the
@@ -298,11 +300,17 @@
   z-index: 2;
 }
 
-/* LAYER 5 — Left vertical control rail (desktop). Industrial control panel
+/* LAYER 5 — Left vertical control rail. Floats absolutely on the left edge
+   so it doesn't shift the table content to the right of the viewport
+   centerline. Opponent + table + hand all share the same vertical axis. */ (desktop). Industrial control panel
    with direction / color / stack indicators on top and a tall MERCY
    thermometer filling the remaining height. */
 .pit-rail {
-  grid-area: rail;
+  position: absolute;
+  top: var(--spacing-6);
+  bottom: var(--spacing-6);
+  left: var(--spacing-6);
+  width: 96px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -311,8 +319,7 @@
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.25));
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: var(--radius-md);
-  position: relative;
-  z-index: var(--z-cards);
+  z-index: calc(var(--z-cards) + 1);
   backdrop-filter: blur(8px);
 }
 
@@ -465,7 +472,6 @@
 }
 
 .pit-table {
-  grid-area: table;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -544,7 +550,6 @@
 
 /* --- MOBILE HUD (replaces the desktop left rail under ≤768px) --- */
 .pit-hud-mobile {
-  grid-area: hud-mobile;
   display: none;
   align-items: center;
   gap: var(--spacing-2);
@@ -1239,11 +1244,6 @@
   }
 
   .battle-pit {
-    grid-template-columns: 1fr;
-    grid-template-rows: 1fr auto;
-    grid-template-areas:
-      "table"
-      "hud-mobile";
     padding: var(--spacing-4) var(--spacing-2);
     gap: var(--spacing-4);
   }
