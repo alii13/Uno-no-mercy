@@ -102,6 +102,12 @@ onUnmounted(() => {
   padding: var(--spacing-4);
 }
 
+@media (max-width: 480px) {
+  .modal-overlay {
+    padding: var(--spacing-2);
+  }
+}
+
 .modal-shell {
   max-height: calc(100vh - var(--spacing-8));
   max-height: calc(100dvh - var(--spacing-8));

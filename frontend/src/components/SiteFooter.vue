@@ -75,11 +75,14 @@
 }
 
 @media (max-width: 640px) {
+  .site-footer {
+    flex-wrap: wrap;
+    row-gap: 0.4rem;
+  }
   .footer-attribution {
-    display: block;
-    width: 100%;
-    margin-top: 0.4rem;
+    flex-basis: 100%;
     text-align: center;
+    margin-top: 0;
   }
   .footer-sep {
     display: none;
