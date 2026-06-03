@@ -144,10 +144,20 @@
           <p v-else class="waiting-text">
             Waiting for host to start the game…
           </p>
-          <button class="leave-link" @click="leaveGame">LEAVE GAME</button>
+          <button class="leave-link" @click="showLeaveConfirm = true">LEAVE GAME</button>
         </div>
       </div>
     </div>
+
+    <ConfirmDialog
+      :open="showLeaveConfirm"
+      title="Leave the room?"
+      message="Players you've invited will see the room close. You can create a new one anytime."
+      confirm-label="LEAVE"
+      cancel-label="STAY"
+      @confirm="confirmLeave"
+      @cancel="showLeaveConfirm = false"
+    />
 
     <!-- Join Modal -->
     <Teleport to="body">
@@ -211,6 +221,7 @@ import { useMultiplayerStore } from '../stores/multiplayerStore'
 import { useGameStore } from '../stores/gameStore'
 import SiteFooter from './SiteFooter.vue'
 import LandingStatsBadge from './LandingStatsBadge.vue'
+import ConfirmDialog from './ConfirmDialog.vue'
 import Button from './ui/Button.vue'
 import type { StackingMode } from '../utils/gameRules'
 
@@ -225,6 +236,7 @@ const mpStore = useMultiplayerStore()
 const gameStore = useGameStore()
 
 const showJoinModal = ref(false)
+const showLeaveConfirm = ref(false)
 const joinCode = ref('')
 const copied = ref(false)
 const selectedStackingMode = ref<StackingMode>(gameStore.stackingMode)
@@ -260,7 +272,8 @@ async function startGame() {
   await mpStore.startGame()
 }
 
-async function leaveGame() {
+async function confirmLeave() {
+  showLeaveConfirm.value = false
   await mpStore.leaveGame()
 }
 
