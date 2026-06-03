@@ -1,7 +1,7 @@
 <template>
   <div v-if="retention.gamesPlayed > 0" class="stats-badge">
     <div v-if="retention.effectiveStreak > 0" class="streak-pill">
-      <span class="flame" aria-hidden="true">{{ flameIcon }}</span>
+      <Flame class="streak-icon" :stroke-width="2.25" aria-hidden="true" />
       <span class="streak-num">{{ retention.effectiveStreak }}</span>
       <span class="streak-label">day{{ retention.effectiveStreak > 1 ? 's' : '' }}</span>
     </div>
@@ -24,14 +24,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { Flame } from 'lucide-vue-next'
 import { useRetentionStore } from '../stores/retentionStore'
 
 const retention = useRetentionStore()
-
-// Pure-text flame so we don't need to depend on emoji rendering quirks.
-// Falls back to a colored asterisk character.
-const flameIcon = computed(() => '\u{1F525}')
 </script>
 
 <style scoped>
@@ -51,18 +47,24 @@ const flameIcon = computed(() => '\u{1F525}')
 .streak-pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.4rem;
   align-self: flex-start;
   font-size: 0.78rem;
   color: #ffcc00;
   text-shadow: 0 0 8px rgba(255, 204, 0, 0.35);
   letter-spacing: 0.1em;
   text-transform: uppercase;
+  line-height: 1;
 }
 
-.flame {
-  font-size: 1rem;
-  line-height: 1;
+.streak-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  /* Emoji had its own internal padding that broke baseline align;
+     SVG is bounded by its viewBox so it sits flush with the text. */
+  color: #ffcc00;
+  filter: drop-shadow(0 0 4px rgba(255, 204, 0, 0.5));
 }
 
 .streak-num {
