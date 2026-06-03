@@ -161,7 +161,7 @@
       <div class="modal terminal-modal">
         <h1 class="glitch-text" data-text="DISCONNECTED">DISCONNECTED</h1>
         <p class="winner-text">OPPONENT LEFT THE GAME</p>
-        <button @click="leaveGame" class="btn-primary">RETURN TO LOBBY</button>
+        <button @click="leaveFromGameOver" class="btn-primary">RETURN TO LOBBY</button>
       </div>
     </div>
 
@@ -173,11 +173,20 @@
       :stats="mpGameStats"
       :is-anonymous="authStore.isAnonymous"
       mode="mp"
-      @rematch="leaveGame"
-      @back-to-lobby="leaveGame"
+      @rematch="leaveFromGameOver"
+      @back-to-lobby="leaveFromGameOver"
       @upgrade-account="handleUpgrade"
       @share-twitter="shareToTwitter"
-      @share-whatsapp="shareToWhatsApp"
+    />
+
+    <ConfirmDialog
+      :open="showLeaveConfirm"
+      title="Leave the game?"
+      message="You'll forfeit this round and return to the lobby. No rejoin."
+      confirm-label="LEAVE"
+      cancel-label="STAY"
+      @confirm="confirmLeave"
+      @cancel="showLeaveConfirm = false"
     />
   </div>
 </template>
@@ -201,6 +210,7 @@ import BattlePit from './BattlePit.vue'
 import StatusPanel from './StatusPanel.vue'
 import PlayerConsoleBar from './PlayerConsoleBar.vue'
 import GameOverModal from './GameOverModal.vue'
+import ConfirmDialog from '../ConfirmDialog.vue'
 import type { Card, CardColor } from '../../types/card'
 import { useStackEscalation } from '../../composables/useStackEscalation'
 import { playDealerIntro } from '../../composables/useDealerIntro'
@@ -622,12 +632,24 @@ function shareToTwitter() {
   window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank')
 }
 
-function shareToWhatsApp() {
-  const text = encodeURIComponent(getGameOverShareText() + '\n\nhttps://uno-no-mercy.com')
-  window.open(`https://wa.me/?text=${text}`, '_blank')
+const showLeaveConfirm = ref(false)
+
+// PlayerConsoleBar emits 'leave'. Open the confirmation instead of
+// firing leaveRoom immediately — fat-finger taps on the mobile leave
+// button were ending live games. From the GameOverModal, leave is
+// already deliberate so we skip the confirm (see leaveFromGameOver).
+function leaveGame() {
+  showLeaveConfirm.value = true
 }
 
-async function leaveGame() {
+async function confirmLeave() {
+  showLeaveConfirm.value = false
+  await mpStore.leaveGame()
+}
+
+// Used by GameOverModal — the user has already seen the result screen,
+// no second confirmation needed.
+async function leaveFromGameOver() {
   await mpStore.leaveGame()
 }
 

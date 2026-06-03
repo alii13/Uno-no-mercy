@@ -91,9 +91,18 @@
         <div class="room-code-card">
           <span class="room-code-label">ROOM CODE</span>
           <span class="room-code-value">{{ mpStore.roomCode }}</span>
-          <button class="copy-btn" @click="copyRoomCode">
-            {{ copied ? '✓ COPIED' : 'COPY CODE' }}
-          </button>
+          <div class="room-code-actions">
+            <button class="code-action-btn" @click="copyRoomCode">
+              <Copy v-if="!copied" class="code-action-icon" :stroke-width="2" aria-hidden="true" />
+              <Check v-else class="code-action-icon" :stroke-width="2.5" aria-hidden="true" />
+              {{ copied ? 'COPIED' : 'COPY CODE' }}
+            </button>
+            <button class="code-action-btn code-action-share" @click="shareInvite">
+              <Check v-if="shared" class="code-action-icon" :stroke-width="2.5" aria-hidden="true" />
+              <Share2 v-else class="code-action-icon" :stroke-width="2" aria-hidden="true" />
+              {{ shared ? 'SHARED' : 'SHARE INVITE' }}
+            </button>
+          </div>
           <span class="room-mode-tag">{{ modeLabel(mpStore.stackingMode) }} RULES</span>
         </div>
 
@@ -144,10 +153,20 @@
           <p v-else class="waiting-text">
             Waiting for host to start the game…
           </p>
-          <button class="leave-link" @click="leaveGame">LEAVE GAME</button>
+          <button class="leave-link" @click="showLeaveConfirm = true">LEAVE GAME</button>
         </div>
       </div>
     </div>
+
+    <ConfirmDialog
+      :open="showLeaveConfirm"
+      title="Leave the room?"
+      message="Players you've invited will see the room close. You can create a new one anytime."
+      confirm-label="LEAVE"
+      cancel-label="STAY"
+      @confirm="confirmLeave"
+      @cancel="showLeaveConfirm = false"
+    />
 
     <!-- Join Modal -->
     <Teleport to="body">
@@ -205,12 +224,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { Copy, Check, Share2 } from 'lucide-vue-next'
 import { useAuthStore } from '../stores/authStore'
 import { useMultiplayerStore } from '../stores/multiplayerStore'
 import { useGameStore } from '../stores/gameStore'
 import SiteFooter from './SiteFooter.vue'
 import LandingStatsBadge from './LandingStatsBadge.vue'
+import ConfirmDialog from './ConfirmDialog.vue'
 import Button from './ui/Button.vue'
 import type { StackingMode } from '../utils/gameRules'
 
@@ -225,9 +246,36 @@ const mpStore = useMultiplayerStore()
 const gameStore = useGameStore()
 
 const showJoinModal = ref(false)
+const showLeaveConfirm = ref(false)
 const joinCode = ref('')
 const copied = ref(false)
+const shared = ref(false)
 const selectedStackingMode = ref<StackingMode>(gameStore.stackingMode)
+
+// When the page loads with ?join=ABCDEF, pre-fill the join input and
+// fire the join automatically. Friends sharing the invite URL drop
+// straight into the room instead of copy-pasting the code manually.
+onMounted(() => {
+  const params = new URLSearchParams(window.location.search)
+  const code = params.get('join')?.toUpperCase().trim()
+  if (!code) return
+
+  // Strip the param so a reload doesn't re-trigger.
+  params.delete('join')
+  const newSearch = params.toString()
+  const newUrl =
+    window.location.pathname + (newSearch ? `?${newSearch}` : '') + window.location.hash
+  window.history.replaceState({}, '', newUrl)
+
+  // Only auto-join if the user isn't already in a game and the code
+  // shape is plausible. Anything weird falls through to the user
+  // opening the join modal themselves.
+  if (mpStore.currentGame) return
+  if (!/^[A-Z0-9]{4,8}$/.test(code)) return
+
+  joinCode.value = code
+  mpStore.joinGame(code)
+})
 
 const stackingModes: { value: StackingMode; label: string; desc: string }[] = [
   { value: 'official', label: 'OFFICIAL', desc: 'Printed rules — stack a draw only with equal or higher value' },
@@ -260,7 +308,8 @@ async function startGame() {
   await mpStore.startGame()
 }
 
-async function leaveGame() {
+async function confirmLeave() {
+  showLeaveConfirm.value = false
   await mpStore.leaveGame()
 }
 
@@ -281,6 +330,41 @@ function copyRoomCode() {
   navigator.clipboard.writeText(mpStore.roomCode)
   copied.value = true
   setTimeout(() => (copied.value = false), 2000)
+}
+
+// Auto-join URL friends can tap to drop straight into the room.
+function inviteUrl() {
+  const u = new URL(window.location.href)
+  u.search = ''
+  u.hash = ''
+  u.searchParams.set('join', mpStore.roomCode)
+  return u.toString()
+}
+
+// On mobile, open the native share sheet so the user picks WhatsApp /
+// iMessage / Telegram themselves and the invite carries text + URL.
+// On desktop or unsupported browsers, copy the URL to clipboard with
+// the same toast-feedback pattern as Copy Code.
+async function shareInvite() {
+  const url = inviteUrl()
+  const text = `Join my UNO No Mercy room: ${mpStore.roomCode}`
+  const navAny = navigator as Navigator & {
+    share?: (data: ShareData) => Promise<void>
+  }
+  if (navAny.share) {
+    try {
+      await navAny.share({ title: 'UNO No Mercy', text, url })
+      shared.value = true
+      setTimeout(() => (shared.value = false), 2000)
+      return
+    } catch {
+      // User cancelled the share sheet — silent.
+      return
+    }
+  }
+  await navigator.clipboard.writeText(url)
+  shared.value = true
+  setTimeout(() => (shared.value = false), 2000)
 }
 </script>
 
@@ -561,7 +645,19 @@ function copyRoomCode() {
   text-shadow: 0 0 20px rgba(255, 204, 0, 0.4);
 }
 
-.copy-btn {
+.room-code-actions {
+  display: flex;
+  gap: var(--spacing-2);
+  width: 100%;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.code-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
   background: var(--color-hazard);
   border: none;
   color: var(--bg-concrete);
@@ -575,8 +671,24 @@ function copyRoomCode() {
   transition: filter var(--duration-snap) var(--ease-snap);
 }
 
-.copy-btn:hover {
+.code-action-btn:hover {
   filter: brightness(1.1);
+}
+
+.code-action-share {
+  background: transparent;
+  color: var(--color-hazard);
+  border: 1px solid var(--color-hazard);
+}
+
+.code-action-share:hover {
+  background: rgba(255, 204, 0, 0.08);
+  filter: none;
+}
+
+.code-action-icon {
+  width: 14px;
+  height: 14px;
 }
 
 .room-mode-tag {

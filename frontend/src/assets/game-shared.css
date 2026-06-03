@@ -9,7 +9,8 @@
 .game-view {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100vh; /* fallback */
+  height: 100dvh; /* dynamic viewport accounts for mobile browser chrome */
   width: 100vw;
   position: relative;
   background: var(--bg-concrete);
@@ -1246,8 +1247,12 @@
    ========================================================================== */
 @media (max-width: 768px) {
   .game-view {
+    /* CSS later wins: keep dvh second so supporting browsers use it.
+       Earlier order had this inverted and 100vh always won, which on
+       iOS Safari includes the dynamic URL bar — pushed the player
+       console (with the leave button) below the visible fold. */
+    height: 100vh;
     height: 100dvh;
-    height: 100vh; /* fallback */
   }
 
   .battle-pit {
