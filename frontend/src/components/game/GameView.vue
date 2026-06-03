@@ -125,8 +125,6 @@
       @rematch="restart"
       @back-to-lobby="store.returnToLobby()"
       @upgrade-account="handleUpgrade"
-      @share-twitter="shareToTwitter"
-      @share-whatsapp="shareToWhatsApp"
     />
   </div>
 </template>
@@ -378,24 +376,6 @@ const opponentDisplayName = computed(() => {
 
 function restart() {
   store.initializeGame(['You', 'Terminator'])
-}
-
-function getGameOverShareText() {
-  const won = store.winnerId === 'p-0'
-  return won
-    ? `Just destroyed the bot in UNO No Mercy. No mercy given. Play me if you dare.`
-    : `The bot just wrecked me in UNO No Mercy. This game is brutal. Try it yourself.`
-}
-
-function shareToTwitter() {
-  const text = encodeURIComponent(getGameOverShareText())
-  const url = encodeURIComponent('https://uno-no-mercy.com')
-  window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank')
-}
-
-function shareToWhatsApp() {
-  const text = encodeURIComponent(getGameOverShareText() + '\n\nhttps://uno-no-mercy.com')
-  window.open(`https://wa.me/?text=${text}`, '_blank')
 }
 
 async function handleUpgrade() {
