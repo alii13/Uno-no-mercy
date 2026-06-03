@@ -38,6 +38,42 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     const realtimeStatus = ref<'SUBSCRIBED' | 'CHANNEL_ERROR' | 'TIMED_OUT' | 'CLOSED' | 'CONNECTING'>('CONNECTING')
     let gameChannel: RealtimeChannel | null = null
 
+    // Realtime broadcast for moves. Postgres remains the system of record; this
+    // is a fast lane that fans out the post-write state on the same channel.
+    // postgres_changes takes 1-2s+ via WAL polling; broadcast is 50-200ms. We
+    // stash a per-channel timestamp so the slow path can step aside when the
+    // fast path is healthy.
+    const BROADCAST_THROTTLE_PGCHANGES_MS = 3000
+    let broadcastSeq = 0
+    let lastBroadcastReceivedAt = 0
+
+    type StateBroadcastPayload = {
+        senderId: string
+        seq: number
+        game: GameRow
+        players: GamePlayerRow[]
+    }
+
+    function broadcastState() {
+        if (!gameChannel || !currentGame.value) return
+        const senderId = authStore.user?.id
+        if (!senderId) return
+        broadcastSeq++
+        // Best-effort. postgres_changes is the backstop if this fails.
+        Promise.resolve(
+            gameChannel.send({
+                type: 'broadcast',
+                event: 'state',
+                payload: {
+                    senderId,
+                    seq: broadcastSeq,
+                    game: { ...currentGame.value },
+                    players: gamePlayers.value.map(p => ({ ...p }))
+                } satisfies StateBroadcastPayload
+            })
+        ).catch(() => {})
+    }
+
     // --- In-game stat tracking ---
     const mpGameStartTime = ref(0)
     const mpStats = ref({
@@ -324,14 +360,71 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             supabase.removeChannel(gameChannel)
         }
 
+        // Reset broadcast bookkeeping so a stale throttle from a prior game
+        // doesn't suppress the new game's first pgchanges events.
+        broadcastSeq = 0
+        lastBroadcastReceivedAt = 0
+
         gameChannel = supabase
             .channel(`game:${gameId}`)
+            .on('broadcast', { event: 'state' }, ({ payload }) => {
+                // Validate payload shape — broadcasts are untrusted (anyone
+                // with the game ID can publish). Reject anything malformed.
+                if (!payload || typeof payload !== 'object') return
+                const p = payload as Partial<StateBroadcastPayload>
+                if (typeof p.senderId !== 'string') return
+                if (p.game && typeof p.game !== 'object') return
+                if (p.players && !Array.isArray(p.players)) return
+
+                // Self-echo: skip. Our local state is already what we sent.
+                if (p.senderId === authStore.user?.id) return
+
+                // Defense-in-depth: only accept broadcasts from a known player
+                // in this game. Doesn't prevent in-game spoofing (Player B
+                // claiming to be Player A) but blocks random outsiders.
+                const knownIds = new Set(gamePlayers.value.map(pl => pl.user_id))
+                if (knownIds.size > 0 && !knownIds.has(p.senderId)) return
+
+                lastBroadcastReceivedAt = Date.now()
+
+                if (p.game) {
+                    currentGame.value = {
+                        ...(currentGame.value || {}),
+                        ...(p.game as GameRow)
+                    }
+                }
+
+                if (p.players?.length) {
+                    const byId = new Map(p.players.map(pl => [pl.id, pl]))
+                    // Replace existing players in place; preserve order; pick up new ones
+                    const merged = gamePlayers.value.map(existing => byId.get(existing.id) ?? existing)
+                    for (const incoming of p.players) {
+                        if (!merged.some(m => m.id === incoming.id)) merged.push(incoming)
+                    }
+                    gamePlayers.value = merged
+
+                    const myId = authStore.user?.id
+                    if (myId) {
+                        myPlayer.value = gamePlayers.value.find(pl => pl.user_id === myId) || null
+                        opponent.value = gamePlayers.value.find(pl => pl.user_id !== myId) || null
+                    }
+
+                    if (myPlayer.value) {
+                        const handLen = (myPlayer.value.hand as Card[])?.length || 0
+                        if (handLen > mpStats.value.peakCards) mpStats.value.peakCards = handLen
+                    }
+                }
+            })
             .on('postgres_changes', {
                 event: '*',
                 schema: 'public',
                 table: 'games',
                 filter: `id=eq.${gameId}`
             }, (payload) => {
+                // Broadcast is the fast path. While it's actively delivering,
+                // pgchanges payloads are by definition older than what we just
+                // merged from broadcast — skip them to avoid state regressions.
+                if (Date.now() - lastBroadcastReceivedAt < BROADCAST_THROTTLE_PGCHANGES_MS) return
                 if (payload.new) {
                     // Merge to avoid dropping fields not present in realtime payload
                     currentGame.value = {
@@ -348,8 +441,14 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 // Filter to our game
                 if (payload.new?.game_id === gameId || payload.old?.game_id === gameId) {
 
-                    // Check for player leaving during active game
-                    if (payload.eventType === 'DELETE' && payload.old?.user_id !== authStore.user?.id) {
+                    // INSERT (player joined) and DELETE (player left) are membership
+                    // events that broadcast doesn't carry — always process them.
+                    // Only UPDATE (in-game state changes) gets throttled while
+                    // broadcasts are flowing.
+                    const eventType = payload.eventType
+                    const isMembershipChange = eventType === 'INSERT' || eventType === 'DELETE'
+                    if (!isMembershipChange && Date.now() - lastBroadcastReceivedAt < BROADCAST_THROTTLE_PGCHANGES_MS) {
+                        return
                     }
 
                     await loadGamePlayers(gameId)
@@ -832,6 +931,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 updatePlayerHands(state),
                 updateGameState(game.id, game.deck as Card[], state, winResult.winnerId, winResult.status)
             ])
+            broadcastState()
         } catch (err: any) {
             error.value = err.message
         } finally {
@@ -918,6 +1018,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     })
                     .eq('id', currentGame.value.id)
             ])
+            broadcastState()
         } catch (err: any) {
             error.value = err.message
         } finally {
@@ -943,6 +1044,11 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         const nextIdx = calculateNextPlayerIndex(myIndex, direction, playerCount)
         const nextPlayerId = gamePlayers.value[nextIdx]?.user_id || null
 
+        if (currentGame.value) {
+            currentGame.value.turn_state = 'WAITING_FOR_ACTION'
+            currentGame.value.current_player_id = nextPlayerId
+        }
+
         try {
             await supabase
                 .from('games')
@@ -951,6 +1057,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     current_player_id: nextPlayerId
                 })
                 .eq('id', currentGame.value.id)
+            broadcastState()
         } catch (err: any) {
             error.value = err.message
         } finally {
@@ -965,6 +1072,13 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         if (actionInProgress.value) return
 
         actionInProgress.value = true
+
+        if (currentGame.value) {
+            currentGame.value.roulette_target_color = color
+            currentGame.value.current_color = color
+            currentGame.value.turn_state = 'ROULETTE_DRAWING'
+        }
+
         try {
             await supabase
                 .from('games')
@@ -974,6 +1088,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     turn_state: 'ROULETTE_DRAWING'
                 })
                 .eq('id', currentGame.value.id)
+            broadcastState()
 
             // Start drawing automatically
             setTimeout(() => {
@@ -990,11 +1105,13 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     async function callUno() {
         if (!myPlayer.value) return
         mpStats.value.unoCalls++
+        myPlayer.value.has_called_uno = true
         try {
             await supabase
                 .from('game_players')
                 .update({ has_called_uno: true })
                 .eq('id', myPlayer.value.id)
+            broadcastState()
         } catch (err: any) {
             error.value = err.message
         }
@@ -1034,6 +1151,15 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     localDiscard.push(top)
                 } else {
                     // No cards left - end roulette
+                    const nextId = getNextPlayerId()
+                    if (currentGame.value) {
+                        currentGame.value.deck = localDeck as any
+                        currentGame.value.discard_pile = localDiscard as any
+                        currentGame.value.current_color = targetColor
+                        currentGame.value.turn_state = 'WAITING_FOR_ACTION'
+                        currentGame.value.roulette_target_color = null
+                        currentGame.value.current_player_id = nextId
+                    }
                     await supabase
                         .from('games')
                         .update({
@@ -1042,9 +1168,10 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                             current_color: targetColor,
                             turn_state: 'WAITING_FOR_ACTION',
                             roulette_target_color: null,
-                            current_player_id: getNextPlayerId()
+                            current_player_id: nextId
                         })
                         .eq('id', currentGame.value.id)
+                    broadcastState()
                     rouletteState = null
                     return
                 }
@@ -1086,6 +1213,25 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     ? await checkForWinnerAfterElimination()
                     : { winner_id: null, status: 'playing' }
 
+                const nextId = getNextPlayerId()
+
+                // Optimistic local apply so broadcastState() carries the result
+                if (myPlayer.value) {
+                    myPlayer.value.hand = finalHand
+                    myPlayer.value.is_eliminated = isEliminated
+                    myPlayer.value.has_called_uno = false
+                }
+                if (currentGame.value) {
+                    currentGame.value.deck = localDeck as any
+                    currentGame.value.discard_pile = newDiscard as any
+                    currentGame.value.current_color = newColor
+                    currentGame.value.turn_state = 'WAITING_FOR_ACTION'
+                    currentGame.value.roulette_target_color = null
+                    currentGame.value.current_player_id = nextId
+                    if (winner_id) currentGame.value.winner_id = winner_id
+                    currentGame.value.status = gStatus as typeof currentGame.value.status
+                }
+
                 await Promise.all([
                     supabase
                         .from('game_players')
@@ -1103,12 +1249,13 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                             current_color: newColor,
                             turn_state: 'WAITING_FOR_ACTION',
                             roulette_target_color: null,
-                            current_player_id: getNextPlayerId(),
+                            current_player_id: nextId,
                             winner_id,
                             status: gStatus
                         })
                         .eq('id', currentGame.value.id)
                 ])
+                broadcastState()
 
                 rouletteState = null
             } else {
@@ -1129,6 +1276,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                         .update({ deck: localDeck, discard_pile: localDiscard })
                         .eq('id', currentGame.value.id)
                 ])
+                broadcastState()
 
                 // Continue drawing after a much shorter delay (was 600ms).
                 actionInProgress.value = false
@@ -1171,17 +1319,32 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             .eq('id', myPlayer.value!.id)
 
         const { winner_id, status: gStatus } = await checkForWinnerAfterElimination()
+        const nextId = getNextPlayerId()
+
+        // Optimistic local apply so broadcastState() reflects the elimination
+        if (myPlayer.value) {
+            myPlayer.value.hand = []
+            myPlayer.value.is_eliminated = true
+        }
+        if (currentGame.value) {
+            currentGame.value.deck = state.deck as any
+            currentGame.value.discard_pile = state.discardPile as any
+            currentGame.value.current_player_id = nextId
+            if (winner_id) currentGame.value.winner_id = winner_id
+            currentGame.value.status = gStatus as typeof currentGame.value.status
+        }
 
         await supabase
             .from('games')
             .update({
                 deck: state.deck,
                 discard_pile: state.discardPile,
-                current_player_id: getNextPlayerId(),
+                current_player_id: nextId,
                 winner_id,
                 status: gStatus
             })
             .eq('id', gameId)
+        broadcastState()
     }
 
     // Draw stack cards (when facing a draw penalty)
@@ -1242,6 +1405,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 })
                 .eq('id', gameId)
         ])
+        broadcastState()
     }
 
     // Draw until a playable card is found
@@ -1257,10 +1421,13 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
                 // No cards left to draw
                 if (state.deck.length === 0 && !tryReshuffle(state)) {
+                    const nextId = getNextPlayerId()
+                    if (currentGame.value) currentGame.value.current_player_id = nextId
                     await supabase
                         .from('games')
-                        .update({ current_player_id: getNextPlayerId() })
+                        .update({ current_player_id: nextId })
                         .eq('id', currentGame.value.id)
+                    broadcastState()
 
                     actionInProgress.value = false
                     return
@@ -1299,6 +1466,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                         .update({ deck: state.deck, discard_pile: state.discardPile })
                         .eq('id', currentGame.value.id)
                 ])
+                broadcastState()
 
                 // Check if drawn card is playable
                 if (state.topCard && canPlayCard(card, state.topCard, state.currentColor, 0, stackingMode.value)) {
@@ -1432,6 +1600,14 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 // DiscardAll bulk discard doesn't penalize for UNO since cards went from many→0
             }
 
+            if (currentGame.value) {
+                currentGame.value.discard_pile = reorderedDiscard as any
+                currentGame.value.turn_state = 'WAITING_FOR_ACTION'
+                currentGame.value.current_player_id = nextPlayerId
+                if (winnerId) currentGame.value.winner_id = winnerId
+                currentGame.value.status = status as typeof currentGame.value.status
+            }
+
             await supabase
                 .from('games')
                 .update({
@@ -1442,6 +1618,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     status
                 })
                 .eq('id', currentGame.value.id)
+            broadcastState()
         } catch (err: any) {
             error.value = err.message
         }
