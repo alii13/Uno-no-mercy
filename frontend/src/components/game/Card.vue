@@ -171,13 +171,14 @@ const handleHover = () => {
 
 /* ---------- Danger pulse on +N draw cards ----------
    Aggressive red ring + shake-ready overlay so the player reads "incoming pain"
-   before they read the number. */
-.card-wrapper.type-draw2::after,
-.card-wrapper.type-draw4::after,
-.card-wrapper.type-draw6::after,
-.card-wrapper.type-draw10::after,
-.card-wrapper.type-wildReverseDraw4::after,
-.card-wrapper.type-wildColorRoulette::after {
+   before they read the number. Only fires on playable +N cards — an unplayable
+   draw card in hand should sit quietly like any other unplayable card. */
+.card-wrapper.playable.type-draw2::after,
+.card-wrapper.playable.type-draw4::after,
+.card-wrapper.playable.type-draw6::after,
+.card-wrapper.playable.type-draw10::after,
+.card-wrapper.playable.type-wildReverseDraw4::after,
+.card-wrapper.playable.type-wildColorRoulette::after {
   content: '';
   position: absolute;
   inset: -1px;
