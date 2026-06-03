@@ -60,7 +60,8 @@
           <button
             class="share-btn share-wa"
             type="button"
-            @click="$emit('share-whatsapp')"
+            :disabled="sharingWhatsapp"
+            @click="onShareWhatsApp"
           >
             <!-- WhatsApp brand mark — Lucide doesn't ship brand icons, inlined -->
             <svg class="share-icon-svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -116,11 +117,11 @@ defineEmits<{
   (e: 'back-to-lobby'): void
   (e: 'upgrade-account'): void
   (e: 'share-twitter'): void
-  (e: 'share-whatsapp'): void
 }>()
 
 const modalRef = ref<HTMLElement | null>(null)
 const generatingImage = ref(false)
+const sharingWhatsapp = ref(false)
 
 // Rotating villain quotes on loss. Builds character without voice acting and
 // stops the "{winner} walks away. You don't." line from grinding through
@@ -139,22 +140,67 @@ const LOSS_QUOTES = [
 
 const villainQuote = LOSS_QUOTES[Math.floor(Math.random() * LOSS_QUOTES.length)]
 
+function sharePayload() {
+  return {
+    isWinner: props.isWinner,
+    opponentName: props.opponentName,
+    cardsPlayed: props.stats?.cardsPlayed ?? 0,
+    biggestStack: props.stats?.biggestStack ?? 0,
+    unosCalled: props.stats?.unosCalled ?? 0,
+    peakHand: props.stats?.peakHand ?? 0,
+    siteUrl: 'uno-no-mercy.com',
+  }
+}
+
 async function onShareImage() {
   if (generatingImage.value) return
   generatingImage.value = true
   try {
-    const blob = await generateShareImage({
-      isWinner: props.isWinner,
-      opponentName: props.opponentName,
-      cardsPlayed: props.stats?.cardsPlayed ?? 0,
-      biggestStack: props.stats?.biggestStack ?? 0,
-      unosCalled: props.stats?.unosCalled ?? 0,
-      peakHand: props.stats?.peakHand ?? 0,
-      siteUrl: 'uno-no-mercy.com',
-    })
+    const blob = await generateShareImage(sharePayload())
     if (blob) await shareOrDownload(blob)
   } finally {
     generatingImage.value = false
+  }
+}
+
+// WhatsApp share — on mobile (Web Share API + files), bundle the generated
+// image along with the text. WhatsApp picks it up natively from the system
+// share sheet. On desktop the API doesn't support files, fall back to the
+// classic wa.me URL with text only (which is what the previous version did
+// in every case).
+async function onShareWhatsApp() {
+  if (sharingWhatsapp.value) return
+  sharingWhatsapp.value = true
+  const text = 'Just destroyed the bot in UNO No Mercy. No mercy given. Play me if you dare.'
+  const url = 'https://uno-no-mercy.com'
+  try {
+    const navAny = navigator as Navigator & {
+      canShare?: (data: { files?: File[] }) => boolean
+      share?: (data: ShareData & { files?: File[] }) => Promise<void>
+    }
+    const blob = await generateShareImage(sharePayload())
+    if (blob && navAny.canShare && navAny.share) {
+      const file = new File([blob], 'uno-no-mercy-win.png', { type: 'image/png' })
+      if (navAny.canShare({ files: [file] })) {
+        try {
+          await navAny.share({
+            files: [file],
+            title: 'UNO No Mercy',
+            text: `${text}\n\n${url}`,
+          })
+          return
+        } catch {
+          // User cancelled the share sheet — don't fall back, that's
+          // a deliberate dismiss.
+          return
+        }
+      }
+    }
+    // Desktop or unsupported: classic wa.me URL with text only.
+    const encoded = encodeURIComponent(`${text}\n\n${url}`)
+    window.open(`https://wa.me/?text=${encoded}`, '_blank')
+  } finally {
+    sharingWhatsapp.value = false
   }
 }
 
