@@ -176,7 +176,6 @@
       @rematch="leaveFromGameOver"
       @back-to-lobby="leaveFromGameOver"
       @upgrade-account="handleUpgrade"
-      @share-twitter="shareToTwitter"
     />
 
     <ConfirmDialog
@@ -617,19 +616,6 @@ function toggleSound() {
   // Keep SFX and music mutes in step until the proper settings drawer ships.
   soundEffects.toggleMute()
   music.toggleMute()
-}
-
-function getGameOverShareText() {
-  const won = currentGame.value?.winner_id === authStore.user?.id
-  return won
-    ? `Just won a multiplayer UNO No Mercy game. No mercy given. Think you can beat me?`
-    : `Just played UNO No Mercy multiplayer. This game is absolute chaos. Try it.`
-}
-
-function shareToTwitter() {
-  const text = encodeURIComponent(getGameOverShareText())
-  const url = encodeURIComponent('https://uno-no-mercy.com')
-  window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank')
 }
 
 const showLeaveConfirm = ref(false)
