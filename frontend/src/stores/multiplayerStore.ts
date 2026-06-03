@@ -360,6 +360,11 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             supabase.removeChannel(gameChannel)
         }
 
+        // Reset broadcast bookkeeping so a stale throttle from a prior game
+        // doesn't suppress the new game's first pgchanges events.
+        broadcastSeq = 0
+        lastBroadcastReceivedAt = 0
+
         gameChannel = supabase
             .channel(`game:${gameId}`)
             .on('broadcast', { event: 'state' }, ({ payload }) => {
@@ -436,10 +441,13 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 // Filter to our game
                 if (payload.new?.game_id === gameId || payload.old?.game_id === gameId) {
 
-                    // DELETE always processes (player leave info isn't on the broadcast).
-                    // UPDATE/INSERT throttled while broadcasts are flowing.
-                    const isLeave = payload.eventType === 'DELETE'
-                    if (!isLeave && Date.now() - lastBroadcastReceivedAt < BROADCAST_THROTTLE_PGCHANGES_MS) {
+                    // INSERT (player joined) and DELETE (player left) are membership
+                    // events that broadcast doesn't carry — always process them.
+                    // Only UPDATE (in-game state changes) gets throttled while
+                    // broadcasts are flowing.
+                    const eventType = payload.eventType
+                    const isMembershipChange = eventType === 'INSERT' || eventType === 'DELETE'
+                    if (!isMembershipChange && Date.now() - lastBroadcastReceivedAt < BROADCAST_THROTTLE_PGCHANGES_MS) {
                         return
                     }
 
