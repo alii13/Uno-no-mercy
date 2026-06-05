@@ -317,21 +317,19 @@ export function registerMcpTools(pinia: Pinia): void {
         },
         {
             name: 'start_single_player',
-            description: 'Start an offline game against bots. Deals hands and begins play.',
+            description: 'Start an offline game against the bot, exactly like the in-app vs-bot game: you versus one bot ("Terminator"). Deals hands and begins play.',
             inputSchema: {
                 type: 'object',
                 properties: {
-                    opponents: { type: 'number', description: 'Number of bot opponents (1-9, default 3).' },
                     stacking_mode: { type: 'string', enum: ['official', 'house', 'casual'] },
                 },
             },
             handler: async (args) => {
-                const n = Math.min(Math.max(typeof args.opponents === 'number' ? args.opponents : 3, 1), 9)
-                const names = ['You', ...Array.from({ length: n }, (_, i) => `Bot ${i + 1}`)]
-                // Only initialize. The mounted GameView deals the hands when it
+                // Mirror startLocalGame (App.vue): you vs one bot, "Terminator".
+                // Only initialize — the mounted GameView deals the hands when it
                 // sees `isDealing` flip true; dealing here too would double-deal.
                 // The agent calls wait_for_turn to wait out the deal.
-                sp.initializeGame(names, args.stacking_mode)
+                sp.initializeGame(['You', 'Terminator'], args.stacking_mode)
                 return buildState()
             },
         },
