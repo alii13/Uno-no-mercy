@@ -90,10 +90,59 @@
       </div>
     </section>
 
-    <!-- Section 5: Feedback nudge (last - after you've seen the rules, drop us a line) -->
-    <section class="scroll-section feedback-section" ref="feedbackSection">
+    <!-- Section 5: Played by agents too (WebMCP) -->
+    <section class="scroll-section agent-section" ref="agentSection">
       <div class="section-inner">
         <div class="section-label">05</div>
+        <h2 class="section-heading">NOT JUST FOR <span class="accent-green">HUMANS</span></h2>
+        <p class="section-desc">This table speaks WebMCP. An AI agent discovers the game the moment it visits and plays a real seat - same rules, same hand, no plugin.</p>
+
+        <div class="agent-stage">
+          <div class="agent-hud">
+            <div class="hud-bar">
+              <span class="hud-dot"></span><span class="hud-dot"></span><span class="hud-dot"></span>
+              <span class="hud-title">WEBMCP // AGENT</span>
+            </div>
+            <div class="hud-body">
+              <div class="hud-line" :ref="el => setRef('hud', 1, el)"><span class="hud-prompt">&gt;</span> wait_for_turn()</div>
+              <div class="hud-line" :ref="el => setRef('hud', 2, el)"><span class="hud-prompt">&gt;</span> get_state()</div>
+              <div class="hud-line hud-dim" :ref="el => setRef('hud', 3, el)">hand 6 &middot; top <span class="accent-red">RED 7</span></div>
+              <div class="hud-line hud-dim" :ref="el => setRef('hud', 4, el)">legal_moves:</div>
+              <div class="hud-moves" :ref="el => setRef('hud', 5, el)">
+                <span class="move-chip" ref="moveChip0">R7</span>
+                <span class="move-chip" ref="moveChip1">+2</span>
+                <span class="move-chip" ref="moveChip2">WILD</span>
+                <span class="hud-scan" ref="hudScan"></span>
+              </div>
+              <div class="hud-line" :ref="el => setRef('hud', 6, el)"><span class="hud-prompt accent-green">&gt;</span> play_card(<span class="accent-red">"red-7"</span>)<span class="hud-ok" ref="hudOk"> OK</span></div>
+            </div>
+          </div>
+
+          <div class="agent-beam" ref="agentBeam"></div>
+
+          <div class="agent-pile-wrap">
+            <div class="agent-turn" ref="agentTurn">TURN &rarr; <span class="accent-green">AGENT</span></div>
+            <div class="agent-pile">
+              <Card :card="{ id: 'apile', color: 'blue', type: 'number', value: 4 }" :size="medCardSize" />
+              <div class="agent-pulse" ref="agentPulse"></div>
+              <div class="agent-fly" ref="agentFly">
+                <Card :card="{ id: 'afly', color: 'red', type: 'number', value: 7 }" :size="medCardSize" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <a class="agent-cta" href="https://github.com/alii13/Uno-no-mercy#playing-as-an-ai-agent-webmcp" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          HOW AGENTS PLAY
+        </a>
+      </div>
+    </section>
+
+    <!-- Section 6: Feedback nudge (last - after you've seen the rules, drop us a line) -->
+    <section class="scroll-section feedback-section" ref="feedbackSection">
+      <div class="section-inner">
+        <div class="section-label">06</div>
         <div class="feedback-stage">
           <div class="bubble bubble-1" ref="bubble1">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -158,6 +207,16 @@ const rouletteLabel = ref<HTMLElement>()
 const mercySection = ref<HTMLElement>()
 const mercyNum = ref<HTMLElement>()
 const mercyBoom = ref<HTMLElement>()
+const agentSection = ref<HTMLElement>()
+const hudScan = ref<HTMLElement>()
+const hudOk = ref<HTMLElement>()
+const agentBeam = ref<HTMLElement>()
+const agentTurn = ref<HTMLElement>()
+const agentPulse = ref<HTMLElement>()
+const agentFly = ref<HTMLElement>()
+const moveChip0 = ref<HTMLElement>()
+const moveChip1 = ref<HTMLElement>()
+const moveChip2 = ref<HTMLElement>()
 const feedbackSection = ref<HTMLElement>()
 const bubble1 = ref<HTMLElement>()
 const bubble2 = ref<HTMLElement>()
@@ -199,6 +258,7 @@ function init() {
   initSkip()
   initRoulette()
   initMercy()
+  initAgent()
   initFeedback()
 }
 
@@ -380,6 +440,92 @@ function initMercy() {
   if (mercyNum.value) {
     tl.to(mercyNum.value, { opacity: 0, duration: 0.1 }, 0.55)
   }
+
+  triggers.push(tl.scrollTrigger!)
+}
+
+function initAgent() {
+  if (!agentSection.value) return
+
+  const lines = [1, 2, 3, 4, 5, 6].map(i => getRef('hud', i)).filter(Boolean) as HTMLElement[]
+  const chips = [moveChip0.value, moveChip1.value, moveChip2.value].filter(Boolean) as HTMLElement[]
+  const flyFrom = isMobile.value ? { x: 0, y: -240 } : { x: -340, y: -30 }
+
+  // Respect reduced motion: render the resolved frame, skip the loop.
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  if (reduce) {
+    lines.forEach(l => gsap.set(l, { opacity: l.classList.contains('hud-dim') ? 0.6 : 1, x: 0 }))
+    chips.forEach(c => c.classList.remove('lit'))
+    moveChip0.value?.classList.add('lit')
+    if (hudOk.value) gsap.set(hudOk.value, { opacity: 1 })
+    if (agentFly.value) gsap.set(agentFly.value, { opacity: 1, x: 0, y: 0, scale: 1, rotation: 0 })
+    if (agentTurn.value) gsap.set(agentTurn.value, { opacity: 1, scale: 1, y: 0 })
+    return
+  }
+
+  const resetState = () => {
+    lines.forEach(l => gsap.set(l, { opacity: 0, x: -14 }))
+    chips.forEach(c => c.classList.remove('lit'))
+    if (hudScan.value) gsap.set(hudScan.value, { left: '-6%', opacity: 0 })
+    if (hudOk.value) gsap.set(hudOk.value, { opacity: 0 })
+    if (agentBeam.value) gsap.set(agentBeam.value, { opacity: 0, scaleX: 0 })
+    if (agentPulse.value) gsap.set(agentPulse.value, { opacity: 0, scale: 0.4 })
+    if (agentTurn.value) gsap.set(agentTurn.value, { opacity: 0, scale: 0.8, y: 10 })
+    if (agentFly.value) gsap.set(agentFly.value, { opacity: 0, x: flyFrom.x, y: flyFrom.y, scale: 0.7, rotation: -12 })
+  }
+  resetState()
+
+  const tl = gsap.timeline({
+    repeat: -1,
+    repeatDelay: 0.5,
+    onRepeat: resetState,
+    scrollTrigger: {
+      trigger: agentSection.value,
+      start: 'top 70%',
+      end: 'bottom 30%',
+      toggleActions: 'play pause resume pause',
+    },
+  })
+
+  // HUD lines stream in, terminal-style
+  lines.forEach((l, i) => {
+    const dim = l.classList.contains('hud-dim')
+    tl.to(l, { opacity: dim ? 0.6 : 1, x: 0, duration: 0.12, ease: 'power2.out' }, 0.1 + i * 0.16)
+  })
+
+  // Scan-line sweeps the legal moves
+  if (hudScan.value) {
+    tl.to(hudScan.value, { opacity: 0.95, duration: 0.05 }, 1.0)
+    tl.to(hudScan.value, { left: '102%', duration: 0.5, ease: 'power1.inOut' }, 1.0)
+    tl.to(hudScan.value, { opacity: 0, duration: 0.1 }, 1.5)
+  }
+  // Chips light as the scan passes; R7 stays locked in
+  chips.forEach((c, i) => {
+    tl.call(() => c.classList.add('lit'), [], 1.05 + i * 0.13)
+    if (i !== 0) tl.call(() => c.classList.remove('lit'), [], 1.05 + i * 0.13 + 0.18)
+  })
+
+  // play_card resolves
+  if (hudOk.value) tl.to(hudOk.value, { opacity: 1, duration: 0.12, ease: 'back.out(3)' }, 1.55)
+
+  // Beam fires and the card rockets onto the pile
+  if (agentBeam.value) {
+    tl.fromTo(agentBeam.value, { opacity: 0, scaleX: 0 }, { opacity: 0.9, scaleX: 1, duration: 0.18, ease: 'power2.out' }, 1.6)
+    tl.to(agentBeam.value, { opacity: 0, duration: 0.35 }, 2.0)
+  }
+  if (agentFly.value) {
+    tl.to(agentFly.value, { opacity: 1, x: 0, y: 0, scale: 1, rotation: 0, duration: 0.42, ease: 'power3.in' }, 1.65)
+  }
+  // Pile reacts: pulse + recoil, agent's turn lands
+  if (agentPulse.value) {
+    tl.fromTo(agentPulse.value, { opacity: 0.8, scale: 0.4 }, { opacity: 0, scale: 1.7, duration: 0.5, ease: 'power2.out' }, 2.05)
+  }
+  if (agentTurn.value) {
+    tl.to(agentTurn.value, { opacity: 1, scale: 1, y: 0, duration: 0.22, ease: 'back.out(2.2)' }, 2.1)
+  }
+
+  // Hold, then fade for a clean loop
+  tl.to([...lines, agentFly.value, agentTurn.value, hudOk.value].filter(Boolean), { opacity: 0, duration: 0.35, ease: 'power1.in' }, 3.3)
 
   triggers.push(tl.scrollTrigger!)
 }
@@ -720,6 +866,189 @@ function initFeedback() {
   max-width: 90vw;
 }
 
+/* ========== AGENT (WebMCP) ========== */
+.agent-section {
+  background:
+    radial-gradient(circle at 30% 40%, rgba(0, 243, 255, 0.05), transparent 55%),
+    radial-gradient(circle at 70% 60%, rgba(57, 255, 20, 0.05), transparent 55%);
+}
+
+.agent-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5rem;
+  margin-bottom: 3rem;
+  perspective: 1000px;
+}
+
+.agent-hud {
+  flex: 0 0 auto;
+  width: 340px;
+  text-align: left;
+  background: rgba(8, 12, 10, 0.92);
+  border: 1px solid rgba(57, 255, 20, 0.35);
+  border-radius: 10px;
+  box-shadow: 0 0 50px rgba(57, 255, 20, 0.12), inset 0 0 30px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+.hud-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 0.9rem;
+  background: rgba(57, 255, 20, 0.06);
+  border-bottom: 1px solid rgba(57, 255, 20, 0.18);
+}
+
+.hud-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #2a2a2a;
+  border: 1px solid #444;
+}
+.hud-dot:nth-child(1) { background: var(--color-alert); border-color: var(--color-alert); }
+.hud-dot:nth-child(2) { background: var(--color-hazard); border-color: var(--color-hazard); }
+.hud-dot:nth-child(3) { background: var(--color-neon-green); border-color: var(--color-neon-green); }
+
+.hud-title {
+  margin-left: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 2px;
+  color: var(--color-neon-green);
+  opacity: 0.85;
+}
+
+.hud-body {
+  padding: 1.1rem 1.1rem 1.3rem;
+  font-family: 'Courier New', monospace;
+  font-size: 0.92rem;
+  line-height: 1.85;
+  color: var(--text-secondary);
+}
+
+.hud-prompt { color: var(--color-neon-green); margin-right: 0.35rem; }
+.hud-dim { color: var(--text-muted); }
+.hud-ok {
+  color: var(--color-neon-green);
+  font-weight: bold;
+  text-shadow: 0 0 10px rgba(57, 255, 20, 0.7);
+}
+
+.hud-moves {
+  position: relative;
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.3rem 0 0.4rem;
+  overflow: hidden;
+}
+
+.move-chip {
+  font-family: 'Courier New', monospace;
+  font-size: 0.78rem;
+  padding: 0.18rem 0.6rem;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  color: var(--text-muted);
+  transition: color 0.18s, border-color 0.18s, box-shadow 0.18s, transform 0.18s;
+}
+.move-chip.lit {
+  color: var(--color-neon-green);
+  border-color: var(--color-neon-green);
+  box-shadow: 0 0 14px rgba(57, 255, 20, 0.5);
+  transform: translateY(-2px) scale(1.06);
+}
+
+.hud-scan {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -6%;
+  width: 36px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(57, 255, 20, 0.55), transparent);
+  filter: blur(2px);
+}
+
+.agent-beam {
+  flex: 0 0 auto;
+  width: 90px;
+  height: 3px;
+  transform-origin: left center;
+  background: linear-gradient(90deg, var(--color-neon-green), var(--color-neon-blue));
+  box-shadow: 0 0 16px rgba(57, 255, 20, 0.7);
+  border-radius: 2px;
+}
+
+.agent-pile-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.2rem;
+}
+
+.agent-turn {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  letter-spacing: 3px;
+  color: var(--text-secondary);
+  border: 1px solid rgba(57, 255, 20, 0.4);
+  padding: 0.35rem 0.9rem;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.agent-pile {
+  position: relative;
+  filter: drop-shadow(0 16px 44px rgba(0, 0, 0, 0.55));
+}
+
+.agent-pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 220px;
+  height: 220px;
+  margin: -110px 0 0 -110px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(57, 255, 20, 0.45), transparent 65%);
+}
+
+.agent-fly {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 0 24px rgba(255, 42, 42, 0.4));
+}
+
+.agent-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 1.1rem 2.5rem;
+  background: transparent;
+  border: 2px solid var(--color-neon-green);
+  color: var(--color-neon-green);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  letter-spacing: 2px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.25s;
+}
+.agent-cta:hover {
+  background: var(--color-neon-green);
+  color: #000;
+  box-shadow: 0 0 30px rgba(57, 255, 20, 0.5);
+}
+
 /* ========== FEEDBACK ========== */
 .feedback-section { min-height: 100vh; }
 
@@ -804,6 +1133,9 @@ function initFeedback() {
   .mercy-c { margin-right: -26px; }
   .feedback-heading { font-size: 2.8rem; }
   .bubble { font-size: 0.85rem; padding: 0.65rem 1rem; }
+  .agent-stage { flex-direction: column; gap: 1.5rem; }
+  .agent-hud { width: 100%; max-width: 340px; }
+  .agent-beam { width: 3px; height: 48px; transform-origin: top center; background: linear-gradient(180deg, var(--color-neon-green), var(--color-neon-blue)); }
 }
 
 @media (max-width: 480px) {
