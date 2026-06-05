@@ -13,6 +13,7 @@ The official UNO No Mercy rules never got a proper digital version. This project
 - **No login required** - click "Play Now" and you're in a game in seconds. Guest players get full access via anonymous auth.
 - **Real-time multiplayer** - create a room, share a code, play with 2-10 players. Works for guests and registered users alike.
 - **VS Bot** - single-player mode against an AI opponent
+- **Playable by AI agents** - the game exposes [WebMCP](#playing-as-an-ai-agent-webmcp) tools, so an AI agent can discover and play a seat just by visiting the page
 - **Full No Mercy rules** - every card from the physical deck implemented faithfully
 - **7-card swap is optional** - choose to swap hands or keep your own
 - **Mobile responsive** - playable on phones (320px+), tablets, and desktops
@@ -152,6 +153,71 @@ Then add to your frontend `.env`:
 ```env
 VITE_SUPABASE_PROXY_URL=https://uno-supabase-proxy.your-subdomain.workers.dev
 ```
+
+## Playing as an AI agent (WebMCP)
+
+The game exposes itself as [WebMCP](https://github.com/webmachinelearning/webmcp) tools, so an AI agent can discover and play it just by visiting the page - the same way a human would, with the same information and no special access.
+
+### How it works
+
+On load, the app registers a set of tools on the browser's `document.modelContext` (the W3C Web Model Context API, provided by the mcp-b polyfill). A WebMCP-capable agent - an agentic browser or extension - reads these tools automatically. The tools are thin wrappers over the game's existing Pinia stores, so the agent drives exactly the same code your clicks do. There is no separate game engine to keep in sync, and no rules are reimplemented.
+
+The agent plays in a loop:
+
+1. `wait_for_turn` - block until it's the agent's turn or a decision is needed
+2. `get_state` - read the table and the legal moves
+3. call a move tool (e.g. `play_card`) chosen from `legal_moves`
+4. repeat until the game is finished
+
+### What the agent sees
+
+`get_state` returns only what a human player sees - its own hand and the public table. Opponent hands and the draw-pile order are never exposed.
+
+```jsonc
+{
+  "mode": "single",
+  "status": "PLAYING",
+  "whose_turn": "you",
+  "your_hand": [
+    { "id": "card-12", "color": "green", "type": "number", "value": 7 },
+    { "id": "card-40", "color": "wild",  "type": "draw4" }
+  ],
+  "top_card":      { "color": "green", "type": "skip" },
+  "current_color": "green",
+  "direction": 1,
+  "draw_stack": 0,
+  "opponents": [ { "id": "p-1", "name": "Terminator", "card_count": 5 } ],
+  "required_action": {
+    "action": "play_or_draw",
+    "options": {
+      "playable": [ { "id": "card-12", "type": "number", "value": 7, "needs_color": false } ],
+      "can_draw": true
+    }
+  },
+  "should_call_uno": false
+}
+```
+
+Because `legal_moves` is precomputed from the real rules, an agent cannot make an illegal move and needs no prior knowledge of UNO No Mercy to play correctly. `required_action` names the decision due now, and a `how_to_play` tool provides the rules and basic tactics for stronger play.
+
+### Tools
+
+| Group | Tools |
+|-------|-------|
+| Info  | `how_to_play`, `get_state`, `wait_for_turn` |
+| Start | `start_single_player`, `create_multiplayer_game`, `join_multiplayer_game`, `start_multiplayer_game` |
+| Moves | `play_card`, `draw_card`, `pick_wild_color`, `call_uno`, `swap_hands`, `skip_swap`, `set_roulette_color`, `select_discard_all_top` |
+| Exit  | `leave_game` |
+
+### Surfaces
+
+The same tools are exposed three ways:
+
+- **`document.modelContext`** - the native W3C API a standards-capable agent reads on visit (primary).
+- **mcp-b `TabServerTransport`** - an in-page MCP server over `postMessage`, for mcp-b clients and browser extensions.
+- **`window.__unoMcp`** - a dependency-free `{ listTools, callTool }` bridge for headless drivers and debugging.
+
+The WebMCP layer lives in `frontend/src/mcp/`, and the MCP SDK is lazily loaded so it does not add to the bundle a normal player downloads.
 
 ## Screenshots
 
