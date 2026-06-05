@@ -867,12 +867,6 @@ function initFeedback() {
 }
 
 /* ========== AGENT (WebMCP) ========== */
-.agent-section {
-  background:
-    radial-gradient(circle at 30% 40%, rgba(0, 243, 255, 0.05), transparent 55%),
-    radial-gradient(circle at 70% 60%, rgba(57, 255, 20, 0.05), transparent 55%);
-}
-
 .agent-stage {
   display: flex;
   align-items: center;
