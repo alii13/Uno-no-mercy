@@ -30,6 +30,25 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     // MultiplayerPlayerHand. CardPile reads and resets it.
     const suppressDiscardSlam = ref(false)
     const opponentLeft = ref(false) // True when opponent leaves during game
+    // Realtime presence — who is actually connected to this game's channel.
+    // Drives the disconnect badge, the host kick affordance, and the watchdog
+    // that auto-skips a player who vanished mid-turn. We only treat a player as
+    // disconnected if we've SEEN them in presence at least once, so clients on
+    // an older build that never call .track() are never wrongly flagged.
+    const presentUserIds = ref<string[]>([])
+    // Players we've seen connected who have since dropped — drives the UI badge.
+    // Built only from everSeenPresence, so older clients that don't broadcast
+    // presence never get flagged.
+    const disconnectedUserIds = ref<string[]>([])
+    const DISCONNECT_GRACE_MS = 20000
+    // If the turn pointer hasn't moved for this long and we're idle, re-read the
+    // authoritative games row directly — covers a dropped turn-broadcast without
+    // the stale-WAL-frame risk of reconciling pgchanges inside the throttle.
+    const STUCK_RESYNC_MS = 10000
+    let lastStateChangeAt = 0
+    let everSeenPresence = new Set<string>()
+    let absentSince: Record<string, number> = {}
+    let watchdogTimer: ReturnType<typeof setInterval> | null = null
     const pendingDrawnWildCard = ref<Card | null>(null) // Wild card drawn that needs color selection
     const pendingDiscardAllCards = ref<Card[]>([]) // Cards to choose top from during Discard All
     // Realtime channel connectivity — surfaced in the UI as a reconnecting pill
@@ -46,9 +65,19 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     const BROADCAST_THROTTLE_PGCHANGES_MS = 3000
     let broadcastSeq = 0
     let lastBroadcastReceivedAt = 0
+    // Per-subscription nonce. A sender's broadcastSeq restarts at 0 every time
+    // they (re)subscribe, so the receiver keys the seq gate by (sender, epoch)
+    // and resets the gate when a sender's epoch changes — otherwise a peer's
+    // post-reconnect broadcasts would all look stale and get dropped.
+    let broadcastEpoch = 0
+    // seq gate: drop broadcasts we've already superseded for a given sender so
+    // a slow/reordered frame can't clobber a newer current_player_id/turn_state.
+    let lastAppliedSeqBySender: Record<string, number> = {}
+    let lastEpochBySender: Record<string, number> = {}
 
     type StateBroadcastPayload = {
         senderId: string
+        epoch: number
         seq: number
         game: GameRow
         players: GamePlayerRow[]
@@ -66,12 +95,52 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 event: 'state',
                 payload: {
                     senderId,
+                    epoch: broadcastEpoch,
                     seq: broadcastSeq,
                     game: { ...currentGame.value },
                     players: gamePlayers.value.map(p => ({ ...p }))
                 } satisfies StateBroadcastPayload
             })
         ).catch(() => {})
+    }
+
+    // --- Action feed: tells everyone what just happened (who played what) so a
+    // card's effect isn't a silent mystery. Carries a counter so the view's
+    // transient toast re-triggers even on identical consecutive text. ---
+    const lastAction = ref<{ text: string; n: number } | null>(null)
+    let actionCounter = 0
+    function announce(text: string) {
+        if (!text) return
+        actionCounter++
+        lastAction.value = { text, n: actionCounter }
+    }
+    function broadcastAction(text: string) {
+        announce(text)
+        const senderId = authStore.user?.id
+        if (!gameChannel || !senderId) return
+        Promise.resolve(
+            gameChannel.send({ type: 'broadcast', event: 'action', payload: { senderId, text } })
+        ).catch(() => {})
+    }
+    function actionLabel(card: Card, who: string): string {
+        switch (card.type) {
+            case 'skip': return `${who} played Skip`
+            case 'reverse': return `${who} reversed the order`
+            case 'wildReverseDraw4': return `${who} reversed +4`
+            case 'skipEveryone': return `${who} skipped everyone — plays again`
+            case 'draw2': return `${who} hit the table with +2`
+            case 'draw4': return `${who} hit the table with +4`
+            case 'draw6': return `${who} dropped +6`
+            case 'draw10': return `${who} dropped +10`
+            case 'discardAll': return `${who} discarded all ${card.color}`
+            case 'wildColorRoulette': return `${who} spun Color Roulette`
+            case 'wild': return `${who} played a Wild`
+            case 'number':
+                if (card.value === 7) return `${who} swapped hands`
+                if (card.value === 0) return `${who} rotated all hands`
+                return `${who} played ${card.color} ${card.value}`
+            default: return `${who} played a card`
+        }
     }
 
     // --- In-game stat tracking ---
@@ -109,6 +178,59 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     const opponents = computed(() =>
         gamePlayers.value.filter(p => p.user_id !== authStore.user?.id)
     )
+
+    // Stamp the moment the turn pointer last moved (any source). The watchdog's
+    // stuck-resync uses this to detect a frozen game.
+    watch(
+        () => currentGame.value && `${currentGame.value.current_player_id}|${currentGame.value.turn_state}|${currentGame.value.status}`,
+        () => { lastStateChangeAt = Date.now() }
+    )
+
+    // Reconnect recovery for the Discard-All picker. The matching-cards list is
+    // local-only, so reloading mid-pick lands us on turn_state
+    // CHOOSING_DISCARD_ALL_TOP with no picker to render. Rather than persist the
+    // list, we detect the stranded state (my turn, picker state, but no pending
+    // cards) and auto-resolve by keeping the current discard order and advancing
+    // — the cards were already discarded; only the cosmetic top choice is lost.
+    watch(
+        () => currentGame.value && `${currentGame.value.turn_state}|${currentGame.value.current_player_id}`,
+        () => {
+            if (
+                currentGame.value?.turn_state === 'CHOOSING_DISCARD_ALL_TOP' &&
+                isMyTurn.value &&
+                pendingDiscardAllCards.value.length === 0 &&
+                !actionInProgress.value
+            ) {
+                resolveStrandedDiscardAll()
+            }
+        }
+    )
+
+    async function resolveStrandedDiscardAll() {
+        if (!currentGame.value || !myPlayer.value) return
+        if (currentGame.value.turn_state !== 'CHOOSING_DISCARD_ALL_TOP') return
+        if (!isMyTurn.value || pendingDiscardAllCards.value.length > 0) return
+        const myId = authStore.user?.id
+        if (!myId) return
+        actionInProgress.value = true
+        try {
+            const myIndex = gamePlayers.value.findIndex(p => p.user_id === myId)
+            const direction = currentGame.value.direction as (1 | -1)
+            const nextIdx = calculateNextPlayerIndex(myIndex, direction, gamePlayers.value.length)
+            const nextPlayerId = gamePlayers.value[nextIdx]?.user_id || null
+            currentGame.value.turn_state = 'WAITING_FOR_ACTION'
+            currentGame.value.current_player_id = nextPlayerId
+            await supabase
+                .from('games')
+                .update({ turn_state: 'WAITING_FOR_ACTION', current_player_id: nextPlayerId })
+                .eq('id', currentGame.value.id)
+            broadcastState()
+        } catch (err: any) {
+            error.value = err.message
+        } finally {
+            actionInProgress.value = false
+        }
+    }
 
     // Generate room code
     function generateRoomCode(): string {
@@ -219,6 +341,74 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         }
     }
 
+    // Quick Match — drop into a public game with strangers. Joins the oldest
+    // open public room, or opens one and waits. Requires the games.is_public
+    // column (see migration in the PR notes); until that exists this errors
+    // gracefully and the rest of the lobby is unaffected.
+    async function quickMatch(mode: StackingMode = DEFAULT_STACKING_MODE) {
+        if (!authStore.user || !authStore.profile) {
+            error.value = 'Profile not ready yet. Try again in a moment.'
+            return null
+        }
+        loading.value = true
+        error.value = null
+        try {
+            const { data: openGames, error: findErr } = await supabase
+                .from('games')
+                .select('*')
+                .eq('status', 'waiting')
+                .eq('is_public', true)
+                .order('created_at', { ascending: true })
+                .limit(10)
+            if (findErr) throw findErr
+
+            for (const g of (openGames || [])) {
+                if (g.host_id === authStore.user.id) continue
+                const { count } = await supabase
+                    .from('game_players')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('game_id', g.id)
+                if ((count || 0) >= 10) continue
+                const { data: player, error: pErr } = await supabase
+                    .from('game_players')
+                    .insert({ game_id: g.id, user_id: authStore.user.id, name: authStore.profile.username, seat_order: count || 1 })
+                    .select()
+                    .single()
+                if (pErr || !player) continue
+                currentGame.value = g
+                myPlayer.value = player
+                await loadGamePlayers(g.id)
+                subscribeToGame(g.id)
+                return g
+            }
+
+            // No open public game — host one and wait for a stranger.
+            const roomCode = generateRoomCode()
+            const { data: game, error: gErr } = await supabase
+                .from('games')
+                .insert({ room_code: roomCode, host_id: authStore.user.id, status: 'waiting', stacking_mode: mode, is_public: true })
+                .select()
+                .single()
+            if (gErr) throw gErr
+            const { data: player, error: pErr } = await supabase
+                .from('game_players')
+                .insert({ game_id: game.id, user_id: authStore.user.id, name: authStore.profile.username, seat_order: 0 })
+                .select()
+                .single()
+            if (pErr) throw pErr
+            currentGame.value = game
+            myPlayer.value = player
+            gamePlayers.value = player ? [player] : []
+            subscribeToGame(game.id)
+            return game
+        } catch (err: any) {
+            error.value = err.message
+            return null
+        } finally {
+            loading.value = false
+        }
+    }
+
     // Join an existing game by room code
     async function joinGame(roomCode: string) {
         if (!authStore.user) {
@@ -236,18 +426,19 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
         try {
 
-            // Find the game
+            // Find the game by code regardless of status — an already-seated
+            // player must be able to rejoin a game that's already 'playing'
+            // (reconnect). The status gate below only blocks BRAND-NEW joins.
             const { data: game, error: gameError } = await supabase
                 .from('games')
                 .select('*')
                 .eq('room_code', roomCode.toUpperCase())
-                .eq('status', 'waiting')
-                .single()
+                .maybeSingle()
 
 
-            if (gameError) {
+            if (gameError || !game) {
                 console.error('Game lookup failed:', gameError)
-                throw new Error('Game not found or already started')
+                throw new Error('Game not found')
             }
 
             // Check if already in game
@@ -260,11 +451,17 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
 
             if (existingPlayer) {
+                // Existing member — readmit regardless of status (rejoin).
                 currentGame.value = game
                 myPlayer.value = existingPlayer
                 await loadGamePlayers(game.id)
                 subscribeToGame(game.id)
                 return game
+            }
+
+            // New player: only a game still in the lobby can be joined.
+            if (game.status !== 'waiting') {
+                throw new Error('Game already started')
             }
 
             // Count existing players
@@ -307,6 +504,58 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             return null
         } finally {
             loading.value = false
+        }
+    }
+
+    // Only auto-rejoin games whose row was written within this window. Prevents
+    // a stale lobby/abandoned game from trapping the player on every page load.
+    const RESTORE_STALENESS_MS = 3 * 60 * 60 * 1000 // 3 hours
+
+    // Rehydrate an in-progress game after a reload/reconnect. The store is
+    // in-memory only, so a refresh otherwise drops the player into the lobby
+    // while their game sits stranded in the DB. We find the player's most
+    // recent recently-active membership and re-enter it. No schema change —
+    // this reads existing rows and reuses the same hydration as joinGame.
+    async function restoreActiveGame() {
+        const userId = authStore.user?.id
+        if (!userId) return null
+        // Already in a game (e.g. created/joined this session) — nothing to do.
+        if (currentGame.value) return currentGame.value
+
+        try {
+            const { data: myRows } = await supabase
+                .from('game_players')
+                .select('*')
+                .eq('user_id', userId)
+                .order('joined_at', { ascending: false })
+                .limit(10)
+
+            if (!myRows?.length) return null
+
+            const now = Date.now()
+            for (const row of myRows) {
+                const { data: game } = await supabase
+                    .from('games')
+                    .select('*')
+                    .eq('id', row.game_id)
+                    .maybeSingle()
+
+                if (!game) continue
+                if (game.status !== 'playing' && game.status !== 'waiting') continue
+                // Skip stale/abandoned rooms so we don't yank the player back into
+                // a game they walked away from hours ago on every visit.
+                const updatedAt = game.updated_at ? Date.parse(game.updated_at) : 0
+                if (updatedAt && now - updatedAt > RESTORE_STALENESS_MS) continue
+
+                currentGame.value = game
+                myPlayer.value = row
+                await loadGamePlayers(game.id)
+                subscribeToGame(game.id)
+                return game
+            }
+            return null
+        } catch {
+            return null
         }
     }
 
@@ -359,11 +608,20 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         if (gameChannel) {
             supabase.removeChannel(gameChannel)
         }
+        stopDisconnectWatchdog()
 
         // Reset broadcast bookkeeping so a stale throttle from a prior game
-        // doesn't suppress the new game's first pgchanges events.
+        // doesn't suppress the new game's first pgchanges events. broadcastEpoch
+        // is bumped so peers reset their seq gate for our restarted counter.
         broadcastSeq = 0
         lastBroadcastReceivedAt = 0
+        broadcastEpoch = Date.now()
+        lastAppliedSeqBySender = {}
+        lastEpochBySender = {}
+        presentUserIds.value = []
+        everSeenPresence = new Set()
+        absentSince = {}
+        lastStateChangeAt = Date.now()
 
         gameChannel = supabase
             .channel(`game:${gameId}`)
@@ -384,6 +642,19 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 // claiming to be Player A) but blocks random outsiders.
                 const knownIds = new Set(gamePlayers.value.map(pl => pl.user_id))
                 if (knownIds.size > 0 && !knownIds.has(p.senderId)) return
+
+                // Seq gate: keyed per (sender, epoch). When a sender's epoch
+                // changes (they resubscribed and restarted their counter) reset
+                // their gate; otherwise drop any frame we've already superseded.
+                if (typeof p.seq === 'number') {
+                    const epoch = typeof p.epoch === 'number' ? p.epoch : 0
+                    if (lastEpochBySender[p.senderId] !== epoch) {
+                        lastEpochBySender[p.senderId] = epoch
+                        lastAppliedSeqBySender[p.senderId] = 0
+                    }
+                    if (p.seq <= (lastAppliedSeqBySender[p.senderId] ?? 0)) return
+                    lastAppliedSeqBySender[p.senderId] = p.seq
+                }
 
                 lastBroadcastReceivedAt = Date.now()
 
@@ -415,6 +686,30 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     }
                 }
             })
+            .on('broadcast', { event: 'action' }, ({ payload }) => {
+                const p = payload as { senderId?: string; text?: string }
+                if (!p?.text || p.senderId === authStore.user?.id) return
+                announce(p.text)
+            })
+            .on('broadcast', { event: 'player_left' }, ({ payload }) => {
+                // Explicit, instant leave signal. We don't rely on the
+                // game_players DELETE pgchanges for this — its payload.old only
+                // carries the primary key (no game_id) unless the table has
+                // REPLICA IDENTITY FULL, so that event is easily filtered out
+                // and the survivor would be stranded with no feedback.
+                const leftId = (payload as { userId?: string })?.userId
+                if (!leftId) return
+                // Host kicked us — tear down locally and surface why.
+                if (leftId === authStore.user?.id) {
+                    handleRemovedFromGame()
+                    return
+                }
+                gamePlayers.value = gamePlayers.value.filter(p => p.user_id !== leftId)
+                everSeenPresence.delete(leftId)
+                delete absentSince[leftId]
+                disconnectedUserIds.value = disconnectedUserIds.value.filter(id => id !== leftId)
+                checkOpponentLeft()
+            })
             .on('postgres_changes', {
                 event: '*',
                 schema: 'public',
@@ -422,11 +717,14 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 filter: `id=eq.${gameId}`
             }, (payload) => {
                 // Broadcast is the fast path. While it's actively delivering,
-                // pgchanges payloads are by definition older than what we just
-                // merged from broadcast — skip them to avoid state regressions.
+                // a pgchanges WAL frame can be an OLDER write (WAL lags 1-2s+)
+                // and has no ordering key, so applying it could revert a turn
+                // pointer we already advanced — re-creating the soft-lock. So we
+                // skip pgchanges inside the window. The dropped-broadcast case is
+                // covered instead by the stuck-resync in the watchdog, which
+                // re-reads the authoritative row directly (never stale).
                 if (Date.now() - lastBroadcastReceivedAt < BROADCAST_THROTTLE_PGCHANGES_MS) return
                 if (payload.new) {
-                    // Merge to avoid dropping fields not present in realtime payload
                     currentGame.value = {
                         ...(currentGame.value || {}),
                         ...(payload.new as GameRow)
@@ -453,6 +751,15 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
                     await loadGamePlayers(gameId)
 
+                    // We were removed from the game (kicked by host) — our seat
+                    // is gone from the roster. Surface it and drop to the lobby
+                    // instead of leaving us stranded on a game we're not in.
+                    const myId = authStore.user?.id
+                    if (currentGame.value && myId && !gamePlayers.value.some(p => p.user_id === myId)) {
+                        handleRemovedFromGame()
+                        return
+                    }
+
                     // Track peak cards for my hand
                     if (myPlayer.value) {
                         const handLen = (myPlayer.value.hand as Card[])?.length || 0
@@ -461,9 +768,41 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                         }
                     }
 
-                    // If during an active game we're down to < 2 players, game is unplayable
-                    if (currentGame.value?.status === 'playing' && gamePlayers.value.length < 2) {
-                        opponentLeft.value = true
+                    // If during an active game we're down to < 2 active players,
+                    // there's no one to play against.
+                    checkOpponentLeft()
+                }
+            })
+            .on('presence', { event: 'sync' }, () => {
+                const state = gameChannel?.presenceState() || {}
+                const ids = new Set<string>()
+                for (const key in state) {
+                    for (const meta of (state as any)[key]) {
+                        if (meta?.user_id) ids.add(meta.user_id)
+                    }
+                }
+                presentUserIds.value = Array.from(ids)
+                const now = Date.now()
+                for (const id of ids) {
+                    everSeenPresence.add(id)
+                    delete absentSince[id]
+                }
+                // A player we've seen before who is no longer present is a
+                // disconnect candidate; stamp the moment they dropped.
+                for (const id of everSeenPresence) {
+                    if (!ids.has(id) && !absentSince[id]) absentSince[id] = now
+                }
+                disconnectedUserIds.value = Array.from(everSeenPresence).filter(id => !ids.has(id))
+
+                // If a 1v1 opponent who tripped the disconnect overlay has come
+                // back (e.g. they just reloaded to reconnect), lift it. An
+                // explicit leaver is gone from the roster, so `others` is empty
+                // and the overlay correctly stays.
+                if (opponentLeft.value) {
+                    const active = gamePlayers.value.filter(p => !p.is_eliminated)
+                    const others = active.filter(p => p.user_id !== authStore.user?.id)
+                    if (others.length > 0 && others.every(o => ids.has(o.user_id))) {
+                        opponentLeft.value = false
                     }
                 }
             })
@@ -473,7 +812,132 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     || status === 'TIMED_OUT' || status === 'CLOSED') {
                     realtimeStatus.value = status
                 }
+                if (status === 'SUBSCRIBED') {
+                    const uid = authStore.user?.id
+                    if (uid) gameChannel?.track({ user_id: uid }).catch(() => {})
+                    startDisconnectWatchdog()
+                }
             })
+    }
+
+    // Periodically reconcile presence against the turn pointer. Runs on every
+    // client but only the host mutates state (single writer). A player must be
+    // confirmed absent for DISCONNECT_GRACE_MS — long enough that a reconnect
+    // (restoreActiveGame) or a brief network flap cancels it before we act.
+    function startDisconnectWatchdog() {
+        if (watchdogTimer) return
+        watchdogTimer = setInterval(() => {
+            const game = currentGame.value
+            if (!game || game.status !== 'playing') return
+            const now = Date.now()
+
+            // Stuck-resync: if nothing has changed for a while and we're not
+            // mid-action, a turn-advancing broadcast may have been dropped. Pull
+            // the authoritative row directly (current truth, never a stale WAL
+            // frame) to unstick a frozen isMyTurn.
+            if (!actionInProgress.value && now - lastStateChangeAt > STUCK_RESYNC_MS) {
+                lastStateChangeAt = now // bound to one resync per window while idle
+                resyncFromDb()
+            }
+
+            // Disconnect handling is scoped to ACTIVE (non-eliminated) players so
+            // an eliminated-but-still-seated player can't be mistaken for the
+            // live opponent or trigger a false end-of-game.
+            const active = gamePlayers.value.filter(p => !p.is_eliminated)
+            const others = active.filter(p => p.user_id !== authStore.user?.id)
+
+            if (active.length <= 2) {
+                // Down to a 1v1: a confirmed-gone opponent ends the round for us.
+                const opp = others[0]
+                if (opp && absentSince[opp.user_id] && now - absentSince[opp.user_id]! > DISCONNECT_GRACE_MS) {
+                    opponentLeft.value = true
+                }
+                return
+            }
+
+            // 3+ active players: a single elected captain unsticks a turn held by
+            // a vanished player. The captain is the lowest-seat present player
+            // (not necessarily the host) — so the watchdog keeps working even if
+            // the host is the one who vanished, while staying a single writer.
+            if (authStore.user?.id !== watchdogCaptainId()) return
+            const cur = game.current_player_id
+            if (cur && absentSince[cur] && now - absentSince[cur]! > DISCONNECT_GRACE_MS) {
+                absentSince[cur] = now // debounce repeated advances during the gap
+                advancePastPlayer(cur)
+            }
+        }, 4000)
+    }
+
+    // Deterministic single writer for watchdog turn-advances. Prefers the
+    // lowest-seat player currently present; falls back to lowest-seat active
+    // (presence may be empty if peers run an older build), then the host.
+    function watchdogCaptainId(): string | null {
+        const active = gamePlayers.value.filter(p => !p.is_eliminated)
+        const present = active.filter(p => presentUserIds.value.includes(p.user_id))
+        const pool = present.length ? present : active
+        const sorted = [...pool].sort((a, b) => a.seat_order - b.seat_order)
+        return sorted[0]?.user_id ?? currentGame.value?.host_id ?? null
+    }
+
+    // Authoritative re-read used by the stuck-resync. A direct select returns the
+    // current DB row, so there's no WAL-ordering hazard — safe to full-merge.
+    async function resyncFromDb() {
+        const game = currentGame.value
+        if (!game) return
+        try {
+            const { data } = await supabase
+                .from('games')
+                .select('*')
+                .eq('id', game.id)
+                .maybeSingle()
+            if (data && currentGame.value && currentGame.value.id === (data as GameRow).id) {
+                currentGame.value = { ...currentGame.value, ...(data as GameRow) }
+                await loadGamePlayers(game.id)
+                checkOpponentLeft()
+            }
+        } catch {
+            // best-effort backstop
+        }
+    }
+
+    // Surface the "opponent left" state whenever a playing game no longer has
+    // two active players — i.e. everyone else left/was eliminated to the point
+    // we can't continue. Centralized so every roster-changing path agrees.
+    function checkOpponentLeft() {
+        if (currentGame.value?.status !== 'playing') return
+        const active = gamePlayers.value.filter(p => !p.is_eliminated)
+        if (active.length < 2) opponentLeft.value = true
+    }
+
+    function stopDisconnectWatchdog() {
+        if (watchdogTimer) {
+            clearInterval(watchdogTimer)
+            watchdogTimer = null
+        }
+    }
+
+    // Move play off a player who left/was kicked while holding the turn. Clears
+    // any pending CHOOSING_* state so the next active player can act.
+    async function advancePastPlayer(leaverUserId: string) {
+        if (!currentGame.value) return
+        if (currentGame.value.current_player_id !== leaverUserId) return
+        const nextId = getNextPlayerId(leaverUserId)
+        currentGame.value.turn_state = 'WAITING_FOR_ACTION'
+        currentGame.value.current_player_id = nextId
+        currentGame.value.roulette_target_color = null
+        try {
+            await supabase
+                .from('games')
+                .update({
+                    turn_state: 'WAITING_FOR_ACTION',
+                    current_player_id: nextId,
+                    roulette_target_color: null
+                })
+                .eq('id', currentGame.value.id)
+            broadcastState()
+        } catch (err: any) {
+            error.value = err.message
+        }
     }
 
     // Start the game (host only)
@@ -778,7 +1242,12 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
         if (finalHand.length === 0) {
             if (!myPlayer.value?.has_called_uno) {
-                // Penalty: Draw 2
+                // Penalty: the last card still counts as played, but you draw 2
+                // and play continues. Write the COMPLETE board (mirror
+                // updateGameState) and broadcast — otherwise the next player is
+                // left on a stale discard/color/draw_stack/turn_state and the
+                // game desyncs permanently. playCard early-returns on null and
+                // skips its own optimistic apply + broadcast, so we do both here.
                 mpStats.value.unoPenalties++
                 const deck = [...(game.deck as Card[])]
                 const drawn: Card[] = []
@@ -787,17 +1256,43 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     if (c) drawn.push(c)
                 }
 
-                await supabase
-                    .from('game_players')
-                    .update({ hand: drawn, has_called_uno: false })
-                    .eq('id', myPlayer.value!.id)
+                if (myPlayer.value) {
+                    myPlayer.value.hand = drawn
+                    myPlayer.value.has_called_uno = false
+                }
+                if (currentGame.value) {
+                    currentGame.value.deck = deck as any
+                    currentGame.value.discard_pile = state.newDiscard as any
+                    currentGame.value.current_color = state.newColor
+                    currentGame.value.current_player_id = state.nextPlayerId
+                    currentGame.value.direction = state.direction
+                    currentGame.value.draw_stack = state.drawStack
+                    currentGame.value.turn_state = state.turnState
+                    currentGame.value.roulette_target_color = state.rouletteTargetColor
+                }
 
-                await supabase
-                    .from('games')
-                    .update({ current_player_id: state.nextPlayerId, deck })
-                    .eq('id', game.id)
+                await Promise.all([
+                    supabase
+                        .from('game_players')
+                        .update({ hand: drawn, has_called_uno: false })
+                        .eq('id', myPlayer.value!.id),
+                    supabase
+                        .from('games')
+                        .update({
+                            deck,
+                            discard_pile: state.newDiscard,
+                            current_color: state.newColor,
+                            current_player_id: state.nextPlayerId,
+                            direction: state.direction,
+                            draw_stack: state.drawStack,
+                            turn_state: state.turnState,
+                            roulette_target_color: state.rouletteTargetColor
+                        })
+                        .eq('id', game.id)
+                ])
+                broadcastState()
 
-                return null // Signals early return
+                return null // Signals early return — board already written + broadcast
             } else {
                 await updateWinnerScore(myId)
                 return { winnerId: myId, status: 'finished', finalHand }
@@ -892,6 +1387,10 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
         // Apply all card effects
         applyAllCardEffects(card, myId, myIndex, playerCount, myPlayer.value.id, state)
+
+        // Announce what just happened so opponents (and we) see the effect, not
+        // a silent state change.
+        broadcastAction(actionLabel(card, myPlayer.value.name || 'Someone'))
 
         // Check win condition
         const winResult = await checkWinCondition(state, myId, game)
@@ -1065,7 +1564,18 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         }
     }
 
-    // Set roulette color (victim chooses)
+    // Set roulette color (victim chooses). The victim then draws until they hit
+    // the chosen color, or get eliminated at the mercy threshold. We resolve the
+    // ENTIRE draw synchronously and commit it in ONE write that goes straight
+    // from CHOOSING_ROULETTE_COLOR to WAITING_FOR_ACTION — we never persist an
+    // intermediate ROULETTE_DRAWING state.
+    //
+    // This used to be a self-rescheduling setTimeout loop that wrote
+    // ROULETTE_DRAWING to the DB between draws. If the acting tab died or a
+    // stale broadcast flipped state mid-loop, the row stayed ROULETTE_DRAWING
+    // forever with no resume path — a soft-lock that survived reloads. Atomic
+    // resolution removes the durable intermediate state; the staggered card
+    // reveal is produced by the view's hand-length watcher.
     async function setRouletteColor(color: CardColor) {
         if (!currentGame.value || !myPlayer.value || !isMyTurn.value) return
         if (currentGame.value.turn_state !== 'CHOOSING_ROULETTE_COLOR') return
@@ -1073,30 +1583,101 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
         actionInProgress.value = true
 
-        if (currentGame.value) {
-            currentGame.value.roulette_target_color = color
-            currentGame.value.current_color = color
-            currentGame.value.turn_state = 'ROULETTE_DRAWING'
-        }
-
         try {
-            await supabase
-                .from('games')
-                .update({
-                    roulette_target_color: color,
-                    current_color: color,
-                    turn_state: 'ROULETTE_DRAWING'
-                })
-                .eq('id', currentGame.value.id)
-            broadcastState()
+            const game = currentGame.value
+            const localDeck = [...(game.deck as Card[])]
+            const localDiscard = [...(game.discard_pile as Card[])]
+            const hand = [...(myPlayer.value.hand as Card[])]
 
-            // Start drawing automatically
-            setTimeout(() => {
-                actionInProgress.value = false // Unlock for draw
-                executeRouletteDraw()
-            }, 500)
+            // Draw until we hit the target color or cross the mercy threshold.
+            // Bounded: the hand can only grow to the elimination cap.
+            let foundColor = false
+            let isEliminated = false
+            while (true) {
+                if (localDeck.length === 0) {
+                    if (localDiscard.length > 1) {
+                        const top = localDiscard.pop()!
+                        localDeck.push(...shuffleDeck(localDiscard.splice(0)))
+                        localDiscard.push(top)
+                    } else {
+                        break // out of cards — no match possible
+                    }
+                }
+                const card = localDeck.pop()
+                if (!card) break
+                hand.push(card)
+                if (checkMercyRule(hand.length)) { isEliminated = true; break }
+                // Wild cards do NOT count as matching the target color.
+                if (card.color === color) { foundColor = true; break }
+            }
+
+            const drawnCard = hand[hand.length - 1]
+            let finalHand = hand
+            const newDiscard = [...localDiscard]
+            let newColor: string = game.current_color
+
+            if (isEliminated) {
+                finalHand = []
+                newDiscard.push(...hand)
+            } else if (foundColor && drawnCard) {
+                finalHand = hand.filter(c => c.id !== drawnCard.id)
+                newDiscard.push(drawnCard)
+                newColor = drawnCard.color === 'wild' ? color : drawnCard.color
+            } else {
+                // Out of cards with no match — keep the chosen color, play on.
+                newColor = color
+            }
+
+            const { winner_id, status: gStatus } = isEliminated
+                ? await checkForWinnerAfterElimination()
+                : { winner_id: null, status: 'playing' }
+            const nextId = getNextPlayerId()
+
+            // Optimistic local apply — the view's hand-length watcher turns the
+            // jump from the old hand size to finalHand into a staggered reveal.
+            if (myPlayer.value) {
+                myPlayer.value.hand = finalHand
+                myPlayer.value.is_eliminated = isEliminated
+                myPlayer.value.has_called_uno = false
+            }
+            if (currentGame.value) {
+                currentGame.value.deck = localDeck as any
+                currentGame.value.discard_pile = newDiscard as any
+                currentGame.value.current_color = newColor
+                currentGame.value.turn_state = 'WAITING_FOR_ACTION'
+                currentGame.value.roulette_target_color = null
+                currentGame.value.current_player_id = nextId
+                if (winner_id) currentGame.value.winner_id = winner_id
+                currentGame.value.status = gStatus as typeof currentGame.value.status
+            }
+
+            await Promise.all([
+                supabase
+                    .from('game_players')
+                    .update({
+                        hand: finalHand,
+                        is_eliminated: isEliminated,
+                        has_called_uno: false
+                    })
+                    .eq('id', myPlayer.value.id),
+                supabase
+                    .from('games')
+                    .update({
+                        deck: localDeck,
+                        discard_pile: newDiscard,
+                        current_color: newColor,
+                        turn_state: 'WAITING_FOR_ACTION',
+                        roulette_target_color: null,
+                        current_player_id: nextId,
+                        winner_id,
+                        status: gStatus
+                    })
+                    .eq('id', game.id)
+            ])
+            broadcastState()
         } catch (err: any) {
             error.value = err.message
+        } finally {
             actionInProgress.value = false
         }
     }
@@ -1114,180 +1695,6 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             broadcastState()
         } catch (err: any) {
             error.value = err.message
-        }
-    }
-
-    // Roulette draw state - persists across iterations to avoid stale reads
-    let rouletteState: { deck: Card[]; discardPile: Card[]; hand: Card[] } | null = null
-
-    // Execute roulette draw - draw until matching color
-    async function executeRouletteDraw() {
-        if (!currentGame.value || !myPlayer.value || !isMyTurn.value) return
-        if (currentGame.value.turn_state !== 'ROULETTE_DRAWING') return
-        if (actionInProgress.value) return
-
-        actionInProgress.value = true
-
-        try {
-            const targetColor = currentGame.value.roulette_target_color as CardColor
-            if (!targetColor) return
-
-            // Initialize local state on first call, reuse on subsequent calls
-            if (!rouletteState) {
-                rouletteState = {
-                    deck: [...(currentGame.value.deck as Card[])],
-                    discardPile: [...(currentGame.value.discard_pile as Card[])],
-                    hand: [...(myPlayer.value.hand as Card[])]
-                }
-            }
-
-            const { deck: localDeck, discardPile: localDiscard } = rouletteState
-
-            if (localDeck.length === 0) {
-                // Reshuffle discard pile
-                if (localDiscard.length > 1) {
-                    const top = localDiscard.pop()!
-                    localDeck.push(...shuffleDeck(localDiscard.splice(0)))
-                    localDiscard.push(top)
-                } else {
-                    // No cards left - end roulette
-                    const nextId = getNextPlayerId()
-                    if (currentGame.value) {
-                        currentGame.value.deck = localDeck as any
-                        currentGame.value.discard_pile = localDiscard as any
-                        currentGame.value.current_color = targetColor
-                        currentGame.value.turn_state = 'WAITING_FOR_ACTION'
-                        currentGame.value.roulette_target_color = null
-                        currentGame.value.current_player_id = nextId
-                    }
-                    await supabase
-                        .from('games')
-                        .update({
-                            deck: localDeck,
-                            discard_pile: localDiscard,
-                            current_color: targetColor,
-                            turn_state: 'WAITING_FOR_ACTION',
-                            roulette_target_color: null,
-                            current_player_id: nextId
-                        })
-                        .eq('id', currentGame.value.id)
-                    broadcastState()
-                    rouletteState = null
-                    return
-                }
-            }
-
-            const card = localDeck.pop()
-            if (!card) {
-                rouletteState = null
-                return
-            }
-
-            rouletteState.hand.push(card)
-            const newHand = [...rouletteState.hand]
-
-            // Check mercy rule
-            const isEliminated = checkMercyRule(newHand.length)
-
-            // Rule: Wild cards do NOT count as matching color
-            const foundColor = card.color === targetColor
-
-            if (foundColor || isEliminated) {
-                let finalHand = newHand
-                const newDiscard = [...localDiscard]
-
-                if (isEliminated) {
-                    finalHand = []
-                    newDiscard.push(...newHand)
-                } else if (foundColor) {
-                    finalHand = newHand.filter(c => c.id !== card.id)
-                    newDiscard.push(card)
-                }
-
-                let newColor = currentGame.value.current_color
-                if (foundColor) {
-                    newColor = card.color === 'wild' ? targetColor : card.color
-                }
-
-                const { winner_id, status: gStatus } = isEliminated
-                    ? await checkForWinnerAfterElimination()
-                    : { winner_id: null, status: 'playing' }
-
-                const nextId = getNextPlayerId()
-
-                // Optimistic local apply so broadcastState() carries the result
-                if (myPlayer.value) {
-                    myPlayer.value.hand = finalHand
-                    myPlayer.value.is_eliminated = isEliminated
-                    myPlayer.value.has_called_uno = false
-                }
-                if (currentGame.value) {
-                    currentGame.value.deck = localDeck as any
-                    currentGame.value.discard_pile = newDiscard as any
-                    currentGame.value.current_color = newColor
-                    currentGame.value.turn_state = 'WAITING_FOR_ACTION'
-                    currentGame.value.roulette_target_color = null
-                    currentGame.value.current_player_id = nextId
-                    if (winner_id) currentGame.value.winner_id = winner_id
-                    currentGame.value.status = gStatus as typeof currentGame.value.status
-                }
-
-                await Promise.all([
-                    supabase
-                        .from('game_players')
-                        .update({
-                            hand: finalHand,
-                            is_eliminated: isEliminated,
-                            has_called_uno: false
-                        })
-                        .eq('id', myPlayer.value.id),
-                    supabase
-                        .from('games')
-                        .update({
-                            deck: localDeck,
-                            discard_pile: newDiscard,
-                            current_color: newColor,
-                            turn_state: 'WAITING_FOR_ACTION',
-                            roulette_target_color: null,
-                            current_player_id: nextId,
-                            winner_id,
-                            status: gStatus
-                        })
-                        .eq('id', currentGame.value.id)
-                ])
-                broadcastState()
-
-                rouletteState = null
-            } else {
-                // Keep drawing — optimistic local apply, then parallel writes.
-                myPlayer.value.hand = newHand
-                myPlayer.value.has_called_uno = false
-                if (currentGame.value) {
-                    currentGame.value.deck = localDeck as any
-                    currentGame.value.discard_pile = localDiscard as any
-                }
-                await Promise.all([
-                    supabase
-                        .from('game_players')
-                        .update({ hand: newHand, has_called_uno: false })
-                        .eq('id', myPlayer.value.id),
-                    supabase
-                        .from('games')
-                        .update({ deck: localDeck, discard_pile: localDiscard })
-                        .eq('id', currentGame.value.id)
-                ])
-                broadcastState()
-
-                // Continue drawing after a much shorter delay (was 600ms).
-                actionInProgress.value = false
-                setTimeout(() => executeRouletteDraw(), 280)
-                return // Skip the finally block's actionInProgress reset
-            }
-        } catch (err: any) {
-            error.value = err.message
-            rouletteState = null
-        } finally {
-            actionInProgress.value = false
         }
     }
 
@@ -1557,11 +1964,22 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     async function selectDiscardAllTop(topCardId: string) {
         if (!currentGame.value || !myPlayer.value) return
         if (currentGame.value.turn_state !== 'CHOOSING_DISCARD_ALL_TOP') return
+        if (actionInProgress.value) return
 
         const matchingCards = pendingDiscardAllCards.value
         const topCard = matchingCards.find(c => c.id === topCardId)
         if (!topCard) return
+        // All early-out guards must run BEFORE we set actionInProgress / clear
+        // the picker, or we'd leak the guard and lose the picker on a bail.
+        const myId = authStore.user?.id
+        if (!myId) return
 
+        actionInProgress.value = true
+        // Snapshot for rollback — this optimistically advances the turn before
+        // the write confirms, so on failure we must restore the picker state or
+        // both clients end up believing it's the other's turn (a soft-lock).
+        const savedPending = matchingCards
+        const savedDiscard = currentGame.value.discard_pile
         pendingDiscardAllCards.value = []
 
         // Re-read the current discard pile from the game
@@ -1577,8 +1995,6 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         const reorderedDiscard = [...discardWithoutMatching, ...others, topCard]
 
         // Calculate next player
-        const myId = authStore.user?.id
-        if (!myId) return
         const myIndex = gamePlayers.value.findIndex(p => p.user_id === myId)
         const playerCount = gamePlayers.value.length
         const direction = currentGame.value.direction as (1 | -1)
@@ -1621,15 +2037,131 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             broadcastState()
         } catch (err: any) {
             error.value = err.message
+            // Roll back the optimistic apply so the picker reopens and the turn
+            // stays on us, rather than silently desyncing both clients.
+            pendingDiscardAllCards.value = savedPending
+            if (currentGame.value) {
+                currentGame.value.discard_pile = savedDiscard
+                currentGame.value.turn_state = 'CHOOSING_DISCARD_ALL_TOP'
+                currentGame.value.current_player_id = authStore.user?.id ?? null
+            }
+        } finally {
+            actionInProgress.value = false
         }
     }
 
-    // Leave game
-    async function leaveGame() {
+    // Kick a player (host only). Removes their seat and, if they were holding
+    // the turn, advances play so the table doesn't stall on them. Client-
+    // enforced only — there is no RLS, so this is a usability tool (remove a
+    // dropped/stuck player), not a security boundary.
+    async function kickPlayer(targetUserId: string) {
+        if (!currentGame.value || !isHost.value) return
+        if (targetUserId === authStore.user?.id) return
+        const target = gamePlayers.value.find(p => p.user_id === targetUserId)
+        if (!target) return
+
+        const holdsTurn = currentGame.value.current_player_id === targetUserId
+        // Compute the successor BEFORE removing them locally — getNextPlayerId
+        // resolves seats by index against the current roster.
+        const nextId = holdsTurn ? getNextPlayerId(targetUserId) : null
+
+        try {
+            // Tell the kicked player (and everyone) instantly — don't rely on the
+            // DELETE pgchanges, whose payload may lack game_id.
+            if (gameChannel) {
+                try {
+                    await gameChannel.send({
+                        type: 'broadcast',
+                        event: 'player_left',
+                        payload: { senderId: authStore.user?.id, userId: targetUserId }
+                    })
+                } catch { /* best-effort */ }
+            }
+            await supabase.from('game_players').delete().eq('id', target.id)
+            gamePlayers.value = gamePlayers.value.filter(p => p.user_id !== targetUserId)
+            delete absentSince[targetUserId]
+            everSeenPresence.delete(targetUserId)
+            disconnectedUserIds.value = disconnectedUserIds.value.filter(id => id !== targetUserId)
+
+            if (holdsTurn && currentGame.value) {
+                currentGame.value.turn_state = 'WAITING_FOR_ACTION'
+                currentGame.value.current_player_id = nextId
+                currentGame.value.roulette_target_color = null
+                await supabase
+                    .from('games')
+                    .update({
+                        turn_state: 'WAITING_FOR_ACTION',
+                        current_player_id: nextId,
+                        roulette_target_color: null
+                    })
+                    .eq('id', currentGame.value.id)
+            }
+            broadcastState()
+        } catch (err: any) {
+            error.value = err.message
+        }
+    }
+
+    // Update my display name in the current game so other players see it.
+    // The profile rename (authStore.updateUsername) only changes future games;
+    // this patches the live game_players row + broadcasts so the rename shows
+    // up for everyone immediately.
+    async function updateMyName(name: string) {
+        if (!currentGame.value || !myPlayer.value) return
+        const clean = name.trim().slice(0, 20)
+        if (!clean) return
+        myPlayer.value.name = clean
+        const me = gamePlayers.value.find(p => p.id === myPlayer.value!.id)
+        if (me) me.name = clean
+        try {
+            await supabase
+                .from('game_players')
+                .update({ name: clean })
+                .eq('id', myPlayer.value.id)
+            broadcastState()
+        } catch (err: any) {
+            error.value = err.message
+        }
+    }
+
+    // Local-only teardown for when WE were kicked (the row is already gone, so
+    // unlike leaveGame we must not issue another delete). Drops us to the lobby
+    // with a notice.
+    function handleRemovedFromGame() {
         if (gameChannel) {
             supabase.removeChannel(gameChannel)
             gameChannel = null
         }
+        stopDisconnectWatchdog()
+        currentGame.value = null
+        myPlayer.value = null
+        opponent.value = null
+        gamePlayers.value = []
+        presentUserIds.value = []
+        disconnectedUserIds.value = []
+        everSeenPresence = new Set()
+        absentSince = {}
+        error.value = 'You were removed from the game by the host.'
+    }
+
+    // Leave game
+    async function leaveGame() {
+        // Tell peers immediately so the survivor isn't stranded waiting on the
+        // (unreliable) game_players DELETE event. Fire-and-forget before teardown.
+        if (gameChannel && currentGame.value && myPlayer.value) {
+            try {
+                await gameChannel.send({
+                    type: 'broadcast',
+                    event: 'player_left',
+                    payload: { senderId: authStore.user?.id, userId: myPlayer.value.user_id }
+                })
+            } catch { /* best-effort */ }
+        }
+        if (gameChannel) {
+            supabase.removeChannel(gameChannel)
+            gameChannel = null
+        }
+        stopDisconnectWatchdog()
 
         if (currentGame.value && myPlayer.value) {
             await supabase
@@ -1642,6 +2174,10 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         myPlayer.value = null
         opponent.value = null
         gamePlayers.value = []
+        presentUserIds.value = []
+        disconnectedUserIds.value = []
+        everSeenPresence = new Set()
+        absentSince = {}
     }
 
     // Log game results when multiplayer game finishes
@@ -1716,9 +2252,14 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         suppressDiscardSlam,
         pendingDrawnWildCard,
         pendingDiscardAllCards,
+        presentUserIds,
+        disconnectedUserIds,
+        lastAction,
         mpStats,
         createGame,
         joinGame,
+        quickMatch,
+        restoreActiveGame,
         startGame,
         playCard,
         drawCard,
@@ -1728,6 +2269,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         playDrawnWildCard,
         selectDiscardAllTop,
         callUno,
+        kickPlayer,
+        updateMyName,
         leaveGame,
         loadGamePlayers
     }

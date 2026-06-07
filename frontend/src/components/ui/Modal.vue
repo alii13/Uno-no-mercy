@@ -99,7 +99,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   z-index: var(--z-modal);
-  padding: var(--spacing-4);
+  padding: max(var(--spacing-4), env(safe-area-inset-top)) max(var(--spacing-4), env(safe-area-inset-right)) max(var(--spacing-4), env(safe-area-inset-bottom)) max(var(--spacing-4), env(safe-area-inset-left));
 }
 
 @media (max-width: 480px) {

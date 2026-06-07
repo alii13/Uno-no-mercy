@@ -8,7 +8,27 @@
       </a>
 
       <div class="top-bar-cta">
-        <span class="username-chip">{{ authStore.username }}</span>
+        <input
+          v-if="authStore.isAnonymous && editingName"
+          v-model="nameInput"
+          v-focus-ring
+          class="username-edit-input"
+          maxlength="20"
+          aria-label="Edit nickname"
+          @keyup.enter="saveName"
+          @keyup.esc="editingName = false"
+          @blur="saveName"
+        />
+        <button
+          v-else-if="authStore.isAnonymous"
+          class="username-chip username-chip-editable"
+          title="Tap to rename"
+          @click="startEditName"
+        >
+          {{ authStore.username }}
+          <Pencil class="chip-edit-icon" :stroke-width="2" aria-hidden="true" />
+        </button>
+        <span v-else class="username-chip">{{ authStore.username }}</span>
         <button
           v-if="authStore.isAnonymous"
           class="text-link upgrade-link"
@@ -23,12 +43,14 @@
     </header>
 
     <div class="lobby-content">
-      <div v-if="mpStore.error" class="error-banner">
-        {{ mpStore.error }}
+      <div v-if="friendlyError" class="error-banner">
+        {{ friendlyError }}
       </div>
 
       <!-- No active game — focused entry view with one primary CTA -->
       <div v-if="!mpStore.currentGame" class="lobby-entry">
+        <h1 class="entry-heading">HOW DO YOU WANT TO PLAY?</h1>
+
         <!-- Primary action: CREATE GAME -->
         <div class="primary-action">
           <Button
@@ -58,19 +80,34 @@
             </div>
             <p class="mode-desc">{{ currentModeDesc }}</p>
           </div>
+          <p class="action-hint">Create a room and share the code with friends.</p>
         </div>
 
         <div class="entry-divider" aria-hidden="true">OR</div>
 
         <!-- Secondary actions: equal weight, smaller -->
         <div class="secondary-actions">
+          <Button variant="secondary" size="md" block :disabled="mpStore.loading" @click="handleQuickMatch">
+            {{ mpStore.loading ? 'MATCHING…' : 'QUICK MATCH' }}
+          </Button>
           <Button variant="secondary" size="md" block @click="showJoinModal = true">
             JOIN WITH CODE
           </Button>
           <Button variant="ghost" size="md" block @click="$emit('playLocal', selectedStackingMode)">
-            VS BOT
+            PLAY VS BOT
           </Button>
         </div>
+        <p class="action-hint">Quick Match drops you in with a stranger. Got a code? Join a friend. No one around? Practice vs the AI.</p>
+
+        <!-- How to play -->
+        <button class="howto-link" @click="showRules = true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="16" height="16" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          HOW TO PLAY
+        </button>
 
         <!-- Tertiary: stats link -->
         <button class="stats-link" @click="handleStatsClick">
@@ -104,6 +141,7 @@
             </button>
           </div>
           <span class="room-mode-tag">{{ modeLabel(mpStore.stackingMode) }} RULES</span>
+          <p class="room-mode-desc">{{ modeDesc(mpStore.stackingMode) }}</p>
         </div>
 
         <div class="players-section">
@@ -118,12 +156,28 @@
               :key="player.id"
               class="player-chip"
             >
-              <div class="player-avatar">{{ player.name?.charAt(0) }}</div>
+              <div class="player-avatar">
+                {{ player.name?.charAt(0) }}
+                <span
+                  class="presence-dot"
+                  :class="{ connected: isPlayerConnected(player.user_id) }"
+                  :title="isPlayerConnected(player.user_id) ? 'Connected' : 'Connecting…'"
+                ></span>
+              </div>
               <span class="player-name">{{ player.name }}</span>
               <span
                 v-if="player.user_id === mpStore.currentGame?.host_id"
                 class="player-badge"
               >HOST</span>
+              <button
+                v-else-if="mpStore.isHost"
+                class="player-kick-btn"
+                title="Remove player"
+                aria-label="Remove player"
+                @click="mpStore.kickPlayer(player.user_id)"
+              >
+                <X class="player-kick-icon" :stroke-width="2.5" aria-hidden="true" />
+              </button>
             </div>
             <div
               v-if="mpStore.gamePlayers.length < 10"
@@ -136,6 +190,12 @@
         </div>
 
         <div class="waiting-actions">
+          <p
+            v-if="mpStore.isHost && mpStore.gamePlayers.length < 2"
+            class="waiting-nudge"
+          >
+            Share the code above to bring a friend in — the game starts the moment they join.
+          </p>
           <Button
             v-if="mpStore.isHost"
             variant="primary"
@@ -146,17 +206,33 @@
           >
             {{
               mpStore.gamePlayers.length < 2
-                ? 'NEED AT LEAST 2 PLAYERS'
+                ? 'WAITING FOR PLAYERS…'
                 : `START GAME (${mpStore.gamePlayers.length})`
             }}
           </Button>
           <p v-else class="waiting-text">
             Waiting for host to start the game…
           </p>
-          <button class="leave-link" @click="showLeaveConfirm = true">LEAVE GAME</button>
+          <div class="waiting-escape">
+            <button class="leave-link" @click="showLeaveConfirm = true">LEAVE ROOM</button>
+            <span class="waiting-sep">·</span>
+            <button class="leave-link" @click="playBotInstead">PLAY VS BOT INSTEAD</button>
+          </div>
         </div>
       </div>
     </div>
+
+    <RulesModal v-if="showRules" @close="showRules = false" />
+
+    <ConfirmDialog
+      :open="showUpgradeConfirm"
+      title="Create an account?"
+      message="You'll sign up fresh and your current guest session will end. Stats earned as a guest stay on this device."
+      confirm-label="CONTINUE"
+      cancel-label="CANCEL"
+      @confirm="confirmUpgrade"
+      @cancel="showUpgradeConfirm = false"
+    />
 
     <ConfirmDialog
       :open="showLeaveConfirm"
@@ -225,13 +301,15 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { Copy, Check, Share2 } from 'lucide-vue-next'
+import { Copy, Check, Share2, Pencil, X } from 'lucide-vue-next'
+import { vFocusRing } from '../directives/focusRing'
 import { useAuthStore } from '../stores/authStore'
 import { useMultiplayerStore } from '../stores/multiplayerStore'
 import { useGameStore } from '../stores/gameStore'
 import SiteFooter from './SiteFooter.vue'
 import LandingStatsBadge from './LandingStatsBadge.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
+import RulesModal from './RulesModal.vue'
 import Button from './ui/Button.vue'
 import type { StackingMode } from '../utils/gameRules'
 
@@ -247,6 +325,10 @@ const gameStore = useGameStore()
 
 const showJoinModal = ref(false)
 const showLeaveConfirm = ref(false)
+const showRules = ref(false)
+const showUpgradeConfirm = ref(false)
+const editingName = ref(false)
+const nameInput = ref('')
 const joinCode = ref('')
 const copied = ref(false)
 const shared = ref(false)
@@ -287,12 +369,46 @@ function modeLabel(m: StackingMode) {
   return stackingModes.find((x) => x.value === m)?.label || 'OFFICIAL'
 }
 
+function modeDesc(m: StackingMode) {
+  return stackingModes.find((x) => x.value === m)?.desc || ''
+}
+
+// A connected player is one we currently see in realtime presence. Self always
+// counts. Falls back to "connected" if presence hasn't reported anyone yet
+// (e.g. a peer on an older build that doesn't broadcast presence).
+function isPlayerConnected(userId: string) {
+  if (userId === authStore.user?.id) return true
+  const present = mpStore.presentUserIds
+  if (!present.length) return true
+  return present.includes(userId)
+}
+
+// Turn raw store errors into friendly, actionable copy.
+const friendlyError = computed(() => {
+  const e = mpStore.error
+  if (!e) return ''
+  const map: Record<string, string> = {
+    'Game not found': "That room code didn't match any game. Double-check it and try again.",
+    'Game already started': 'That game already kicked off. Ask the host for a new room, or start your own.',
+    'Game is full (max 10 players)': 'That room is full (10 players max). Start your own instead.',
+  }
+  if (map[e]) return map[e]
+  if (/full/i.test(e)) return 'That room is full. Start your own instead.'
+  if (/not found|already started/i.test(e)) return "Couldn't join that room. Check the code or start a new game."
+  if (/logged in|profile/i.test(e)) return 'Something went wrong with your session. Try refreshing the page.'
+  return e
+})
+
 const currentModeDesc = computed(
   () => stackingModes.find((x) => x.value === selectedStackingMode.value)?.desc || '',
 )
 
 async function handleCreateGame() {
   await mpStore.createGame(selectedStackingMode.value)
+}
+
+async function handleQuickMatch() {
+  await mpStore.quickMatch(selectedStackingMode.value)
 }
 
 async function joinGame() {
@@ -308,12 +424,45 @@ async function startGame() {
   await mpStore.startGame()
 }
 
+// Escape hatch from a dead waiting room — leave the room cleanly, then start a
+// local bot game so the player isn't stuck staring at an empty lobby.
+async function playBotInstead() {
+  const mode = mpStore.stackingMode
+  await mpStore.leaveGame()
+  emit('playLocal', mode)
+}
+
 async function confirmLeave() {
   showLeaveConfirm.value = false
   await mpStore.leaveGame()
 }
 
-async function upgradeAccount() {
+function startEditName() {
+  const current = authStore.username
+  nameInput.value = current && current !== 'Player' ? current : ''
+  editingName.value = true
+}
+
+async function saveName() {
+  if (!editingName.value) return
+  editingName.value = false
+  const name = nameInput.value.trim()
+  if (name && name !== authStore.username) {
+    await authStore.updateUsername(name)
+    // If we're already in a game (e.g. the waiting room), also update our seat
+    // so other players see the new name, not just future games.
+    if (mpStore.currentGame) await mpStore.updateMyName(name)
+  }
+}
+
+function upgradeAccount() {
+  // Don't silently nuke the guest session — warn first. (A proper anon→permanent
+  // link that preserves stats is a larger auth change, tracked separately.)
+  showUpgradeConfirm.value = true
+}
+
+async function confirmUpgrade() {
+  showUpgradeConfirm.value = false
   await authStore.signOut()
   emit('showAuth')
 }
@@ -428,6 +577,43 @@ async function shareInvite() {
   padding: var(--spacing-2) var(--spacing-3);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-sm);
+}
+
+.username-chip-editable {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: none;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.username-chip-editable:hover {
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.chip-edit-icon {
+  width: 12px;
+  height: 12px;
+  opacity: 0.6;
+}
+
+.username-edit-input {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-primary);
+  letter-spacing: 0.15em;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--color-neon-blue);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.4);
+  width: 9rem;
+  text-transform: uppercase;
+}
+
+.username-edit-input:focus {
+  outline: none;
 }
 
 .text-link {
@@ -585,7 +771,8 @@ async function shareInvite() {
 }
 
 /* TERTIARY STATS LINK */
-.stats-link {
+.stats-link,
+.howto-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -600,6 +787,10 @@ async function shareInvite() {
   padding: var(--spacing-3);
   min-height: 44px;
   transition: color var(--duration-snap) var(--ease-snap);
+}
+
+.howto-link:hover {
+  color: var(--color-neon-blue, #2ad4ff);
 }
 
 .stats-link:hover {
@@ -781,6 +972,105 @@ async function shareInvite() {
   letter-spacing: 0.1em;
   font-weight: bold;
 }
+
+.player-kick-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: 2px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 42, 42, 0.15);
+  color: var(--color-alert);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.player-kick-btn:hover {
+  background: rgba(255, 42, 42, 0.35);
+}
+
+.player-kick-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.entry-heading {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  letter-spacing: 0.1em;
+  color: var(--text-primary);
+  text-align: center;
+  margin: 0 0 var(--spacing-4);
+}
+
+.action-hint {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-align: center;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  margin: var(--spacing-2) 0 0;
+}
+
+.room-mode-desc {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.5;
+  margin: var(--spacing-2) 0 0;
+  max-width: 32ch;
+}
+
+.player-avatar {
+  position: relative;
+}
+
+.presence-dot {
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  border: 2px solid var(--bg-concrete);
+  transition: background var(--duration-snap) var(--ease-snap);
+}
+
+.presence-dot.connected {
+  background: #00ff66;
+}
+
+@media (max-width: 480px) {
+  .entry-heading { font-size: 1.15rem; }
+}
+
+.waiting-nudge {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.5;
+  margin: 0 0 var(--spacing-3);
+  max-width: 34ch;
+}
+
+.waiting-escape {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-2);
+  flex-wrap: wrap;
+}
+
+.waiting-sep { color: var(--text-muted); }
 
 .waiting-actions {
   display: flex;

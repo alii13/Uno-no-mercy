@@ -72,7 +72,7 @@
     <!-- Not authenticated -->
     <template v-else-if="!authStore.isAuthenticated">
       <AuthView v-if="showAuthView" @back="showAuthView = false" :initial-mode="authMode" />
-      <LandingPage v-else @showAuth="handleShowAuth" @playGuest="playAsGuest" />
+      <LandingPage v-else @showAuth="handleShowAuth" @playGuest="playAsGuest" :loading="guestLoading" />
     </template>
 
     <!-- Playing multiplayer game -->
@@ -129,14 +129,20 @@ const resetError = ref('')
 const resetSuccess = ref('')
 const resetLoading = ref(false)
 
-onMounted(() => {
-  authStore.initialize()
-
+onMounted(async () => {
   supabase.auth.onAuthStateChange((event) => {
     if (event === 'PASSWORD_RECOVERY') {
       showPasswordReset.value = true
     }
   })
+
+  await authStore.initialize()
+
+  // Reconnect: if we were in an in-progress game when the tab reloaded/dropped,
+  // re-enter it instead of stranding the player in the lobby.
+  if (authStore.isAuthenticated) {
+    await mpStore.restoreActiveGame()
+  }
 })
 
 async function handlePasswordUpdate() {
@@ -175,10 +181,17 @@ function handleShowAuth(mode: 'login' | 'signup') {
   showAuthView.value = true
 }
 
-async function playAsGuest() {
-  const result = await authStore.signInAnonymously()
-  if (!result.success) {
-    console.error('Guest sign-in failed:', result.error)
+const guestLoading = ref(false)
+
+async function playAsGuest(nickname?: string) {
+  guestLoading.value = true
+  try {
+    const result = await authStore.signInAnonymously(nickname)
+    if (!result.success) {
+      console.error('Guest sign-in failed:', result.error)
+    }
+  } finally {
+    guestLoading.value = false
   }
 }
 

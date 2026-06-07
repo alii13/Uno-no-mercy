@@ -163,36 +163,50 @@ async function onShareImage() {
   }
 }
 
-// Shared share-with-image flow for X and WhatsApp. On mobile (Web Share
-// API + files), bundle the generated image with the text so WhatsApp /
-// X / iMessage / Telegram pick it up natively from the system share
-// sheet. Neither X's twitter.com/intent nor WhatsApp's wa.me accept
-// image uploads via URL, so on desktop we fall back to the
-// platform-specific text-only URL.
+// Touch devices (phones/tablets) are where the native Web Share sheet is the
+// good UX — it hands the image straight to WhatsApp / X / iMessage. On
+// desktop, navigator.share opens the clunky OS share sheet (e.g. macOS), which
+// is NOT what someone clicking the X or WhatsApp button expects — they want
+// the web composer. So we only take the native path on touch devices and open
+// the platform web intent everywhere else.
+function preferNativeShare(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const coarsePointer = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
+  const hasTouch = (navigator.maxTouchPoints || 0) > 0
+  return coarsePointer || hasTouch
+}
+
+// Shared share-with-image flow for X and WhatsApp. On touch devices, bundle the
+// generated image with the text via the Web Share API so the target app picks
+// it up natively. On desktop, X's twitter.com/intent and WhatsApp's wa.me don't
+// accept image uploads via URL, so we open the platform-specific web composer
+// (text + link). The image stays available via the dedicated IMAGE button.
 async function shareWithImage(opts: { text: string; url: string; fallbackUrl: string }) {
   const navAny = navigator as Navigator & {
     canShare?: (data: { files?: File[] }) => boolean
     share?: (data: ShareData & { files?: File[] }) => Promise<void>
   }
-  const blob = await generateShareImage(sharePayload())
-  if (blob && navAny.canShare && navAny.share) {
-    const file = new File([blob], 'uno-no-mercy-win.png', { type: 'image/png' })
-    if (navAny.canShare({ files: [file] })) {
-      try {
-        await navAny.share({
-          files: [file],
-          title: 'UNO No Mercy',
-          text: `${opts.text}\n\n${opts.url}`,
-        })
-        return
-      } catch {
-        // User cancelled the share sheet — deliberate dismiss, don't
-        // fall back to the URL or they'd get a second window.
-        return
+  if (preferNativeShare() && navAny.canShare && navAny.share) {
+    const blob = await generateShareImage(sharePayload())
+    if (blob) {
+      const file = new File([blob], 'uno-no-mercy-win.png', { type: 'image/png' })
+      if (navAny.canShare({ files: [file] })) {
+        try {
+          await navAny.share({
+            files: [file],
+            title: 'UNO No Mercy',
+            text: `${opts.text}\n\n${opts.url}`,
+          })
+          return
+        } catch {
+          // User cancelled the share sheet — deliberate dismiss, don't
+          // fall back to the URL or they'd get a second window.
+          return
+        }
       }
     }
   }
-  // Desktop or unsupported browsers: open platform-specific text-only URL.
+  // Desktop or unsupported browsers: open platform-specific web composer.
   window.open(opts.fallbackUrl, '_blank')
 }
 

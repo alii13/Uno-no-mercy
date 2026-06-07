@@ -126,12 +126,27 @@ export const useAuthStore = defineStore('auth', () => {
         }
     }
 
-    async function signInAnonymously() {
+    function sanitizeName(name: string): string {
+        return name.trim().replace(/\s+/g, ' ').slice(0, 20)
+    }
+
+    // A distinct, on-theme handle so blank-nickname guests don't all read as
+    // "Player" — every seat at the table feels like a real person.
+    function randomHandle(): string {
+        const adjectives = ['Red', 'Toxic', 'Savage', 'Brutal', 'Wild', 'Rogue', 'Feral', 'Grim', 'Vicious', 'Reckless', 'Ruthless', 'Lethal']
+        const nouns = ['Fox', 'Wolf', 'Viper', 'Hawk', 'Shark', 'Raven', 'Cobra', 'Jackal', 'Reaper', 'Bandit', 'Phantom', 'Joker']
+        const a = adjectives[Math.floor(Math.random() * adjectives.length)]
+        const n = nouns[Math.floor(Math.random() * nouns.length)]
+        return `${a}${n}${Math.floor(Math.random() * 90 + 10)}`
+    }
+
+    async function signInAnonymously(nickname?: string) {
         loading.value = true
         error.value = null
 
         try {
-            const guestName = 'Guest_' + Math.random().toString(36).substring(2, 6).toUpperCase()
+            const cleaned = nickname ? sanitizeName(nickname) : ''
+            const guestName = cleaned || randomHandle()
 
             const { data, error: authError } = await supabase.auth.signInAnonymously({
                 options: {
@@ -173,6 +188,26 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     const isAnonymous = computed(() => user.value?.is_anonymous === true)
+
+    // Rename the current player (used by guests via the editable lobby chip).
+    async function updateUsername(name: string) {
+        const clean = sanitizeName(name)
+        if (!clean || !user.value) return { success: false, error: 'Invalid name' }
+        try {
+            const { error: upErr } = await supabase
+                .from('profiles')
+                .update({ username: clean })
+                .eq('id', user.value.id)
+            if (upErr) throw upErr
+            await supabase.auth.updateUser({ data: { username: clean } })
+            if (profile.value) profile.value.username = clean
+            else profile.value = { id: user.value.id, username: clean, created_at: new Date().toISOString() }
+            return { success: true }
+        } catch (err: any) {
+            error.value = err.message
+            return { success: false, error: err.message }
+        }
+    }
 
     async function sendPasswordReset(email: string) {
         try {
@@ -221,6 +256,7 @@ export const useAuthStore = defineStore('auth', () => {
         signUp,
         signIn,
         signInAnonymously,
+        updateUsername,
         signOut,
         sendPasswordReset,
         updatePassword

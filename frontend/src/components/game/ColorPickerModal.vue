@@ -8,16 +8,22 @@
         class="hud-header"
         :class="{ 'header-danger': isRoulette }"
         @mousedown="startDrag"
-        @touchstart.prevent="startTouchDrag"
-        style="cursor: grab;"
+        @touchstart="startTouchDrag"
+        :style="{ cursor: isCoarsePointer ? 'default' : 'grab' }"
       >
         <svg class="warning-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         <span>{{ title }}</span>
-        <svg class="drag-hint" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
+        <svg v-if="!isCoarsePointer" class="drag-hint" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
       </div>
       
       <h3>{{ subtitle }}</h3>
-      
+
+      <!-- When a specific card triggered this picker (e.g. a wild you just
+           drew), show it so you know exactly what you're about to play. -->
+      <div v-if="card" class="picker-card">
+        <Card :card="card" :size="{ width: 92, height: 130 }" />
+      </div>
+
       <div class="colors-grid">
         <button 
           v-for="color in colors" 
@@ -34,7 +40,7 @@
       </div>
       
       <div class="hud-footer">
-        DRAG HEADER TO MOVE • AWAITING INPUT...
+        {{ isCoarsePointer ? 'AWAITING INPUT...' : 'DRAG HEADER TO MOVE • AWAITING INPUT...' }}
       </div>
     </div>
   </div>
@@ -42,19 +48,26 @@
 
 <script setup lang="ts">
 import { ref, reactive, onUnmounted } from 'vue'
-import type { CardColor } from '../../types/card'
+import type { Card as CardType, CardColor } from '../../types/card'
+import Card from './Card.vue'
 
 withDefaults(defineProps<{
   title?: string
   subtitle?: string
   isRoulette?: boolean
+  card?: CardType | null
 }>(), {
   title: 'AUTHORIZATION REQUIRED',
   subtitle: 'SELECT FREQUENCY',
-  isRoulette: false
+  isRoulette: false,
+  card: null
 })
 
 const colors: CardColor[] = ['red', 'blue', 'green', 'yellow']
+
+// Dragging a modal is pointless and fat-finger-risky on touch — only enable it
+// for fine pointers (mouse/trackpad).
+const isCoarsePointer = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
 
 defineEmits<{
   (e: 'select', color: CardColor): void
@@ -79,6 +92,7 @@ function clampPosition() {
 }
 
 function startDrag(e: MouseEvent) {
+  if (isCoarsePointer) return
   isDragging.value = true
   dragStart.x = e.clientX - position.x
   dragStart.y = e.clientY - position.y
@@ -102,6 +116,7 @@ function stopDrag() {
 }
 
 function startTouchDrag(e: TouchEvent) {
+  if (isCoarsePointer) return
   const touch = e.touches[0]
   if (!touch) return
   isDragging.value = true
@@ -132,13 +147,17 @@ onUnmounted(() => {
 <style scoped>
 .color-picker-overlay {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
+  inset: 0;
   background: rgba(0, 0, 0, 0.9);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: var(--z-modal);
   backdrop-filter: blur(5px);
+  /* Allow the modal to scroll instead of clipping on short/landscape viewports,
+     and keep clear of notches. */
+  overflow-y: auto;
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
 }
 
 .tactical-hud {
@@ -146,6 +165,9 @@ onUnmounted(() => {
   border: 2px solid var(--color-hazard);
   padding: 2rem;
   width: 500px;
+  max-width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
   position: relative;
   box-shadow: 0 0 50px rgba(255, 204, 0, 0.2);
 }
@@ -202,6 +224,12 @@ h3 {
   font-size: 2rem;
   margin-bottom: 2rem;
   letter-spacing: 2px;
+}
+
+.picker-card {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
 }
 
 .colors-grid {
