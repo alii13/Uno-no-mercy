@@ -16,6 +16,18 @@
       />
       <template #controls>
         <button
+          class="hud-exit"
+          @click="showLeaveConfirm = true"
+          aria-label="Leave game"
+          title="Leave game"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+        </button>
+        <button
           class="hud-audio"
           :class="{ active: !soundEffects.isMuted.value }"
           @click="toggleSound"
@@ -127,6 +139,16 @@
       @back-to-lobby="store.returnToLobby()"
       @upgrade-account="handleUpgrade"
     />
+
+    <ConfirmDialog
+      :open="showLeaveConfirm"
+      title="Leave the game?"
+      message="This match against the bot will end and you'll return to the lobby."
+      confirm-label="LEAVE"
+      cancel-label="STAY"
+      @confirm="confirmLeave"
+      @cancel="showLeaveConfirm = false"
+    />
   </div>
 </template>
 
@@ -154,6 +176,7 @@ import BattlePit from './BattlePit.vue'
 import StatusPanel from './StatusPanel.vue'
 import PlayerConsoleBar from './PlayerConsoleBar.vue'
 import GameOverModal from './GameOverModal.vue'
+import ConfirmDialog from '../ConfirmDialog.vue'
 
 const store = useGameStore()
 // Wire stack-chain escalation — vignette + shake when drawStack grows
@@ -377,6 +400,12 @@ const opponentDisplayName = computed(() => {
 
 function restart() {
   store.initializeGame(['You', 'Terminator'])
+}
+
+const showLeaveConfirm = ref(false)
+function confirmLeave() {
+  showLeaveConfirm.value = false
+  store.returnToLobby()
 }
 
 async function handleUpgrade() {
