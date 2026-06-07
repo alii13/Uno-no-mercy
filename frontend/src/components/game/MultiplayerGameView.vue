@@ -36,6 +36,18 @@
       </div>
       <template #controls>
         <button
+          class="hud-exit"
+          @click="leaveGame"
+          aria-label="Leave game"
+          title="Leave game"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+        </button>
+        <button
           class="hud-help"
           @click="showRules = true"
           aria-label="How to play"
@@ -161,6 +173,17 @@
       @select="handleDiscardAllTopSelect"
     />
 
+    <!-- Catch an opponent who forgot to call UNO -->
+    <Transition name="catch-pop">
+      <button
+        v-if="caughtTarget"
+        class="catch-btn"
+        @click="mpStore.catchPlayer(caughtTarget.user_id)"
+      >
+        CAUGHT! {{ caughtTarget.name }} forgot UNO
+      </button>
+    </Transition>
+
     <!-- Action feed — what just happened (who played what) -->
     <Transition name="action-feed">
       <div v-if="actionFeed" class="action-feed" role="status" aria-live="polite">
@@ -264,6 +287,15 @@ const showRules = ref(false)
 const pendingCard = ref<Card | null>(null)
 
 // Transient "who played what" feed, driven by the store's broadcast action feed.
+// An opponent caught on 1 card without calling UNO — we can penalize them.
+const caughtTarget = computed(() => {
+  const id = mpStore.catchableUserId
+  if (!id || id === authStore.user?.id) return null
+  const p = mpStore.gamePlayers.find(pl => pl.user_id === id)
+  if (!p || ((p.hand as Card[])?.length || 0) !== 1) return null
+  return p
+})
+
 const actionFeed = ref('')
 let actionFeedTimer: ReturnType<typeof setTimeout> | null = null
 watch(() => mpStore.lastAction, (a) => {

@@ -9,7 +9,7 @@
 
       <div class="top-bar-cta">
         <input
-          v-if="authStore.isAnonymous && editingName"
+          v-if="authStore.isAnonymous && editingName && editTarget === 'bar'"
           v-model="nameInput"
           v-focus-ring
           class="username-edit-input"
@@ -23,7 +23,7 @@
           v-else-if="authStore.isAnonymous"
           class="username-chip username-chip-editable"
           title="Tap to rename"
-          @click="startEditName"
+          @click="startEditName('bar')"
         >
           {{ authStore.username }}
           <Pencil class="chip-edit-icon" :stroke-width="2" aria-hidden="true" />
@@ -129,15 +129,10 @@
           <span class="room-code-label">ROOM CODE</span>
           <span class="room-code-value">{{ mpStore.roomCode }}</span>
           <div class="room-code-actions">
-            <button class="code-action-btn" @click="copyRoomCode">
+            <button class="code-action-btn" @click="copyLink">
               <Copy v-if="!copied" class="code-action-icon" :stroke-width="2" aria-hidden="true" />
               <Check v-else class="code-action-icon" :stroke-width="2.5" aria-hidden="true" />
-              {{ copied ? 'COPIED' : 'COPY CODE' }}
-            </button>
-            <button class="code-action-btn code-action-share" @click="shareInvite">
-              <Check v-if="shared" class="code-action-icon" :stroke-width="2.5" aria-hidden="true" />
-              <Share2 v-else class="code-action-icon" :stroke-width="2" aria-hidden="true" />
-              {{ shared ? 'SHARED' : 'SHARE INVITE' }}
+              {{ copied ? 'LINK COPIED' : 'COPY LINK' }}
             </button>
           </div>
           <span class="room-mode-tag">{{ modeLabel(mpStore.stackingMode) }} RULES</span>
@@ -164,7 +159,28 @@
                   :title="isPlayerConnected(player.user_id) ? 'Connected' : 'Connecting…'"
                 ></span>
               </div>
-              <span class="player-name">{{ player.name }}</span>
+              <!-- My own seat is renamable (guests); others render plain. -->
+              <input
+                v-if="player.user_id === authStore.user?.id && authStore.isAnonymous && editingName && editTarget === 'room'"
+                v-model="nameInput"
+                :ref="(el: any) => el && el.focus && el.focus()"
+                class="username-edit-input seat-edit-input"
+                maxlength="20"
+                aria-label="Edit nickname"
+                @keyup.enter="saveName"
+                @keyup.esc="editingName = false"
+                @blur="saveName"
+              />
+              <button
+                v-else-if="player.user_id === authStore.user?.id && authStore.isAnonymous"
+                class="player-name player-name-editable"
+                title="Tap to rename"
+                @click="startEditName('room')"
+              >
+                {{ player.name }}
+                <Pencil class="seat-edit-icon" :stroke-width="2" aria-hidden="true" />
+              </button>
+              <span v-else class="player-name">{{ player.name }}</span>
               <span
                 v-if="player.user_id === mpStore.currentGame?.host_id"
                 class="player-badge"
@@ -301,7 +317,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { Copy, Check, Share2, Pencil, X } from 'lucide-vue-next'
+import { Copy, Check, Pencil, X } from 'lucide-vue-next'
 import { vFocusRing } from '../directives/focusRing'
 import { useAuthStore } from '../stores/authStore'
 import { useMultiplayerStore } from '../stores/multiplayerStore'
@@ -328,10 +344,10 @@ const showLeaveConfirm = ref(false)
 const showRules = ref(false)
 const showUpgradeConfirm = ref(false)
 const editingName = ref(false)
+const editTarget = ref<'bar' | 'room' | null>(null)
 const nameInput = ref('')
 const joinCode = ref('')
 const copied = ref(false)
-const shared = ref(false)
 const selectedStackingMode = ref<StackingMode>(gameStore.stackingMode)
 
 // When the page loads with ?join=ABCDEF, pre-fill the join input and
@@ -437,15 +453,19 @@ async function confirmLeave() {
   await mpStore.leaveGame()
 }
 
-function startEditName() {
+// Rename can be triggered from the top-bar chip ('bar') or the waiting-room
+// seat ('room'); editTarget controls which one shows the inline input.
+function startEditName(target: 'bar' | 'room' = 'bar') {
   const current = authStore.username
   nameInput.value = current && current !== 'Player' ? current : ''
+  editTarget.value = target
   editingName.value = true
 }
 
 async function saveName() {
   if (!editingName.value) return
   editingName.value = false
+  editTarget.value = null
   const name = nameInput.value.trim()
   if (name && name !== authStore.username) {
     await authStore.updateUsername(name)
@@ -475,13 +495,7 @@ function handleStatsClick() {
   }
 }
 
-function copyRoomCode() {
-  navigator.clipboard.writeText(mpStore.roomCode)
-  copied.value = true
-  setTimeout(() => (copied.value = false), 2000)
-}
-
-// Auto-join URL friends can tap to drop straight into the room.
+// Auto-join URL friends tap to drop straight into the room.
 function inviteUrl() {
   const u = new URL(window.location.href)
   u.search = ''
@@ -490,30 +504,12 @@ function inviteUrl() {
   return u.toString()
 }
 
-// On mobile, open the native share sheet so the user picks WhatsApp /
-// iMessage / Telegram themselves and the invite carries text + URL.
-// On desktop or unsupported browsers, copy the URL to clipboard with
-// the same toast-feedback pattern as Copy Code.
-async function shareInvite() {
-  const url = inviteUrl()
-  const text = `Join my UNO No Mercy room: ${mpStore.roomCode}`
-  const navAny = navigator as Navigator & {
-    share?: (data: ShareData) => Promise<void>
-  }
-  if (navAny.share) {
-    try {
-      await navAny.share({ title: 'UNO No Mercy', text, url })
-      shared.value = true
-      setTimeout(() => (shared.value = false), 2000)
-      return
-    } catch {
-      // User cancelled the share sheet — silent.
-      return
-    }
-  }
-  await navigator.clipboard.writeText(url)
-  shared.value = true
-  setTimeout(() => (shared.value = false), 2000)
+// Copy the full invite link (not just the code) — tapping it opens the join
+// lobby directly, which is what people actually share.
+function copyLink() {
+  navigator.clipboard.writeText(inviteUrl())
+  copied.value = true
+  setTimeout(() => (copied.value = false), 2000)
 }
 </script>
 
@@ -996,6 +992,32 @@ async function shareInvite() {
 .player-kick-icon {
   width: 13px;
   height: 13px;
+}
+
+.player-name-editable {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  padding: 0;
+}
+.player-name-editable:hover { color: var(--color-neon-blue, #2ad4ff); }
+
+.seat-edit-icon {
+  width: 11px;
+  height: 11px;
+  opacity: 0.6;
+}
+
+.seat-edit-input {
+  width: 7rem;
+  font-size: var(--text-sm);
+  padding: var(--spacing-1) var(--spacing-2);
 }
 
 .entry-heading {
