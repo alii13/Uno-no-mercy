@@ -12,7 +12,8 @@
         class="opponent-card"
         :class="{
           active: currentGame?.current_player_id === opp.user_id,
-          eliminated: opp.is_eliminated
+          eliminated: opp.is_eliminated,
+          disconnected: isDisconnected(opp.user_id)
         }"
       >
         <div class="avatar" :class="{ 'avatar-active': currentGame?.current_player_id === opp.user_id }">
@@ -20,12 +21,26 @@
         </div>
         <div class="opponent-info">
           <span class="name">{{ opp.name }}</span>
-          <span class="card-count" v-if="!opp.is_eliminated">{{ (opp.hand as Card[])?.length || 0 }} INTEL</span>
+          <span class="card-count dc-text" v-if="isDisconnected(opp.user_id) && !opp.is_eliminated">DISCONNECTED</span>
+          <span class="card-count" v-else-if="!opp.is_eliminated">{{ (opp.hand as Card[])?.length || 0 }} INTEL</span>
           <span class="card-count eliminated-text" v-else>ELIMINATED</span>
         </div>
+        <button
+          v-if="mpStore.isHost && !opp.is_eliminated"
+          class="opp-kick-btn"
+          title="Remove player"
+          aria-label="Remove player"
+          @click.stop="requestKick(opp.user_id, opp.name)"
+        >✕</button>
         <div class="status-indicator" :class="{ active: currentGame?.current_player_id === opp.user_id }"></div>
       </div>
       <template #controls>
+        <button
+          class="hud-help"
+          @click="showRules = true"
+          aria-label="How to play"
+          title="How to play"
+        >?</button>
         <button
           class="hud-audio"
           :class="{ active: !soundEffects.isMuted.value }"
@@ -67,6 +82,8 @@
           :message="statusMessage"
           :message-style="statusMessageStyle"
           :stacking-mode="mpStore.stackingMode"
+          :turn-label="turnLabel"
+          :turn-is-mine="isMyTurn"
         />
       </template>
     </BattlePit>
@@ -125,6 +142,7 @@
       v-if="mpStore.pendingDrawnWildCard"
       title="WILD CARD DRAWN"
       subtitle="CHOOSE COLOR TO PLAY"
+      :card="mpStore.pendingDrawnWildCard"
       @select="handleDrawnWildColorSelect"
     />
 
@@ -142,6 +160,13 @@
       :cards="mpStore.pendingDiscardAllCards"
       @select="handleDiscardAllTopSelect"
     />
+
+    <!-- Action feed — what just happened (who played what) -->
+    <Transition name="action-feed">
+      <div v-if="actionFeed" class="action-feed" role="status" aria-live="polite">
+        {{ actionFeed }}
+      </div>
+    </Transition>
 
     <!-- Realtime reconnect pill -->
     <Transition name="rt-pill">
@@ -181,11 +206,23 @@
     <ConfirmDialog
       :open="showLeaveConfirm"
       title="Leave the game?"
-      message="You'll forfeit this round and return to the lobby. No rejoin."
+      message="You'll forfeit this round and return to the lobby. You can rejoin from the same device while the game is live."
       confirm-label="LEAVE"
       cancel-label="STAY"
       @confirm="confirmLeave"
       @cancel="showLeaveConfirm = false"
+    />
+
+    <RulesModal v-if="showRules" @close="showRules = false" />
+
+    <ConfirmDialog
+      :open="!!kickTarget"
+      title="Remove this player?"
+      :message="`${kickTarget?.name ?? 'This player'} will be removed from the game. Play continues without them.`"
+      confirm-label="REMOVE"
+      cancel-label="CANCEL"
+      @confirm="confirmKick"
+      @cancel="kickTarget = null"
     />
   </div>
 </template>
@@ -210,7 +247,9 @@ import StatusPanel from './StatusPanel.vue'
 import PlayerConsoleBar from './PlayerConsoleBar.vue'
 import GameOverModal from './GameOverModal.vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
+import RulesModal from '../RulesModal.vue'
 import type { Card, CardColor } from '../../types/card'
+import { canPlayCard } from '../../utils/gameRules'
 import { useStackEscalation } from '../../composables/useStackEscalation'
 import { playDealerIntro } from '../../composables/useDealerIntro'
 import { useRetentionStore } from '../../stores/retentionStore'
@@ -221,7 +260,18 @@ const { animateFlyingCard, animateDrawCardsStaggered } = useCardAnimations()
 
 const isShakeActive = ref(false)
 const showColorPicker = ref(false)
+const showRules = ref(false)
 const pendingCard = ref<Card | null>(null)
+
+// Transient "who played what" feed, driven by the store's broadcast action feed.
+const actionFeed = ref('')
+let actionFeedTimer: ReturnType<typeof setTimeout> | null = null
+watch(() => mpStore.lastAction, (a) => {
+  if (!a?.text) return
+  actionFeed.value = a.text
+  if (actionFeedTimer) clearTimeout(actionFeedTimer)
+  actionFeedTimer = setTimeout(() => { actionFeed.value = '' }, 2600)
+})
 
 // Animation refs
 const battlePitRef = ref<InstanceType<typeof BattlePit> | null>(null)
@@ -316,7 +366,27 @@ const deckDisplay = computed(() => {
   return Array(count).fill({ id: 'deck', color: 'wild', type: 'wild' })
 })
 
+// Always-visible, plain-language turn ownership. Reinforces the ambient glow
+// and tells you a slow opponent isn't a frozen game.
+const turnLabel = computed(() => {
+  if (gameStatus.value !== 'playing') return ''
+  if (isMyTurn.value) return 'YOUR TURN'
+  const name = currentPlayerName.value
+  return name && name !== 'Unknown' ? `${name}'S TURN` : 'OPPONENT’S TURN'
+})
+
+// True when it's my normal turn and I genuinely have nothing to play, so the
+// only legal move is to draw — surfaced so the player isn't left wondering.
+const mustDraw = computed(() => {
+  if (!isMyTurn.value || turnState.value !== 'WAITING_FOR_ACTION') return false
+  if (drawStack.value > 0) return false
+  const top = topCard.value
+  if (!top) return false
+  return !myHand.value.some(c => canPlayCard(c, top, currentColor.value, 0, mpStore.stackingMode))
+})
+
 const statusMessage = computed(() => {
+  if (mustDraw.value) return 'NO PLAYABLE CARD — TAP THE DECK TO DRAW'
   if (turnState.value === 'CHOOSING_PLAYER_TO_SWAP' && isMyTurn.value) return 'SELECT PLAYER TO SWAP HANDS'
   if (turnState.value === 'CHOOSING_PLAYER_TO_SWAP' && !isMyTurn.value) return 'OPPONENT IS CHOOSING SWAP TARGET...'
   if (turnState.value === 'CHOOSING_ROULETTE_COLOR' && isMyTurn.value) return 'INCOMING ROULETTE! CHOOSE YOUR FATE'
@@ -618,6 +688,22 @@ function toggleSound() {
   music.toggleMute()
 }
 
+function isDisconnected(userId: string) {
+  return mpStore.disconnectedUserIds.includes(userId)
+}
+
+const kickTarget = ref<{ id: string; name: string } | null>(null)
+
+function requestKick(userId: string, name: string) {
+  kickTarget.value = { id: userId, name }
+}
+
+async function confirmKick() {
+  const target = kickTarget.value
+  kickTarget.value = null
+  if (target) await mpStore.kickPlayer(target.id)
+}
+
 const showLeaveConfirm = ref(false)
 
 // PlayerConsoleBar emits 'leave'. Open the confirmation instead of
@@ -650,13 +736,84 @@ async function handleUpgrade() {
 </style>
 
 <style scoped>
+.opponent-card {
+  position: relative;
+}
 .opponent-card.eliminated {
   opacity: 0.35;
   filter: grayscale(1);
 }
+.opponent-card.disconnected {
+  opacity: 0.6;
+}
 .eliminated-text {
   color: var(--color-alert) !important;
   font-size: 0.7rem;
+}
+.dc-text {
+  color: var(--color-alert) !important;
+  font-size: 0.65rem;
+  animation: dc-blink 1.4s ease-in-out infinite;
+}
+@keyframes dc-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.opp-kick-btn {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-alert, #ff2a2a);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity 0.15s, transform 0.15s;
+  z-index: 5;
+}
+.opp-kick-btn:hover {
+  opacity: 1;
+  transform: scale(1.12);
+}
+@media (prefers-reduced-motion: reduce) {
+  .dc-text { animation: none; }
+}
+
+/* Action feed — transient "who played what" toast, top-center under the bar */
+.action-feed {
+  position: fixed;
+  top: 4.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(90vw, 460px);
+  background: rgba(10, 10, 11, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-left: 3px solid var(--color-hazard, #ffcc00);
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-align: center;
+  z-index: 140;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+
+.action-feed-enter-active, .action-feed-leave-active {
+  transition: opacity 0.22s, transform 0.22s;
+}
+.action-feed-enter-from, .action-feed-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -8px);
 }
 
 /* Realtime reconnect pill — top-center floating indicator */

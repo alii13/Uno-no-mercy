@@ -599,6 +599,13 @@ export const useGameStore = defineStore('game', () => {
             drawStack.value = 0
             let drawnCount = 0
             function drawNext() {
+                // If this player got eliminated mid-stack (crossed the mercy
+                // threshold) or the game ended, stop shoveling cards into an
+                // emptied hand and don't advance a finished game.
+                if (p?.isEliminated || gameState.value === 'GAME_OVER') {
+                    if (gameState.value !== 'GAME_OVER') advanceTurn()
+                    return
+                }
                 if (drawnCount < cardsToDraw) {
                     if (p) drawCardToHand(p)
                     drawnCount++
@@ -613,12 +620,15 @@ export const useGameStore = defineStore('game', () => {
             // Creating a loop with delay for visual effect
 
             function drawUntilPlayable() {
-                if (!p || !topCard.value) return
+                // Dead-end bails must release the turn — otherwise actionInProgress
+                // stays true with no advanceTurn and the whole game soft-locks
+                // (e.g. deck + discard both run dry mid-draw).
+                if (!p || !topCard.value) { advanceTurn(); return }
                 const ps = playerStats.value[p.id]
                 if (ps) ps.drawsTaken++
                 // Draw 1
                 const card = drawCardToHand(p)
-                if (!card) return
+                if (!card) { advanceTurn(); return }
 
                 // Check if playable
                 if (canPlayCard(card, topCard.value, currentColor.value, 0, stackingMode.value)) {

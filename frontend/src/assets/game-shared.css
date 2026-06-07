@@ -6,6 +6,13 @@
 /* ==========================================================================
    GAME VIEW CONTAINER
    ========================================================================== */
+/* Keyboard focus ring for hand cards (they're now role=button + tabindex). */
+.hand-card-wrapper:focus-visible {
+  outline: 3px solid var(--color-neon-blue, #2ad4ff);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
 .game-view {
   display: flex;
   flex-direction: column;
@@ -16,6 +23,25 @@
   background: var(--bg-concrete);
   color: var(--text-primary);
   overflow: hidden;
+}
+
+/* Short viewports (landscape phones, split-screen). The fixed-height hand plus
+   the non-shrinking console can exceed 100dvh; under overflow:hidden the
+   trailing console (with LEAVE) gets clipped off-screen. Let the hand compress
+   and permit the column to scroll so LEAVE is always reachable. Only activates
+   when genuinely short, so normal devices keep the unbroken height chain. */
+@media (max-height: 600px) {
+  .game-view {
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .floating-hand-wrapper {
+    flex-shrink: 1;
+    min-height: 0;
+  }
+  .player-console-bar {
+    flex-shrink: 0;
+  }
 }
 
 /* ==========================================================================
@@ -63,7 +89,9 @@
   background: linear-gradient(180deg, rgba(10, 10, 11, 0.95), rgba(10, 10, 11, 0.6));
   backdrop-filter: blur(8px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  padding: var(--spacing-2) var(--spacing-3);
+  /* Respect notch / dynamic island so the opponent row + controls aren't
+     hidden under the status bar on modern phones. */
+  padding: max(var(--spacing-2), env(safe-area-inset-top)) max(var(--spacing-3), env(safe-area-inset-right)) var(--spacing-2) max(var(--spacing-3), env(safe-area-inset-left));
   z-index: var(--z-hud);
   position: relative;
 }
@@ -118,6 +146,30 @@
 }
 
 .hud-audio:hover {
+  border-color: var(--color-neon-blue);
+  color: var(--color-neon-blue);
+}
+
+.hud-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-height: 44px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid #333;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition:
+    border-color var(--duration-snap) var(--ease-snap),
+    color var(--duration-snap) var(--ease-snap);
+}
+
+.hud-help:hover {
   border-color: var(--color-neon-blue);
   color: var(--color-neon-blue);
 }
@@ -1020,7 +1072,10 @@
 .floating-hand-wrapper::before {
   content: '';
   position: absolute;
-  inset: -40px -2rem -2rem;
+  /* Stop the gradient at the wrapper's own bottom edge. It used to bleed 2rem
+     lower (-2rem) into the console row, painting a dark panel over the LEAVE
+     button so it read as buried. */
+  inset: -40px -2rem 0;
   background: linear-gradient(
     to bottom,
     transparent 0%,
@@ -1333,7 +1388,9 @@
   }
 
   .player-console-bar {
-    gap: var(--spacing-4);
+    /* Wider gap so UNO! and LEAVE — the two highest-stakes buttons — can't be
+       fat-fingered into each other on a phone. */
+    gap: var(--spacing-6, 2rem);
     padding: var(--spacing-2) var(--spacing-3);
     font-size: var(--text-sm);
   }
@@ -1343,8 +1400,13 @@
   }
 
   .uno-btn {
-    min-height: 44px;
-    padding: var(--spacing-1) var(--spacing-4);
+    min-height: 48px;
+    min-width: 96px;
+    padding: var(--spacing-1) var(--spacing-5, 1.5rem);
+  }
+
+  .leave-btn {
+    min-height: 48px;
   }
 }
 

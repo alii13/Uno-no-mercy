@@ -64,9 +64,25 @@
       <p class="hero-tagline" ref="taglineRef">THE RUTHLESS CARD BATTLE</p>
 
       <div class="hero-cta" ref="heroCtaRef">
-        <Button variant="primary" size="lg" @click="reportAndEmit('playGuest')">
-          PLAY NOW
+        <p v-if="inviteCode" class="invite-banner">
+          You've been invited to room <strong>{{ inviteCode }}</strong> — enter a nickname and jump in.
+        </p>
+        <input
+          v-model="guestName"
+          v-focus-ring
+          class="guest-name-input"
+          type="text"
+          maxlength="20"
+          placeholder="NICKNAME (OPTIONAL)"
+          aria-label="Choose a nickname"
+          @keyup.enter="reportAndEmit('playGuest')"
+        />
+        <Button variant="primary" size="lg" :disabled="loading" @click="reportAndEmit('playGuest')">
+          {{ loading ? 'ENTERING…' : (inviteCode ? 'JOIN THE GAME' : 'PLAY NOW') }}
         </Button>
+        <button type="button" class="rules-peek" @click="showRules = true">
+          New to No Mercy? See how it works
+        </button>
       </div>
 
       <LandingStatsBadge class="hero-stats" />
@@ -84,14 +100,15 @@
     <Teleport to="body">
       <Transition name="sticky-cta">
         <div v-show="showStickyCta" class="sticky-cta-wrap">
-          <Button variant="primary" size="lg" block @click="reportAndEmit('playGuest')">
-            PLAY NOW
+          <Button variant="primary" size="lg" block :disabled="loading" @click="reportAndEmit('playGuest')">
+            {{ loading ? 'ENTERING…' : 'PLAY NOW' }}
           </Button>
         </div>
       </Transition>
     </Teleport>
 
     <FeedbackModal v-if="showFeedback" @close="showFeedback = false" />
+    <RulesModal v-if="showRules" @close="showRules = false" />
   </div>
 </template>
 
@@ -101,12 +118,27 @@ import gsap from 'gsap'
 import LandingScrollSections from './LandingScrollSections.vue'
 import SiteFooter from './SiteFooter.vue'
 import FeedbackModal from './FeedbackModal.vue'
+import RulesModal from './RulesModal.vue'
 import LandingStatsBadge from './LandingStatsBadge.vue'
 import Card from './game/Card.vue'
 import Button from './ui/Button.vue'
+import { vFocusRing } from '../directives/focusRing'
 import { useScreenSize } from '../composables/useScreenSize'
 
+const props = defineProps<{ loading?: boolean }>()
+
+const guestName = ref('')
 const showFeedback = ref(false)
+const showRules = ref(false)
+
+// If the visitor arrived via a shared invite URL (?join=CODE), surface that
+// context instead of a generic landing — the lobby auto-joins the code once
+// they sign in as a guest.
+const inviteCode = (() => {
+  if (typeof window === 'undefined') return ''
+  const c = new URLSearchParams(window.location.search).get('join')?.toUpperCase().trim() || ''
+  return /^[A-Z0-9]{4,8}$/.test(c) ? c : ''
+})()
 const showStickyCta = ref(false)
 const heroSentinel = ref<HTMLElement>()
 const heroStage = ref<HTMLElement>()
@@ -119,7 +151,7 @@ const heroCtaRef = ref<HTMLElement>()
 
 const emit = defineEmits<{
   (e: 'showAuth', mode: 'login' | 'signup'): void
-  (e: 'playGuest'): void
+  (e: 'playGuest', nickname?: string): void
 }>()
 
 const { isMobile } = useScreenSize()
@@ -142,12 +174,15 @@ const COUNTER_BEATS = [2, 6, 12, 22, 22] // index-matched to heroCards (5th does
 function reportAndEmit(event: 'playGuest'): void
 function reportAndEmit(event: 'showAuth', mode: 'login' | 'signup'): void
 function reportAndEmit(event: 'playGuest' | 'showAuth', mode?: 'login' | 'signup') {
+  // Guard against a second guest sign-in (e.g. Enter key while the first is
+  // still in flight) — the buttons are :disabled but the input's Enter isn't.
+  if (event === 'playGuest' && props.loading) return
   const fn = (window as unknown as { gtag_report_conversion?: () => void }).gtag_report_conversion
   if (typeof fn === 'function') {
     try { fn() } catch { /* noop */ }
   }
   if (event === 'showAuth' && mode) emit('showAuth', mode)
-  else if (event === 'playGuest') emit('playGuest')
+  else if (event === 'playGuest') emit('playGuest', guestName.value.trim() || undefined)
 }
 
 let observer: IntersectionObserver | null = null
@@ -624,7 +659,66 @@ function runHeroChoreography() {
   position: relative;
   z-index: var(--z-base);
   margin-top: var(--spacing-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-3);
 }
+
+.guest-name-input {
+  width: min(280px, 80vw);
+  padding: 0.6rem 1rem;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-align: center;
+  transition: border-color 0.2s;
+}
+
+.guest-name-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: 0.14em;
+}
+
+.guest-name-input:focus {
+  outline: none;
+  border-color: var(--color-alert);
+}
+
+.rules-peek {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  padding: var(--spacing-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.2s;
+}
+.rules-peek:hover { color: var(--text-primary); }
+
+.invite-banner {
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+  background: rgba(0, 255, 102, 0.1);
+  border: 1px solid rgba(0, 255, 102, 0.3);
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  max-width: min(360px, 86vw);
+  text-align: center;
+  margin-bottom: var(--spacing-2);
+}
+.invite-banner strong { color: #00ff66; letter-spacing: 0.1em; }
 
 .hero-stats {
   z-index: var(--z-base);

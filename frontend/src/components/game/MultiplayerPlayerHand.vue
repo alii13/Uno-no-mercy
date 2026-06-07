@@ -11,9 +11,15 @@
         }"
         :ref="(el: any) => setCardRef(card.id, el)"
         :style="{ ...getCardStyle(index), marginRight: index < hand.length - 1 ? cardOverlap + 'px' : '0' }"
+        role="button"
+        :tabindex="isMyTurn && canPlay(card) ? 0 : -1"
+        :aria-disabled="!(isMyTurn && canPlay(card))"
+        :aria-label="cardLabel(card) + (isMyTurn && canPlay(card) ? ', playable' : '')"
         @mouseenter="hoverIndex = index"
         @mouseleave="hoverIndex = -1"
         @click="handleCardClick(card)"
+        @keydown.enter.prevent="handleCardClick(card)"
+        @keydown.space.prevent="handleCardClick(card)"
       >
         <Card
           :card="card"
@@ -65,7 +71,9 @@ const baseCardSize = computed(() => {
 
 const cardSize = computed(() => {
   const base = baseCardSize.value
-  if (!isMobile.value || props.hand.length <= 8) return base
+  // Shrink the fan on any narrow/touch screen (phone OR tablet) once the hand
+  // gets big — tablets used to never shrink and overlap-crushed worse than phones.
+  if ((!isMobile.value && !isTablet.value) || props.hand.length <= 8) return base
   const scale = Math.max(0.7, 1 - (props.hand.length - 8) * 0.03)
   return {
     width: Math.round(base.width * scale),
@@ -83,7 +91,10 @@ const cardOverlap = computed(() => {
     return isMobile.value ? -15 : isTablet.value ? -25 : -35
   }
   const needed = -(totalWidth - available) / (count - 1)
-  const maxOverlap = -(cardSize.value.width * 0.85)
+  // Cap overlap so each card stays readable/tappable (~45% visible) instead of
+  // collapsing into unidentifiable slivers. When the fan is wider than the
+  // viewport the container scrolls horizontally (see .cards-container CSS).
+  const maxOverlap = -(cardSize.value.width * 0.55)
   return Math.max(maxOverlap, needed)
 })
 
@@ -102,6 +113,21 @@ function getCardStyle(index: number) {
 function canPlay(card: CardType): boolean {
   if (!props.isMyTurn || !props.topCard) return false
   return canPlayCard(card, props.topCard, props.currentColor, props.drawStack, props.stackingMode)
+}
+
+// Human-readable card name for screen readers (the cards are otherwise just
+// images, so a keyboard/SR user has no idea what they're selecting).
+function cardLabel(card: CardType): string {
+  const color = card.color === 'wild' ? 'Wild' : card.color.charAt(0).toUpperCase() + card.color.slice(1)
+  const names: Record<string, string> = {
+    number: card.value !== undefined ? String(card.value) : 'number',
+    skip: 'Skip', reverse: 'Reverse', draw2: 'Draw Two', draw4: 'Draw Four',
+    draw6: 'Draw Six', draw10: 'Draw Ten', skipEveryone: 'Skip Everyone',
+    discardAll: 'Discard All', wild: 'Wild', wildReverseDraw4: 'Wild Reverse Draw Four',
+    wildColorRoulette: 'Wild Color Roulette'
+  }
+  const name = names[card.type] || card.type
+  return card.color === 'wild' ? name : `${color} ${name}`
 }
 
 function handleCardClick(card: CardType) {
@@ -208,6 +234,22 @@ function animateAndPlay(card: CardType) {
   align-items: flex-end;
   perspective: 1000px;
   flex-shrink: 0;
+}
+
+/* Touch: when a big hand's fan is wider than the screen, scroll it horizontally
+   instead of crushing every card into a sliver. `safe center` keeps small hands
+   centered but lets large ones scroll from the first card. */
+@media (max-width: 768px) {
+  .cards-container {
+    justify-content: safe center;
+    max-width: 100vw;
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 0 var(--spacing-3);
+  }
+  .cards-container::-webkit-scrollbar { display: none; }
 }
 
 .hand-card-wrapper {

@@ -98,6 +98,7 @@
       v-if="store.turnState === 'CHOOSING_DRAWN_WILD_COLOR' && isMyTurn"
       title="WILD CARD DRAWN"
       subtitle="CHOOSE COLOR TO PLAY"
+      :card="store.pendingDrawnWildCard"
       @select="(c) => store.playDrawnWildCard(c)"
     />
 

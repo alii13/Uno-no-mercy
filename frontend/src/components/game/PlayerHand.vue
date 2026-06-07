@@ -12,9 +12,15 @@
         }"
         :ref="(el: any) => setCardRef(card.id, el)"
         :style="{ ...getCardStyle(index), marginRight: index < hand.length - 1 ? cardOverlap + 'px' : '0' }"
+        role="button"
+        :tabindex="isMyTurn && canPlay(card) ? 0 : -1"
+        :aria-disabled="!(isMyTurn && canPlay(card))"
+        :aria-label="cardLabel(card) + (isMyTurn && canPlay(card) ? ', playable' : '')"
         @mouseenter="hoverIndex = index"
         @mouseleave="hoverIndex = -1"
         @click="handleCardClick(card, $event)"
+        @keydown.enter.prevent="handleCardClick(card)"
+        @keydown.space.prevent="handleCardClick(card)"
       >
         <Card
           :card="card"
@@ -146,6 +152,20 @@ function getCardStyle(index: number) {
   return getCardStyleUtil(index, props.hand.length, hoverIndex.value, isMobile.value)
 }
 
+// Human-readable card name for screen readers.
+function cardLabel(card: CardType): string {
+  const color = card.color === 'wild' ? 'Wild' : card.color.charAt(0).toUpperCase() + card.color.slice(1)
+  const names: Record<string, string> = {
+    number: card.value !== undefined ? String(card.value) : 'number',
+    skip: 'Skip', reverse: 'Reverse', draw2: 'Draw Two', draw4: 'Draw Four',
+    draw6: 'Draw Six', draw10: 'Draw Ten', skipEveryone: 'Skip Everyone',
+    discardAll: 'Discard All', wild: 'Wild', wildReverseDraw4: 'Wild Reverse Draw Four',
+    wildColorRoulette: 'Wild Color Roulette'
+  }
+  const name = names[card.type] || card.type
+  return card.color === 'wild' ? name : `${color} ${name}`
+}
+
 function canPlay(card: CardType) {
   if (!props.isMyTurn) return false
   if (store.turnState !== 'WAITING_FOR_ACTION') return false
@@ -154,7 +174,7 @@ function canPlay(card: CardType) {
   return canPlayCard(card, store.topCard, store.currentColor, store.drawStack, store.stackingMode)
 }
 
-function handleCardClick(card: CardType, _event: MouseEvent) {
+function handleCardClick(card: CardType, _event?: MouseEvent) {
   if (!canPlay(card)) return
   if (store.actionInProgress) return
 
