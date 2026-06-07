@@ -195,6 +195,38 @@
   color: var(--color-alert);
 }
 
+/* "CAUGHT!" — penalize an opponent who forgot UNO. Loud + time-pressured. */
+.catch-btn {
+  position: fixed;
+  top: 5.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 160;
+  padding: 0.6rem 1.4rem;
+  background: var(--color-alert, #ff2a2a);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  font-family: var(--font-display, 'Black Ops One'), sans-serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  box-shadow: 0 6px 24px rgba(255, 42, 42, 0.5);
+  animation: catch-pulse 0.7s ease-in-out infinite;
+}
+
+@keyframes catch-pulse {
+  0%, 100% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.06); }
+}
+
+.catch-pop-enter-active, .catch-pop-leave-active { transition: opacity 0.18s, transform 0.18s; }
+.catch-pop-enter-from, .catch-pop-leave-to { opacity: 0; transform: translate(-50%, -8px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .catch-btn { animation: none; }
+}
+
 .hud-audio-dot {
   width: 8px;
   height: 8px;

@@ -143,6 +143,76 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         }
     }
 
+    // --- UNO catch: a player on 1 card who didn't call UNO can be caught by an
+    // opponent before the window closes; the offender then draws a brutal 10. ---
+    const catchableUserId = ref<string | null>(null)
+    const UNO_PENALTY = 10
+    let catchWindowTimer: ReturnType<typeof setTimeout> | null = null
+
+    function openCatchWindowFor(userId: string) {
+        if (catchWindowTimer) clearTimeout(catchWindowTimer)
+        catchableUserId.value = userId
+        catchWindowTimer = setTimeout(() => {
+            if (catchableUserId.value === userId) catchableUserId.value = null
+        }, 6000)
+    }
+    function closeCatchWindow() {
+        if (catchWindowTimer) { clearTimeout(catchWindowTimer); catchWindowTimer = null }
+        catchableUserId.value = null
+    }
+    function sendCatchEvent(event: 'catch_open' | 'catch_close', userId: string) {
+        if (!gameChannel || !authStore.user?.id) return
+        Promise.resolve(
+            gameChannel.send({ type: 'broadcast', event, payload: { senderId: authStore.user.id, userId } })
+        ).catch(() => {})
+    }
+    // Call after our own play/discard: if we're exposed on 1 card, tell everyone
+    // they have a window to catch us.
+    function maybeOpenSelfCatch() {
+        const me = myPlayer.value
+        if (!me) return
+        if ((me.hand as Card[]).length === 1 && !me.has_called_uno) {
+            openCatchWindowFor(me.user_id)
+            sendCatchEvent('catch_open', me.user_id)
+        }
+    }
+    // Penalize an opponent who forgot UNO. Client-authoritative (same trust model
+    // as swap): we draw 10 from the deck into their hand and persist it.
+    async function catchPlayer(targetUserId: string) {
+        if (!currentGame.value) return
+        if (catchableUserId.value !== targetUserId || targetUserId === authStore.user?.id) return
+        const target = gamePlayers.value.find(p => p.user_id === targetUserId)
+        if (!target || (target.hand as Card[]).length !== 1) { closeCatchWindow(); return }
+
+        closeCatchWindow() // optimistic — hide the button, avoid a double-catch
+        try {
+            const deck = [...(currentGame.value.deck as Card[])]
+            const discard = [...(currentGame.value.discard_pile as Card[])]
+            const drawn: Card[] = []
+            for (let i = 0; i < UNO_PENALTY; i++) {
+                if (deck.length === 0 && !reshuffleDeckHelper(deck, discard)) break
+                const c = deck.pop()
+                if (c) drawn.push(c)
+            }
+            const newHand = [...(target.hand as Card[]), ...drawn]
+            target.hand = newHand
+            if (currentGame.value) {
+                currentGame.value.deck = deck as any
+                currentGame.value.discard_pile = discard as any
+            }
+            await Promise.all([
+                supabase.from('game_players').update({ hand: newHand }).eq('id', target.id),
+                supabase.from('games').update({ deck, discard_pile: discard }).eq('id', currentGame.value.id)
+            ])
+            announce(`${target.name} got caught — draws ${UNO_PENALTY}!`)
+            sendCatchEvent('catch_close', targetUserId)
+            broadcastAction(`${target.name} forgot UNO — caught for ${UNO_PENALTY}!`)
+            broadcastState()
+        } catch (err: any) {
+            error.value = err.message
+        }
+    }
+
     // --- In-game stat tracking ---
     const mpGameStartTime = ref(0)
     const mpStats = ref({
@@ -632,6 +702,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         everSeenPresence = new Set()
         absentSince = {}
         lastStateChangeAt = Date.now()
+        closeCatchWindow()
 
         gameChannel = supabase
             .channel(`game:${gameId}`)
@@ -700,6 +771,14 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 const p = payload as { senderId?: string; text?: string }
                 if (!p?.text || p.senderId === authStore.user?.id) return
                 announce(p.text)
+            })
+            .on('broadcast', { event: 'catch_open' }, ({ payload }) => {
+                const uid = (payload as { userId?: string })?.userId
+                if (uid) openCatchWindowFor(uid)
+            })
+            .on('broadcast', { event: 'catch_close' }, ({ payload }) => {
+                const uid = (payload as { userId?: string })?.userId
+                if (uid && catchableUserId.value === uid) closeCatchWindow()
             })
             .on('broadcast', { event: 'player_left' }, ({ payload }) => {
                 // Explicit, instant leave signal. We don't rely on the
@@ -1441,6 +1520,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 updateGameState(game.id, game.deck as Card[], state, winResult.winnerId, winResult.status)
             ])
             broadcastState()
+            // Exposed on 1 card without calling UNO — open the catch window.
+            maybeOpenSelfCatch()
         } catch (err: any) {
             error.value = err.message
         } finally {
@@ -1697,6 +1778,10 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         if (!myPlayer.value) return
         mpStats.value.unoCalls++
         myPlayer.value.has_called_uno = true
+        // Calling UNO closes our catch window — tell everyone we're safe.
+        const myUid = myPlayer.value.user_id
+        if (catchableUserId.value === myUid) closeCatchWindow()
+        sendCatchEvent('catch_close', myUid)
         try {
             await supabase
                 .from('game_players')
@@ -2004,47 +2089,63 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         const others = matchingCards.filter(c => c.id !== topCardId)
         const reorderedDiscard = [...discardWithoutMatching, ...others, topCard]
 
-        // Calculate next player
+        const game = currentGame.value
         const myIndex = gamePlayers.value.findIndex(p => p.user_id === myId)
         const playerCount = gamePlayers.value.length
-        const direction = currentGame.value.direction as (1 | -1)
-        const nextIdx = calculateNextPlayerIndex(myIndex, direction, playerCount)
-        const nextPlayerId = gamePlayers.value[nextIdx]?.user_id || null
+        const myHand = myPlayer.value.hand as Card[]
 
         try {
-            // Check win condition
-            const myHand = myPlayer.value.hand as Card[]
+            // Build a play-state for the chosen TOP card and run it through the
+            // same effect engine as a normal play, so the picked card actually
+            // does its thing (7 → swap prompt, 0 → rotate, skip/reverse/draw/
+            // skip-all all fire). Previously the picked card did nothing.
+            const state: PlayCardState = {
+                direction: game.direction as (1 | -1),
+                drawStack: game.draw_stack || 0,
+                turnState: 'WAITING_FOR_ACTION',
+                nextPlayerId: null,
+                rouletteTargetColor: null,
+                newColor: (topCard.color === 'wild' ? game.current_color : topCard.color) as CardColor,
+                handsToUpdate: [],
+                newHand: myHand,
+                newDiscard: reorderedDiscard,
+            }
+
             let winnerId: string | null = null
             let status = 'playing'
 
             if (myHand.length === 0) {
-                if (myPlayer.value.has_called_uno) {
-                    await updateWinnerScore(myId)
-                    winnerId = myId
-                    status = 'finished'
-                }
-                // DiscardAll bulk discard doesn't penalize for UNO since cards went from many→0
+                // Bulk dump emptied the hand → win (no UNO penalty for a dump).
+                await updateWinnerScore(myId)
+                winnerId = myId
+                status = 'finished'
+                state.nextPlayerId = getNextPlayerId()
+            } else {
+                applyAllCardEffects(topCard, myId, myIndex, playerCount, myPlayer.value.id, state)
+                broadcastAction(actionLabel(topCard, myPlayer.value.name || 'Someone'))
             }
 
+            // Optimistic local apply.
+            const mine = state.handsToUpdate.find(h => h.playerId === myPlayer.value!.id)
+            if (mine && myPlayer.value) myPlayer.value.hand = mine.hand
             if (currentGame.value) {
-                currentGame.value.discard_pile = reorderedDiscard as any
-                currentGame.value.turn_state = 'WAITING_FOR_ACTION'
-                currentGame.value.current_player_id = nextPlayerId
+                currentGame.value.discard_pile = state.newDiscard as any
+                currentGame.value.current_color = state.newColor
+                currentGame.value.turn_state = state.turnState
+                currentGame.value.current_player_id = state.nextPlayerId
+                currentGame.value.direction = state.direction
+                currentGame.value.draw_stack = state.drawStack
+                currentGame.value.roulette_target_color = state.rouletteTargetColor
                 if (winnerId) currentGame.value.winner_id = winnerId
                 currentGame.value.status = status as typeof currentGame.value.status
             }
 
-            await supabase
-                .from('games')
-                .update({
-                    discard_pile: reorderedDiscard,
-                    turn_state: 'WAITING_FOR_ACTION',
-                    current_player_id: nextPlayerId,
-                    winner_id: winnerId,
-                    status
-                })
-                .eq('id', currentGame.value.id)
+            await Promise.all([
+                updatePlayerHands(state),
+                updateGameState(game.id, game.deck as Card[], state, winnerId, status)
+            ])
             broadcastState()
+            maybeOpenSelfCatch()
         } catch (err: any) {
             error.value = err.message
             // Roll back the optimistic apply so the picker reopens and the turn
@@ -2188,6 +2289,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         disconnectedUserIds.value = []
         everSeenPresence = new Set()
         absentSince = {}
+        closeCatchWindow()
     }
 
     // Log game results when multiplayer game finishes
@@ -2265,6 +2367,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         presentUserIds,
         disconnectedUserIds,
         lastAction,
+        catchableUserId,
+        catchPlayer,
         mpStats,
         createGame,
         joinGame,

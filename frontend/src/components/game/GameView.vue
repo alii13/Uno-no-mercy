@@ -94,6 +94,17 @@
       @call-uno="store.callUno(myPlayerId)"
     />
     
+    <!-- Catch an opponent who forgot to call UNO -->
+    <Transition name="catch-pop">
+      <button
+        v-if="caughtTarget"
+        class="catch-btn"
+        @click="store.catchNoUno(caughtTarget.id)"
+      >
+        CAUGHT! {{ caughtTarget.name }} forgot UNO
+      </button>
+    </Transition>
+
     <!-- Animated Card Layer (for flying cards) -->
     <div class="animation-layer" ref="animationLayer"></div>
     
@@ -197,6 +208,13 @@ provide('animationLayer', animationLayer)
 
 const myPlayer = computed(() => store.players.find(p => p.id === myPlayerId))
 const opponents = computed(() => store.players.filter(p => p.id !== myPlayerId))
+
+// An opponent caught without calling UNO — the human can penalize them.
+const caughtTarget = computed(() => {
+  const id = store.catchableId
+  if (!id || id === myPlayerId) return null
+  return store.players.find(p => p.id === id) || null
+})
 
 const isMyTurn = computed(() => store.currentPlayer?.id === myPlayerId)
 

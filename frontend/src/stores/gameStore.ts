@@ -69,6 +69,12 @@ export const useGameStore = defineStore('game', () => {
     const swapInitiatorId = ref<string | null>(null)
     const hasCalledUno = ref<Record<string, boolean>>({})
     const showUnoButton = ref(false)
+    // A player who hit 1 card without calling UNO — catchable until the window
+    // closes. If it's a bot, the human gets a CAUGHT button; if it's the human,
+    // a bot may catch them (~70%). Penalty is a brutal draw 10 (No Mercy).
+    const catchableId = ref<string | null>(null)
+    let catchTimer: ReturnType<typeof setTimeout> | null = null
+    const UNO_PENALTY = 10
 
     // Re-entrancy guard. Set when a play/draw is in flight so rapid clicks don't queue
     // up actions while bot delays / draw cascades / animations are still resolving.
@@ -119,6 +125,7 @@ export const useGameStore = defineStore('game', () => {
     // --- Actions ---
 
     function initializeGame(playerNames: string[], mode?: StackingMode) {
+        closeCatchWindow()
         if (mode) setStackingMode(mode)
         players.value = playerNames.map((name, index) => ({
             id: `p-${index}`,
@@ -306,8 +313,62 @@ export const useGameStore = defineStore('game', () => {
     function callUno(playerId: string) {
         hasCalledUno.value[playerId] = true
         showUnoButton.value = false
+        // Calling UNO closes our own catch window — we're safe.
+        if (catchableId.value === playerId) closeCatchWindow()
         const s = playerStats.value[playerId]
         if (s) s.unoCalls++
+    }
+
+    function clearCatchTimer() {
+        if (catchTimer) { clearTimeout(catchTimer); catchTimer = null }
+    }
+
+    function closeCatchWindow() {
+        catchableId.value = null
+        clearCatchTimer()
+    }
+
+    // A player ended an action on exactly 1 card without calling UNO — open the
+    // catch window. Bots forget ~30% of the time (existing), so this fires for
+    // the human's exposure and for a bot that didn't auto-call.
+    function openCatchWindow(player: Player) {
+        closeCatchWindow()
+        catchableId.value = player.id
+        if (player.isBot) {
+            // Bot forgot UNO — the human can catch it. Window auto-closes if missed.
+            catchTimer = setTimeout(() => {
+                if (catchableId.value === player.id) closeCatchWindow()
+            }, 7000)
+        } else {
+            // Human is exposed — show the UNO button, and let a bot pounce ~70%.
+            showUnoButton.value = true
+            const willCatch = Math.random() < 0.7
+            catchTimer = setTimeout(() => {
+                if (catchableId.value !== player.id) return
+                if (willCatch) penalizeForgottenUno(player.id)
+                else closeCatchWindow()
+            }, 1800 + Math.random() * 1600)
+        }
+    }
+
+    function penalizeForgottenUno(playerId: string) {
+        const p = players.value.find(x => x.id === playerId)
+        if (!p) { closeCatchWindow(); return }
+        closeCatchWindow()
+        showUnoButton.value = false
+        const s = playerStats.value[p.id]
+        if (s) s.unoPenalties++
+        // Draw the penalty (mercy elimination is handled inside drawCardToHand).
+        for (let i = 0; i < UNO_PENALTY; i++) {
+            if (p.isEliminated || gameState.value === 'GAME_OVER') break
+            drawCardToHand(p)
+        }
+    }
+
+    // Human catches an opponent (bot) who forgot UNO.
+    function catchNoUno(targetId: string) {
+        if (catchableId.value !== targetId) return
+        penalizeForgottenUno(targetId)
     }
 
     function playCard(playerId: string, card: Card, selectedColor?: CardColor) {
@@ -381,16 +442,14 @@ export const useGameStore = defineStore('game', () => {
             return
         }
 
-        // UNO handling when player reaches 1 card
+        // UNO handling when player reaches 1 card. Bots auto-call ~70% of the
+        // time; whoever is still exposed (the human, or a bot that forgot)
+        // becomes catchable.
         if (player.hand.length === 1 && !hasCalledUno.value[player.id]) {
-            if (player.isBot) {
-                // 70% chance to call UNO correctly
-                if (Math.random() > 0.3) {
-                    callUno(player.id)
-                }
+            if (player.isBot && Math.random() > 0.3) {
+                callUno(player.id)
             } else {
-                // Show UNO button for human player
-                showUnoButton.value = true
+                openCatchWindow(player)
             }
         }
 
@@ -496,30 +555,33 @@ export const useGameStore = defineStore('game', () => {
         pendingDiscardAllCards.value = []
         turnState.value = 'WAITING_FOR_ACTION'
 
-        // Now check win/UNO and advance turn (same logic as end of playCard)
         const player = currentPlayer.value
+
+        // Bulk discard emptied the hand → win (no UNO call expected for a dump).
         if (player && player.hand.length === 0) {
-            const neededUno = false // DiscardAll bulk discard — no UNO expected
-            if (neededUno && !hasCalledUno.value[player.id]) {
-                drawCardToHand(player)
-                drawCardToHand(player)
-            } else {
-                winnerId.value = player.id
-                applyScoresToWinner(player.id)
-                gameState.value = 'GAME_OVER'
-                return
-            }
+            winnerId.value = player.id
+            applyScoresToWinner(player.id)
+            gameState.value = 'GAME_OVER'
+            return
         }
+
+        // Apply the chosen TOP card's effect, exactly as if it had just been
+        // played — a 7 opens the swap prompt, 0 rotates hands, skip/reverse/
+        // draw/skip-all all fire. Previously the picked card did nothing.
+        applyCardEffect(topCard)
 
         if (player && player.hand.length === 1 && !hasCalledUno.value[player.id]) {
-            if (player.isBot) {
-                if (Math.random() > 0.3) callUno(player.id)
-            } else {
-                showUnoButton.value = true
-            }
+            if (player.isBot && Math.random() > 0.3) callUno(player.id)
+            else openCatchWindow(player)
         }
 
-        advanceTurn()
+        // Mirror playCard's advance: Skip Everyone plays again; a swap/choosing
+        // state waits for input; otherwise pass the turn.
+        if (topCard.type === 'skipEveryone') {
+            actionInProgress.value = false
+        } else if (turnState.value === 'WAITING_FOR_ACTION') {
+            advanceTurn()
+        }
     }
 
     function handleNumberZero() {
@@ -742,6 +804,7 @@ export const useGameStore = defineStore('game', () => {
     }
 
     function returnToLobby() {
+        closeCatchWindow()
         gameState.value = 'LOBBY'
         players.value = []
         deck.value = []
@@ -941,6 +1004,8 @@ export const useGameStore = defineStore('game', () => {
         pendingDrawnWildCard,
         pendingDiscardAllCards,
         showUnoButton,
+        catchableId,
+        catchNoUno,
         hasCalledUno,
         actionInProgress,
         suppressDiscardSlam,
