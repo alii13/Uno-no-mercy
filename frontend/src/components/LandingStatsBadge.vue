@@ -1,23 +1,28 @@
 <template>
-  <div v-if="retention.gamesPlayed > 0" class="stats-badge">
-    <div v-if="retention.effectiveStreak > 0" class="streak-pill">
-      <Flame class="streak-icon" :stroke-width="2.25" aria-hidden="true" />
-      <span class="streak-num">{{ retention.effectiveStreak }}</span>
-      <span class="streak-label">day{{ retention.effectiveStreak > 1 ? 's' : '' }}</span>
+  <div v-if="retention.gamesPlayed > 0" class="combat-record">
+    <!-- Header: dossier label + live streak -->
+    <div class="cr-head">
+      <span class="cr-title">COMBAT RECORD</span>
+      <span v-if="retention.effectiveStreak > 0" class="cr-streak">
+        <Flame class="cr-flame" :stroke-width="2.5" aria-hidden="true" />
+        <span class="cr-streak-num">{{ retention.effectiveStreak }}</span>
+        <span class="cr-streak-unit">DAY{{ retention.effectiveStreak > 1 ? 'S' : '' }}</span>
+      </span>
     </div>
 
-    <div class="stat-row">
-      <div class="stat-cell">
-        <div class="stat-value">{{ retention.gamesWon }}</div>
-        <div class="stat-label">WINS</div>
+    <!-- Stat triad: centered columns, hairline dividers, baseline-locked numerals -->
+    <div class="cr-grid">
+      <div class="cr-cell">
+        <span class="cr-value">{{ retention.gamesWon }}</span>
+        <span class="cr-label">WINS</span>
       </div>
-      <div class="stat-cell">
-        <div class="stat-value">{{ retention.winRate }}%</div>
-        <div class="stat-label">WIN RATE</div>
+      <div class="cr-cell">
+        <span class="cr-value cr-value--accent">{{ retention.winRate }}<span class="cr-pct">%</span></span>
+        <span class="cr-label">WIN RATE</span>
       </div>
-      <div class="stat-cell">
-        <div class="stat-value">{{ retention.biggestStackEver }}</div>
-        <div class="stat-label">BIG STACK</div>
+      <div class="cr-cell">
+        <span class="cr-value">{{ retention.biggestStackEver }}</span>
+        <span class="cr-label">BIG STACK</span>
       </div>
     </div>
   </div>
@@ -31,74 +36,122 @@ const retention = useRetentionStore()
 </script>
 
 <style scoped>
-.stats-badge {
-  display: inline-flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.6rem 0.85rem;
-  border: 1px solid rgba(255, 204, 0, 0.18);
-  background: rgba(0, 0, 0, 0.45);
-  border-radius: 4px;
+.combat-record {
+  --hazard: #ffcc00;
+  position: relative;
+  display: inline-block;
+  width: 280px;
+  padding: 0.85rem 1rem 0.9rem;
+  background:
+    linear-gradient(180deg, rgba(255, 204, 0, 0.04), rgba(0, 0, 0, 0)),
+    rgba(8, 8, 9, 0.72);
+  border: 1px solid rgba(255, 204, 0, 0.22);
+  /* Tactical cut corner — a clipped notch top-right reads as "field-issued". */
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
   font-family: 'Chakra Petch', sans-serif;
-  color: #e6e6e6;
-  min-width: 220px;
 }
 
-.streak-pill {
-  display: inline-flex;
+/* Thin hazard accent along the top edge for issued-equipment feel. */
+.combat-record::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(100% - 14px);
+  height: 2px;
+  background: linear-gradient(90deg, var(--hazard), rgba(255, 204, 0, 0));
+}
+
+.cr-head {
+  display: flex;
   align-items: center;
-  gap: 0.4rem;
-  align-self: flex-start;
-  font-size: 0.78rem;
-  color: #ffcc00;
-  text-shadow: 0 0 8px rgba(255, 204, 0, 0.35);
-  letter-spacing: 0.1em;
+  justify-content: space-between;
+  padding-bottom: 0.7rem;
+  margin-bottom: 0.7rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.cr-title {
+  font-size: 0.6rem;
+  letter-spacing: 0.28em;
+  color: #6b6b73;
   text-transform: uppercase;
-  line-height: 1;
 }
 
-.streak-icon {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  /* Emoji had its own internal padding that broke baseline align;
-     SVG is bounded by its viewBox so it sits flush with the text. */
-  color: #ffcc00;
-  filter: drop-shadow(0 0 4px rgba(255, 204, 0, 0.5));
+.cr-streak {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.28rem;
+  color: var(--hazard);
 }
 
-.streak-num {
+.cr-flame {
+  width: 12px;
+  height: 12px;
+  align-self: center;
+  filter: drop-shadow(0 0 5px rgba(255, 204, 0, 0.55));
+}
+
+.cr-streak-num {
   font-family: 'Black Ops One', 'Impact', sans-serif;
-  font-size: 1.05rem;
+  font-size: 0.95rem;
+  line-height: 1;
+  text-shadow: 0 0 10px rgba(255, 204, 0, 0.4);
 }
 
-.streak-label {
-  color: #a1a1aa;
-  font-size: 0.72rem;
+.cr-streak-unit {
+  font-size: 0.56rem;
+  letter-spacing: 0.16em;
+  color: #8a7a35;
 }
 
-.stat-row {
+.cr-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
 }
 
-.stat-cell {
-  text-align: left;
+.cr-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0 0.25rem;
 }
 
-.stat-value {
+/* Hairline dividers between cells — the alignment fix: equal columns, every
+   numeral centered on the same baseline, separated by a faint rule. */
+.cr-cell + .cr-cell {
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cr-value {
   font-family: 'Black Ops One', 'Impact', sans-serif;
-  font-size: 1.2rem;
-  color: #e6e6e6;
+  font-size: 1.45rem;
   line-height: 1;
+  color: #f2f2f2;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
 }
 
-.stat-label {
-  font-size: 0.58rem;
-  letter-spacing: 0.18em;
-  color: #52525b;
-  margin-top: 0.2rem;
+.cr-value--accent {
+  color: var(--hazard);
+  text-shadow: 0 0 12px rgba(255, 204, 0, 0.3);
+}
+
+.cr-pct {
+  font-size: 0.8rem;
+  margin-left: 0.05em;
+}
+
+.cr-label {
+  font-size: 0.55rem;
+  letter-spacing: 0.16em;
+  color: #5a5a63;
   text-transform: uppercase;
+}
+
+@media (max-width: 480px) {
+  .combat-record { width: 248px; }
+  .cr-value { font-size: 1.3rem; }
 }
 </style>

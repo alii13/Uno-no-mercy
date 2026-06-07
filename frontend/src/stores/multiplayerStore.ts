@@ -186,6 +186,16 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         () => { lastStateChangeAt = Date.now() }
     )
 
+    // Signing out must abandon any active game and clear the store — otherwise
+    // the next guest sees the PREVIOUS session's stale room/host chip (the top
+    // bar reads the new auth name while the lobby still renders the old game).
+    watch(
+        () => authStore.user?.id,
+        (newId, oldId) => {
+            if (oldId && !newId && currentGame.value) leaveGame()
+        }
+    )
+
     // Reconnect recovery for the Discard-All picker. The matching-cards list is
     // local-only, so reloading mid-pick lands us on turn_state
     // CHOOSING_DISCARD_ALL_TOP with no picker to render. Rather than persist the

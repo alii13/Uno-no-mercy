@@ -65,18 +65,8 @@
 
       <div class="hero-cta" ref="heroCtaRef">
         <p v-if="inviteCode" class="invite-banner">
-          You've been invited to room <strong>{{ inviteCode }}</strong> — enter a nickname and jump in.
+          You've been invited to room <strong>{{ inviteCode }}</strong> — jump in.
         </p>
-        <input
-          v-model="guestName"
-          v-focus-ring
-          class="guest-name-input"
-          type="text"
-          maxlength="20"
-          placeholder="NICKNAME (OPTIONAL)"
-          aria-label="Choose a nickname"
-          @keyup.enter="reportAndEmit('playGuest')"
-        />
         <Button variant="primary" size="lg" :disabled="loading" @click="reportAndEmit('playGuest')">
           {{ loading ? 'ENTERING…' : (inviteCode ? 'JOIN THE GAME' : 'PLAY NOW') }}
         </Button>
@@ -122,12 +112,10 @@ import RulesModal from './RulesModal.vue'
 import LandingStatsBadge from './LandingStatsBadge.vue'
 import Card from './game/Card.vue'
 import Button from './ui/Button.vue'
-import { vFocusRing } from '../directives/focusRing'
 import { useScreenSize } from '../composables/useScreenSize'
 
 const props = defineProps<{ loading?: boolean }>()
 
-const guestName = ref('')
 const showFeedback = ref(false)
 const showRules = ref(false)
 
@@ -182,7 +170,7 @@ function reportAndEmit(event: 'playGuest' | 'showAuth', mode?: 'login' | 'signup
     try { fn() } catch { /* noop */ }
   }
   if (event === 'showAuth' && mode) emit('showAuth', mode)
-  else if (event === 'playGuest') emit('playGuest', guestName.value.trim() || undefined)
+  else if (event === 'playGuest') emit('playGuest')
 }
 
 let observer: IntersectionObserver | null = null
@@ -663,31 +651,6 @@ function runHeroChoreography() {
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-3);
-}
-
-.guest-name-input {
-  width: min(280px, 80vw);
-  padding: 0.6rem 1rem;
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
-  color: var(--text-primary);
-  font-family: 'Chakra Petch', sans-serif;
-  font-size: 0.85rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  text-align: center;
-  transition: border-color 0.2s;
-}
-
-.guest-name-input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
-  letter-spacing: 0.14em;
-}
-
-.guest-name-input:focus {
-  outline: none;
-  border-color: var(--color-alert);
 }
 
 .rules-peek {
