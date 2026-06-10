@@ -242,6 +242,7 @@ onMounted(async () => {
 // the modal closes but the hands stay empty and turnState stays 'DEALING'.
 watch(() => store.isDealing, async (dealing) => {
   if (dealing) {
+    turnBannerShown = false
     await playDealerIntro()
     await store.dealInitialCards(animateSingleCardDeal)
   }
@@ -358,14 +359,20 @@ watch(() => store.lastPlay, (play) => {
   }
 }, { flush: 'sync' })
 
-// Turn handoff — banner when the turn lands on the human (including right
-// after the deal), seat pulse when it lands on a bot.
+// Turn handoff — banner the FIRST time the turn lands on the human each game
+// (orientation moment), seat pulse when it lands on a bot. Repeating the
+// banner every handoff reads as nagging in a fast bot game; after the first
+// one the green turn pill + hand glow carry the information.
+let turnBannerShown = false
 watch(
   () => [store.currentPlayer?.id, store.isDealing] as const,
   ([id, dealing], [prevId, prevDealing]) => {
     if (store.gameState !== 'PLAYING' || dealing) return
     if (id === myPlayerId && (prevId !== myPlayerId || prevDealing)) {
-      showTurnBanner()
+      if (!turnBannerShown) {
+        turnBannerShown = true
+        showTurnBanner()
+      }
     } else if (id && id !== myPlayerId && id !== prevId) {
       pulseSeat(opponentRefs.value[id])
     }

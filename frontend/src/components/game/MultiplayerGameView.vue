@@ -495,10 +495,16 @@ function triggerOwnSkipEveryone(card: Card) {
   setTimeout(() => skipEveryoneShockwave(discardEl, victims), 480)
 }
 
-// Turn handoff — banner when the turn lands on us, seat pulse when it lands
-// on an opponent.
+// Turn handoff — banner the FIRST time the turn lands on us each game
+// (orientation moment), seat pulse when it lands on an opponent. The
+// persistent turn pill + hand glow cover every handoff after that.
+let turnBannerShown = false
+watch(gameStatus, (now, prev) => {
+  if (prev === 'waiting' && now === 'playing') turnBannerShown = false
+})
 watch(isMyTurn, (mine, was) => {
-  if (mine && !was && gameStatus.value === 'playing' && !isInitialDeal.value) {
+  if (mine && !was && gameStatus.value === 'playing' && !isInitialDeal.value && !turnBannerShown) {
+    turnBannerShown = true
     showTurnBanner()
   }
 })
