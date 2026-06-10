@@ -193,7 +193,7 @@ const store = useGameStore()
 // Wire stack-chain escalation — vignette + shake when drawStack grows
 useStackEscalation(toRef(store, 'drawStack'))
 const authStore = useAuthStore()
-const { animateFlyingCard, animateDrawCardsStaggered } = useCardAnimations()
+const { animateFlyingCard, animateDrawCardsStaggered, killAllFlyingCards } = useCardAnimations()
 
 // For MVP single player, we assume we are player 0
 const myPlayerId = 'p-0'
@@ -241,14 +241,20 @@ onMounted(async () => {
 // the modal closes but the hands stay empty and turnState stays 'DEALING'.
 watch(() => store.isDealing, async (dealing) => {
   if (dealing) {
+    // New game in the same mounted view — drop the previous game's hand-length
+    // baselines, or the draw-animation watcher compares against stale counts.
+    prevHandLengths.value = {}
     await playDealerIntro()
     await store.dealInitialCards(animateSingleCardDeal)
   }
 })
 
 // Stop music on unmount (game exit or route change away from GameView).
+// Flying-card clones live on document.body — kill any still in flight so
+// they don't keep sailing over the lobby.
 onUnmounted(() => {
   music.stop()
+  killAllFlyingCards()
 })
 
 // Duck the music when the game ends so the modal entrance + win/loss

@@ -279,7 +279,7 @@ import { useRetentionStore } from '../../stores/retentionStore'
 
 const mpStore = useMultiplayerStore()
 const authStore = useAuthStore()
-const { animateFlyingCard, animateDrawCardsStaggered } = useCardAnimations()
+const { animateFlyingCard, animateDrawCardsStaggered, killAllFlyingCards } = useCardAnimations()
 
 const isShakeActive = ref(false)
 const showColorPicker = ref(false)
@@ -599,19 +599,28 @@ function triggerOpponentDrawAnimation(targetEl: HTMLElement, count: number) {
   })
 }
 
-// Stop music on unmount (game exit, opponent leaves, etc.)
+// Stop music on unmount (game exit, opponent leaves, etc.) and kill any
+// flying-card clones still in flight on document.body.
 onUnmounted(() => {
   music.stop()
+  killAllFlyingCards()
 })
 
 // Music starts when game enters 'playing'; ducks on 'finished'.
 const retention = useRetentionStore()
+// gameStatus is derived from realtime broadcasts, which can thrash
+// (finished → playing → finished on reordered packets) — record each game
+// id once or the lifetime stats double-count.
+const recordedGameIds = new Set<string>()
 watch(gameStatus, (now, prev) => {
   if (now === 'playing' && prev !== 'playing') {
     music.start()
   } else if (now === 'finished' && prev !== 'finished') {
     music.duck()
     // Persist lifetime stats once per game-end.
+    const gameId = mpStore.currentGame?.id
+    if (gameId && recordedGameIds.has(gameId)) return
+    if (gameId) recordedGameIds.add(gameId)
     const s: any = (mpStore as any).mpStats?.value || (mpStore as any).mpStats
     if (s) {
       retention.recordGameResult({

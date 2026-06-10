@@ -16,7 +16,7 @@
  * via classList on document.body. Both respect prefers-reduced-motion.
  */
 
-import { ref, watch } from 'vue'
+import { onUnmounted, ref, watch } from 'vue'
 
 const VIGNETTE_ID = 'uno-stack-vignette'
 
@@ -132,6 +132,19 @@ export function useStackEscalation(drawStack: { value: number }) {
         },
         { immediate: true }
     )
+
+    // The vignette div and shake classes live on document.body, outside the
+    // component tree. Exiting the game with a high stack would otherwise leave
+    // the red overlay tinting the lobby until some future game dimmed it.
+    onUnmounted(() => {
+        const el = document.getElementById(VIGNETTE_ID)
+        if (el) el.style.opacity = '0'
+        if (shakeTimer) {
+            window.clearTimeout(shakeTimer)
+            shakeTimer = null
+        }
+        document.body.classList.remove('uno-shake-light', 'uno-shake-heavy')
+    })
 
     return { lastStack }
 }

@@ -100,7 +100,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import LandingPage from './components/LandingPage.vue'
 import AuthView from './components/AuthView.vue'
 import MultiplayerLobby from './components/MultiplayerLobby.vue'
@@ -129,12 +129,15 @@ const resetError = ref('')
 const resetSuccess = ref('')
 const resetLoading = ref(false)
 
+let authSubscription: { unsubscribe: () => void } | null = null
+
 onMounted(async () => {
-  supabase.auth.onAuthStateChange((event) => {
+  const { data } = supabase.auth.onAuthStateChange((event) => {
     if (event === 'PASSWORD_RECOVERY') {
       showPasswordReset.value = true
     }
   })
+  authSubscription = data.subscription
 
   await authStore.initialize()
 
@@ -143,6 +146,12 @@ onMounted(async () => {
   if (authStore.isAuthenticated) {
     await mpStore.restoreActiveGame()
   }
+})
+
+// App remounts (HMR) would otherwise stack PASSWORD_RECOVERY listeners.
+onUnmounted(() => {
+  authSubscription?.unsubscribe()
+  authSubscription = null
 })
 
 async function handlePasswordUpdate() {

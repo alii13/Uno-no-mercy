@@ -35,6 +35,9 @@ export interface GameRow {
     roulette_target_color: string | null
     stacking_mode: 'official' | 'house' | 'casual'
     is_public?: boolean
+    // Optimistic-concurrency counter — see commitGameUpdate in multiplayerStore.
+    // Optional so rows read before the migration ran don't break; treated as 0.
+    version?: number
     created_at: string
     updated_at: string
 }

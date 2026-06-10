@@ -124,7 +124,13 @@ export const useGameStore = defineStore('game', () => {
 
     // --- Actions ---
 
+    // Bumped whenever the current deal becomes obsolete (new game, return to
+    // lobby). The async deal loop checks it after every await so a deal that
+    // outlives its game can't keep mutating the next game's state.
+    let dealGeneration = 0
+
     function initializeGame(playerNames: string[], mode?: StackingMode) {
+        dealGeneration++
         closeCatchWindow()
         if (mode) setStackingMode(mode)
         players.value = playerNames.map((name, index) => ({
@@ -152,6 +158,14 @@ export const useGameStore = defineStore('game', () => {
         isDealing.value = true
         hasCalledUno.value = {}
         showUnoButton.value = false
+        // GameView persists across rematches, so any in-flight flags from the
+        // previous game must be cleared here or they leak into the new one.
+        actionInProgress.value = false
+        suppressDiscardSlam.value = false
+        pendingDealCard.value = null
+        pendingDrawnWildCard.value = null
+        pendingDiscardAllCards.value = []
+        swapInitiatorId.value = null
         gameStartTime.value = Date.now()
 
         // Initialize per-player stats
@@ -169,6 +183,7 @@ export const useGameStore = defineStore('game', () => {
     // Async function to deal initial cards one-by-one with animation support
     async function dealInitialCards(onCardDealt: (playerId: string, card: Card) => Promise<void>) {
         const CARDS_PER_PLAYER = 7
+        const myGen = dealGeneration
 
         for (let round = 0; round < CARDS_PER_PLAYER; round++) {
             for (const player of players.value) {
@@ -181,11 +196,22 @@ export const useGameStore = defineStore('game', () => {
                 // Wait for animation callback
                 await onCardDealt(player.id, card)
 
+                // Deal became obsolete while awaiting (player left mid-deal,
+                // rematch re-initialized) — stop before touching fresh state.
+                // Clear the pending card so the stale entry can't render into
+                // whatever view replaces this game.
+                if (myGen !== dealGeneration) {
+                    pendingDealCard.value = null
+                    return
+                }
+
                 // Add card to hand after animation
                 player.hand.push(card)
                 pendingDealCard.value = null
             }
         }
+
+        if (myGen !== dealGeneration) return
 
         // Deal first discard card
         let firstCard = drawCardFromDeck()
@@ -433,7 +459,8 @@ export const useGameStore = defineStore('game', () => {
                 if (s) s.unoPenalties++
                 drawCardToHand(player)
                 drawCardToHand(player)
-                advanceTurn()
+                // The penalty draws can mercy-eliminate the player and end the game.
+                if (gameState.value !== 'GAME_OVER') advanceTurn()
                 return
             }
             winnerId.value = player.id
@@ -732,6 +759,15 @@ export const useGameStore = defineStore('game', () => {
         // Draw card
         const card = drawCardToHand(p)
 
+        // Deck + discard ran dry mid-roulette — nothing left to draw, so the
+        // roulette can never resolve. Without this bail the setTimeout loop below
+        // spins forever in ROULETTE_DRAWING. Victim keeps their hand, turn passes.
+        if (!card) {
+            turnState.value = 'WAITING_FOR_ACTION'
+            advanceTurn()
+            return
+        }
+
         // Rule: "Wild cards revealed do not count as matching the color – they have to pull an actual colored card of that color"
         if (card && rouletteTargetColor.value && card.color === rouletteTargetColor.value) {
             // Found matching color
@@ -753,14 +789,15 @@ export const useGameStore = defineStore('game', () => {
             // Add a stall so the user can see the final card before turn jumps
             setTimeout(() => {
                 turnState.value = 'WAITING_FOR_ACTION'
-                advanceTurn()
+                if (gameState.value !== 'GAME_OVER') advanceTurn()
             }, TIMINGS.rouletteSafeStall)
 
         } else if (p.isEliminated) {
-            // Mercy rule trigger
+            // Mercy rule trigger. The elimination may have just ended the game —
+            // don't advance the turn pointer on a finished game.
             setTimeout(() => {
                 turnState.value = 'WAITING_FOR_ACTION'
-                advanceTurn()
+                if (gameState.value !== 'GAME_OVER') advanceTurn()
             }, TIMINGS.rouletteEliminatedStall)
         } else {
             // Keep drawing
@@ -804,6 +841,7 @@ export const useGameStore = defineStore('game', () => {
     }
 
     function returnToLobby() {
+        dealGeneration++
         closeCatchWindow()
         gameState.value = 'LOBBY'
         players.value = []
