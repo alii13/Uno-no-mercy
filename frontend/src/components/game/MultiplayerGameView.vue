@@ -276,6 +276,7 @@ import { canPlayCard } from '../../utils/gameRules'
 import { useStackEscalation } from '../../composables/useStackEscalation'
 import { playDealerIntro } from '../../composables/useDealerIntro'
 import { useRetentionStore } from '../../stores/retentionStore'
+import { animateOpponentThrow, burstImpactParticles, skipEveryoneShockwave, showTurnBanner, pulseSeat } from '../../composables/useGameFeel'
 
 const mpStore = useMultiplayerStore()
 const authStore = useAuthStore()
@@ -444,6 +445,66 @@ const statusMessageStyle = computed(() => {
     return { color: '#ff3333', textShadow: '0 0 10px rgba(255, 51, 51, 0.6)' }
   }
   return {}
+})
+
+function opponentChipEl(userId: string): HTMLElement | null {
+  return document.querySelector(`.opponent-card[data-uid="${userId}"]`)
+}
+
+// Seat-to-pile throw when a remote opponent plays. The action broadcast
+// arrives before the state broadcast (same channel, sent in order), so the
+// clone is already flying when the pile updates beneath it — and the slam
+// suppression is set before CardPile's length watcher can fire.
+watch(() => mpStore.lastRemotePlay, (play) => {
+  if (!play || gameStatus.value !== 'playing') return
+  const discardEl = discardAreaRef.value
+  const fromEl = opponentChipEl(play.userId)
+  const isPowerCard = play.card.color === 'wild' || play.card.type.includes('draw') || play.card.type === 'skipEveryone'
+
+  if (fromEl && discardEl && animationLayer.value) {
+    mpStore.suppressDiscardSlam = true
+    animateOpponentThrow({
+      fromEl,
+      toEl: discardEl,
+      card: play.card,
+      layer: animationLayer.value,
+      onImpact: () => {
+        soundEffects.playCardLand()
+        if (isPowerCard) burstImpactParticles(discardEl, play.card.color)
+      }
+    })
+  }
+
+  if (play.card.type === 'skipEveryone' && discardEl) {
+    const victims = allOpponents.value
+      .filter(o => !o.is_eliminated && o.user_id !== play.userId)
+      .map(o => opponentChipEl(o.user_id))
+      .filter((el): el is HTMLElement => !!el)
+    setTimeout(() => skipEveryoneShockwave(discardEl, victims), 480)
+  }
+})
+
+// Skip Everyone payoff for our own play — fires as our flying clone lands.
+function triggerOwnSkipEveryone(card: Card) {
+  if (card.type !== 'skipEveryone' || !discardAreaRef.value) return
+  const discardEl = discardAreaRef.value
+  const victims = allOpponents.value
+    .filter(o => !o.is_eliminated)
+    .map(o => opponentChipEl(o.user_id))
+    .filter((el): el is HTMLElement => !!el)
+  setTimeout(() => skipEveryoneShockwave(discardEl, victims), 480)
+}
+
+// Turn handoff — banner when the turn lands on us, seat pulse when it lands
+// on an opponent.
+watch(isMyTurn, (mine, was) => {
+  if (mine && !was && gameStatus.value === 'playing' && !isInitialDeal.value) {
+    showTurnBanner()
+  }
+})
+watch(() => currentGame.value?.current_player_id, (id, prev) => {
+  if (!id || id === prev || gameStatus.value !== 'playing') return
+  if (id !== authStore.user?.id) pulseSeat(opponentChipEl(id))
 })
 
 // Watch for draw stack increases - shake screen on any increase
@@ -669,6 +730,7 @@ async function handlePlayCard(card: Card) {
   
   soundEffects.playCardThrow()
   mpStore.suppressDiscardSlam = true
+  triggerOwnSkipEveryone(card)
   await mpStore.playCard(card)
   soundEffects.playCardLand()
 }
