@@ -41,6 +41,7 @@ import { canPlayCard, type StackingMode } from '../../utils/gameRules'
 import { getCardStyle as getCardStyleUtil } from '../../utils/gameHelpers'
 import type { Card as CardType, CardColor } from '../../types/card'
 import { useScreenSize } from '../../composables/useScreenSize'
+import { burstImpactParticles } from '../../composables/useGameFeel'
 
 const props = defineProps<{
   hand: CardType[]
@@ -208,11 +209,19 @@ function animateAndPlay(card: CardType) {
     duration: 0.32,
     ease: 'power2.out'
   })
+  // Impact — shard burst for power cards, then a ~45ms hit-stop beat before
+  // the follow-through settle.
+  const isPowerCard = card.color === 'wild' || card.type.includes('draw') || card.type === 'skipEveryone'
+  if (isPowerCard) {
+    tl.call(() => {
+      if (discardAreaRef?.value) burstImpactParticles(discardAreaRef.value, card.color)
+    })
+  }
   tl.to(clone, {
     scale: 0.82,
     duration: 0.14,
     ease: 'back.out(2.2)'
-  })
+  }, '+=0.045')
 }
 </script>
 

@@ -114,12 +114,19 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         actionCounter++
         lastAction.value = { text, n: actionCounter }
     }
-    function broadcastAction(text: string) {
+    // Structured provenance of a remote opponent's play — drives the
+    // seat-to-pile throw animation in MultiplayerGameView. Set only from the
+    // action broadcast of OTHER players (self-echo is filtered), so it never
+    // fires for our own throws.
+    const lastRemotePlay = ref<{ userId: string; card: Card; n: number } | null>(null)
+    let remotePlayCounter = 0
+
+    function broadcastAction(text: string, card?: Card) {
         announce(text)
         const senderId = authStore.user?.id
         if (!gameChannel || !senderId) return
         Promise.resolve(
-            gameChannel.send({ type: 'broadcast', event: 'action', payload: { senderId, text } })
+            gameChannel.send({ type: 'broadcast', event: 'action', payload: { senderId, text, card } })
         ).catch(() => {})
     }
     function actionLabel(card: Card, who: string): string {
@@ -867,9 +874,25 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 }
             })
             .on('broadcast', { event: 'action' }, ({ payload }) => {
-                const p = payload as { senderId?: string; text?: string }
+                const p = payload as { senderId?: string; text?: string; card?: Card }
                 if (!p?.text || p.senderId === authStore.user?.id) return
                 announce(p.text)
+                // Card payload is optional + untrusted — validate the fields
+                // the throw animation actually renders before exposing it.
+                const c = p.card
+                if (p.senderId && c && typeof c === 'object' &&
+                    typeof c.id === 'string' && typeof c.type === 'string' && typeof c.color === 'string') {
+                    remotePlayCounter++
+                    lastRemotePlay.value = { userId: p.senderId, card: c, n: remotePlayCounter }
+                }
+            })
+            .on('broadcast', { event: 'catch_open' }, ({ payload }) => {
+                const uid = (payload as { userId?: string })?.userId
+                if (uid) openCatchWindowFor(uid)
+            })
+            .on('broadcast', { event: 'catch_close' }, ({ payload }) => {
+                const uid = (payload as { userId?: string })?.userId
+                if (uid && catchableUserId.value === uid) closeCatchWindow()
             })
             .on('broadcast', { event: 'catch_open' }, ({ payload }) => {
                 const uid = (payload as { userId?: string })?.userId
@@ -1574,7 +1597,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         applyAllCardEffects(card, myId, myIndex, playerCount, myPlayer.value.id, state)
 
         // Announced only after the write commits — telling peers about a move
-        // that then fails to land desyncs what they heard from the board.
+        // that then fails to land desyncs what they heard from the board. The
+        // card rides along so peers can run the remote-throw animation.
         const label = actionLabel(card, myPlayer.value.name || 'Someone')
 
         // Check win condition
@@ -1635,7 +1659,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             if (getDrawValue(card) > 0) st.drawCardsPlayed++
             if (card.type === 'skip' || card.type === 'skipEveryone') st.skipsDealt++
             broadcastState()
-            broadcastAction(label)
+            broadcastAction(label, card)
             // Exposed on 1 card without calling UNO — open the catch window.
             maybeOpenSelfCatch()
         } catch (err: any) {
@@ -2267,7 +2291,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 state.nextPlayerId = getNextPlayerId()
             } else {
                 applyAllCardEffects(topCard, myId, myIndex, playerCount, myPlayer.value.id, state)
-                broadcastAction(actionLabel(topCard, myPlayer.value.name || 'Someone'))
+                broadcastAction(actionLabel(topCard, myPlayer.value.name || 'Someone'), topCard)
             }
 
             // Optimistic local apply.
@@ -2518,6 +2542,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         presentUserIds,
         disconnectedUserIds,
         lastAction,
+        lastRemotePlay,
         catchableUserId,
         catchPlayer,
         mpStats,

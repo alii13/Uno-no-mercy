@@ -87,6 +87,12 @@ export const useGameStore = defineStore('game', () => {
     // for bot throws).
     const suppressDiscardSlam = ref(false)
 
+    // Provenance of the most recent play — who threw which card. Drives the
+    // seat-to-pile throw animation and special-card payoffs in GameView. The
+    // counter retriggers watchers even when consecutive plays look identical.
+    const lastPlay = ref<{ playerId: string; card: Card; n: number } | null>(null)
+    let playCounter = 0
+
     // Stacking mode - persists in localStorage so the user keeps their pick across sessions
     function loadStackingMode(): StackingMode {
         try {
@@ -410,6 +416,8 @@ export const useGameStore = defineStore('game', () => {
         player.hand.splice(cardIndex, 1)
 
         discardPile.value.push(card)
+        playCounter++
+        lastPlay.value = { playerId, card, n: playCounter }
 
         // Track card play stats
         const s = playerStats.value[playerId]
@@ -1047,6 +1055,7 @@ export const useGameStore = defineStore('game', () => {
         hasCalledUno,
         actionInProgress,
         suppressDiscardSlam,
+        lastPlay,
         stackingMode,
         playerStats,
         setStackingMode,
