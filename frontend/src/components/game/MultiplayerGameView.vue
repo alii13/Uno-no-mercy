@@ -463,12 +463,18 @@ watch(() => mpStore.lastRemotePlay, (play) => {
 
   if (fromEl && discardEl && animationLayer.value) {
     mpStore.suppressDiscardSlam = true
+    // Pile keeps showing the previous top card until the clone lands.
+    mpStore.pendingThrowCardId = play.card.id
+    setTimeout(() => {
+      if (mpStore.pendingThrowCardId === play.card.id) mpStore.pendingThrowCardId = null
+    }, 1500)
     animateOpponentThrow({
       fromEl,
       toEl: discardEl,
       card: play.card,
       layer: animationLayer.value,
       onImpact: () => {
+        if (mpStore.pendingThrowCardId === play.card.id) mpStore.pendingThrowCardId = null
         soundEffects.playCardLand()
         if (isPowerCard) burstImpactParticles(discardEl, play.card.color)
       }

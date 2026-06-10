@@ -1,20 +1,24 @@
 <template>
   <div class="player-hand" :class="{ 'not-my-turn': !isMyTurn }">
-    <div class="cards-container" ref="handContainer">
-      <div 
-        v-for="(card, index) in hand" 
+    <div class="hand-fade hand-fade-l" v-if="canScrollL" aria-hidden="true"></div>
+    <div class="hand-fade hand-fade-r" v-if="canScrollR" aria-hidden="true"></div>
+    <div class="cards-container" ref="handContainer" @scroll.passive="onHandScroll">
+      <div
+        v-for="(card, index) in hand"
         :key="card.id"
         class="hand-card-wrapper"
         :class="{
           'unplayable': isMyTurn && !canPlay(card),
           'playable-glow': isMyTurn && canPlay(card),
-          'fresh-card': hiddenCardIds.has(card.id)
+          'fresh-card': hiddenCardIds.has(card.id),
+          'peeked': peekedCardId === card.id
         }"
         :ref="(el: any) => setCardRef(card.id, el)"
         :style="{ ...getCardStyle(index), marginRight: index < hand.length - 1 ? cardOverlap + 'px' : '0' }"
         role="button"
         :tabindex="isMyTurn && canPlay(card) ? 0 : -1"
         :aria-disabled="!(isMyTurn && canPlay(card))"
+        :aria-pressed="peekedCardId === card.id"
         :aria-label="cardLabel(card) + (isMyTurn && canPlay(card) ? ', playable' : '')"
         @mouseenter="hoverIndex = index"
         @mouseleave="hoverIndex = -1"
@@ -41,7 +45,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, inject, watch, nextTick, type Ref, type ComponentPublicInstance } from 'vue'
+import { ref, computed, inject, watch, nextTick, onMounted, onUnmounted, type Ref, type ComponentPublicInstance } from 'vue'
 import gsap from 'gsap'
 import { Flip } from 'gsap/Flip'
 import type { Card as CardType, CardColor } from '../../types/card'
@@ -121,7 +125,10 @@ const cardOverlap = computed(() => {
     return isMobile.value ? -15 : isTablet.value ? -25 : -35
   }
   const needed = -(totalWidth - available) / (count - 1)
-  const maxOverlap = -(cardSize.value.width * 0.85)
+  // Cap overlap so each card stays readable/tappable (~45% visible) instead of
+  // collapsing into unidentifiable slivers. When the fan is wider than the
+  // viewport the container scrolls horizontally (see .cards-container CSS).
+  const maxOverlap = -(cardSize.value.width * 0.55)
   return Math.max(maxOverlap, needed)
 })
 const cardRefs = ref<Map<string, HTMLElement>>(new Map())
@@ -175,7 +182,47 @@ function canPlay(card: CardType) {
   return canPlayCard(card, store.topCard, store.currentColor, store.drawStack, store.stackingMode)
 }
 
+// --- Touch peek: on coarse-pointer devices the first tap lifts + magnifies a
+// card (readable even when the fan is dense or it's not your turn); a second
+// tap on the lifted card plays it. Native swipe still scrolls the fan. ---
+const isTouch = typeof window !== 'undefined' &&
+  window.matchMedia('(hover: none), (pointer: coarse)').matches
+const peekedCardId = ref<string | null>(null)
+
+// A peek is a transient reading aid — drop it whenever the situation changes
+// under it (turn handoff, cards entering/leaving the hand).
+watch([() => props.isMyTurn, () => props.hand.length], () => {
+  peekedCardId.value = null
+})
+
+// --- Scroll-edge hints: fade gradients telling the player more cards sit
+// off-screen when the fan overflows on mobile. ---
+const canScrollL = ref(false)
+const canScrollR = ref(false)
+function onHandScroll() {
+  const el = handContainer.value
+  if (!el) {
+    canScrollL.value = canScrollR.value = false
+    return
+  }
+  canScrollL.value = el.scrollLeft > 8
+  canScrollR.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 8
+}
+watch(() => props.hand.length, () => nextTick(onHandScroll))
+onMounted(() => {
+  onHandScroll()
+  window.addEventListener('resize', onHandScroll)
+})
+onUnmounted(() => window.removeEventListener('resize', onHandScroll))
+
 function handleCardClick(card: CardType, _event?: MouseEvent) {
+  if (isTouch) {
+    if (peekedCardId.value !== card.id) {
+      peekedCardId.value = card.id
+      return
+    }
+    peekedCardId.value = null
+  }
   if (!canPlay(card)) return
   if (store.actionInProgress) return
 
@@ -243,8 +290,15 @@ function executePlayCard(card: CardType, selectedColor?: CardColor) {
 
   // Fire game-state update FIRST so the game advances at click-speed.
   // The throw is cosmetic theatre that plays in parallel.
-  // Signal CardPile to skip its own "slam from above" — the flying clone IS the visual.
+  // Signal CardPile to skip its own "slam from above" — the flying clone IS
+  // the visual — and to keep showing the previous top card until the clone
+  // lands (cleared at impact below, with a timeout backstop in case the
+  // timeline never completes, e.g. a backgrounded tab).
   store.suppressDiscardSlam = true
+  store.pendingThrowCardId = card.id
+  setTimeout(() => {
+    if (store.pendingThrowCardId === card.id) store.pendingThrowCardId = null
+  }, 1500)
   store.playerActionPlayCard(card, selectedColor)
   if (card.color === 'wild' || card.type.includes('draw')) {
     soundEffects.playSpecialCard()
@@ -304,6 +358,7 @@ function executePlayCard(card: CardType, selectedColor?: CardColor) {
   // hits the pile, then a ~45ms hit-stop beat before the follow-through.
   const isPowerCard = card.color === 'wild' || card.type.includes('draw') || card.type === 'skipEveryone'
   tl.call(() => {
+    if (store.pendingThrowCardId === card.id) store.pendingThrowCardId = null
     soundEffects.playCardLand()
     if (isPowerCard) {
       triggerPileFlash(card.color === 'wild' ? 'wild' : (card.color as CardColor))
@@ -375,6 +430,58 @@ function triggerPileFlash(color: CardColor | 'wild') {
   align-items: flex-end;
   perspective: 1000px;
   flex-shrink: 0;
+}
+
+/* Touch: when a big hand's fan is wider than the screen, scroll it horizontally
+   instead of crushing every card into a sliver. `safe center` keeps small hands
+   centered but lets large ones scroll from the first card. Top padding gives
+   the peeked-card lift paint headroom inside the scroll clip box. */
+@media (max-width: 768px) {
+  .cards-container {
+    justify-content: safe center;
+    max-width: 100vw;
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 72px var(--spacing-3) 12px;
+  }
+  .cards-container::-webkit-scrollbar { display: none; }
+}
+
+/* Scroll-edge fades — only meaningful where the fan can actually scroll. */
+.hand-fade {
+  display: none;
+  position: absolute;
+  bottom: 0;
+  width: 38px;
+  height: 75%;
+  pointer-events: none;
+  z-index: 200;
+}
+
+@media (max-width: 768px) {
+  .hand-fade { display: block; }
+  .hand-fade-l {
+    left: 0;
+    background: linear-gradient(to right, rgba(5, 6, 8, 0.85), transparent);
+  }
+  .hand-fade-r {
+    right: 0;
+    background: linear-gradient(to left, rgba(5, 6, 8, 0.85), transparent);
+  }
+}
+
+/* Touch peek — lifted, magnified, fully readable regardless of playability. */
+.hand-card-wrapper.peeked {
+  transform: translateY(-54px) scale(1.35) !important;
+  z-index: 10000 !important;
+  opacity: 1;
+  filter: none;
+}
+
+.hand-card-wrapper.peeked .hand-card {
+  box-shadow: 0 18px 32px rgba(0, 0, 0, 0.6);
 }
 
 .hand-card-wrapper {
