@@ -24,8 +24,17 @@ create index if not exists games_quick_match_idx
 -- (game_id, seat_order) pairs — clean those up first if so:
 --   select game_id, seat_order, count(*) from public.game_players
 --   group by 1, 2 having count(*) > 1;
+-- Skip if an equivalent constraint already exists under either name (the
+-- default Postgres name appears when the constraint was added unnamed) —
+-- otherwise this would stack a second, redundant unique index.
 do $$ begin
-  alter table public.game_players
-    add constraint game_players_game_seat_unique unique (game_id, seat_order);
-exception when duplicate_object then null;
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.game_players'::regclass
+      and contype = 'u'
+      and conname in ('game_players_game_seat_unique', 'game_players_game_id_seat_order_key')
+  ) then
+    alter table public.game_players
+      add constraint game_players_game_seat_unique unique (game_id, seat_order);
+  end if;
 end $$;
