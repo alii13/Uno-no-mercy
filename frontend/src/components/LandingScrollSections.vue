@@ -589,6 +589,18 @@ function init() {
   transition: none;
 }
 
+/* Everything the timeline reveals starts hidden in CSS, not JS — initState
+   runs two rAFs after mount, and without this every chapter's copy paints
+   stacked in the shared slot for a frame on page load. GSAP's autoAlpha
+   writes inline visibility, which takes over from here. */
+.chap,
+.deck > *,
+.hud,
+.agent-beam,
+.finale {
+  visibility: hidden;
+}
+
 /* ---------- Chapter copy ---------- */
 .chap {
   position: absolute;
@@ -1083,6 +1095,7 @@ function init() {
   transform: none;
   margin: 0 auto 5rem;
   opacity: 1;
+  visibility: visible;
 }
 
 .is-static .stage-vignette,
@@ -1097,5 +1110,6 @@ function init() {
   transform: none;
   margin: 0 auto;
   opacity: 1;
+  visibility: visible;
 }
 </style>
