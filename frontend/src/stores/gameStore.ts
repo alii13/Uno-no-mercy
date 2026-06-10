@@ -94,6 +94,11 @@ export const useGameStore = defineStore('game', () => {
     const lastPlay = ref<{ playerId: string; card: Card; n: number } | null>(null)
     let playCounter = 0
 
+    // While a throw clone is in flight, the discard pile keeps showing the
+    // PREVIOUS top card; the new card reveals at the clone's impact. Set to
+    // the thrown card's id when the animation starts, cleared on impact.
+    const pendingThrowCardId = ref<string | null>(null)
+
     // Stacking mode - persists in localStorage so the user keeps their pick across sessions
     function loadStackingMode(): StackingMode {
         try {
@@ -1018,6 +1023,7 @@ export const useGameStore = defineStore('game', () => {
         actionInProgress,
         suppressDiscardSlam,
         lastPlay,
+        pendingThrowCardId,
         stackingMode,
         playerStats,
         setStackingMode,

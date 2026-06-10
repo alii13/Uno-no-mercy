@@ -121,6 +121,11 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     const lastRemotePlay = ref<{ userId: string; card: Card; n: number } | null>(null)
     let remotePlayCounter = 0
 
+    // While a throw clone is in flight, the discard pile keeps showing the
+    // PREVIOUS top card; the new card reveals at the clone's impact. Set to
+    // the thrown card's id when the animation starts, cleared on impact.
+    const pendingThrowCardId = ref<string | null>(null)
+
     function broadcastAction(text: string, card?: Card) {
         announce(text)
         const senderId = authStore.user?.id
@@ -2377,6 +2382,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         realtimeStatus,
         actionInProgress,
         suppressDiscardSlam,
+        pendingThrowCardId,
         pendingDrawnWildCard,
         pendingDiscardAllCards,
         presentUserIds,

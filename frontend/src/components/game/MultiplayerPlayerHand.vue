@@ -46,6 +46,7 @@ import { getCardStyle as getCardStyleUtil } from '../../utils/gameHelpers'
 import type { Card as CardType, CardColor } from '../../types/card'
 import { useScreenSize } from '../../composables/useScreenSize'
 import { burstImpactParticles } from '../../composables/useGameFeel'
+import { useMultiplayerStore } from '../../stores/multiplayerStore'
 
 const props = defineProps<{
   hand: CardType[]
@@ -61,6 +62,7 @@ const emit = defineEmits<{
 }>()
 
 const { screenWidth, isMobile, isTablet } = useScreenSize()
+const mpStore = useMultiplayerStore()
 const hoverIndex = ref(-1)
 const cardRefs = ref<Map<string, HTMLElement>>(new Map())
 const handContainer = ref<HTMLElement | null>(null)
@@ -221,7 +223,13 @@ function animateAndPlay(card: CardType) {
   const landRotation = gsap.utils.random(-20, 20)
 
   // Fire the play emit FIRST so multiplayer's network round-trip starts
-  // immediately. Animation runs in parallel as cosmetic theatre.
+  // immediately. Animation runs in parallel as cosmetic theatre. The pile
+  // keeps showing the previous top card until the clone lands (cleared at
+  // impact below, with a timeout backstop).
+  mpStore.pendingThrowCardId = card.id
+  setTimeout(() => {
+    if (mpStore.pendingThrowCardId === card.id) mpStore.pendingThrowCardId = null
+  }, 1500)
   emit('playCard', card)
 
   if (handFlipState) {
@@ -253,14 +261,13 @@ function animateAndPlay(card: CardType) {
     duration: 0.32,
     ease: 'power2.out'
   })
-  // Impact — shard burst for power cards, then a ~45ms hit-stop beat before
-  // the follow-through settle.
+  // Impact — reveal the real top card, shard burst for power cards, then a
+  // ~45ms hit-stop beat before the follow-through settle.
   const isPowerCard = card.color === 'wild' || card.type.includes('draw') || card.type === 'skipEveryone'
-  if (isPowerCard) {
-    tl.call(() => {
-      if (discardAreaRef?.value) burstImpactParticles(discardAreaRef.value, card.color)
-    })
-  }
+  tl.call(() => {
+    if (mpStore.pendingThrowCardId === card.id) mpStore.pendingThrowCardId = null
+    if (isPowerCard && discardAreaRef?.value) burstImpactParticles(discardAreaRef.value, card.color)
+  })
   tl.to(clone, {
     scale: 0.82,
     duration: 0.14,

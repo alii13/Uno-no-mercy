@@ -290,8 +290,15 @@ function executePlayCard(card: CardType, selectedColor?: CardColor) {
 
   // Fire game-state update FIRST so the game advances at click-speed.
   // The throw is cosmetic theatre that plays in parallel.
-  // Signal CardPile to skip its own "slam from above" — the flying clone IS the visual.
+  // Signal CardPile to skip its own "slam from above" — the flying clone IS
+  // the visual — and to keep showing the previous top card until the clone
+  // lands (cleared at impact below, with a timeout backstop in case the
+  // timeline never completes, e.g. a backgrounded tab).
   store.suppressDiscardSlam = true
+  store.pendingThrowCardId = card.id
+  setTimeout(() => {
+    if (store.pendingThrowCardId === card.id) store.pendingThrowCardId = null
+  }, 1500)
   store.playerActionPlayCard(card, selectedColor)
   if (card.color === 'wild' || card.type.includes('draw')) {
     soundEffects.playSpecialCard()
@@ -351,6 +358,7 @@ function executePlayCard(card: CardType, selectedColor?: CardColor) {
   // hits the pile, then a ~45ms hit-stop beat before the follow-through.
   const isPowerCard = card.color === 'wild' || card.type.includes('draw') || card.type === 'skipEveryone'
   tl.call(() => {
+    if (store.pendingThrowCardId === card.id) store.pendingThrowCardId = null
     soundEffects.playCardLand()
     if (isPowerCard) {
       triggerPileFlash(card.color === 'wild' ? 'wild' : (card.color as CardColor))

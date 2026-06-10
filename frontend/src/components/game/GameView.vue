@@ -337,12 +337,18 @@ watch(() => store.lastPlay, (play) => {
     const fromEl = opponentRefs.value[play.playerId]
     if (fromEl) {
       store.suppressDiscardSlam = true
+      // Pile keeps showing the previous top card until the clone lands.
+      store.pendingThrowCardId = play.card.id
+      setTimeout(() => {
+        if (store.pendingThrowCardId === play.card.id) store.pendingThrowCardId = null
+      }, 1500)
       animateOpponentThrow({
         fromEl,
         toEl: discardEl,
         card: play.card,
         layer: animationLayer.value,
         onImpact: () => {
+          if (store.pendingThrowCardId === play.card.id) store.pendingThrowCardId = null
           if (isPowerCard) burstImpactParticles(discardEl, play.card.color)
         }
       })

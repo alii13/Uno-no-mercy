@@ -31,9 +31,9 @@
           />
           
           <!-- Top card (face up) -->
-          <div v-if="topCard" class="top-card" ref="topCardRef">
-            <Card 
-              :card="topCard" 
+          <div v-if="displayTopCard" class="top-card" ref="topCardRef">
+            <Card
+              :card="displayTopCard"
               :size="cardSize"
               :is-playable="false"
             />
@@ -87,6 +87,17 @@ const scatterCount = computed(() => Math.min(Math.max(props.cards.length - 1, 0)
 const topCard = computed(() => {
   if (props.cards.length === 0) return undefined
   return props.cards[props.cards.length - 1]
+})
+
+// While a throw clone is in flight, keep showing the card that was on top
+// BEFORE the play — the thrown card reveals at the clone's impact, so the
+// pile never spoils the card that is still visibly traveling toward it.
+const heldThrowId = computed(() => gameStore.pendingThrowCardId || mpStore.pendingThrowCardId)
+const displayTopCard = computed(() => {
+  if (props.isDiscard && props.cards.length > 1 && topCard.value?.id === heldThrowId.value) {
+    return props.cards[props.cards.length - 2]
+  }
+  return topCard.value
 })
 
 function getStackStyle(index: number) {
@@ -143,9 +154,25 @@ function flashDiscardRing() {
   setTimeout(() => station.classList.remove('discard-flash'), 650)
 }
 
+// Fire the ring flash the moment a held throw reveals the new top card.
+watch(heldThrowId, (now, prev) => {
+  if (!props.isDiscard || now || !prev) return
+  if (topCard.value?.id === prev) {
+    nextTick(flashDiscardRing)
+  }
+})
+
 // Animate new card landing on discard pile
 watch(() => props.cards.length, (newLen, oldLen) => {
   if (props.isDiscard && newLen > oldLen && topCardRef.value) {
+    // A held throw keeps the previous top card visible until the clone's
+    // impact — the heldThrowId watcher above fires the reveal flash. Consume
+    // the suppress flags set by the same play so they don't eat a later slam.
+    if (topCard.value?.id === heldThrowId.value) {
+      gameStore.suppressDiscardSlam = false
+      mpStore.suppressDiscardSlam = false
+      return
+    }
     // The flying-clone in PlayerHand IS the visual when the human throws their
     // own card — skip our own slam for that beat so the user doesn't see two
     // animations stacked. Bot plays (and any other state mutation) leave the
