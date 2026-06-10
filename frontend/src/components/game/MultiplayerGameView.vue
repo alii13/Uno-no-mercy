@@ -123,7 +123,7 @@
       :player-name="myPlayer?.name || 'Unknown'"
       :card-count="myHand.length"
       :is-my-turn="isMyTurn"
-      :show-uno-button="(myHand.length === 2 || myHand.length === 1) && isMyTurn && !myPlayer?.has_called_uno"
+      :show-uno-button="showUnoButton"
       :show-leave-button="true"
       @call-uno="handleCallUno"
       @leave="leaveGame"
@@ -294,6 +294,15 @@ const caughtTarget = computed(() => {
   const p = mpStore.gamePlayers.find(pl => pl.user_id === id)
   if (!p || ((p.hand as Card[])?.length || 0) !== 1) return null
   return p
+})
+
+// UNO is callable on our turn at 1-2 cards, and ALSO while we're exposed in a
+// catch window (we played to 1 without calling — the turn has moved on, but
+// calling still saves us before an opponent's catch lands).
+const showUnoButton = computed(() => {
+  if (myPlayer.value?.has_called_uno) return false
+  if (mpStore.catchableUserId && mpStore.catchableUserId === myPlayer.value?.user_id) return true
+  return (myHand.value.length === 2 || myHand.value.length === 1) && isMyTurn.value
 })
 
 const actionFeed = ref('')

@@ -82,6 +82,59 @@ describe('initializeGame', () => {
     })
 })
 
+describe('UNO button visibility', () => {
+    function setupTable() {
+        const store = useGameStore()
+        store.players = [
+            makePlayer('p-0', 'You', [red5, { ...red5, id: 'c-2' }]),
+            { ...makePlayer('p-1', 'Bot', [red5]), isBot: true } satisfies Player,
+        ]
+        store.gameState = 'PLAYING'
+        store.turnState = 'WAITING_FOR_ACTION'
+        store.currentPlayerIndex = 0
+        // Mutations must go through the store's reactive proxies, not the raw
+        // objects, or the computed under test never re-evaluates.
+        return { store, human: store.players[0]! }
+    }
+
+    it('shows at 2 cards on the human turn and hides again when the hand grows', () => {
+        const { store, human } = setupTable()
+        expect(store.showUnoButton).toBe(true)
+
+        // Eating a penalty used to leave the latched button visible forever —
+        // the bug where a UNO button showed at 3+ cards.
+        human.hand.push({ ...red5, id: 'c-3' }, { ...red5, id: 'c-4' })
+        expect(store.showUnoButton).toBe(false)
+    })
+
+    it('hides after calling UNO', () => {
+        const { store } = setupTable()
+        expect(store.showUnoButton).toBe(true)
+        store.callUno('p-0')
+        expect(store.showUnoButton).toBe(false)
+    })
+
+    it('shows while the human is exposed in a catch window, even off-turn', () => {
+        const { store, human } = setupTable()
+        human.hand = [red5]
+        store.currentPlayerIndex = 1
+        expect(store.showUnoButton).toBe(false)
+
+        store.catchableId = 'p-0'
+        expect(store.showUnoButton).toBe(true)
+
+        store.catchableId = null
+        expect(store.showUnoButton).toBe(false)
+    })
+
+    it('stays hidden when a bot is the one exposed', () => {
+        const { store } = setupTable()
+        store.currentPlayerIndex = 1
+        store.catchableId = 'p-1'
+        expect(store.showUnoButton).toBe(false)
+    })
+})
+
 describe('dealInitialCards generation guard', () => {
     it('stops an abandoned deal loop from mutating the next game', async () => {
         const store = useGameStore()

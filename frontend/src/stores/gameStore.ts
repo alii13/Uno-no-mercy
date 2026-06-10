@@ -68,7 +68,6 @@ export const useGameStore = defineStore('game', () => {
     const winnerId = ref<string | null>(null)
     const swapInitiatorId = ref<string | null>(null)
     const hasCalledUno = ref<Record<string, boolean>>({})
-    const showUnoButton = ref(false)
     // A player who hit 1 card without calling UNO — catchable until the window
     // closes. If it's a bot, the human gets a CAUGHT button; if it's the human,
     // a bot may catch them (~70%). Penalty is a brutal draw 10 (No Mercy).
@@ -121,6 +120,21 @@ export const useGameStore = defineStore('game', () => {
     const currentPlayer = computed(() => players.value[currentPlayerIndex.value])
     const topCard = computed(() => discardPile.value[discardPile.value.length - 1])
 
+    // Derived, never latched — a stored flag here once stuck visible after the
+    // hand grew past 2 (draw penalties), showing a pointless UNO button at 3+
+    // cards. Show it only while calling UNO is meaningful: the human's turn at
+    // exactly 2 cards (including choosing a drawn wild's color, since that
+    // play counts as going to 1), or while exposed in a catch window.
+    const showUnoButton = computed(() => {
+        if (gameState.value !== 'PLAYING') return false
+        const human = players.value.find(pl => !pl.isBot)
+        if (!human || human.isEliminated || hasCalledUno.value[human.id]) return false
+        if (catchableId.value === human.id) return true
+        return currentPlayer.value?.id === human.id
+            && (turnState.value === 'WAITING_FOR_ACTION' || turnState.value === 'CHOOSING_DRAWN_WILD_COLOR')
+            && human.hand.length === 2
+    })
+
 
     // --- Actions ---
 
@@ -157,7 +171,6 @@ export const useGameStore = defineStore('game', () => {
         rouletteTargetColor.value = null
         isDealing.value = true
         hasCalledUno.value = {}
-        showUnoButton.value = false
         // GameView persists across rematches, so any in-flight flags from the
         // previous game must be cleared here or they leak into the new one.
         actionInProgress.value = false
@@ -323,22 +336,10 @@ export const useGameStore = defineStore('game', () => {
             sanity++
         }
 
-        const p = currentPlayer.value
-        if (p) {
-            // Show UNO button if player has 2 cards and it's their turn
-            // (they need to call UNO before playing their second-to-last card)
-            if (!p.isBot && p.hand.length === 2) {
-                showUnoButton.value = true
-            } else if (!showUnoButton.value) {
-                // Don't hide if UNO button is already showing (from post-play 1-card state)
-                showUnoButton.value = false
-            }
-        }
     }
 
     function callUno(playerId: string) {
         hasCalledUno.value[playerId] = true
-        showUnoButton.value = false
         // Calling UNO closes our own catch window — we're safe.
         if (catchableId.value === playerId) closeCatchWindow()
         const s = playerStats.value[playerId]
@@ -366,8 +367,8 @@ export const useGameStore = defineStore('game', () => {
                 if (catchableId.value === player.id) closeCatchWindow()
             }, 7000)
         } else {
-            // Human is exposed — show the UNO button, and let a bot pounce ~70%.
-            showUnoButton.value = true
+            // Human is exposed — the UNO button derives from catchableId, and
+            // a bot may pounce ~70% of the time before the window closes.
             const willCatch = Math.random() < 0.7
             catchTimer = setTimeout(() => {
                 if (catchableId.value !== player.id) return
@@ -381,7 +382,6 @@ export const useGameStore = defineStore('game', () => {
         const p = players.value.find(x => x.id === playerId)
         if (!p) { closeCatchWindow(); return }
         closeCatchWindow()
-        showUnoButton.value = false
         const s = playerStats.value[p.id]
         if (s) s.unoPenalties++
         // Draw the penalty (mercy elimination is handled inside drawCardToHand).
