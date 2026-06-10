@@ -43,14 +43,19 @@ export function usePlayerStats() {
     if (!userId) return
 
     loading.value = true
-    const { data } = await supabase
-      .from('game_results')
-      .select('*')
-      .eq('user_id', userId)
-      .order('played_at', { ascending: false })
+    try {
+      const { data } = await supabase
+        .from('game_results')
+        .select('*')
+        .eq('user_id', userId)
+        .order('played_at', { ascending: false })
 
-    results.value = (data || []) as GameResult[]
-    loading.value = false
+      results.value = (data || []) as GameResult[]
+    } catch {
+      // Offline / RLS rejection — show what we have rather than a stuck spinner.
+    } finally {
+      loading.value = false
+    }
   }
 
   // Core stats
@@ -102,8 +107,8 @@ export function usePlayerStats() {
   const totalDrawsTaken = computed(() => results.value.reduce((sum, r) => sum + r.draws_taken, 0))
   const totalUnoCalls = computed(() => results.value.reduce((sum, r) => sum + r.uno_calls, 0))
   const totalUnoPenalties = computed(() => results.value.reduce((sum, r) => sum + r.uno_penalties, 0))
-  const biggestStackSurvived = computed(() => Math.max(0, ...results.value.map(r => r.biggest_stack_survived)))
-  const peakCardsEver = computed(() => Math.max(0, ...results.value.map(r => r.peak_cards)))
+  const biggestStackSurvived = computed(() => results.value.reduce((max, r) => Math.max(max, r.biggest_stack_survived), 0))
+  const peakCardsEver = computed(() => results.value.reduce((max, r) => Math.max(max, r.peak_cards), 0))
   const avgCardsRemainingOnLoss = computed(() => {
     const losses = results.value.filter(r => r.result !== 'won' && r.cards_remaining > 0)
     if (losses.length === 0) return 0

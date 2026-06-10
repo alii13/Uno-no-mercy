@@ -99,6 +99,9 @@ export async function playDealerIntro(): Promise<void> {
     // in CardPile.vue's getStackStyle). GSAP's stagger gives a 0-based
     // index — same 0-based as the "i" inside getStackStyle (which does
     // index - 1 internally), so no offset needed.
+    // clearProps hands the element back to Vue's :style transform once the
+    // settle lands — GSAP writes a matrix() inline, which would otherwise sit
+    // on top of the binding and make the pile snap on the next reactive update.
     tl.to(cards, {
         x: (i: number) => i * 2.5,
         y: (i: number) => i * 6,
@@ -109,6 +112,7 @@ export async function playDealerIntro(): Promise<void> {
         duration: 0.3,
         ease: 'back.out(1.6)',
         stagger: 0.015,
+        clearProps: 'transform',
     }, '>0.05')
 
     // 3. Title fades + scales out

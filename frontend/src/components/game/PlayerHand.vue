@@ -178,6 +178,10 @@ function canPlay(card: CardType) {
 function handleCardClick(card: CardType, _event?: MouseEvent) {
   if (!canPlay(card)) return
   if (store.actionInProgress) return
+  // Picker already open from a previous tap — a second rapid tap on a
+  // DIFFERENT playable wild would silently retarget pendingWildCard, so the
+  // color the user picks lands on a card they didn't choose.
+  if (showColorPicker.value) return
 
   // If Wild and NOT Roulette, show picker first
   // (Roulette color is chosen by the victim AFTER play, so direct play)

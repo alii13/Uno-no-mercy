@@ -215,7 +215,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { usePlayerStats } from '../composables/usePlayerStats'
 import { useAuthStore } from '../stores/authStore'
 import Button from './ui/Button.vue'
@@ -225,7 +225,9 @@ defineEmits<{
 }>()
 
 const authStore = useAuthStore()
-const username = authStore.username
+// Stays reactive — a plain `authStore.username` snapshot would freeze on the
+// 'Player' fallback when the dashboard mounts before the profile fetch lands.
+const username = computed(() => authStore.username)
 const shareCanvas = ref<HTMLCanvasElement | null>(null)
 const showShareModal = ref(false)
 const copied = ref(false)
@@ -278,7 +280,7 @@ function renderShareCanvas() {
 
   ctx.fillStyle = '#a1a1aa'
   ctx.font = '16px monospace'
-  ctx.fillText(username, 280, 55)
+  ctx.fillText(username.value, 280, 55)
 
   ctx.strokeStyle = '#333'
   ctx.lineWidth = 1

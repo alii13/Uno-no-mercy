@@ -416,6 +416,7 @@ export function registerMcpTools(pinia: Pinia): void {
                 required: ['color'],
             },
             handler: async (args) => {
+                requireMyTurn()
                 if (!pendingDrawnWild()) throw new Error('No drawn wild card is waiting for a color.')
                 const c = requireColor(args.color)
                 if (mode() === 'multi') await mp.playDrawnWildCard(c)
@@ -429,6 +430,15 @@ export function registerMcpTools(pinia: Pinia): void {
             inputSchema: noArgs,
             handler: async () => {
                 requireInGame()
+                // Mirror the UI's gating: callable on your own turn at <=2 cards,
+                // or while you're exposed in a catch window. Anything else would
+                // let an agent mutate UNO state at arbitrary moments.
+                const exposedSelf =
+                    (mode() === 'single' && sp.catchableId === HUMAN_ID) ||
+                    (mode() === 'multi' && !!mp.catchableUserId && mp.catchableUserId === mp.myPlayer?.user_id)
+                if (!shouldCallUno() && !exposedSelf) {
+                    throw new Error('Calling UNO is not available right now.')
+                }
                 if (mode() === 'multi') await mp.callUno()
                 else sp.callUno(HUMAN_ID)
                 return buildState()
@@ -498,6 +508,7 @@ export function registerMcpTools(pinia: Pinia): void {
             description: 'Leave the current game and return to the lobby.',
             inputSchema: noArgs,
             handler: async () => {
+                requireInGame()
                 if (mode() === 'multi') await mp.leaveGame()
                 else sp.returnToLobby()
                 return buildState()

@@ -45,16 +45,15 @@ export const useSettingsStore = defineStore('settings', () => {
     const motionOverride = ref<'auto' | 'reduce'>(initial.motionOverride)
 
     // Effective reduced-motion state: respects OS unless the user has
-    // forced 'reduce' in our drawer.
-    const osPrefersReduced = ref(
-        typeof window !== 'undefined'
-            && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    )
-    if (typeof window !== 'undefined') {
-        window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener?.('change', (e) => {
-            osPrefersReduced.value = e.matches
-        })
-    }
+    // forced 'reduce' in our drawer. One MediaQueryList for both the initial
+    // read and the listener, so the handle stays removable.
+    const motionQuery = typeof window !== 'undefined'
+        ? window.matchMedia('(prefers-reduced-motion: reduce)')
+        : null
+    const osPrefersReduced = ref(motionQuery?.matches ?? false)
+    motionQuery?.addEventListener?.('change', (e) => {
+        osPrefersReduced.value = e.matches
+    })
 
     const reducedMotion = computed(() => motionOverride.value === 'reduce' || osPrefersReduced.value)
 

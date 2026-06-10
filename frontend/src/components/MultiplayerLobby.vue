@@ -412,6 +412,9 @@ const friendlyError = computed(() => {
   if (/full/i.test(e)) return 'That room is full. Start your own instead.'
   if (/not found|already started/i.test(e)) return "Couldn't join that room. Check the code or start a new game."
   if (/logged in|profile/i.test(e)) return 'Something went wrong with your session. Try refreshing the page.'
+  // Raw Postgres errors (e.g. a missing column before a migration ran) should
+  // never reach the player verbatim.
+  if (/column|relation|constraint|violates|pgrst/i.test(e)) return 'Something went wrong on our side. Try again in a moment.'
   return e
 })
 

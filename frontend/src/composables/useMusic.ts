@@ -138,6 +138,9 @@ export function useMusic() {
         // Bump generation FIRST so any in-flight start() sees the change.
         stopGeneration++
         isPlaying.value = false
+        // isDucked is module-global; a game that ends ducked and exits to the
+        // lobby would otherwise start the NEXT game at the ducked volume.
+        isDucked.value = false
         if (!audio) return
         // Pause synchronously so even if a stale play().then() fires before
         // fadeTo finishes its 600ms interval, the audio is already silent.
@@ -164,9 +167,19 @@ export function useMusic() {
         if (isMuted.value) {
             fadeTo(audio, 0, 300)
         } else if (isPlaying.value) {
+            // Same stop-generation guard as start(): an unmute whose play()
+            // promise resolves after a stop() must not resurrect the music.
+            const myGen = stopGeneration
             const p = audio.play()
-            if (p && typeof p.catch === 'function') p.catch(() => {})
-            fadeTo(audio, effectiveVolume(), 400)
+            if (p && typeof p.then === 'function') {
+                p.then(() => {
+                    if (myGen !== stopGeneration) {
+                        audio?.pause()
+                        return
+                    }
+                    if (audio) fadeTo(audio, effectiveVolume(), 400)
+                }).catch(() => { /* autoplay blocked — stay silent */ })
+            }
         }
     }
 

@@ -54,6 +54,30 @@ function positionAtRect(el: HTMLElement, rect: DOMRect, zIndex = 2000): void {
     })
 }
 
+// Flying clones are appended to document.body, outside any component tree —
+// if the game view unmounts mid-flight (player leaves during a big draw) the
+// tweens and their card-back nodes would keep sailing over the lobby. Track
+// the live ones so the view can kill them on unmount.
+const activeFlyingCards = new Set<HTMLElement>()
+
+function spawnFlyingCard(el: HTMLElement): void {
+    activeFlyingCards.add(el)
+    document.body.appendChild(el)
+}
+
+function despawnFlyingCard(el: HTMLElement): void {
+    activeFlyingCards.delete(el)
+    el.remove()
+}
+
+function killAllFlyingCards(): void {
+    for (const el of activeFlyingCards) {
+        gsap.killTweensOf(el)
+        el.remove()
+    }
+    activeFlyingCards.clear()
+}
+
 // ============================================================
 // Main composable
 // ============================================================
@@ -109,7 +133,7 @@ export function useCardAnimations() {
         const toRect = toEl.getBoundingClientRect()
 
         const clone = cardEl.cloneNode(true) as HTMLElement
-        document.body.appendChild(clone)
+        spawnFlyingCard(clone)
 
         const targetX = toRect.left + toRect.width / 2 - cardRect.width / 2
         const targetY = toRect.top + toRect.height / 2 - cardRect.height / 2
@@ -134,7 +158,7 @@ export function useCardAnimations() {
             duration: options.duration || 0.4,
             ease: options.ease || 'power2.out',
             onComplete: () => {
-                clone.remove()
+                despawnFlyingCard(clone)
             }
         })
     }
@@ -266,7 +290,7 @@ export function useCardAnimations() {
 
         const cardEl = createCardBackElement()
         positionAtRect(cardEl, deckRect)
-        document.body.appendChild(cardEl)
+        spawnFlyingCard(cardEl)
 
         const targetLeft = targetRect.left + targetRect.width / 2 - 30
         const targetTop = targetRect.top + targetRect.height / 2 - 42
@@ -282,7 +306,7 @@ export function useCardAnimations() {
                 delay: options.delay || 0,
                 ease: options.ease || 'power2.out',
                 onComplete: () => {
-                    cardEl.remove()
+                    despawnFlyingCard(cardEl)
                     resolve()
                 }
             })
@@ -339,7 +363,7 @@ export function useCardAnimations() {
         for (let i = 0; i < count; i++) {
             const cardEl = createCardBackElement()
             positionAtRect(cardEl, deckRect)
-            document.body.appendChild(cardEl)
+            spawnFlyingCard(cardEl)
             gsap.set(cardEl, { x: 0, y: 0, willChange: 'transform' })
 
             gsap.to(cardEl, {
@@ -350,7 +374,7 @@ export function useCardAnimations() {
                 delay: i * staggerDelay,
                 ease: options.ease || 'power2.out',
                 onComplete: () => {
-                    cardEl.remove()
+                    despawnFlyingCard(cardEl)
                     onEachComplete?.(i)
                 }
             })
@@ -371,6 +395,7 @@ export function useCardAnimations() {
         animateFlyingCard,
         animateDealCards,
         animateDrawCardsStaggered,
+        killAllFlyingCards,
         // Utilities
         createCardBackElement
     }
