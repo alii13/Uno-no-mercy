@@ -1,176 +1,155 @@
 <template>
-  <div class="scroll-sections">
+  <div class="scrolly" :class="{ 'is-static': reduced }" ref="rootEl">
+    <div class="stage" ref="stageEl">
+      <div class="stage-vignette" aria-hidden="true"></div>
 
-    <!-- Section 1: Stack or Suffer -->
-    <section class="scroll-section stack-section" ref="stackSection">
-      <div class="section-inner">
-        <div class="section-label">01</div>
-        <h2 class="section-heading">STACK <span class="accent-red">OR SUFFER</span></h2>
-        <p class="section-desc">Draw cards stack. The pile grows until someone breaks.</p>
+      <!-- Chapter copy — one slot, crossfaded by the master timeline -->
+      <div class="chap" ref="chap1">
+        <div class="chap-label">01</div>
+        <h2 class="chap-heading">STACK <span class="accent-red">OR SUFFER</span></h2>
+        <p class="chap-desc">Draw cards stack. The pile grows until someone breaks.</p>
+      </div>
+      <div class="chap" ref="chap2">
+        <div class="chap-label">02</div>
+        <h2 class="chap-heading">SKIP <span class="accent-blue">EVERYONE</span></h2>
+        <p class="chap-desc">One card. Every opponent skipped. You play again.</p>
+      </div>
+      <div class="chap" ref="chap3">
+        <div class="chap-label">03</div>
+        <h2 class="chap-heading">COLOR <span class="accent-yellow">ROULETTE</span></h2>
+        <p class="chap-desc">Draw until you hit the chosen color. Could be 1 card. Could be 15.</p>
+      </div>
+      <div class="chap" ref="chap4">
+        <div class="chap-label">04</div>
+        <h2 class="chap-heading">25 CARDS? <span class="accent-red">ELIMINATED</span></h2>
+        <p class="chap-desc">Hold 25 cards and you're out. The mercy rule ends your suffering.</p>
+      </div>
+      <div class="chap" ref="chap5">
+        <div class="chap-label">05</div>
+        <h2 class="chap-heading">NOT JUST FOR <span class="accent-green">HUMANS</span></h2>
+        <p class="chap-desc">This table speaks WebMCP. An AI agent discovers the game the moment it visits and plays a real seat - same rules, same hand, no plugin.</p>
+      </div>
 
-        <div class="stack-stage">
-          <div class="stack-counter" ref="stackCounter">
-            <span class="counter-plus">+</span><span class="counter-num" ref="counterNum">0</span>
+      <!-- The deck — the same cards travel through every chapter -->
+      <div class="deck" ref="deckEl" aria-hidden="true">
+        <div class="fx-flash" ref="flashEl"></div>
+        <div class="fx-ring" ref="ringEl"></div>
+
+        <div
+          v-for="(c, i) in protagonists"
+          :key="c.id"
+          class="pcard"
+          :ref="el => setRef('p', i, el)"
+        >
+          <Card :card="c" :size="heroCardSize" />
+        </div>
+
+        <!-- Skip chapter: victims ringed around the table -->
+        <div v-for="i in 4" :key="'v' + i" class="victim" :ref="el => setRef('victim', i, el)">
+          <div class="victim-avatar">{{ ['A', 'B', 'C', 'D'][i - 1] }}</div>
+          <div class="victim-name">PLAYER {{ i }}</div>
+          <div class="victim-stamp" :ref="el => setRef('stamp', i, el)">SKIPPED</div>
+        </div>
+
+        <!-- Roulette chapter: one spot, four faces -->
+        <div class="flipper" ref="flipperEl">
+          <div
+            v-for="(f, i) in rouletteFaces"
+            :key="f.id"
+            class="face"
+            :ref="el => setRef('face', i, el)"
+          >
+            <Card :card="f" :size="heroCardSize" />
+            <div v-if="f.color !== 'green'" class="face-tag tag-miss">MISS</div>
+            <div v-else class="face-tag tag-hit">HIT</div>
           </div>
-          <div class="stack-pile-wrap">
-            <div class="stack-card sc-1" ref="sc1">
-              <Card :card="{ id: 's1', color: 'red', type: 'draw2' }" :size="heroCardSize" />
-            </div>
-            <div class="stack-card sc-2" ref="sc2">
-              <Card :card="{ id: 's2', color: 'wild', type: 'draw4' }" :size="heroCardSize" />
-            </div>
-            <div class="stack-card sc-3" ref="sc3">
-              <Card :card="{ id: 's3', color: 'wild', type: 'draw6' }" :size="heroCardSize" />
-            </div>
-            <div class="stack-card sc-4" ref="sc4">
-              <Card :card="{ id: 's4', color: 'wild', type: 'draw10' }" :size="heroCardSize" />
-            </div>
-          </div>
-          <div class="impact-flash" ref="impactFlash"></div>
+        </div>
+        <div class="seek-label" ref="seekEl">SEEKING: <span class="accent-green">GREEN</span></div>
+
+        <!-- Mercy chapter: the hand that grows to 25 -->
+        <div v-for="i in 25" :key="'f' + i" class="fcard" :ref="el => setRef('fan', i, el)">
+          <CardBack :size="tinyCardSize" />
+        </div>
+        <div class="boom" ref="boomEl">ELIMINATED</div>
+
+        <!-- Agent chapter: the pile the agent plays onto -->
+        <div class="apile" ref="apileEl">
+          <Card :card="{ id: 'apile', color: 'blue', type: 'number', value: 4 }" :size="medCardSize" />
+          <div class="fx-pulse" ref="pulseEl"></div>
+        </div>
+        <div class="afly" ref="aflyEl">
+          <Card :card="{ id: 'afly', color: 'red', type: 'number', value: 7 }" :size="medCardSize" />
+        </div>
+        <div class="agent-turn" ref="agentTurnEl">TURN &rarr; <span class="accent-green">AGENT</span></div>
+
+        <!-- The big number: +N stack counter, then the 25-card mercy count -->
+        <div class="counter" ref="counterEl">
+          <span class="counter-plus" ref="plusEl">+</span><span ref="numEl">0</span>
         </div>
       </div>
-    </section>
 
-    <!-- Section 2: Skip Everyone -->
-    <section class="scroll-section skip-section" ref="skipSection">
-      <div class="section-inner">
-        <div class="section-label">02</div>
-        <h2 class="section-heading">SKIP <span class="accent-blue">EVERYONE</span></h2>
-        <p class="section-desc">One card. Every opponent skipped. You play again.</p>
-
-        <div class="skip-stage">
-          <div class="skip-victims">
-            <div v-for="i in 4" :key="i" class="skip-victim" :ref="el => setRef('victim', i, el)">
-              <div class="victim-avatar">{{ ['A','B','C','D'][i-1] }}</div>
-              <div class="victim-name">PLAYER {{ i }}</div>
-              <div class="victim-stamp" :ref="el => setRef('stamp', i, el)">SKIPPED</div>
-            </div>
-          </div>
-          <div class="skip-card-hero" ref="skipCard">
-            <Card :card="{ id: 'skip1', color: 'red', type: 'skipEveryone' }" :size="heroCardSize" />
-          </div>
+      <!-- Agent HUD -->
+      <div class="hud" ref="hudEl">
+        <div class="hud-bar">
+          <span class="hud-dot"></span><span class="hud-dot"></span><span class="hud-dot"></span>
+          <span class="hud-title">WEBMCP // AGENT</span>
         </div>
-      </div>
-    </section>
-
-    <!-- Section 3: Color Roulette -->
-    <section class="scroll-section roulette-section" ref="rouletteSection">
-      <div class="section-inner">
-        <div class="section-label">03</div>
-        <h2 class="section-heading">COLOR <span class="accent-yellow">ROULETTE</span></h2>
-        <p class="section-desc">Draw until you hit the chosen color. Could be 1 card. Could be 15.</p>
-
-        <div class="roulette-stage">
-          <div class="roulette-target-label" ref="rouletteLabel">SEEKING: <span class="accent-green">GREEN</span></div>
-          <div class="roulette-stream">
-            <div v-for="(c, i) in rouletteCards" :key="i" class="roulette-card-wrap" :ref="el => setRef('rcard', i, el)">
-              <Card :card="c" :size="medCardSize" />
-              <div v-if="c.color !== 'green'" class="roulette-miss">MISS</div>
-              <div v-else class="roulette-hit">HIT</div>
-            </div>
+        <div class="hud-body">
+          <div class="hud-line" :ref="el => setRef('hud', 1, el)"><span class="hud-prompt">&gt;</span> wait_for_turn()</div>
+          <div class="hud-line" :ref="el => setRef('hud', 2, el)"><span class="hud-prompt">&gt;</span> get_state()</div>
+          <div class="hud-line hud-dim" :ref="el => setRef('hud', 3, el)">hand 6 &middot; top <span class="accent-red">RED 7</span></div>
+          <div class="hud-line hud-dim" :ref="el => setRef('hud', 4, el)">legal_moves:</div>
+          <div class="hud-moves" :ref="el => setRef('hud', 5, el)">
+            <span class="move-chip" :ref="el => setRef('chip', 1, el)">R7</span>
+            <span class="move-chip" :ref="el => setRef('chip', 2, el)">+2</span>
+            <span class="move-chip" :ref="el => setRef('chip', 3, el)">WILD</span>
+            <span class="hud-scan" ref="hudScanEl"></span>
           </div>
+          <div class="hud-line" :ref="el => setRef('hud', 6, el)"><span class="hud-prompt accent-green">&gt;</span> play_card(<span class="accent-red">"red-7"</span>)<span class="hud-ok" ref="hudOkEl"> OK</span></div>
         </div>
-      </div>
-    </section>
-
-    <!-- Section 4: Mercy Rule -->
-    <section class="scroll-section mercy-section" ref="mercySection">
-      <div class="section-inner">
-        <div class="section-label">04</div>
-        <h2 class="section-heading">25 CARDS? <span class="accent-red">ELIMINATED</span></h2>
-        <p class="section-desc">Hold 25 cards and you're out. The mercy rule ends your suffering.</p>
-
-        <div class="mercy-stage">
-          <div class="mercy-counter-big" ref="mercyNum">7</div>
-          <div class="mercy-hand-wrap">
-            <CardBack v-for="i in 25" :key="i" :size="tinyCardSize" class="mercy-c" :ref="el => setRef('mc', i, el)" />
-          </div>
-          <div class="mercy-boom" ref="mercyBoom">ELIMINATED</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Section 5: Played by agents too (WebMCP) -->
-    <section class="scroll-section agent-section" ref="agentSection">
-      <div class="section-inner">
-        <div class="section-label">05</div>
-        <h2 class="section-heading">NOT JUST FOR <span class="accent-green">HUMANS</span></h2>
-        <p class="section-desc">This table speaks WebMCP. An AI agent discovers the game the moment it visits and plays a real seat - same rules, same hand, no plugin.</p>
-
-        <div class="agent-stage">
-          <div class="agent-hud">
-            <div class="hud-bar">
-              <span class="hud-dot"></span><span class="hud-dot"></span><span class="hud-dot"></span>
-              <span class="hud-title">WEBMCP // AGENT</span>
-            </div>
-            <div class="hud-body">
-              <div class="hud-line" :ref="el => setRef('hud', 1, el)"><span class="hud-prompt">&gt;</span> wait_for_turn()</div>
-              <div class="hud-line" :ref="el => setRef('hud', 2, el)"><span class="hud-prompt">&gt;</span> get_state()</div>
-              <div class="hud-line hud-dim" :ref="el => setRef('hud', 3, el)">hand 6 &middot; top <span class="accent-red">RED 7</span></div>
-              <div class="hud-line hud-dim" :ref="el => setRef('hud', 4, el)">legal_moves:</div>
-              <div class="hud-moves" :ref="el => setRef('hud', 5, el)">
-                <span class="move-chip" ref="moveChip0">R7</span>
-                <span class="move-chip" ref="moveChip1">+2</span>
-                <span class="move-chip" ref="moveChip2">WILD</span>
-                <span class="hud-scan" ref="hudScan"></span>
-              </div>
-              <div class="hud-line" :ref="el => setRef('hud', 6, el)"><span class="hud-prompt accent-green">&gt;</span> play_card(<span class="accent-red">"red-7"</span>)<span class="hud-ok" ref="hudOk"> OK</span></div>
-            </div>
-          </div>
-
-          <div class="agent-beam" ref="agentBeam"></div>
-
-          <div class="agent-pile-wrap">
-            <div class="agent-turn" ref="agentTurn">TURN &rarr; <span class="accent-green">AGENT</span></div>
-            <div class="agent-pile">
-              <Card :card="{ id: 'apile', color: 'blue', type: 'number', value: 4 }" :size="medCardSize" />
-              <div class="agent-pulse" ref="agentPulse"></div>
-              <div class="agent-fly" ref="agentFly">
-                <Card :card="{ id: 'afly', color: 'red', type: 'number', value: 7 }" :size="medCardSize" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <a class="agent-cta" href="https://github.com/alii13/Uno-no-mercy#playing-as-an-ai-agent-webmcp" target="_blank" rel="noopener">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        <a class="agent-cta" ref="agentCtaEl" href="https://github.com/alii13/Uno-no-mercy#playing-as-an-ai-agent-webmcp" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
           HOW AGENTS PLAY
         </a>
       </div>
-    </section>
+      <div class="agent-beam" ref="beamEl" aria-hidden="true"></div>
 
-    <!-- Section 6: Feedback nudge (last - after you've seen the rules, drop us a line) -->
-    <section class="scroll-section feedback-section" ref="feedbackSection">
-      <div class="section-inner">
-        <div class="section-label">06</div>
-        <div class="feedback-stage">
-          <div class="bubble bubble-1" ref="bubble1">
+      <!-- Finale: feedback -->
+      <div class="finale" ref="finaleEl">
+        <div class="bubbles">
+          <div class="bubble bubble-1" :ref="el => setRef('bubble', 1, el)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             <span>Found a bug?</span>
           </div>
-          <div class="bubble bubble-2" ref="bubble2">
+          <div class="bubble bubble-2" :ref="el => setRef('bubble', 2, el)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             <span>Got an idea?</span>
           </div>
-          <div class="bubble bubble-3" ref="bubble3">
+          <div class="bubble bubble-3" :ref="el => setRef('bubble', 3, el)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
             <span>Want to say hi?</span>
           </div>
         </div>
-        <h2 class="section-heading feedback-heading" ref="feedbackHeading">
-          WE'RE <span class="accent-green">LISTENING</span>
-        </h2>
-        <p class="section-desc">Every message goes straight to my inbox. We read everything.</p>
-        <button class="feedback-cta" ref="feedbackBtn" @click="$emit('openFeedback')">
+        <h2 class="chap-heading">WE'RE <span class="accent-green">LISTENING</span></h2>
+        <p class="chap-desc">Every message goes straight to my inbox. We read everything.</p>
+        <button class="feedback-cta" @click="$emit('openFeedback')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           SEND FEEDBACK
         </button>
       </div>
-    </section>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
+/**
+ * Pinned scrollytelling — the whole story is ONE timeline on ONE stage.
+ * Five protagonist cards persist across chapters: they stack (+penalties),
+ * get skipped, play roulette (recoloring the page), multiply to the mercy
+ * limit and detonate, watch an agent take a seat, then hand over to the
+ * feedback finale. Scrubbing backwards rewinds the story — every beat is a
+ * tween (no callbacks mutating state), so reverse is always coherent.
+ */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
@@ -184,45 +163,59 @@ defineEmits<{
   (e: 'openFeedback'): void
 }>()
 
+const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
 const isMobile = ref(window.innerWidth <= 768)
 function onResize() { isMobile.value = window.innerWidth <= 768 }
 
-const heroCardSize = computed(() => isMobile.value ? { width: 120, height: 168 } : { width: 180, height: 252 })
+const heroCardSize = computed(() => isMobile.value ? { width: 110, height: 154 } : { width: 170, height: 238 })
 const medCardSize = computed(() => isMobile.value ? { width: 90, height: 126 } : { width: 130, height: 182 })
-const tinyCardSize = computed(() => isMobile.value ? { width: 30, height: 42 } : { width: 50, height: 70 })
+const tinyCardSize = computed(() => isMobile.value ? { width: 30, height: 42 } : { width: 48, height: 67 })
 
-// Section refs
-const stackSection = ref<HTMLElement>()
-const sc1 = ref<HTMLElement>()
-const sc2 = ref<HTMLElement>()
-const sc3 = ref<HTMLElement>()
-const sc4 = ref<HTMLElement>()
-const stackCounter = ref<HTMLElement>()
-const counterNum = ref<HTMLElement>()
-const impactFlash = ref<HTMLElement>()
-const skipSection = ref<HTMLElement>()
-const skipCard = ref<HTMLElement>()
-const rouletteSection = ref<HTMLElement>()
-const rouletteLabel = ref<HTMLElement>()
-const mercySection = ref<HTMLElement>()
-const mercyNum = ref<HTMLElement>()
-const mercyBoom = ref<HTMLElement>()
-const agentSection = ref<HTMLElement>()
-const hudScan = ref<HTMLElement>()
-const hudOk = ref<HTMLElement>()
-const agentBeam = ref<HTMLElement>()
-const agentTurn = ref<HTMLElement>()
-const agentPulse = ref<HTMLElement>()
-const agentFly = ref<HTMLElement>()
-const moveChip0 = ref<HTMLElement>()
-const moveChip1 = ref<HTMLElement>()
-const moveChip2 = ref<HTMLElement>()
-const feedbackSection = ref<HTMLElement>()
-const bubble1 = ref<HTMLElement>()
-const bubble2 = ref<HTMLElement>()
-const bubble3 = ref<HTMLElement>()
-const feedbackHeading = ref<HTMLElement>()
-const feedbackBtn = ref<HTMLElement>()
+// The recurring cast. The four draw cards stack in chapter 1; the Skip
+// Everyone card crowns the pile in chapter 2.
+const protagonists: CardType[] = [
+  { id: 'p1', color: 'red', type: 'draw2' },
+  { id: 'p2', color: 'wild', type: 'draw4' },
+  { id: 'p3', color: 'wild', type: 'draw6' },
+  { id: 'p4', color: 'wild', type: 'draw10' },
+  { id: 'p5', color: 'red', type: 'skipEveryone' },
+]
+
+const rouletteFaces: CardType[] = [
+  { id: 'rf1', color: 'red', type: 'number', value: 3 },
+  { id: 'rf2', color: 'blue', type: 'number', value: 7 },
+  { id: 'rf3', color: 'yellow', type: 'number', value: 5 },
+  { id: 'rf4', color: 'green', type: 'number', value: 4 },
+]
+
+const ACCENT = { red: '#ff2a2a', blue: '#00bfff', yellow: '#ffcc00', green: '#00ff66' } as const
+
+const rootEl = ref<HTMLElement>()
+const stageEl = ref<HTMLElement>()
+const deckEl = ref<HTMLElement>()
+const flashEl = ref<HTMLElement>()
+const ringEl = ref<HTMLElement>()
+const flipperEl = ref<HTMLElement>()
+const seekEl = ref<HTMLElement>()
+const boomEl = ref<HTMLElement>()
+const counterEl = ref<HTMLElement>()
+const plusEl = ref<HTMLElement>()
+const numEl = ref<HTMLElement>()
+const apileEl = ref<HTMLElement>()
+const aflyEl = ref<HTMLElement>()
+const agentTurnEl = ref<HTMLElement>()
+const hudEl = ref<HTMLElement>()
+const hudScanEl = ref<HTMLElement>()
+const hudOkEl = ref<HTMLElement>()
+const agentCtaEl = ref<HTMLElement>()
+const beamEl = ref<HTMLElement>()
+const finaleEl = ref<HTMLElement>()
+const chap1 = ref<HTMLElement>()
+const chap2 = ref<HTMLElement>()
+const chap3 = ref<HTMLElement>()
+const chap4 = ref<HTMLElement>()
+const chap5 = ref<HTMLElement>()
 
 const dynamicRefs: Record<string, Record<number, HTMLElement>> = {}
 function setRef(group: string, i: number, el: any) {
@@ -230,408 +223,407 @@ function setRef(group: string, i: number, el: any) {
   if (el) dynamicRefs[group][i] = el as HTMLElement
 }
 function getRef(group: string, i: number) { return dynamicRefs[group]?.[i] }
+function getRefs(group: string, from: number, to: number): HTMLElement[] {
+  const out: HTMLElement[] = []
+  for (let i = from; i <= to; i++) {
+    const el = getRef(group, i)
+    if (el) out.push(el)
+  }
+  return out
+}
 
-const rouletteCards: CardType[] = [
-  { id: 'r1', color: 'red', type: 'number', value: 3 },
-  { id: 'r2', color: 'blue', type: 'number', value: 7 },
-  { id: 'r3', color: 'yellow', type: 'number', value: 5 },
-  { id: 'r4', color: 'red', type: 'number', value: 9 },
-  { id: 'r5', color: 'blue', type: 'number', value: 2 },
-  { id: 'r6', color: 'green', type: 'number', value: 4 },
+// Deterministic per-card randomness — computed once so scrubbing back and
+// forth replays the exact same explosion every time.
+const fanScatter = Array.from({ length: 25 }, () => ({
+  x: gsap.utils.random(-420, 420),
+  y: gsap.utils.random(-300, 140),
+  r: gsap.utils.random(-140, 140),
+}))
+const stackRot = [-6, 4, -3, 7]
+const victimDirs = [
+  { x: -1, y: -0.62 }, { x: 1, y: -0.62 }, { x: -1, y: 0.62 }, { x: 1, y: 0.62 },
 ]
 
-let triggers: ScrollTrigger[] = []
+let master: gsap.core.Timeline | null = null
+let velocityST: ScrollTrigger | null = null
 
 onMounted(() => {
+  if (reduced) return
   window.addEventListener('resize', onResize)
   requestAnimationFrame(() => requestAnimationFrame(init))
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', onResize)
-  triggers.forEach(t => t.kill())
+  velocityST?.kill()
+  master?.scrollTrigger?.kill()
+  master?.kill()
   ScrollTrigger.getAll().forEach(t => t.kill())
 })
 
+const mob = () => window.innerWidth <= 768
+const vw = () => window.innerWidth
+const ringX = () => (mob() ? 120 : 260)
+const ringY = () => (mob() ? 150 : 170)
+const fanSpacing = () => (mob() ? 11 : 22)
+
+const pulseEl = ref<HTMLElement>()
+
+// Static centering lives on the CSS `translate` property, which composes
+// with the `transform` GSAP writes — so these sets only carry motion state.
+function initState() {
+  gsap.set(getRefs('p', 0, 4), { autoAlpha: 0 })
+  gsap.set(flashEl.value!, { autoAlpha: 0, scale: 0.5 })
+  gsap.set(ringEl.value!, { autoAlpha: 0, scale: 0.4 })
+  gsap.set(counterEl.value!, { autoAlpha: 0, scale: 0.6 })
+  for (let i = 1; i <= 4; i++) {
+    const v = getRef('victim', i)
+    const s = getRef('stamp', i)
+    if (v) gsap.set(v, { x: () => victimDirs[i - 1]!.x * ringX(), y: () => victimDirs[i - 1]!.y * ringY(), autoAlpha: 0, scale: 0.7 })
+    if (s) gsap.set(s, { scale: 0, rotation: -14 })
+  }
+  gsap.set(flipperEl.value!, { autoAlpha: 0 })
+  rouletteFaces.forEach((_, i) => {
+    const f = getRef('face', i)
+    if (f) gsap.set(f, { autoAlpha: i === 0 ? 1 : 0, rotationY: i === 0 ? 0 : -100 })
+  })
+  gsap.set(seekEl.value!, { autoAlpha: 0, y: () => (mob() ? -119 : -154) })
+  for (let i = 1; i <= 25; i++) {
+    const f = getRef('fan', i)
+    if (f) gsap.set(f, { autoAlpha: 0, x: 0, y: 0, rotation: 0 })
+  }
+  gsap.set(boomEl.value!, { scale: 0, autoAlpha: 0, rotation: -14 })
+  // The mobile HUD sits above the deck center, so the pile cluster drops
+  // below it instead of hiding behind the terminal.
+  gsap.set(apileEl.value!, { autoAlpha: 0, scale: 0.8, y: () => (mob() ? 150 : 0) })
+  gsap.set(aflyEl.value!, { autoAlpha: 0, scale: 0.7, rotation: -12 })
+  gsap.set(agentTurnEl.value!, { autoAlpha: 0, y: () => (mob() ? 220 : 86), scale: 0.85 })
+  gsap.set(hudEl.value!, { autoAlpha: 0, y: 26 })
+  gsap.set(getRefs('hud', 1, 6), { autoAlpha: 0, x: -14 })
+  gsap.set(hudScanEl.value!, { autoAlpha: 0, x: 0 })
+  gsap.set(hudOkEl.value!, { autoAlpha: 0 })
+  gsap.set(agentCtaEl.value!, { autoAlpha: 0 })
+  gsap.set(beamEl.value!, { autoAlpha: 0, scaleX: 0 })
+  gsap.set(finaleEl.value!, { autoAlpha: 0 })
+  for (let i = 1; i <= 3; i++) {
+    const b = getRef('bubble', i)
+    if (b) gsap.set(b, { autoAlpha: 0, x: i % 2 ? -110 : 110, rotation: i % 2 ? -7 : 7, scale: 0.7 })
+  }
+  gsap.set([chap1.value, chap2.value, chap3.value, chap4.value, chap5.value], { autoAlpha: 0, y: 30 })
+  gsap.set(stageEl.value!, { '--acc': ACCENT.red })
+}
+
+function copyIn(tl: gsap.core.Timeline, el: HTMLElement | undefined, at: number) {
+  if (el) tl.to(el, { autoAlpha: 1, y: 0, duration: 1.1, ease: 'power3.out' }, at)
+}
+function copyOut(tl: gsap.core.Timeline, el: HTMLElement | undefined, at: number) {
+  if (el) tl.to(el, { autoAlpha: 0, y: -26, duration: 0.9, ease: 'power2.in' }, at)
+}
+
+// The big number is driven by a proxy tween so scrubbing backwards counts
+// back down — callbacks would only ever fire their own value.
+const counterProxy = { n: 0 }
+function counterTo(tl: gsap.core.Timeline, target: number, at: number, duration: number) {
+  tl.to(counterProxy, {
+    n: target,
+    duration,
+    ease: 'none',
+    snap: { n: 1 },
+    onUpdate: () => { if (numEl.value) numEl.value.textContent = String(Math.round(counterProxy.n)) },
+  }, at)
+}
+
 function init() {
-  initStack()
-  initSkip()
-  initRoulette()
-  initMercy()
-  initAgent()
-  initFeedback()
-}
+  initState()
 
-function initStack() {
-  const cards = [sc1.value, sc2.value, sc3.value, sc4.value]
-  const values = [2, 6, 12, 22]
-  if (!stackSection.value) return
-
-  cards.forEach(c => { if (c) gsap.set(c, { opacity: 0, scale: 2.5, rotation: gsap.utils.random(-40, 40), y: -300, x: gsap.utils.random(-100, 100) }) })
-  if (stackCounter.value) gsap.set(stackCounter.value, { scale: 0.5, opacity: 0 })
-  if (impactFlash.value) gsap.set(impactFlash.value, { opacity: 0, scale: 0.5 })
-
-  const tl = gsap.timeline({
-    scrollTrigger: { trigger: stackSection.value, start: 'top 80%', end: 'bottom 20%', scrub: 0.8 }
-  })
-
-  // Counter fades in
-  if (stackCounter.value) {
-    tl.to(stackCounter.value, { scale: 1, opacity: 1, duration: 0.15, ease: 'power2.out' }, 0)
-  }
-
-  cards.forEach((card, i) => {
-    if (!card) return
-    const t = 0.1 + i * 0.2
-
-    // Card slams down from above with rotation
-    tl.to(card, {
-      opacity: 1, scale: 1, y: i * -6, x: i * 4,
-      rotation: gsap.utils.random(-8, 8),
-      duration: 0.2, ease: 'power4.in',
-    }, t)
-
-    // Impact flash on each card
-    if (impactFlash.value) {
-      tl.to(impactFlash.value, { opacity: 0.6, scale: 1.5, duration: 0.05 }, t + 0.18)
-      tl.to(impactFlash.value, { opacity: 0, scale: 0.5, duration: 0.1 }, t + 0.23)
-    }
-
-    // Counter pulses up
-    if (counterNum.value) {
-      tl.call(() => { if (counterNum.value) counterNum.value.textContent = String(values[i]) }, [], t + 0.18)
-    }
-    if (stackCounter.value) {
-      tl.to(stackCounter.value, { scale: 1.3, duration: 0.05, ease: 'power2.out' }, t + 0.18)
-      tl.to(stackCounter.value, { scale: 1, duration: 0.1, ease: 'elastic.out(1, 0.5)' }, t + 0.23)
-    }
-  })
-
-  triggers.push(tl.scrollTrigger!)
-}
-
-function initSkip() {
-  if (!skipSection.value || !skipCard.value) return
-
-  gsap.set(skipCard.value, { scale: 0, rotation: -720, opacity: 0 })
-  for (let i = 1; i <= 4; i++) {
-    const stamp = getRef('stamp', i)
-    if (stamp) gsap.set(stamp, { scale: 0, rotation: -20 })
-  }
-
-  const tl = gsap.timeline({
-    scrollTrigger: { trigger: skipSection.value, start: 'top 70%', end: 'bottom 30%', scrub: 0.8 }
-  })
-
-  // Card spins in dramatically
-  tl.to(skipCard.value, { scale: 1, rotation: 0, opacity: 1, duration: 0.4, ease: 'power4.out' }, 0)
-
-  // Overshoots then settles
-  tl.to(skipCard.value, { scale: 1.15, duration: 0.1, ease: 'power2.out' }, 0.4)
-  tl.to(skipCard.value, { scale: 1, duration: 0.15, ease: 'elastic.out(1, 0.4)' }, 0.5)
-
-  // Victims get stamped with stagger
-  for (let i = 1; i <= 4; i++) {
-    const stamp = getRef('stamp', i)
-    const victim = getRef('victim', i)
-    if (!stamp) continue
-    const t = 0.45 + i * 0.08
-
-    tl.to(stamp, { scale: 1, rotation: gsap.utils.random(-5, 5), duration: 0.08, ease: 'back.out(3)' }, t)
-    if (victim) {
-      tl.to(victim, { opacity: 0.25, duration: 0.1 }, t)
-    }
-  }
-
-  triggers.push(tl.scrollTrigger!)
-}
-
-function initRoulette() {
-  if (!rouletteSection.value) return
-
-  if (rouletteLabel.value) gsap.set(rouletteLabel.value, { opacity: 0, y: 20 })
-
-  rouletteCards.forEach((_, i) => {
-    const el = getRef('rcard', i)
-    if (el) gsap.set(el, { opacity: 0, rotateY: -180, scale: 0.6 })
-  })
-
-  const tl = gsap.timeline({
-    scrollTrigger: { trigger: rouletteSection.value, start: 'top 70%', end: 'bottom 30%', scrub: 0.8 }
-  })
-
-  if (rouletteLabel.value) {
-    tl.to(rouletteLabel.value, { opacity: 1, y: 0, duration: 0.15 }, 0)
-  }
-
-  // Cards flip in one by one with 3D rotation
-  rouletteCards.forEach((card, i) => {
-    const el = getRef('rcard', i)
-    if (!el) return
-    const isHit = card.color === 'green'
-    const t = 0.1 + i * 0.14
-
-    tl.to(el, {
-      opacity: 1, rotateY: 0, scale: 1,
-      duration: 0.15, ease: 'power3.out',
-    }, t)
-
-    // Miss cards shake, hit card glows
-    if (!isHit) {
-      tl.to(el, { x: -8, duration: 0.03 }, t + 0.15)
-      tl.to(el, { x: 8, duration: 0.03 }, t + 0.18)
-      tl.to(el, { x: 0, duration: 0.03 }, t + 0.21)
-    } else {
-      tl.to(el, { scale: 1.15, duration: 0.1, ease: 'power2.out' }, t + 0.15)
-      tl.to(el, { scale: 1.05, duration: 0.2, ease: 'elastic.out(1, 0.3)' }, t + 0.25)
-    }
-  })
-
-  triggers.push(tl.scrollTrigger!)
-}
-
-function initMercy() {
-  if (!mercySection.value) return
-
-  for (let i = 1; i <= 25; i++) {
-    const c = getRef('mc', i)
-    if (c) gsap.set(c, { opacity: i <= 7 ? 1 : 0, x: 0, y: 0, rotation: 0, scale: 1 })
-  }
-  if (mercyBoom.value) gsap.set(mercyBoom.value, { scale: 0, opacity: 0, rotation: -20 })
-  if (mercyNum.value) gsap.set(mercyNum.value, { opacity: 1 })
-
-  const tl = gsap.timeline({
-    scrollTrigger: { trigger: mercySection.value, start: 'top 60%', end: 'bottom 30%', scrub: 0.8 }
-  })
-
-  // Cards appear 8 through 25
-  for (let i = 8; i <= 25; i++) {
-    const c = getRef('mc', i)
-    if (!c) continue
-    tl.to(c, { opacity: 1, duration: 0.03 }, (i - 8) * 0.03)
-    tl.call(() => { if (mercyNum.value) mercyNum.value.textContent = String(i) }, [], (i - 8) * 0.03)
-  }
-
-  // Counter turns red at 20+
-  if (mercyNum.value) {
-    tl.to(mercyNum.value, { color: '#ff2a2a', scale: 1.2, duration: 0.1 }, 0.36)
-  }
-
-  // ELIMINATED stamp
-  if (mercyBoom.value) {
-    tl.to(mercyBoom.value, { scale: 1, opacity: 1, rotation: 0, duration: 0.1, ease: 'back.out(3)' }, 0.52)
-  }
-
-  // Explosion scatter
-  for (let i = 1; i <= 25; i++) {
-    const c = getRef('mc', i)
-    if (!c) continue
-    tl.to(c, {
-      x: gsap.utils.random(-300, 300),
-      y: gsap.utils.random(-200, 200),
-      rotation: gsap.utils.random(-90, 90),
-      scale: 0,
-      opacity: 0,
-      duration: 0.2,
-    }, 0.55 + Math.random() * 0.05)
-  }
-
-  // Counter fades
-  if (mercyNum.value) {
-    tl.to(mercyNum.value, { opacity: 0, duration: 0.1 }, 0.55)
-  }
-
-  triggers.push(tl.scrollTrigger!)
-}
-
-function initAgent() {
-  if (!agentSection.value) return
-
-  const lines = [1, 2, 3, 4, 5, 6].map(i => getRef('hud', i)).filter(Boolean) as HTMLElement[]
-  const chips = [moveChip0.value, moveChip1.value, moveChip2.value].filter(Boolean) as HTMLElement[]
-  const flyFrom = isMobile.value ? { x: 0, y: -240 } : { x: -340, y: -30 }
-
-  // Respect reduced motion: render the resolved frame, skip the loop.
-  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  if (reduce) {
-    lines.forEach(l => gsap.set(l, { opacity: l.classList.contains('hud-dim') ? 0.6 : 1, x: 0 }))
-    chips.forEach(c => c.classList.remove('lit'))
-    moveChip0.value?.classList.add('lit')
-    if (hudOk.value) gsap.set(hudOk.value, { opacity: 1 })
-    if (agentFly.value) gsap.set(agentFly.value, { opacity: 1, x: 0, y: 0, scale: 1, rotation: 0 })
-    if (agentTurn.value) gsap.set(agentTurn.value, { opacity: 1, scale: 1, y: 0 })
-    return
-  }
-
-  const resetState = () => {
-    lines.forEach(l => gsap.set(l, { opacity: 0, x: -14 }))
-    chips.forEach(c => c.classList.remove('lit'))
-    if (hudScan.value) gsap.set(hudScan.value, { left: '-6%', opacity: 0 })
-    if (hudOk.value) gsap.set(hudOk.value, { opacity: 0 })
-    if (agentBeam.value) gsap.set(agentBeam.value, { opacity: 0, scaleX: 0 })
-    if (agentPulse.value) gsap.set(agentPulse.value, { opacity: 0, scale: 0.4 })
-    if (agentTurn.value) gsap.set(agentTurn.value, { opacity: 0, scale: 0.8, y: 10 })
-    if (agentFly.value) gsap.set(agentFly.value, { opacity: 0, x: flyFrom.x, y: flyFrom.y, scale: 0.7, rotation: -12 })
-  }
-  resetState()
-
-  const tl = gsap.timeline({
-    repeat: -1,
-    repeatDelay: 0.5,
-    onRepeat: resetState,
+  master = gsap.timeline({
+    defaults: { ease: 'power2.out' },
     scrollTrigger: {
-      trigger: agentSection.value,
-      start: 'top 70%',
-      end: 'bottom 30%',
-      toggleActions: 'play pause resume pause',
+      trigger: rootEl.value,
+      start: 'top top',
+      end: () => '+=' + Math.round(window.innerHeight * (mob() ? 5.4 : 6.2)),
+      pin: true,
+      // The landing container is display: flex, where ScrollTrigger defaults
+      // pinSpacing to false — without this the page can't scroll through the
+      // pinned story at all.
+      pinSpacing: true,
+      scrub: 1,
+      anticipatePin: 1,
+      invalidateOnRefresh: true,
     },
   })
+  const tl = master
 
-  // HUD lines stream in, terminal-style
-  lines.forEach((l, i) => {
-    const dim = l.classList.contains('hud-dim')
-    tl.to(l, { opacity: dim ? 0.6 : 1, x: 0, duration: 0.12, ease: 'power2.out' }, 0.1 + i * 0.16)
-  })
+  // ============ CHAPTER 1 — STACK OR SUFFER (0–10) ============
+  copyIn(tl, chap1.value, 0.2)
+  tl.to(counterEl.value!, { autoAlpha: 1, scale: 1, duration: 0.8 }, 0.8)
 
-  // Scan-line sweeps the legal moves
-  if (hudScan.value) {
-    tl.to(hudScan.value, { opacity: 0.95, duration: 0.05 }, 1.0)
-    tl.to(hudScan.value, { left: '102%', duration: 0.5, ease: 'power1.inOut' }, 1.0)
-    tl.to(hudScan.value, { opacity: 0, duration: 0.1 }, 1.5)
+  const counterValues = [2, 6, 12, 22]
+  for (let i = 0; i < 4; i++) {
+    const card = getRef('p', i)
+    if (!card) continue
+    const at = 1 + i * 1.8
+    // Fly in from offscreen — alternating corners, as if the exploded hero
+    // cards are coming back to the table.
+    tl.fromTo(card,
+      {
+        x: () => (i % 2 ? 1 : -1) * vw() * 0.7,
+        y: () => -window.innerHeight * 0.55,
+        rotation: (i % 2 ? 1 : -1) * 70,
+        scale: 1.6,
+        autoAlpha: 0,
+      },
+      {
+        x: i * 5 - 8,
+        y: i * -7,
+        rotation: stackRot[i],
+        scale: 1,
+        autoAlpha: 1,
+        duration: 1.1,
+        ease: 'power3.in',
+        immediateRender: false,
+      }, at)
+    // Impact: flash + counter punch right as the card lands.
+    tl.fromTo(flashEl.value!, { autoAlpha: 0.55, scale: 0.6 }, { autoAlpha: 0, scale: 1.6, duration: 0.5, immediateRender: false }, at + 1.1)
+    counterTo(tl, counterValues[i]!, at + 0.9, 0.35)
+    tl.fromTo(counterEl.value!, { scale: 1.28 }, { scale: 1, duration: 0.5, ease: 'elastic.out(1, 0.5)', immediateRender: false }, at + 1.1)
   }
-  // Chips light as the scan passes; R7 stays locked in
-  chips.forEach((c, i) => {
-    tl.call(() => c.classList.add('lit'), [], 1.05 + i * 0.13)
-    if (i !== 0) tl.call(() => c.classList.remove('lit'), [], 1.05 + i * 0.13 + 0.18)
-  })
+  copyOut(tl, chap1.value, 8.8)
+  tl.to(counterEl.value!, { autoAlpha: 0, scale: 0.7, duration: 0.7 }, 9.0)
 
-  // play_card resolves
-  if (hudOk.value) tl.to(hudOk.value, { opacity: 1, duration: 0.12, ease: 'back.out(3)' }, 1.55)
-
-  // Beam fires and the card rockets onto the pile
-  if (agentBeam.value) {
-    tl.fromTo(agentBeam.value, { opacity: 0, scaleX: 0 }, { opacity: 0.9, scaleX: 1, duration: 0.18, ease: 'power2.out' }, 1.6)
-    tl.to(agentBeam.value, { opacity: 0, duration: 0.35 }, 2.0)
+  // ============ CHAPTER 2 — SKIP EVERYONE (10–20) ============
+  copyIn(tl, chap2.value, 10.2)
+  for (let i = 1; i <= 4; i++) {
+    const v = getRef('victim', i)
+    if (v) tl.to(v, { autoAlpha: 1, scale: 1, duration: 0.7 }, 10.4 + i * 0.18)
   }
-  if (agentFly.value) {
-    tl.to(agentFly.value, { opacity: 1, x: 0, y: 0, scale: 1, rotation: 0, duration: 0.42, ease: 'power3.in' }, 1.65)
+  // The Skip Everyone card storms in spinning and crowns the pile.
+  const skipCard = getRef('p', 4)
+  if (skipCard) {
+    tl.fromTo(skipCard,
+      { x: 0, y: () => -window.innerHeight * 0.6, rotation: -720, scale: 1.5, autoAlpha: 0 },
+      { x: 0, y: -14, rotation: 6, scale: 1.06, autoAlpha: 1, duration: 1.6, ease: 'power3.in', immediateRender: false }, 11.2)
+    tl.to(skipCard, { scale: 1, duration: 0.5, ease: 'elastic.out(1, 0.4)' }, 12.8)
   }
-  // Pile reacts: pulse + recoil, agent's turn lands
-  if (agentPulse.value) {
-    tl.fromTo(agentPulse.value, { opacity: 0.8, scale: 0.4 }, { opacity: 0, scale: 1.7, duration: 0.5, ease: 'power2.out' }, 2.05)
+  // The pile recoils under it, the shockwave rolls the table.
+  for (let i = 0; i < 4; i++) {
+    const card = getRef('p', i)
+    if (card) tl.to(card, { y: `+=${6 + i * 2}`, duration: 0.3, ease: 'power2.out' }, 12.8)
   }
-  if (agentTurn.value) {
-    tl.to(agentTurn.value, { opacity: 1, scale: 1, y: 0, duration: 0.22, ease: 'back.out(2.2)' }, 2.1)
+  tl.fromTo(ringEl.value!, { autoAlpha: 0.9, scale: 0.4 }, { autoAlpha: 0, scale: 4.5, duration: 1.4, ease: 'expo.out', immediateRender: false }, 12.9)
+  for (let i = 1; i <= 4; i++) {
+    const stamp = getRef('stamp', i)
+    const v = getRef('victim', i)
+    const at = 13.2 + i * 0.5
+    if (stamp) tl.to(stamp, { scale: 1, rotation: [-4, 5, -6, 3][i - 1], duration: 0.4, ease: 'back.out(3)' }, at)
+    if (v) tl.to(v, { opacity: 0.3, duration: 0.4 }, at)
+  }
+  copyOut(tl, chap2.value, 18.6)
+  for (let i = 1; i <= 4; i++) {
+    const v = getRef('victim', i)
+    if (v) tl.to(v, { autoAlpha: 0, scale: 0.8, duration: 0.7 }, 18.8 + i * 0.08)
   }
 
-  // Hold, then fade for a clean loop
-  tl.to([...lines, agentFly.value, agentTurn.value, hudOk.value].filter(Boolean), { opacity: 0, duration: 0.35, ease: 'power1.in' }, 3.3)
-
-  triggers.push(tl.scrollTrigger!)
-}
-
-function initFeedback() {
-  if (!feedbackSection.value) return
-
-  const bubbles = [bubble1.value, bubble2.value, bubble3.value]
-
-  // Bubbles drift in from left/right with rotation, settle at scale 1
-  bubbles.forEach((b, i) => {
-    if (!b) return
-    gsap.set(b, {
-      opacity: 0,
-      x: i % 2 === 0 ? -120 : 120,
-      y: gsap.utils.random(-30, 30),
-      rotation: i % 2 === 0 ? -8 : 8,
-      scale: 0.6,
-    })
+  // ============ CHAPTER 3 — COLOR ROULETTE (20–31) ============
+  copyIn(tl, chap3.value, 20.2)
+  // The pile condenses into the roulette spot — the deck IS the wheel now.
+  getRefs('p', 0, 4).forEach((card, i) => {
+    tl.to(card, { x: 0, y: 0, rotation: 0, scale: 0.92, autoAlpha: 0, duration: 0.9, ease: 'power2.in' }, 20.4 + i * 0.08)
   })
+  tl.to(flipperEl.value!, { autoAlpha: 1, duration: 0.5 }, 21.1)
+  tl.to(seekEl.value!, { autoAlpha: 1, y: () => (mob() ? -135 : -170), duration: 0.7 }, 21.2)
 
-  if (feedbackHeading.value) gsap.set(feedbackHeading.value, { opacity: 0, y: 40, scale: 0.9 })
-  if (feedbackBtn.value) gsap.set(feedbackBtn.value, { opacity: 0, scale: 0.7, y: 20 })
-
-  const tl = gsap.timeline({
-    scrollTrigger: { trigger: feedbackSection.value, start: 'top 80%', end: 'top 20%', scrub: 0.8 }
+  const faceBeats = [21.8, 24.0, 26.2, 28.4]
+  rouletteFaces.forEach((face, i) => {
+    const el = getRef('face', i)
+    if (!el) return
+    const at = faceBeats[i]!
+    if (i > 0) tl.to(el, { autoAlpha: 1, rotationY: 0, duration: 0.7, ease: 'power3.out' }, at)
+    // The whole page takes the color of the revealed card.
+    tl.to(stageEl.value!, { '--acc': ACCENT[face.color as keyof typeof ACCENT], duration: 0.8, ease: 'power1.inOut' }, at)
+    if (face.color !== 'green') {
+      // Miss: a frustrated shake, then flip away.
+      tl.to(el, { keyframes: [{ x: -9 }, { x: 9 }, { x: -6 }, { x: 0 }], duration: 0.5, ease: 'power1.inOut' }, at + 0.8)
+      tl.to(el, { autoAlpha: 0, rotationY: 100, duration: 0.7, ease: 'power3.in' }, at + 1.5)
+    } else {
+      // Hit: the green card lands and the table floods green.
+      tl.to(el, { scale: 1.14, duration: 0.4, ease: 'power2.out' }, at + 0.8)
+      tl.to(el, { scale: 1.04, duration: 0.7, ease: 'elastic.out(1, 0.35)' }, at + 1.2)
+    }
   })
+  copyOut(tl, chap3.value, 29.8)
+  tl.to([flipperEl.value, seekEl.value], { autoAlpha: 0, duration: 0.7 }, 30.2)
 
-  // Bubbles slide in staggered
-  bubbles.forEach((b, i) => {
-    if (!b) return
-    const t = i * 0.12
-    tl.to(b, {
-      opacity: 1,
-      x: 0,
-      y: gsap.utils.random(-6, 6),
-      rotation: gsap.utils.random(-2, 2),
-      scale: 1,
-      duration: 0.25,
-      ease: 'back.out(1.8)',
-    }, t)
-    // Gentle pulse on settle
-    tl.to(b, { scale: 1.05, duration: 0.08, yoyo: true, repeat: 1 }, t + 0.2)
-  })
+  // ============ CHAPTER 4 — MERCY RULE (31–42) ============
+  copyIn(tl, chap4.value, 31.2)
+  tl.to(stageEl.value!, { '--acc': ACCENT.red, duration: 1.2 }, 31.2)
+  tl.to(counterEl.value!, { autoAlpha: 1, scale: 1, duration: 0.6 }, 31.6)
+  tl.to(plusEl.value!, { width: 0, opacity: 0, duration: 0.01 }, 31.0)
+  counterTo(tl, 1, 31.0, 0.01)
 
-  // Heading rises
-  if (feedbackHeading.value) {
-    tl.to(feedbackHeading.value, {
-      opacity: 1,
-      y: 0,
-      scale: 1,
+  // The hand fans out card by card, crowding toward the limit.
+  for (let i = 1; i <= 25; i++) {
+    const f = getRef('fan', i)
+    if (!f) continue
+    const k = i - 13
+    const at = 32 + (i - 1) * 0.22
+    tl.to(f, {
+      autoAlpha: 1,
+      x: () => k * fanSpacing(),
+      y: Math.abs(k) * 3.4 + 96,
+      rotation: k * 3.6,
       duration: 0.3,
-      ease: 'power3.out',
-    }, 0.45)
+      ease: 'power2.out',
+    }, at)
   }
-
-  // Button bounces in
-  if (feedbackBtn.value) {
-    tl.to(feedbackBtn.value, {
-      opacity: 1,
-      scale: 1,
-      y: 0,
-      duration: 0.25,
-      ease: 'back.out(2.2)',
-    }, 0.6)
+  counterTo(tl, 25, 32, 25 * 0.22)
+  tl.to(numEl.value!, { color: '#ff2a2a', scale: 1.18, duration: 0.5 }, 36.4)
+  // Freeze beat... then the table detonates.
+  tl.to(boomEl.value!, { scale: 1, autoAlpha: 1, rotation: -3, duration: 0.5, ease: 'back.out(2.5)' }, 38.2)
+  for (let i = 1; i <= 25; i++) {
+    const f = getRef('fan', i)
+    const s = fanScatter[i - 1]!
+    if (f) tl.to(f, { x: s.x, y: s.y, rotation: s.r, scale: 0, autoAlpha: 0, duration: 0.9, ease: 'power3.out' }, 38.7 + (i % 5) * 0.05)
   }
+  tl.to(counterEl.value!, { autoAlpha: 0, duration: 0.5 }, 38.8)
+  copyOut(tl, chap4.value, 40.6)
+  tl.to(boomEl.value!, { autoAlpha: 0, scale: 0.9, duration: 0.7 }, 40.8)
 
-  triggers.push(tl.scrollTrigger!)
+  // ============ CHAPTER 5 — AGENT AT THE TABLE (42–54) ============
+  copyIn(tl, chap5.value, 42.2)
+  tl.to(stageEl.value!, { '--acc': '#39ff14', duration: 1.2 }, 42.2)
+  tl.to(hudEl.value!, { autoAlpha: 1, y: 0, duration: 0.9 }, 42.6)
+  tl.to(apileEl.value!, { autoAlpha: 1, scale: 1, duration: 0.7 }, 42.8)
+
+  getRefs('hud', 1, 6).forEach((line, i) => {
+    const dim = line.classList.contains('hud-dim')
+    tl.to(line, { autoAlpha: dim ? 0.6 : 1, x: 0, duration: 0.45, ease: 'power2.out' }, 43.2 + i * 0.55)
+  })
+  // Scan-line sweeps the legal moves (transform, not `left`).
+  tl.fromTo(hudScanEl.value!, { autoAlpha: 0.95, x: -40 }, { x: () => (getRef('hud', 5)?.offsetWidth ?? 280) + 40, duration: 1.4, ease: 'power1.inOut', immediateRender: false }, 46.4)
+  tl.to(hudScanEl.value!, { autoAlpha: 0, duration: 0.3 }, 47.8)
+  // Chips light as the scan passes — style tweens, so reverse un-lights them.
+  const lit = { color: '#39ff14', borderColor: '#39ff14', boxShadow: '0 0 14px rgba(57, 255, 20, 0.5)', y: -2, duration: 0.3 }
+  const unlit = { color: '#8a8a8a', borderColor: '#3a3a3a', boxShadow: '0 0 0 rgba(0,0,0,0)', y: 0, duration: 0.3 }
+  for (let i = 1; i <= 3; i++) {
+    const chip = getRef('chip', i)
+    if (!chip) continue
+    tl.to(chip, lit, 46.5 + (i - 1) * 0.4)
+    if (i !== 1) tl.to(chip, unlit, 46.5 + (i - 1) * 0.4 + 0.5)
+  }
+  tl.to(hudOkEl.value!, { autoAlpha: 1, duration: 0.4, ease: 'back.out(3)' }, 48.6)
+  // Beam fires; the agent's card crosses the table onto the pile.
+  tl.fromTo(beamEl.value!, { autoAlpha: 0, scaleX: 0 }, { autoAlpha: 0.9, scaleX: 1, duration: 0.5, immediateRender: false }, 48.9)
+  tl.to(beamEl.value!, { autoAlpha: 0, duration: 0.6 }, 49.6)
+  tl.fromTo(aflyEl.value!,
+    {
+      x: () => (mob() ? 0 : -vw() * 0.26),
+      y: () => (mob() ? -window.innerHeight * 0.25 : -30),
+      autoAlpha: 0, scale: 0.7, rotation: -12,
+    },
+    { x: 0, y: () => (mob() ? 150 : 0), autoAlpha: 1, scale: 1, rotation: 4, duration: 1.1, ease: 'power3.in', immediateRender: false }, 49.2)
+  tl.fromTo(pulseEl.value!, { autoAlpha: 0.8, scale: 0.4 }, { autoAlpha: 0, scale: 1.8, duration: 1.0, immediateRender: false }, 50.3)
+  tl.to(agentTurnEl.value!, { autoAlpha: 1, y: () => (mob() ? 230 : 96), scale: 1, duration: 0.6, ease: 'back.out(2.2)' }, 50.6)
+  tl.to(agentCtaEl.value!, { autoAlpha: 1, duration: 0.6 }, 51.2)
+
+  copyOut(tl, chap5.value, 52.8)
+  tl.to([hudEl.value, beamEl.value, agentCtaEl.value], { autoAlpha: 0, y: -18, duration: 0.8 }, 53.0)
+  tl.to([apileEl.value, aflyEl.value, agentTurnEl.value], { autoAlpha: 0, scale: 0.85, duration: 0.8 }, 53.2)
+
+  // ============ CHAPTER 6 — FINALE (54–62) ============
+  tl.to(stageEl.value!, { '--acc': '#00ff66', duration: 1.0 }, 54.0)
+  tl.to(finaleEl.value!, { autoAlpha: 1, duration: 0.6 }, 54.4)
+  for (let i = 1; i <= 3; i++) {
+    const b = getRef('bubble', i)
+    if (b) {
+      tl.to(b, { autoAlpha: 1, x: 0, rotation: i % 2 ? -2 : 2, scale: 1, duration: 0.8, ease: 'back.out(1.8)' }, 54.6 + i * 0.35)
+    }
+  }
+  // Idle beat so the finale holds before the pin releases.
+  tl.to({}, { duration: 4 }, 58)
+
+  // Scroll-velocity physicality — the deck skews with scroll speed and
+  // settles elastically when you stop.
+  const skewSetter = gsap.quickSetter(deckEl.value!, 'skewY', 'deg')
+  const skewProxy = { v: 0 }
+  velocityST = ScrollTrigger.create({
+    trigger: rootEl.value,
+    start: 'top bottom',
+    end: 'bottom top',
+    onUpdate(self) {
+      const v = gsap.utils.clamp(-6, 6, self.getVelocity() / -400)
+      if (Math.abs(v) > Math.abs(skewProxy.v)) {
+        skewProxy.v = v
+        gsap.to(skewProxy, {
+          v: 0,
+          duration: 0.9,
+          ease: 'power3.out',
+          overwrite: true,
+          onUpdate: () => skewSetter(skewProxy.v),
+        })
+      }
+    },
+  })
 }
-
 </script>
 
 <style scoped>
-.scroll-sections {
+.scrolly {
   position: relative;
   z-index: 5;
 }
 
-.scroll-section {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6rem 2rem;
+.stage {
   position: relative;
+  height: 100vh;
   overflow: hidden;
+  --acc: #ff2a2a;
 }
 
-.section-inner {
-  max-width: 900px;
-  width: 100%;
+.stage-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 42%, var(--acc) 0%, transparent 62%);
+  opacity: 0.1;
+  transition: none;
+}
+
+/* Everything the timeline reveals starts hidden in CSS, not JS — initState
+   runs two rAFs after mount, and without this every chapter's copy paints
+   stacked in the shared slot for a frame on page load. GSAP's autoAlpha
+   writes inline visibility, which takes over from here. */
+.chap,
+.deck > *,
+.hud,
+.agent-beam,
+.finale {
+  visibility: hidden;
+}
+
+/* ---------- Chapter copy ---------- */
+.chap {
+  position: absolute;
+  top: 7%;
+  left: 50%;
+  translate: -50% 0;
+  width: min(900px, 92vw);
   text-align: center;
+  will-change: transform, opacity;
 }
 
-.section-label {
+.chap-label {
   font-family: 'Courier New', monospace;
   font-size: 0.7rem;
-  color: #333;
+  color: #444;
   letter-spacing: 6px;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.1rem;
 }
 
-.section-heading {
+.chap-heading {
   font-family: var(--font-display);
-  font-size: 4rem;
-  margin: 0 0 1rem;
+  font-size: 3.6rem;
+  margin: 0 0 0.9rem;
   color: var(--text-primary);
   line-height: 1;
 }
@@ -641,89 +633,100 @@ function initFeedback() {
 .accent-yellow { color: var(--color-hazard); }
 .accent-green { color: var(--color-neon-green); }
 
-.section-desc {
+.chap-desc {
   color: var(--text-muted);
-  font-size: 1.15rem;
-  margin: 0 auto 4rem;
-  max-width: 450px;
+  font-size: 1.1rem;
+  margin: 0 auto;
+  max-width: 460px;
   line-height: 1.6;
 }
 
-/* ========== STACK ========== */
-.stack-stage {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2rem;
-  position: relative;
-}
-
-.stack-pile-wrap {
-  position: relative;
-  width: 180px;
-  height: 252px;
-}
-
-.stack-card {
+/* ---------- The deck (center stage) ---------- */
+.deck {
   position: absolute;
-  top: 0;
-  left: 0;
-  filter: drop-shadow(0 10px 30px rgba(0,0,0,0.5));
+  left: 50%;
+  top: 58%;
+  width: 0;
+  height: 0;
+  will-change: transform;
 }
 
-.stack-counter {
+.pcard,
+.fcard,
+.flipper,
+.apile,
+.afly {
+  position: absolute;
+  left: 0;
+  top: 0;
+  translate: -50% -50%;
+  filter: drop-shadow(0 12px 32px rgba(0, 0, 0, 0.5));
+  will-change: transform, opacity;
+}
+
+.afly { filter: drop-shadow(0 0 24px rgba(255, 42, 42, 0.4)); }
+
+.fx-flash {
+  position: absolute;
+  left: 0;
+  top: 0;
+  translate: -50% -50%;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--acc) 0%, transparent 68%);
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.fx-ring {
+  position: absolute;
+  left: 0;
+  top: 0;
+  translate: -50% -50%;
+  width: 120px;
+  height: 120px;
+  border: 3px solid var(--color-alert);
+  border-radius: 50%;
+  box-shadow: 0 0 30px rgba(255, 42, 42, 0.5), inset 0 0 18px rgba(255, 42, 42, 0.3);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.counter {
+  position: absolute;
+  left: 0;
+  top: 0;
+  translate: -50% -205px;
   font-family: var(--font-display);
-  font-size: 6rem;
+  font-size: 5rem;
   color: var(--color-alert);
   text-shadow: 0 0 40px rgba(255, 42, 42, 0.6);
   display: flex;
   align-items: baseline;
+  white-space: nowrap;
+  will-change: transform, opacity;
 }
 
-.counter-plus { font-size: 4rem; margin-right: 0.2rem; }
+.counter-plus { font-size: 3.4rem; margin-right: 0.15rem; overflow: hidden; display: inline-block; }
 
-.impact-flash {
+/* ---------- Victims (skip chapter) ---------- */
+.victim {
   position: absolute;
-  width: 300px;
-  height: 300px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255,42,42,0.4), transparent 70%);
-  pointer-events: none;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-
-/* ========== SKIP ========== */
-.skip-stage {
+  left: 0;
+  top: 0;
+  translate: -50% -50%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3rem;
-}
-
-.skip-card-hero {
-  filter: drop-shadow(0 20px 60px rgba(0, 243, 255, 0.3));
-}
-
-.skip-victims {
-  display: flex;
-  gap: 2.5rem;
-  justify-content: center;
-}
-
-.skip-victim {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  position: relative;
-  transition: opacity 0.3s;
+  gap: 0.45rem;
+  will-change: transform, opacity;
 }
 
 .victim-avatar {
-  width: 60px;
-  height: 60px;
+  width: 58px;
+  height: 58px;
   border-radius: 50%;
   background: #1a1a1a;
   border: 2px solid #444;
@@ -733,21 +736,21 @@ function initFeedback() {
   font-weight: bold;
   color: var(--text-secondary);
   font-family: var(--font-display);
-  font-size: 1.2rem;
+  font-size: 1.15rem;
 }
 
 .victim-name {
   font-family: 'Courier New', monospace;
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   color: var(--text-muted);
   letter-spacing: 1px;
 }
 
 .victim-stamp {
   position: absolute;
-  top: 50%;
+  top: 38%;
   left: 50%;
-  transform: translate(-50%, -50%) scale(0);
+  margin-left: -42px;
   font-family: var(--font-display);
   font-size: 0.8rem;
   color: var(--color-alert);
@@ -757,134 +760,88 @@ function initFeedback() {
   white-space: nowrap;
   z-index: 5;
   text-shadow: 0 0 10px var(--color-alert);
+  will-change: transform;
 }
 
-/* ========== ROULETTE ========== */
-.roulette-stage {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2rem;
-}
-
-.roulette-target-label {
-  font-family: 'Courier New', monospace;
-  font-size: 1.1rem;
-  color: var(--text-muted);
-  letter-spacing: 4px;
-}
-
-.roulette-stream {
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
-  flex-wrap: wrap;
+/* ---------- Roulette ---------- */
+.flipper {
   perspective: 800px;
-}
-
-.roulette-card-wrap {
-  position: relative;
-  filter: drop-shadow(0 8px 20px rgba(0,0,0,0.4));
   transform-style: preserve-3d;
 }
 
-.roulette-miss {
+.face {
+  position: absolute;
+  left: 0;
+  top: 0;
+  translate: -50% -50%;
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+}
+
+.face-tag {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   font-family: var(--font-display);
-  font-size: 0.7rem;
-  color: var(--color-alert);
-  opacity: 0.8;
   pointer-events: none;
 }
 
-.roulette-hit {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-family: var(--font-display);
-  font-size: 1rem;
+.tag-miss { font-size: 0.85rem; color: var(--color-alert); opacity: 0.85; }
+.tag-hit {
+  font-size: 1.15rem;
   color: var(--color-neon-green);
   text-shadow: 0 0 20px var(--color-neon-green);
-  pointer-events: none;
 }
 
-/* ========== MERCY ========== */
-.mercy-stage {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1.5rem;
-  position: relative;
-  min-height: 250px;
-  overflow: hidden;
-  padding: 2rem 0;
-}
-
-.mercy-counter-big {
-  font-family: var(--font-display);
-  font-size: 5rem;
-  color: var(--color-hazard);
-  text-shadow: 0 0 30px rgba(255, 204, 0, 0.4);
-  transition: color 0.2s;
-}
-
-.mercy-hand-wrap {
-  display: flex;
-  justify-content: center;
-  flex-wrap: nowrap;
-  max-width: 100%;
-  overflow: hidden;
-}
-
-.mercy-c {
-  margin-right: -22px;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
-  flex-shrink: 0;
-}
-
-.mercy-c:last-child { margin-right: 0; }
-
-.mercy-boom {
+/* Vertical offset lives in the GSAP y values — a pixel offset here would get
+   baked into GSAP's transform and then overwritten by the entrance tween. */
+.seek-label {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) scale(0);
+  left: 0;
+  top: 0;
+  translate: -50% 0;
+  z-index: 20;
+  font-family: 'Courier New', monospace;
+  font-size: 1.05rem;
+  color: var(--text-muted);
+  letter-spacing: 4px;
+  white-space: nowrap;
+  will-change: transform, opacity;
+}
+
+/* ---------- Mercy ---------- */
+.boom {
+  position: absolute;
+  left: 0;
+  top: 0;
+  translate: -50% -50%;
   font-family: var(--font-display);
-  font-size: 3.5rem;
+  font-size: 3.4rem;
   color: var(--color-alert);
   border: 4px solid var(--color-alert);
-  padding: 0.5rem 2.5rem;
+  padding: 0.5rem 2.4rem;
   background: rgba(0, 0, 0, 0.95);
   white-space: nowrap;
   z-index: 10;
   text-shadow: 0 0 30px var(--color-alert);
   box-shadow: 0 0 60px rgba(255, 42, 42, 0.4);
-  max-width: 90vw;
+  will-change: transform, opacity;
 }
 
-/* ========== AGENT (WebMCP) ========== */
-.agent-stage {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2.5rem;
-  margin-bottom: 3rem;
-  perspective: 1000px;
-}
-
-.agent-hud {
-  flex: 0 0 auto;
+/* ---------- Agent ---------- */
+.hud {
+  position: absolute;
+  left: 7%;
+  top: 50%;
+  translate: 0 -50%;
   width: 340px;
   text-align: left;
   background: rgba(8, 12, 10, 0.92);
   border: 1px solid rgba(57, 255, 20, 0.35);
   border-radius: 10px;
   box-shadow: 0 0 50px rgba(57, 255, 20, 0.12), inset 0 0 30px rgba(0, 0, 0, 0.6);
-  overflow: hidden;
+  will-change: transform, opacity;
 }
 
 .hud-bar {
@@ -946,62 +903,60 @@ function initFeedback() {
   padding: 0.18rem 0.6rem;
   border: 1px solid #3a3a3a;
   border-radius: 4px;
-  color: var(--text-muted);
-  transition: color 0.18s, border-color 0.18s, box-shadow 0.18s, transform 0.18s;
-}
-.move-chip.lit {
-  color: var(--color-neon-green);
-  border-color: var(--color-neon-green);
-  box-shadow: 0 0 14px rgba(57, 255, 20, 0.5);
-  transform: translateY(-2px) scale(1.06);
+  color: #8a8a8a;
+  will-change: transform;
 }
 
 .hud-scan {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: -6%;
+  left: -40px;
   width: 36px;
   pointer-events: none;
   background: linear-gradient(90deg, transparent, rgba(57, 255, 20, 0.55), transparent);
   filter: blur(2px);
+  will-change: transform, opacity;
+}
+
+.agent-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0 1.1rem 1.1rem;
+  padding: 0.7rem 1.3rem;
+  background: transparent;
+  border: 2px solid var(--color-neon-green);
+  color: var(--color-neon-green);
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  letter-spacing: 2px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.25s, color 0.25s, box-shadow 0.25s;
+  pointer-events: auto;
+}
+.agent-cta:hover {
+  background: var(--color-neon-green);
+  color: #000;
+  box-shadow: 0 0 30px rgba(57, 255, 20, 0.5);
 }
 
 .agent-beam {
-  flex: 0 0 auto;
-  width: 90px;
+  position: absolute;
+  left: calc(7% + 340px);
+  top: 50%;
+  width: calc(43% - 340px);
   height: 3px;
   transform-origin: left center;
   background: linear-gradient(90deg, var(--color-neon-green), var(--color-neon-blue));
   box-shadow: 0 0 16px rgba(57, 255, 20, 0.7);
   border-radius: 2px;
+  pointer-events: none;
+  will-change: transform, opacity;
 }
 
-.agent-pile-wrap {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1.2rem;
-}
-
-.agent-turn {
-  font-family: var(--font-display);
-  font-size: 0.95rem;
-  letter-spacing: 3px;
-  color: var(--text-secondary);
-  border: 1px solid rgba(57, 255, 20, 0.4);
-  padding: 0.35rem 0.9rem;
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.5);
-}
-
-.agent-pile {
-  position: relative;
-  filter: drop-shadow(0 16px 44px rgba(0, 0, 0, 0.55));
-}
-
-.agent-pulse {
+.fx-pulse {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -1011,50 +966,44 @@ function initFeedback() {
   border-radius: 50%;
   pointer-events: none;
   background: radial-gradient(circle, rgba(57, 255, 20, 0.45), transparent 65%);
+  will-change: transform, opacity;
 }
 
-.agent-fly {
+.agent-turn {
   position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  filter: drop-shadow(0 0 24px rgba(255, 42, 42, 0.4));
-}
-
-.agent-cta {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.65rem;
-  padding: 1.1rem 2.5rem;
-  background: transparent;
-  border: 2px solid var(--color-neon-green);
-  color: var(--color-neon-green);
+  left: 0;
+  top: 0;
+  translate: -50% -50%;
   font-family: var(--font-display);
-  font-size: 1.05rem;
-  letter-spacing: 2px;
-  text-decoration: none;
-  cursor: pointer;
-  transition: all 0.25s;
-}
-.agent-cta:hover {
-  background: var(--color-neon-green);
-  color: #000;
-  box-shadow: 0 0 30px rgba(57, 255, 20, 0.5);
+  font-size: 0.95rem;
+  letter-spacing: 3px;
+  color: var(--text-secondary);
+  border: 1px solid rgba(57, 255, 20, 0.4);
+  padding: 0.35rem 0.9rem;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+  will-change: transform, opacity;
 }
 
-/* ========== FEEDBACK ========== */
-.feedback-section { min-height: 100vh; }
+/* ---------- Finale ---------- */
+.finale {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  width: min(900px, 92vw);
+  text-align: center;
+  will-change: opacity;
+}
 
-.feedback-stage {
-  position: relative;
+.bubbles {
   display: flex;
   justify-content: center;
   align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
-  margin-bottom: 3rem;
-  min-height: 80px;
+  margin-bottom: 2.4rem;
 }
 
 .bubble {
@@ -1069,12 +1018,7 @@ function initFeedback() {
   font-size: 0.95rem;
   border-radius: 999px;
   white-space: nowrap;
-  position: relative;
-}
-
-.bubble svg {
-  color: var(--color-neon-blue);
-  flex-shrink: 0;
+  will-change: transform, opacity;
 }
 
 .bubble-1 { border-color: rgba(0, 243, 255, 0.4); }
@@ -1083,10 +1027,6 @@ function initFeedback() {
 .bubble-2 svg { color: var(--color-hazard); }
 .bubble-3 { border-color: rgba(0, 255, 100, 0.4); }
 .bubble-3 svg { color: var(--color-neon-green); }
-
-.feedback-heading {
-  font-size: 4rem;
-}
 
 .feedback-cta {
   display: inline-flex;
@@ -1100,8 +1040,9 @@ function initFeedback() {
   font-size: 1.05rem;
   letter-spacing: 2px;
   cursor: pointer;
-  transition: all 0.25s;
+  transition: background 0.25s, color 0.25s, transform 0.25s, box-shadow 0.25s;
   margin-top: 1.5rem;
+  pointer-events: auto;
 }
 
 .feedback-cta:hover {
@@ -1111,43 +1052,64 @@ function initFeedback() {
   box-shadow: 0 0 40px rgba(0, 255, 100, 0.35);
 }
 
-/* ========== MOBILE ========== */
+/* ---------- Mobile ---------- */
 @media (max-width: 768px) {
-  .scroll-section { min-height: 75vh; padding: 4rem 1.5rem; }
-  .section-heading { font-size: 2.8rem; }
-  .section-desc { font-size: 1rem; margin-bottom: 3rem; }
-  .stack-counter { font-size: 4rem; }
-  .counter-plus { font-size: 2.5rem; }
-  .stack-pile-wrap { width: 120px; height: 168px; }
-  .skip-victims { gap: 1.5rem; }
-  .victim-avatar { width: 45px; height: 45px; font-size: 1rem; }
-  .roulette-stream { gap: 0.5rem; }
-  .mercy-counter-big { font-size: 3.5rem; }
-  .mercy-boom { font-size: 2.2rem; padding: 0.3rem 1.5rem; }
-  .mercy-c { margin-right: -26px; }
-  .feedback-heading { font-size: 2.8rem; }
-  .bubble { font-size: 0.85rem; padding: 0.65rem 1rem; }
-  .agent-stage { flex-direction: column; gap: 1.5rem; }
-  .agent-hud { width: 100%; max-width: 340px; }
-  .agent-beam { width: 3px; height: 48px; transform-origin: top center; background: linear-gradient(180deg, var(--color-neon-green), var(--color-neon-blue)); }
+  .chap { top: 5%; }
+  .chap-heading { font-size: 2.4rem; }
+  .chap-desc { font-size: 0.95rem; max-width: 88vw; }
+  .deck { top: 60%; }
+  .counter { font-size: 3.4rem; translate: -50% -140px; }
+  .counter-plus { font-size: 2.2rem; }
+  .victim-avatar { width: 44px; height: 44px; font-size: 0.95rem; }
+  .victim-stamp { font-size: 0.65rem; margin-left: -34px; }
+  .seek-label { font-size: 0.85rem; translate: -50% -190px; }
+  .boom { font-size: 1.8rem; padding: 0.3rem 1.2rem; border-width: 3px; }
+  .hud {
+    left: 50%;
+    top: 31%;
+    translate: -50% 0;
+    width: min(340px, 92vw);
+  }
+  .agent-beam {
+    left: 50%;
+    top: 31%;
+    width: 3px;
+    height: 14vh;
+    transform-origin: top center;
+    background: linear-gradient(180deg, var(--color-neon-green), var(--color-neon-blue));
+  }
+  .agent-turn { font-size: 0.8rem; }
+  .bubble { font-size: 0.8rem; padding: 0.6rem 1rem; }
+  .feedback-cta { padding: 0.9rem 1.6rem; font-size: 0.9rem; }
 }
 
-@media (max-width: 480px) {
-  .scroll-section { min-height: 70vh; padding: 3rem 1rem; }
-  .section-heading { font-size: 2rem; }
-  .section-desc { font-size: 0.9rem; margin-bottom: 2rem; }
-  .stack-counter { font-size: 3rem; }
-  .counter-plus { font-size: 2rem; }
-  .skip-victims { gap: 0.75rem; flex-wrap: wrap; }
-  .victim-avatar { width: 38px; height: 38px; }
-  .victim-name { font-size: 0.6rem; }
-  .roulette-stream { gap: 0.3rem; }
-  .mercy-boom { font-size: 1.3rem; padding: 0.2rem 0.8rem; }
-  .mercy-c { margin-right: -32px; }
-  .feedback-heading { font-size: 2rem; }
-  .feedback-stage { gap: 0.5rem; }
-  .bubble { font-size: 0.75rem; padding: 0.5rem 0.85rem; }
-  .feedback-cta { padding: 0.9rem 1.5rem; font-size: 0.9rem; }
-  .impact-flash { width: 200px; height: 200px; }
+/* ---------- Reduced motion: a calm, static read ---------- */
+.is-static .stage {
+  height: auto;
+  overflow: visible;
+  padding: 4rem 0;
+}
+
+.is-static .chap {
+  position: static;
+  transform: none;
+  margin: 0 auto 5rem;
+  opacity: 1;
+  visibility: visible;
+}
+
+.is-static .stage-vignette,
+.is-static .deck,
+.is-static .hud,
+.is-static .agent-beam {
+  display: none;
+}
+
+.is-static .finale {
+  position: static;
+  transform: none;
+  margin: 0 auto;
+  opacity: 1;
+  visibility: visible;
 }
 </style>
