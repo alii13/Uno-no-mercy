@@ -266,11 +266,15 @@ button {
    (Vue removes the prior element synchronously). Cheap, prevents the
    "broken page render" feel of a hard cut.
    ========================================================================== */
+/* fill-mode must be backwards, NOT both: `both` would hold the final
+   keyframe's transform on the element forever, and any held transform turns
+   the view into a containing block that breaks position: fixed descendants
+   (ScrollTrigger pinning, flying-card clones). */
 .landing-container,
 .lobby-container,
 .game-view,
 .reset-container {
-  animation: viewEnter 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: viewEnter 260ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
 @keyframes viewEnter {

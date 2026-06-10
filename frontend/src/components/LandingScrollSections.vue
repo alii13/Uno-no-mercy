@@ -347,10 +347,6 @@ function init() {
       // pinSpacing to false — without this the page can't scroll through the
       // pinned story at all.
       pinSpacing: true,
-      // An ancestor carries a transform (hero choreography leftovers), which
-      // turns position: fixed into a no-op containing-block trap. Transform
-      // pinning is immune to that.
-      pinType: 'transform',
       scrub: 1,
       anticipatePin: 1,
       invalidateOnRefresh: true,
