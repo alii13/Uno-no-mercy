@@ -174,6 +174,7 @@ import { useAuthStore } from '../../stores/authStore'
 import { canPlayCard } from '../../utils/gameRules'
 import { soundEffects } from '../../composables/useSoundEffects'
 import { useCardAnimations } from '../../composables/useCardAnimations'
+import { animateOpponentThrow, burstImpactParticles, skipEveryoneShockwave, showTurnBanner, pulseSeat } from '../../composables/useGameFeel'
 import OpponentHand from './OpponentHand.vue'
 import PlayerHand from './PlayerHand.vue'
 import CardPile from './CardPile.vue'
@@ -241,6 +242,7 @@ onMounted(async () => {
 // the modal closes but the hands stay empty and turnState stays 'DEALING'.
 watch(() => store.isDealing, async (dealing) => {
   if (dealing) {
+    turnBannerShown = false
     await playDealerIntro()
     await store.dealInitialCards(animateSingleCardDeal)
   }
@@ -320,6 +322,61 @@ watch(
     })
   },
   { immediate: true }
+)
+
+// Seat-to-pile throw for bot plays + Skip Everyone payoff. Sync flush so
+// suppressDiscardSlam is set before CardPile's length watcher reacts to the
+// same mutation — otherwise the slam and the flying clone double up.
+watch(() => store.lastPlay, (play) => {
+  if (!play || store.isDealing) return
+  const discardEl = discardAreaRef.value
+  const isHuman = play.playerId === myPlayerId
+  const isPowerCard = play.card.color === 'wild' || play.card.type.includes('draw') || play.card.type === 'skipEveryone'
+
+  if (!isHuman && discardEl && animationLayer.value) {
+    const fromEl = opponentRefs.value[play.playerId]
+    if (fromEl) {
+      store.suppressDiscardSlam = true
+      animateOpponentThrow({
+        fromEl,
+        toEl: discardEl,
+        card: play.card,
+        layer: animationLayer.value,
+        onImpact: () => {
+          if (isPowerCard) burstImpactParticles(discardEl, play.card.color)
+        }
+      })
+    }
+  }
+
+  if (play.card.type === 'skipEveryone' && discardEl) {
+    const victims = opponents.value
+      .filter(p => !p.isEliminated && p.id !== play.playerId)
+      .map(p => opponentRefs.value[p.id])
+      .filter((el): el is HTMLElement => !!el)
+    // Fire as the thrown card lands on the pile.
+    setTimeout(() => skipEveryoneShockwave(discardEl, victims), 480)
+  }
+}, { flush: 'sync' })
+
+// Turn handoff — banner the FIRST time the turn lands on the human each game
+// (orientation moment), seat pulse when it lands on a bot. Repeating the
+// banner every handoff reads as nagging in a fast bot game; after the first
+// one the green turn pill + hand glow carry the information.
+let turnBannerShown = false
+watch(
+  () => [store.currentPlayer?.id, store.isDealing] as const,
+  ([id, dealing], [prevId, prevDealing]) => {
+    if (store.gameState !== 'PLAYING' || dealing) return
+    if (id === myPlayerId && (prevId !== myPlayerId || prevDealing)) {
+      if (!turnBannerShown) {
+        turnBannerShown = true
+        showTurnBanner()
+      }
+    } else if (id && id !== myPlayerId && id !== prevId) {
+      pulseSeat(opponentRefs.value[id])
+    }
+  }
 )
 
 const gameMessage = computed(() => {

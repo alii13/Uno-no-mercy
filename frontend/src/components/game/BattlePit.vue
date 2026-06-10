@@ -12,7 +12,7 @@
     <!-- Layer 5: Left vertical rail — industrial control panel. Direction, color,
          stack, and a TALL Mercy thermometer. Desktop only. -->
     <aside class="pit-rail" aria-label="Game state">
-      <div class="rail-cell rail-direction" :class="{ ccw: direction === -1 }" :title="direction === 1 ? 'Clockwise' : 'Counter-clockwise'">
+      <div ref="railDirectionRef" class="rail-cell rail-direction" :class="{ ccw: direction === -1 }" :title="direction === 1 ? 'Clockwise' : 'Counter-clockwise'">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true">
           <polyline points="23 4 23 10 17 10" />
           <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
@@ -46,7 +46,7 @@
     </aside>
 
     <!-- Layer 6: The play surface — asymmetric draw+discard pair with perspective -->
-    <div class="pit-table">
+    <div class="pit-table" ref="pitTableRef">
       <div class="station draw-station" @click="$emit('draw')">
         <slot name="draw-pile"></slot>
         <div class="action-hint" v-if="showDrawHint">
@@ -65,7 +65,7 @@
 
     <!-- Mobile HUD: horizontal pill below the table (rail collapses on small screens) -->
     <div class="pit-hud-mobile" v-if="myCardCount !== undefined">
-      <div class="hud-cell">
+      <div class="hud-cell" ref="hudDirectionRef">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" aria-hidden="true">
           <polyline points="23 4 23 10 17 10" />
           <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
@@ -92,8 +92,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
+import gsap from 'gsap'
 import { useScreenSize } from '../../composables/useScreenSize'
+import { sweepDirectionRing } from '../../composables/useGameFeel'
 
 const props = defineProps<{
   showDrawHint: boolean
@@ -131,6 +133,24 @@ defineEmits<{
 }>()
 
 const discardAreaRef = ref<HTMLElement | null>(null)
+const pitTableRef = ref<HTMLElement | null>(null)
+const railDirectionRef = ref<HTMLElement | null>(null)
+const hudDirectionRef = ref<HTMLElement | null>(null)
+
+// Direction reversal payoff — comet ring sweeps the table in the new
+// direction while the CW/CCW indicator flips in with its new value.
+// flush: 'post' so the indicator already shows the new label when it flips.
+watch(() => props.direction, (dir, prev) => {
+  if (dir === undefined || prev === undefined || dir === prev) return
+  if (pitTableRef.value) sweepDirectionRing(pitTableRef.value, dir as 1 | -1)
+  for (const cell of [railDirectionRef.value, hudDirectionRef.value]) {
+    if (!cell) continue
+    gsap.fromTo(cell,
+      { rotationX: -90, transformPerspective: 500 },
+      { rotationX: 0, duration: 0.45, ease: 'back.out(1.8)', clearProps: 'transform' }
+    )
+  }
+}, { flush: 'post' })
 
 defineExpose({
   discardAreaRef,

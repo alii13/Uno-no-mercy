@@ -52,6 +52,7 @@ import { canPlayCard } from '../../utils/gameRules'
 import { getCardStyle as getCardStyleUtil } from '../../utils/gameHelpers'
 import { soundEffects } from '../../composables/useSoundEffects'
 import { useScreenSize } from '../../composables/useScreenSize'
+import { burstImpactParticles } from '../../composables/useGameFeel'
 
 const props = defineProps<{
   hand: CardType[]
@@ -270,7 +271,6 @@ function executePlayCard(card: CardType, selectedColor?: CardColor) {
 
   const tl = gsap.timeline({
     onComplete: () => {
-      soundEffects.playCardLand()
       clone.remove()
     }
   })
@@ -300,17 +300,23 @@ function executePlayCard(card: CardType, selectedColor?: CardColor) {
     ease: 'power2.out'
   })
 
-  // 3. Follow-through — slight overshoot and settle on the pile.
+  // 3. Impact — land sound, flash, and shard burst fire the moment the card
+  // hits the pile, then a ~45ms hit-stop beat before the follow-through.
+  const isPowerCard = card.color === 'wild' || card.type.includes('draw') || card.type === 'skipEveryone'
+  tl.call(() => {
+    soundEffects.playCardLand()
+    if (isPowerCard) {
+      triggerPileFlash(card.color === 'wild' ? 'wild' : (card.color as CardColor))
+      if (discardAreaRef.value) burstImpactParticles(discardAreaRef.value, card.color)
+    }
+  })
+
+  // 4. Follow-through — slight overshoot and settle on the pile.
   tl.to(clone, {
     scale: 0.82,
     duration: 0.14,
     ease: 'back.out(2.2)'
-  })
-
-  // 4. Trigger the pile flash for power cards (runs in parallel with landing).
-  if (card.color === 'wild' || card.type.includes('draw') || card.type === 'skipEveryone') {
-    triggerPileFlash(card.color === 'wild' ? 'wild' : (card.color as CardColor))
-  }
+  }, '+=0.045')
 }
 
 function triggerPileFlash(color: CardColor | 'wild') {
