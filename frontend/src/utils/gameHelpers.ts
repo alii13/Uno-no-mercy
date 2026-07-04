@@ -2,38 +2,6 @@ import type { Card, CardColor } from '../types/card'
 import { shuffleDeck } from './deckGenerator'
 
 /**
- * Calculate card positioning style for fan-spread hand display
- * @param index - Card's position in hand
- * @param totalCards - Total number of cards in hand
- * @param hoverIndex - Currently hovered card index (-1 if none)
- * @returns Style object with zIndex and transform
- */
-export function getCardStyle(
-    index: number,
-    totalCards: number,
-    hoverIndex: number,
-    compact?: boolean
-): { zIndex: number; transform: string } {
-    const middleIndex = (totalCards - 1) / 2
-    const offset = index - middleIndex
-    const isHovered = hoverIndex === index
-
-    const spreadX = compact ? 1.8 : 3
-    const spreadRotate = compact ? 1.8 : 3
-    const hoverLift = compact ? -15 : -25
-    const arcY = compact ? 1.2 : 2
-
-    return {
-        zIndex: isHovered ? 100 : index,
-        transform: `
-            translateX(${offset * spreadX}px)
-            rotate(${offset * spreadRotate}deg)
-            translateY(${isHovered ? hoverLift : Math.abs(offset) * arcY}px)
-        `
-    }
-}
-
-/**
  * Calculate the next player index based on current position and direction
  * @param currentIndex - Current player index
  * @param direction - Game direction (1 or -1)

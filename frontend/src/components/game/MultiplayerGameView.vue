@@ -106,15 +106,13 @@
       :class="{ 'is-my-turn': isMyTurn && turnState === 'WAITING_FOR_ACTION' }"
       ref="playerHandRef"
     >
-      <MultiplayerPlayerHand
+      <HandFan
         v-if="visibleHand.length > 0 && showHand"
-        :hand="visibleHand"
+        :cards="visibleHand"
         :is-my-turn="isMyTurn"
-        :current-color="currentColor"
-        :top-card="topCard"
-        :draw-stack="drawStack"
-        :stacking-mode="mpStore.stackingMode"
-        @play-card="handlePlayCard"
+        :can-play="canPlayFromHand"
+        :disabled="showColorPicker"
+        @play="handlePlayCard"
       />
     </div>
 
@@ -258,7 +256,7 @@ import { useAuthStore } from '../../stores/authStore'
 import { soundEffects } from '../../composables/useSoundEffects'
 import { useCardAnimations } from '../../composables/useCardAnimations'
 import CardPile from './CardPile.vue'
-import MultiplayerPlayerHand from './MultiplayerPlayerHand.vue'
+import HandFan from './HandFan.vue'
 import ColorPickerModal from './ColorPickerModal.vue'
 import PlayerSelectModal from './PlayerSelectModal.vue'
 import DiscardAllPickerModal from './DiscardAllPickerModal.vue'
@@ -478,7 +476,7 @@ watch(() => mpStore.lastRemotePlay, (play) => {
       card: play.card,
       layer: animationLayer.value,
       onImpact: () => {
-        soundEffects.playCardLand()
+        // Land sound is fired centrally by the topCard watcher (once per play).
         if (isPowerCard) burstImpactParticles(discardEl, play.card.color)
       }
     })
@@ -523,11 +521,24 @@ watch(() => currentGame.value?.current_player_id, (id, prev) => {
 })
 
 // Watch for draw stack increases - shake screen on any increase
+// (the special-card sting is fired centrally by the topCard watcher below)
 watch(drawStack, (newVal, oldVal) => {
   if (newVal > oldVal && newVal >= 2) {
     isShakeActive.value = true
-    soundEffects.playSpecialCard()
     setTimeout(() => isShakeActive.value = false, 500)
+  }
+})
+
+// Central land/special sound source: fires once for every play, own or remote.
+// topCard changes on our optimistic discard update and on realtime updates from
+// other players — mirroring single-player, where gameStore.playCard owns it.
+// HandFan fires only the throw sound; the land/special sting lives here.
+watch(topCard, (newTop, oldTop) => {
+  if (isInitialDeal.value) return
+  if (!newTop || newTop.id === oldTop?.id) return
+  soundEffects.playCardLand()
+  if (newTop.color === 'wild' || newTop.type.includes('draw') || newTop.type === 'skip' || newTop.type === 'reverse') {
+    soundEffects.playSpecialCard()
   }
 })
 
@@ -752,22 +763,25 @@ async function handlePlayCard(card: Card) {
     return
   }
   
-  soundEffects.playCardThrow()
+  // HandFan fires the throw sound; the topCard watcher fires land/special.
   mpStore.suppressDiscardSlam = true
   triggerOwnSkipEveryone(card)
   await mpStore.playCard(card)
-  soundEffects.playCardLand()
 }
 
 async function handleColorSelect(color: CardColor) {
   showColorPicker.value = false
   if (pendingCard.value) {
-    soundEffects.playCardThrow()
     mpStore.suppressDiscardSlam = true
     await mpStore.playCard(pendingCard.value, color)
-    soundEffects.playCardLand()
     pendingCard.value = null
   }
+}
+
+// Predicate handed to HandFan so it can style/gate cards without owning game state.
+function canPlayFromHand(card: Card): boolean {
+  if (!isMyTurn.value || !topCard.value) return false
+  return canPlayCard(card, topCard.value, currentColor.value, drawStack.value, mpStore.stackingMode)
 }
 
 // Handler for roulette color selection (victim choosing their fate)
