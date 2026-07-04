@@ -78,10 +78,13 @@
       :class="{ 'is-my-turn': isMyTurn && store.turnState === 'WAITING_FOR_ACTION' }"
       ref="playerHandRef"
     >
-      <PlayerHand
+      <HandFan
         v-if="myPlayer"
-        :hand="myPlayer.hand"
+        :cards="myPlayer.hand"
         :is-my-turn="isMyTurn"
+        :can-play="canPlayFromHand"
+        :disabled="showColorPicker"
+        @play="handlePlayFromHand"
       />
     </div>
 
@@ -123,6 +126,14 @@
       subtitle="CHOOSE COLOR TO PLAY"
       :card="store.pendingDrawnWildCard"
       @select="(c) => store.playDrawnWildCard(c)"
+    />
+
+    <!-- Wild played from hand — color picker moved up from PlayerHand. -->
+    <ColorPickerModal
+      v-if="showColorPicker"
+      title="WILD CARD ACTIVATED"
+      subtitle="CHOOSE NEXT COLOR"
+      @select="handleWildColorSelect"
     />
 
     <PlayerSelectModal
@@ -172,11 +183,12 @@ import { useRetentionStore } from '../../stores/retentionStore'
 import { useGameStore } from '../../stores/gameStore'
 import { useAuthStore } from '../../stores/authStore'
 import { canPlayCard } from '../../utils/gameRules'
+import type { Card as CardType, CardColor } from '../../types/card'
 import { soundEffects } from '../../composables/useSoundEffects'
 import { useCardAnimations } from '../../composables/useCardAnimations'
 import { animateOpponentThrow, burstImpactParticles, skipEveryoneShockwave, showTurnBanner, pulseSeat } from '../../composables/useGameFeel'
 import OpponentHand from './OpponentHand.vue'
-import PlayerHand from './PlayerHand.vue'
+import HandFan from './HandFan.vue'
 import CardPile from './CardPile.vue'
 import ColorPickerModal from './ColorPickerModal.vue'
 import PlayerSelectModal from './PlayerSelectModal.vue'
@@ -198,6 +210,50 @@ const { animateFlyingCard, animateDrawCardsStaggered, killAllFlyingCards } = use
 
 // For MVP single player, we assume we are player 0
 const myPlayerId = 'p-0'
+
+// Wild-color picker for playing a wild from hand — moved up from PlayerHand so
+// HandFan stays store-agnostic. HandFan flings + emits 'play'; we own the store.
+const showColorPicker = ref(false)
+const pendingWildCard = ref<CardType | null>(null)
+
+// Predicate handed to HandFan — mirrors the old in-hand canPlay, store-driven.
+function canPlayFromHand(card: CardType): boolean {
+  if (!isMyTurn.value) return false
+  if (store.turnState !== 'WAITING_FOR_ACTION') return false
+  if (store.actionInProgress) return false
+  if (!store.topCard) return false
+  return canPlayCard(card, store.topCard, store.currentColor, store.drawStack, store.stackingMode)
+}
+
+function handlePlayFromHand(card: CardType) {
+  // Wild (non-roulette) needs a color first; roulette color is chosen post-play.
+  if (card.color === 'wild' && card.type !== 'wildColorRoulette') {
+    pendingWildCard.value = card
+    showColorPicker.value = true
+    return
+  }
+  store.suppressDiscardSlam = true
+  store.playerActionPlayCard(card)
+}
+
+function handleWildColorSelect(color: CardColor) {
+  showColorPicker.value = false
+  if (pendingWildCard.value) {
+    store.suppressDiscardSlam = true
+    store.playerActionPlayCard(pendingWildCard.value, color)
+    pendingWildCard.value = null
+  }
+}
+
+// Safety: close the wild picker if the turn changes or the game ends. The
+// getter touches only store state (isMyTurn is declared later — reading it here
+// would hit the temporal dead zone); the callback checks it at runtime.
+watch(() => [store.turnState, store.currentPlayerIndex, store.gameState], () => {
+  if (showColorPicker.value && (!isMyTurn.value || store.gameState === 'GAME_OVER')) {
+    showColorPicker.value = false
+    pendingWildCard.value = null
+  }
+})
 
 const battlePitRef = ref<InstanceType<typeof BattlePit> | null>(null)
 const discardAreaRef = computed(() => battlePitRef.value?.discardAreaRef || null)
