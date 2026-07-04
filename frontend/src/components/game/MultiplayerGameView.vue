@@ -119,12 +119,7 @@
     <!-- Player Console Bar -->
     <PlayerConsoleBar
       :show-uno-button="showUnoButton"
-      :show-draw-button="true"
-      :can-draw="canDraw"
-      :draw-count="drawCount"
-      :must-draw="mustDraw"
       @call-uno="handleCallUno"
-      @draw="handleDraw"
     >
       <!-- Catch an opponent who forgot to call UNO -->
       <Transition name="catch-pop">
@@ -424,13 +419,6 @@ const mustDraw = computed(() => {
   if (!top) return false
   return !myHand.value.some(c => canPlayCard(c, top, currentColor.value, 0, mpStore.stackingMode))
 })
-
-// Dock DRAW gating — enabled to draw down a pending stack or when nothing plays.
-const canDraw = computed(() => {
-  if (!isMyTurn.value || turnState.value !== 'WAITING_FOR_ACTION') return false
-  return drawStack.value > 0 || mustDraw.value
-})
-const drawCount = computed(() => (drawStack.value > 0 ? drawStack.value : 0))
 
 const statusMessage = computed(() => {
   if (mustDraw.value) return 'NO PLAYABLE CARD — TAP THE DECK TO DRAW'

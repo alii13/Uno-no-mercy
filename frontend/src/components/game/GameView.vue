@@ -91,12 +91,7 @@
     <!-- Action dock (BOTTOM): DRAW · CAUGHT · UNO -->
     <PlayerConsoleBar
       :show-uno-button="store.showUnoButton"
-      :show-draw-button="true"
-      :can-draw="canDraw"
-      :draw-count="drawCount"
-      :must-draw="mustDraw"
       @call-uno="store.callUno(myPlayerId)"
-      @draw="drawCard"
     >
       <!-- Catch an opponent who forgot to call UNO -->
       <Transition name="catch-pop">
@@ -276,21 +271,6 @@ const caughtTarget = computed(() => {
 })
 
 const isMyTurn = computed(() => store.currentPlayer?.id === myPlayerId)
-
-// Dock DRAW gating. mustDraw = it's my turn and I have nothing to play, so the
-// deck is the only move. canDraw also allows drawing down a pending stack.
-const mustDraw = computed(() => {
-  if (!isMyTurn.value || store.turnState !== 'WAITING_FOR_ACTION' || store.actionInProgress) return false
-  if (store.drawStack > 0) return false
-  const top = store.topCard
-  if (!top) return false
-  return !(myPlayer.value?.hand.some(c => canPlayCard(c, top, store.currentColor, 0, store.stackingMode)) ?? false)
-})
-const canDraw = computed(() => {
-  if (!isMyTurn.value || store.turnState !== 'WAITING_FOR_ACTION' || store.actionInProgress) return false
-  return store.drawStack > 0 || mustDraw.value
-})
-const drawCount = computed(() => (store.drawStack > 0 ? store.drawStack : 0))
 
 // Animation Handling
 const playerHandRef = ref<HTMLElement | null>(null)
