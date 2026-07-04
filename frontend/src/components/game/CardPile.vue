@@ -154,8 +154,19 @@ watch(() => props.cards.length, (newLen, oldLen) => {
     if (suppressSlam) {
       gameStore.suppressDiscardSlam = false
       mpStore.suppressDiscardSlam = false
-      // Still fire the ring flash — that's the visual confirmation of the play
-      nextTick(flashDiscardRing)
+      // A flying clone (own throw or opponent throw) is delivering this card, so
+      // the real top card must not pop in at full opacity while the clone is
+      // still mid-air — that reads as the card teleporting then a clone flying
+      // onto it. Hold it invisible until the clone lands (~0.36s), then reveal
+      // it under the clone and fire the ring flash as it settles.
+      const el = topCardRef.value
+      gsap.set(el, { opacity: 0 })
+      gsap.to(el, {
+        opacity: 1,
+        duration: 0.12,
+        delay: 0.36,
+        onStart: flashDiscardRing
+      })
       return
     }
     nextTick(() => {
