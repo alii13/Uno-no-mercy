@@ -118,14 +118,25 @@
 
     <!-- Player Console Bar -->
     <PlayerConsoleBar
-      :player-name="myPlayer?.name || 'Unknown'"
-      :card-count="myHand.length"
-      :is-my-turn="isMyTurn"
       :show-uno-button="showUnoButton"
-      :show-leave-button="true"
+      :show-draw-button="true"
+      :can-draw="canDraw"
+      :draw-count="drawCount"
+      :must-draw="mustDraw"
       @call-uno="handleCallUno"
-      @leave="leaveGame"
-    />
+      @draw="handleDraw"
+    >
+      <!-- Catch an opponent who forgot to call UNO -->
+      <Transition name="catch-pop">
+        <button
+          v-if="caughtTarget"
+          class="catch-btn"
+          @click="mpStore.catchPlayer(caughtTarget.user_id)"
+        >
+          CAUGHT! {{ caughtTarget.name }} forgot UNO
+        </button>
+      </Transition>
+    </PlayerConsoleBar>
 
     <!-- Animated Card Layer (for flying cards) -->
     <div class="animation-layer" ref="animationLayer"></div>
@@ -170,17 +181,6 @@
       :cards="mpStore.pendingDiscardAllCards"
       @select="handleDiscardAllTopSelect"
     />
-
-    <!-- Catch an opponent who forgot to call UNO -->
-    <Transition name="catch-pop">
-      <button
-        v-if="caughtTarget"
-        class="catch-btn"
-        @click="mpStore.catchPlayer(caughtTarget.user_id)"
-      >
-        CAUGHT! {{ caughtTarget.name }} forgot UNO
-      </button>
-    </Transition>
 
     <!-- Action feed — what just happened (who played what) -->
     <Transition name="action-feed">
@@ -424,6 +424,13 @@ const mustDraw = computed(() => {
   if (!top) return false
   return !myHand.value.some(c => canPlayCard(c, top, currentColor.value, 0, mpStore.stackingMode))
 })
+
+// Dock DRAW gating — enabled to draw down a pending stack or when nothing plays.
+const canDraw = computed(() => {
+  if (!isMyTurn.value || turnState.value !== 'WAITING_FOR_ACTION') return false
+  return drawStack.value > 0 || mustDraw.value
+})
+const drawCount = computed(() => (drawStack.value > 0 ? drawStack.value : 0))
 
 const statusMessage = computed(() => {
   if (mustDraw.value) return 'NO PLAYABLE CARD — TAP THE DECK TO DRAW'

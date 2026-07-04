@@ -65,9 +65,14 @@ const props = defineProps<{
 }>()
 
 const topCardRef = ref<HTMLElement | null>(null)
-const { isMobile, isTablet } = useScreenSize()
+const { isMobile, isTablet, isShortLandscape } = useScreenSize()
 
 const cardSize = computed(() => {
+  // Landscape phones are height-starved — shrink the piles so the table, hand
+  // band, and dock all fit without scrolling.
+  if (isShortLandscape.value) {
+    return props.large ? { width: 60, height: 84 } : { width: 45, height: 63 }
+  }
   if (props.large) {
     if (isMobile.value) return { width: 75, height: 105 }
     if (isTablet.value) return { width: 90, height: 126 }

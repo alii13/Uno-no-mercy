@@ -1,36 +1,45 @@
 <template>
-  <div v-if="showUnoButton || showLeaveButton" class="player-console-bar">
+  <div class="player-console-bar action-dock">
+    <!-- DRAW (left thumb) — mobile only; desktop draws by tapping the pile. -->
     <button
-      v-if="showUnoButton"
-      @click="$emit('call-uno')"
-      class="uno-btn"
+      v-if="showDrawButton"
+      class="dock-btn draw-btn"
+      :class="{ 'must-draw': mustDraw }"
+      :disabled="!canDraw"
       type="button"
+      @click="$emit('draw')"
     >
-      UNO!
+      DRAW<span v-if="drawCount" class="draw-count"> +{{ drawCount }}</span>
     </button>
 
+    <!-- CAUGHT! and other transient center content (was a fixed overlay). -->
+    <div class="dock-center">
+      <slot />
+    </div>
+
+    <!-- UNO! (right thumb) — opposite edge from DRAW, no destructive neighbor. -->
     <button
-      v-if="showLeaveButton"
-      @click="$emit('leave')"
-      class="leave-btn"
+      v-if="showUnoButton"
+      class="dock-btn uno-btn"
       type="button"
+      @click="$emit('call-uno')"
     >
-      LEAVE
+      UNO!
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
 defineProps<{
-  playerName: string
-  cardCount: number
-  isMyTurn: boolean
   showUnoButton: boolean
-  showLeaveButton?: boolean
+  showDrawButton?: boolean
+  canDraw?: boolean
+  drawCount?: number
+  mustDraw?: boolean
 }>()
 
 defineEmits<{
   'call-uno': []
-  leave: []
+  draw: []
 }>()
 </script>

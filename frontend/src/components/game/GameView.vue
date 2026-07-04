@@ -88,25 +88,27 @@
       />
     </div>
 
-    <!-- Player Console Info Bar (BOTTOM) -->
+    <!-- Action dock (BOTTOM): DRAW · CAUGHT · UNO -->
     <PlayerConsoleBar
-      :player-name="myPlayer?.name || 'Unknown'"
-      :card-count="myPlayer?.hand.length || 0"
-      :is-my-turn="isMyTurn"
       :show-uno-button="store.showUnoButton"
+      :show-draw-button="true"
+      :can-draw="canDraw"
+      :draw-count="drawCount"
+      :must-draw="mustDraw"
       @call-uno="store.callUno(myPlayerId)"
-    />
-    
-    <!-- Catch an opponent who forgot to call UNO -->
-    <Transition name="catch-pop">
-      <button
-        v-if="caughtTarget"
-        class="catch-btn"
-        @click="store.catchNoUno(caughtTarget.id)"
-      >
-        CAUGHT! {{ caughtTarget.name }} forgot UNO
-      </button>
-    </Transition>
+      @draw="drawCard"
+    >
+      <!-- Catch an opponent who forgot to call UNO -->
+      <Transition name="catch-pop">
+        <button
+          v-if="caughtTarget"
+          class="catch-btn"
+          @click="store.catchNoUno(caughtTarget.id)"
+        >
+          CAUGHT! {{ caughtTarget.name }} forgot UNO
+        </button>
+      </Transition>
+    </PlayerConsoleBar>
 
     <!-- Animated Card Layer (for flying cards) -->
     <div class="animation-layer" ref="animationLayer"></div>
@@ -274,6 +276,21 @@ const caughtTarget = computed(() => {
 })
 
 const isMyTurn = computed(() => store.currentPlayer?.id === myPlayerId)
+
+// Dock DRAW gating. mustDraw = it's my turn and I have nothing to play, so the
+// deck is the only move. canDraw also allows drawing down a pending stack.
+const mustDraw = computed(() => {
+  if (!isMyTurn.value || store.turnState !== 'WAITING_FOR_ACTION' || store.actionInProgress) return false
+  if (store.drawStack > 0) return false
+  const top = store.topCard
+  if (!top) return false
+  return !(myPlayer.value?.hand.some(c => canPlayCard(c, top, store.currentColor, 0, store.stackingMode)) ?? false)
+})
+const canDraw = computed(() => {
+  if (!isMyTurn.value || store.turnState !== 'WAITING_FOR_ACTION' || store.actionInProgress) return false
+  return store.drawStack > 0 || mustDraw.value
+})
+const drawCount = computed(() => (store.drawStack > 0 ? store.drawStack : 0))
 
 // Animation Handling
 const playerHandRef = ref<HTMLElement | null>(null)
