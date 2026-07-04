@@ -201,7 +201,7 @@
   top: 5.5rem;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 160;
+  z-index: calc(var(--z-toast) + 1);
   padding: 0.6rem 1.4rem;
   background: var(--color-alert, #ff2a2a);
   color: #fff;
@@ -724,11 +724,6 @@
 .hud-mercy-mobile.warning .mobile-mercy-text { color: var(--color-hazard); }
 .hud-mercy-mobile.critical .mobile-mercy-text { color: var(--color-alert); }
 
-/* Legacy .pit-hud (kept as a no-op for older callers) */
-.pit-hud {
-  display: none;
-}
-
 .hud-cell {
   display: inline-flex;
   align-items: center;
@@ -878,7 +873,6 @@
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-4);
-  position: relative;
 }
 
 .station-mark {
@@ -999,38 +993,6 @@
 }
 
 /* ==========================================================================
-   STATUS PANEL
-   ========================================================================== */
-.status-panel {
-  background: rgba(0,0,0,0.6);
-  border: 1px solid #333;
-  padding: var(--spacing-3);
-  width: 240px;
-  position: relative;
-  z-index: var(--z-base);
-  border-radius: var(--radius-sm);
-}
-
-.panel-row {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 0.25rem;
-  font-family: 'Courier New', monospace;
-  font-size: 0.8rem;
-}
-
-.panel-row .label { color: var(--text-muted); }
-.panel-row .value { color: var(--text-primary); font-weight: bold; }
-.panel-row .label.hazard { color: var(--color-alert); }
-.panel-row .value.hazard-text { color: var(--color-alert); text-shadow: 0 0 5px red; }
-
-.message-text {
-  font-size: 0.75rem;
-  text-align: center;
-  width: 100%;
-}
-
-/* ==========================================================================
    DIRECTION INDICATOR
    ========================================================================== */
 .direction-indicator {
@@ -1052,24 +1014,6 @@
 
 .direction-ccw .direction-icon {
   animation: spin-ccw 2s linear infinite;
-}
-
-/* ==========================================================================
-   UTILITIES SIDEBAR
-   ========================================================================== */
-.utilities-sidebar .control-switch {
-  cursor: pointer;
-  text-align: center;
-}
-.switch-indicator {
-  width: 30px;
-  height: 10px;
-  background: #333;
-  margin: 0 auto;
-}
-.switch-indicator.active {
-  background: var(--color-neon-blue);
-  box-shadow: 0 0 10px var(--color-neon-blue);
 }
 
 /* ==========================================================================
@@ -1385,12 +1329,6 @@
     gap: var(--spacing-8);
   }
 
-  .status-panel {
-    width: 100%;
-    max-width: 320px;
-    padding: var(--spacing-2);
-  }
-
   .floating-hand-wrapper {
     min-height: 140px;
   }
@@ -1474,17 +1412,6 @@
 
   .pit-table {
     gap: var(--spacing-6);
-  }
-
-  .status-panel {
-    width: 100%;
-    max-width: none;
-    margin: 0;
-    padding: var(--spacing-2);
-  }
-
-  .panel-row {
-    font-size: var(--text-sm);
   }
 
   .floating-hand-wrapper {

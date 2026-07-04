@@ -922,7 +922,7 @@ async function handleUpgrade() {
   font-size: 0.82rem;
   letter-spacing: 0.04em;
   text-align: center;
-  z-index: 140;
+  z-index: var(--z-toast);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
 }
 
@@ -937,7 +937,7 @@ async function handleUpgrade() {
 /* Realtime reconnect pill — top-center floating indicator */
 .reconnect-pill {
   position: fixed;
-  top: 1.25rem;
+  top: max(1.25rem, env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
   background: rgba(255, 42, 42, 0.9);
@@ -948,7 +948,7 @@ async function handleUpgrade() {
   font-size: 0.75rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  z-index: 150;
+  z-index: var(--z-toast);
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
