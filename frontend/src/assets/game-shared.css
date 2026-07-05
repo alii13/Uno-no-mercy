@@ -20,6 +20,11 @@
   /* Zoned grid: surveillance bar / battle pit (flexes) / hand band / action dock.
      (A status-ticker row lands between bar and pit in a later step.) */
   display: grid;
+  /* One column pinned to the viewport (minmax floor 0). Without this the implicit
+     column is auto and a wide hand fan expands it past the viewport, dragging the
+     centered pit sideways. Now a wide hand overflows its own cell (clipped) and
+     the pit stays centered. */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) var(--hand-band-h) auto;
   height: 100vh; /* fallback */
   height: 100dvh; /* dynamic viewport accounts for mobile browser chrome */
