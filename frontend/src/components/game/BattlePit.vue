@@ -84,10 +84,6 @@
       </div>
     </div>
 
-    <!-- Transient game messages (roulette, swap selection, etc.) -->
-    <div class="pit-toast">
-      <slot name="status-panel"></slot>
-    </div>
   </div>
 </template>
 

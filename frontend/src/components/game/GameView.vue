@@ -5,13 +5,16 @@
 
     <!-- Top Bar: Opponents Surveillance + audio/settings -->
     <SurveillanceBar>
-      <OpponentHand
+      <OpponentChip
         v-for="player in opponents"
         :key="player.id"
         :ref="(el) => { if (el) opponentRefs[player.id] = (el as any).$el }"
-        :player="player"
+        :uid="player.id"
+        :name="player.name"
+        :card-count="player.hand.length"
         :is-active="player.id === store.currentPlayer?.id"
         :is-selectable="store.turnState === 'CHOOSING_PLAYER_TO_SWAP' && isMyTurn"
+        :is-eliminated="player.isEliminated"
         @click="onOpponentClick(player.id)"
       />
       <template #controls>
@@ -40,6 +43,19 @@
       </template>
     </SurveillanceBar>
 
+    <!-- Status ticker — own row between the bar and the pit -->
+    <StatusPanel
+      :current-player-name="store.currentPlayer?.name || 'Unknown'"
+      :direction="store.direction"
+      :draw-stack="store.drawStack"
+      :current-color="store.currentColor"
+      :message="gameMessage"
+      :message-style="messageStyle"
+      :stacking-mode="store.stackingMode"
+      :turn-label="turnLabel"
+      :turn-is-mine="isMyTurn"
+    />
+
     <!-- Main Game Table "The Pit" -->
     <BattlePit
       ref="battlePitRef"
@@ -57,18 +73,6 @@
       
       <template #discard-pile>
         <CardPile :cards="store.discardPile" :is-discard="true" :large="true" />
-      </template>
-      
-      <template #status-panel>
-        <StatusPanel
-          :current-player-name="store.currentPlayer?.name || 'Unknown'"
-          :direction="store.direction"
-          :draw-stack="store.drawStack"
-          :current-color="store.currentColor"
-          :message="gameMessage"
-          :message-style="messageStyle"
-          :stacking-mode="store.stackingMode"
-        />
       </template>
     </BattlePit>
 
@@ -184,7 +188,7 @@ import type { Card as CardType, CardColor } from '../../types/card'
 import { soundEffects } from '../../composables/useSoundEffects'
 import { useCardAnimations } from '../../composables/useCardAnimations'
 import { animateOpponentThrow, burstImpactParticles, skipEveryoneShockwave, showTurnBanner, pulseSeat } from '../../composables/useGameFeel'
-import OpponentHand from './OpponentHand.vue'
+import OpponentChip from './OpponentChip.vue'
 import HandFan from './HandFan.vue'
 import CardPile from './CardPile.vue'
 import ColorPickerModal from './ColorPickerModal.vue'
@@ -271,6 +275,15 @@ const caughtTarget = computed(() => {
 })
 
 const isMyTurn = computed(() => store.currentPlayer?.id === myPlayerId)
+
+// Persistent turn-ownership pill for the ticker (distinct from the transient
+// turn banner). Keeps a slow bot from reading as a frozen game.
+const turnLabel = computed(() => {
+  if (store.gameState === 'GAME_OVER') return ''
+  if (isMyTurn.value) return 'YOUR TURN'
+  const name = store.currentPlayer?.name
+  return name && name !== 'Unknown' ? `${name.toUpperCase()}'S TURN` : "OPPONENT'S TURN"
+})
 
 // Animation Handling
 const playerHandRef = ref<HTMLElement | null>(null)

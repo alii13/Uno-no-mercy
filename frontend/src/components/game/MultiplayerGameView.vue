@@ -5,35 +5,19 @@
 
     <!-- Top Bar: All Opponents + audio/settings -->
     <SurveillanceBar>
-      <div
+      <OpponentChip
         v-for="opp in allOpponents"
         :key="opp.user_id"
-        :data-uid="opp.user_id"
-        class="opponent-card"
-        :class="{
-          active: currentGame?.current_player_id === opp.user_id,
-          eliminated: opp.is_eliminated,
-          disconnected: isDisconnected(opp.user_id)
-        }"
-      >
-        <div class="avatar" :class="{ 'avatar-active': currentGame?.current_player_id === opp.user_id }">
-          {{ opp.name.charAt(0).toUpperCase() }}
-        </div>
-        <div class="opponent-info">
-          <span class="name">{{ opp.name }}</span>
-          <span class="card-count dc-text" v-if="isDisconnected(opp.user_id) && !opp.is_eliminated">DISCONNECTED</span>
-          <span class="card-count" v-else-if="!opp.is_eliminated">{{ (opp.hand as Card[])?.length || 0 }} INTEL</span>
-          <span class="card-count eliminated-text" v-else>ELIMINATED</span>
-        </div>
-        <button
-          v-if="mpStore.isHost && !opp.is_eliminated"
-          class="opp-kick-btn"
-          title="Remove player"
-          aria-label="Remove player"
-          @click.stop="requestKick(opp.user_id, opp.name)"
-        >✕</button>
-        <div class="status-indicator" :class="{ active: currentGame?.current_player_id === opp.user_id }"></div>
-      </div>
+        :uid="opp.user_id"
+        :name="opp.name"
+        :card-count="(opp.hand as Card[])?.length || 0"
+        count-label="INTEL"
+        :is-active="currentGame?.current_player_id === opp.user_id"
+        :is-eliminated="opp.is_eliminated"
+        :is-disconnected="isDisconnected(opp.user_id)"
+        :can-kick="mpStore.isHost && !opp.is_eliminated"
+        @kick="requestKick(opp.user_id, opp.name)"
+      />
       <template #controls>
         <button
           class="hud-exit"
@@ -66,6 +50,21 @@
       </template>
     </SurveillanceBar>
 
+    <!-- Status ticker — own row between the bar and the pit; also carries the
+         "who played what" action feed as its event text. -->
+    <StatusPanel
+      :current-player-name="currentPlayerName"
+      :direction="direction"
+      :draw-stack="drawStack"
+      :current-color="currentColor"
+      :message="statusMessage"
+      :message-style="statusMessageStyle"
+      :stacking-mode="mpStore.stackingMode"
+      :turn-label="turnLabel"
+      :turn-is-mine="isMyTurn"
+      :action-text="actionFeed"
+    />
+
     <!-- Main Game Table -->
     <BattlePit
       ref="battlePitRef"
@@ -83,20 +82,6 @@
       
       <template #discard-pile>
         <CardPile :cards="discardPile" :is-discard="true" :large="true" />
-      </template>
-      
-      <template #status-panel>
-        <StatusPanel
-          :current-player-name="currentPlayerName"
-          :direction="direction"
-          :draw-stack="drawStack"
-          :current-color="currentColor"
-          :message="statusMessage"
-          :message-style="statusMessageStyle"
-          :stacking-mode="mpStore.stackingMode"
-          :turn-label="turnLabel"
-          :turn-is-mine="isMyTurn"
-        />
       </template>
     </BattlePit>
 
@@ -177,12 +162,6 @@
       @select="handleDiscardAllTopSelect"
     />
 
-    <!-- Action feed — what just happened (who played what) -->
-    <Transition name="action-feed">
-      <div v-if="actionFeed" class="action-feed" role="status" aria-live="polite">
-        {{ actionFeed }}
-      </div>
-    </Transition>
 
     <!-- Realtime reconnect pill -->
     <Transition name="rt-pill">
@@ -252,6 +231,7 @@ import { soundEffects } from '../../composables/useSoundEffects'
 import { useCardAnimations } from '../../composables/useCardAnimations'
 import CardPile from './CardPile.vue'
 import HandFan from './HandFan.vue'
+import OpponentChip from './OpponentChip.vue'
 import ColorPickerModal from './ColorPickerModal.vue'
 import PlayerSelectModal from './PlayerSelectModal.vue'
 import DiscardAllPickerModal from './DiscardAllPickerModal.vue'
@@ -863,86 +843,6 @@ async function handleUpgrade() {
 </style>
 
 <style scoped>
-.opponent-card {
-  position: relative;
-}
-.opponent-card.eliminated {
-  opacity: 0.35;
-  filter: grayscale(1);
-}
-.opponent-card.disconnected {
-  opacity: 0.6;
-}
-.eliminated-text {
-  color: var(--color-alert) !important;
-  font-size: 0.7rem;
-}
-.dc-text {
-  color: var(--color-alert) !important;
-  font-size: 0.65rem;
-  animation: dc-blink 1.4s ease-in-out infinite;
-}
-@keyframes dc-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-.opp-kick-btn {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 50%;
-  background: var(--color-alert, #ff2a2a);
-  color: #fff;
-  font-size: 11px;
-  line-height: 1;
-  cursor: pointer;
-  opacity: 0.8;
-  transition: opacity 0.15s, transform 0.15s;
-  z-index: 5;
-}
-.opp-kick-btn:hover {
-  opacity: 1;
-  transform: scale(1.12);
-}
-@media (prefers-reduced-motion: reduce) {
-  .dc-text { animation: none; }
-}
-
-/* Action feed — transient "who played what" toast, top-center under the bar */
-.action-feed {
-  position: fixed;
-  top: 4.5rem;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: min(90vw, 460px);
-  background: rgba(10, 10, 11, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-left: 3px solid var(--color-hazard, #ffcc00);
-  color: #fff;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  font-family: 'Chakra Petch', sans-serif;
-  font-size: 0.82rem;
-  letter-spacing: 0.04em;
-  text-align: center;
-  z-index: var(--z-toast);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
-}
-
-.action-feed-enter-active, .action-feed-leave-active {
-  transition: opacity 0.22s, transform 0.22s;
-}
-.action-feed-enter-from, .action-feed-leave-to {
-  opacity: 0;
-  transform: translate(-50%, -8px);
-}
-
 /* Realtime reconnect pill — top-center floating indicator */
 .reconnect-pill {
   position: fixed;
