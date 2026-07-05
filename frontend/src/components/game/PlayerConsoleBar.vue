@@ -1,36 +1,28 @@
 <template>
-  <div v-if="showUnoButton || showLeaveButton" class="player-console-bar">
+  <div class="player-console-bar action-dock">
+    <!-- CAUGHT! and other transient center content (was a fixed overlay). -->
+    <div class="dock-center">
+      <slot />
+    </div>
+
+    <!-- UNO! (right thumb). Drawing is done by tapping the deck. -->
     <button
       v-if="showUnoButton"
-      @click="$emit('call-uno')"
-      class="uno-btn"
+      class="dock-btn uno-btn"
       type="button"
+      @click="$emit('call-uno')"
     >
       UNO!
-    </button>
-
-    <button
-      v-if="showLeaveButton"
-      @click="$emit('leave')"
-      class="leave-btn"
-      type="button"
-    >
-      LEAVE
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
 defineProps<{
-  playerName: string
-  cardCount: number
-  isMyTurn: boolean
   showUnoButton: boolean
-  showLeaveButton?: boolean
 }>()
 
 defineEmits<{
   'call-uno': []
-  leave: []
 }>()
 </script>

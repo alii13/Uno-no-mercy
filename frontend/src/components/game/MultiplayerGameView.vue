@@ -118,14 +118,20 @@
 
     <!-- Player Console Bar -->
     <PlayerConsoleBar
-      :player-name="myPlayer?.name || 'Unknown'"
-      :card-count="myHand.length"
-      :is-my-turn="isMyTurn"
       :show-uno-button="showUnoButton"
-      :show-leave-button="true"
       @call-uno="handleCallUno"
-      @leave="leaveGame"
-    />
+    >
+      <!-- Catch an opponent who forgot to call UNO -->
+      <Transition name="catch-pop">
+        <button
+          v-if="caughtTarget"
+          class="catch-btn"
+          @click="mpStore.catchPlayer(caughtTarget.user_id)"
+        >
+          CAUGHT! {{ caughtTarget.name }} forgot UNO
+        </button>
+      </Transition>
+    </PlayerConsoleBar>
 
     <!-- Animated Card Layer (for flying cards) -->
     <div class="animation-layer" ref="animationLayer"></div>
@@ -170,17 +176,6 @@
       :cards="mpStore.pendingDiscardAllCards"
       @select="handleDiscardAllTopSelect"
     />
-
-    <!-- Catch an opponent who forgot to call UNO -->
-    <Transition name="catch-pop">
-      <button
-        v-if="caughtTarget"
-        class="catch-btn"
-        @click="mpStore.catchPlayer(caughtTarget.user_id)"
-      >
-        CAUGHT! {{ caughtTarget.name }} forgot UNO
-      </button>
-    </Transition>
 
     <!-- Action feed — what just happened (who played what) -->
     <Transition name="action-feed">

@@ -88,25 +88,22 @@
       />
     </div>
 
-    <!-- Player Console Info Bar (BOTTOM) -->
+    <!-- Action dock (BOTTOM): DRAW · CAUGHT · UNO -->
     <PlayerConsoleBar
-      :player-name="myPlayer?.name || 'Unknown'"
-      :card-count="myPlayer?.hand.length || 0"
-      :is-my-turn="isMyTurn"
       :show-uno-button="store.showUnoButton"
       @call-uno="store.callUno(myPlayerId)"
-    />
-    
-    <!-- Catch an opponent who forgot to call UNO -->
-    <Transition name="catch-pop">
-      <button
-        v-if="caughtTarget"
-        class="catch-btn"
-        @click="store.catchNoUno(caughtTarget.id)"
-      >
-        CAUGHT! {{ caughtTarget.name }} forgot UNO
-      </button>
-    </Transition>
+    >
+      <!-- Catch an opponent who forgot to call UNO -->
+      <Transition name="catch-pop">
+        <button
+          v-if="caughtTarget"
+          class="catch-btn"
+          @click="store.catchNoUno(caughtTarget.id)"
+        >
+          CAUGHT! {{ caughtTarget.name }} forgot UNO
+        </button>
+      </Transition>
+    </PlayerConsoleBar>
 
     <!-- Animated Card Layer (for flying cards) -->
     <div class="animation-layer" ref="animationLayer"></div>

@@ -341,11 +341,13 @@ function triggerPileFlash(color: string) {
 <style scoped>
 .hand-fan {
   position: relative;
-  height: 200px;
+  /* Fill the arena's hand band (floating-hand-wrapper owns the height via
+     --hand-band-h); the ResizeObserver measures this to size the cards. */
+  height: 100%;
   display: flex;
   justify-content: center;
   align-items: flex-end;
-  padding: 50px 20px 10px;
+  padding: 40px 20px 8px;
   overflow: visible;
   width: 100%;
 }
@@ -439,14 +441,12 @@ function triggerPileFlash(color: string) {
 
 @media (max-width: 768px) {
   .hand-fan {
-    height: 160px;
-    padding: 30px 10px 10px;
+    padding: 30px 10px 8px;
   }
 }
 
 @media (max-width: 480px) {
   .hand-fan {
-    height: 130px;
     padding: 20px 5px 5px;
   }
 }
