@@ -907,13 +907,22 @@
   filter: brightness(1.2);
 }
 
+/* Floated below the deck (absolute) so it never widens the draw-station — a
+   flow hint is wider than the pile, and its show/hide on turn changes was
+   re-centering the flex pit and shifting both piles sideways. */
 .action-hint {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: var(--spacing-2);
+  white-space: nowrap;
+  pointer-events: none;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--color-neon-blue);
   letter-spacing: 0.2em;
   animation: flicker 2s infinite;
-  margin-top: var(--spacing-2);
 }
 
 @media (prefers-reduced-motion: reduce) {
