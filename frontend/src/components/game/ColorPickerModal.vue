@@ -1,53 +1,52 @@
 <template>
-  <div class="color-picker-overlay">
-    <div 
-      class="tactical-hud" 
-      :style="{ transform: `translate(${position.x}px, ${position.y}px)` }"
-    >
+  <!-- Forced color pick: compact panel anchored just above the hand band so
+       the fan stays visible while choosing. The scrim spans the arena above
+       the hand (grid rows 1-3) and blocks stray taps — without it the deck's
+       tap-to-draw would still fire mid-pick. -->
+  <Transition name="pick" appear>
+    <div class="color-pick-scrim">
       <div
-        class="hud-header"
-        :class="{ 'header-danger': isRoulette }"
-        @mousedown="startDrag"
-        @touchstart="startTouchDrag"
-        :style="{ cursor: isCoarsePointer ? 'default' : 'grab' }"
+        ref="panelRef"
+        class="tactical-hud"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="title"
       >
-        <svg class="warning-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        <span>{{ title }}</span>
-        <svg v-if="!isCoarsePointer" class="drag-hint" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
-      </div>
-      
-      <h3>{{ subtitle }}</h3>
+        <div class="hud-header" :class="{ 'header-danger': isRoulette }">
+          <svg class="warning-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span>{{ title }}</span>
+        </div>
 
-      <!-- When a specific card triggered this picker (e.g. a wild you just
-           drew), show it so you know exactly what you're about to play. -->
-      <div v-if="card" class="picker-card">
-        <Card :card="card" :size="{ width: 92, height: 130 }" />
-      </div>
+        <div class="hud-sub">
+          <!-- When a specific card triggered this picker (e.g. a wild you just
+               drew), show it so you know exactly what you're about to play. -->
+          <Card v-if="card" :card="card" :size="{ width: 44, height: 62 }" />
+          <span>{{ subtitle }}</span>
+        </div>
 
-      <div class="colors-grid">
-        <button 
-          v-for="color in colors" 
-          :key="color"
-          class="color-btn"
-          :class="`bg-${color}`"
-          @click="$emit('select', color)"
-        >
-          <div class="btn-inner">
-            <span class="color-label">{{ color.toUpperCase() }}</span>
-            <div class="scan-bar"></div>
-          </div>
-        </button>
-      </div>
-      
-      <div class="hud-footer">
-        {{ isCoarsePointer ? 'AWAITING INPUT...' : 'DRAG HEADER TO MOVE • AWAITING INPUT...' }}
+        <div class="colors-grid">
+          <button
+            v-for="color in colors"
+            :key="color"
+            class="color-btn"
+            :class="`bg-${color}`"
+            @click="$emit('select', color)"
+          >
+            <div class="btn-inner">
+              <span class="color-label">{{ color.toUpperCase() }}</span>
+              <!-- Hand-by-color summary: what each choice keeps playable. -->
+              <span v-if="colorCounts" class="color-count">×{{ colorCounts[color] }}</span>
+              <div class="scan-bar"></div>
+            </div>
+          </button>
+        </div>
       </div>
     </div>
-  </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import type { Card as CardType, CardColor } from '../../types/card'
 import Card from './Card.vue'
 
@@ -56,128 +55,69 @@ withDefaults(defineProps<{
   subtitle?: string
   isRoulette?: boolean
   card?: CardType | null
+  colorCounts?: Record<'red' | 'blue' | 'green' | 'yellow', number> | null
 }>(), {
   title: 'AUTHORIZATION REQUIRED',
   subtitle: 'SELECT FREQUENCY',
   isRoulette: false,
-  card: null
+  card: null,
+  colorCounts: null
 })
 
-const colors: CardColor[] = ['red', 'blue', 'green', 'yellow']
-
-// Dragging a modal is pointless and fat-finger-risky on touch — only enable it
-// for fine pointers (mouse/trackpad).
-const isCoarsePointer = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
+const colors = ['red', 'blue', 'green', 'yellow'] as const
 
 defineEmits<{
   (e: 'select', color: CardColor): void
 }>()
 
-// Drag functionality — modal is translated from a centered start position,
-// so position.{x,y} represents the offset from screen centre. Clamp it so
-// the modal's drag handle never leaves the viewport (audit-flagged: it
-// could previously be dragged off-screen with no way back).
-const position = reactive({ x: 0, y: 0 })
-const isDragging = ref(false)
-const dragStart = reactive({ x: 0, y: 0 })
-const HANDLE_MARGIN = 60 // keep at least this much of the modal in-view
+// Forced decision — no Esc, no backdrop dismiss. Focus moves to the first
+// color and returns to wherever it was once the pick resolves.
+const panelRef = ref<HTMLElement | null>(null)
+const lastFocused = ref<HTMLElement | null>(null)
 
-function clampPosition() {
-  const vw = window.innerWidth
-  const vh = window.innerHeight
-  const maxX = Math.max(0, vw / 2 - HANDLE_MARGIN)
-  const maxY = Math.max(0, vh / 2 - HANDLE_MARGIN)
-  position.x = Math.max(-maxX, Math.min(maxX, position.x))
-  position.y = Math.max(-maxY, Math.min(maxY, position.y))
-}
-
-function startDrag(e: MouseEvent) {
-  if (isCoarsePointer) return
-  isDragging.value = true
-  dragStart.x = e.clientX - position.x
-  dragStart.y = e.clientY - position.y
-  document.addEventListener('mousemove', onDrag)
-  document.addEventListener('mouseup', stopDrag)
-}
-
-function onDrag(e: MouseEvent) {
-  if (!isDragging.value) return
-  position.x = e.clientX - dragStart.x
-  position.y = e.clientY - dragStart.y
-  clampPosition()
-}
-
-function stopDrag() {
-  isDragging.value = false
-  document.removeEventListener('mousemove', onDrag)
-  document.removeEventListener('mouseup', stopDrag)
-  document.removeEventListener('touchmove', onTouchDrag)
-  document.removeEventListener('touchend', stopDrag)
-}
-
-function startTouchDrag(e: TouchEvent) {
-  if (isCoarsePointer) return
-  const touch = e.touches[0]
-  if (!touch) return
-  isDragging.value = true
-  dragStart.x = touch.clientX - position.x
-  dragStart.y = touch.clientY - position.y
-  document.addEventListener('touchmove', onTouchDrag, { passive: false })
-  document.addEventListener('touchend', stopDrag)
-}
-
-function onTouchDrag(e: TouchEvent) {
-  if (!isDragging.value) return
-  e.preventDefault()
-  const touch = e.touches[0]
-  if (!touch) return
-  position.x = touch.clientX - dragStart.x
-  position.y = touch.clientY - dragStart.y
-  clampPosition()
-}
+onMounted(() => {
+  lastFocused.value = document.activeElement as HTMLElement | null
+  panelRef.value?.querySelector('button')?.focus()
+})
 
 onUnmounted(() => {
-  document.removeEventListener('mousemove', onDrag)
-  document.removeEventListener('mouseup', stopDrag)
-  document.removeEventListener('touchmove', onTouchDrag)
-  document.removeEventListener('touchend', stopDrag)
+  lastFocused.value?.focus?.()
 })
 </script>
 
 <style scoped>
-.color-picker-overlay {
-  position: fixed;
+.color-pick-scrim {
+  /* Absolutely positioned grid child: its grid area (rows 1-3, everything
+     above the hand band) becomes the containing block, and being out of flow
+     it can't displace the auto-placed zone rows. */
+  grid-row: 1 / 4;
+  grid-column: 1;
+  position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.9);
+  z-index: var(--z-hand);
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  justify-content: flex-end;
   align-items: center;
-  z-index: var(--z-modal);
-  backdrop-filter: blur(5px);
-  /* Allow the modal to scroll instead of clipping on short/landscape viewports,
-     and keep clear of notches. */
-  overflow-y: auto;
-  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.35), rgba(4, 6, 10, 0.75));
+  padding: 0.5rem 0.75rem;
 }
 
 .tactical-hud {
-  background: #111;
+  background: rgba(13, 14, 16, 0.96);
   border: 2px solid var(--color-hazard);
-  padding: 2rem;
-  width: 500px;
-  max-width: 100%;
-  max-height: 100%;
-  overflow-y: auto;
+  padding: 0.75rem 1rem;
+  width: min(520px, 100%);
   position: relative;
-  box-shadow: 0 0 50px rgba(255, 204, 0, 0.2);
+  box-shadow: 0 0 40px rgba(255, 204, 0, 0.18);
 }
 
-/* Decorations */
+/* Cutout effect on the top border. */
 .tactical-hud::before {
   content: '';
   position: absolute;
   top: -2px; left: 20%; right: 20%; height: 2px;
-  background: #111; /* Cutout effect on border */
+  background: rgba(13, 14, 16, 0.96);
   z-index: 1;
 }
 
@@ -196,20 +136,16 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
+  gap: 0.5rem;
   color: var(--color-hazard);
   font-family: 'Courier New', monospace;
   font-weight: bold;
+  font-size: 0.75rem;
   letter-spacing: 2px;
-  margin-bottom: 2rem;
   border-bottom: 1px dashed var(--color-hazard-dim);
-  padding-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
   user-select: none;
-}
-
-.drag-hint {
-  margin-left: auto;
-  opacity: 0.5;
 }
 
 .warning-icon {
@@ -217,54 +153,61 @@ onUnmounted(() => {
   animation: blink 1s infinite;
 }
 
-h3 {
-  text-align: center;
+.hud-sub {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
   color: white;
   font-family: var(--font-display);
-  font-size: 2rem;
-  margin-bottom: 2rem;
+  font-size: 1rem;
   letter-spacing: 2px;
-}
-
-.picker-card {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.6rem;
 }
 
 .colors-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1.5rem;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
 }
 
 .color-btn {
-  height: 100px;
+  height: 64px;
   border: none;
   background: #222;
   cursor: pointer;
-  padding: 4px; /* for outer rim */
-  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
-  transition: all 0.2s;
+  padding: 3px; /* for outer rim */
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  transition: transform 0.2s, filter 0.2s;
 }
 
 .btn-inner {
   width: 100%;
   height: 100%;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
+  gap: 1px;
   font-family: var(--font-display);
-  font-size: 1.5rem;
+  font-size: 0.9rem;
   color: white;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
   position: relative;
   overflow: hidden;
-  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
 }
 
-.color-btn:hover {
-  transform: scale(1.02);
+.color-count {
+  font-family: 'Courier New', monospace;
+  font-size: 0.8rem;
+  font-weight: bold;
+  opacity: 0.9;
+}
+
+.color-btn:hover,
+.color-btn:focus-visible {
+  transform: scale(1.04);
   filter: brightness(1.2);
 }
 
@@ -276,7 +219,7 @@ h3 {
 .scan-bar {
   position: absolute;
   top: 0; left: 0; width: 100%; height: 4px;
-  background: rgba(255,255,255,0.5);
+  background: rgba(255, 255, 255, 0.5);
   opacity: 0;
   transition: opacity 0.2s;
 }
@@ -291,60 +234,32 @@ h3 {
   100% { top: 100%; }
 }
 
-.hud-footer {
-  margin-top: 2rem;
-  text-align: right;
-  font-family: 'Courier New', monospace;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  animation: blink 2s infinite;
-}
-
 @keyframes blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
 
-@media (max-width: 480px) {
-  .tactical-hud {
-    width: 95vw;
-    padding: 1rem;
-  }
-
-  h3 {
-    font-size: 1.4rem;
-    margin-bottom: 1rem;
-  }
-
-  .hud-header {
-    margin-bottom: 1rem;
-    padding-bottom: 0.5rem;
-    font-size: 0.8rem;
-    gap: 0.5rem;
-  }
-
-  .color-btn {
-    height: 65px;
-  }
-
-  .colors-grid {
-    gap: 0.75rem;
-  }
-
-  .btn-inner {
-    font-size: 1.1rem;
-  }
-
-  .hud-footer {
-    margin-top: 1rem;
-    font-size: 0.7rem;
-  }
+.pick-enter-active {
+  transition: opacity var(--duration-soft) var(--ease-soft);
+}
+.pick-enter-active .tactical-hud {
+  transition: transform var(--duration-soft) var(--ease-soft);
+}
+.pick-enter-from {
+  opacity: 0;
+}
+.pick-enter-from .tactical-hud {
+  transform: translateY(16px);
 }
 
-@media (max-width: 768px) and (min-width: 481px) {
-  .tactical-hud {
-    width: 85vw;
-    padding: 1.5rem;
+@media (prefers-reduced-motion: reduce) {
+  .pick-enter-active,
+  .pick-enter-active .tactical-hud {
+    transition: none;
+  }
+  .warning-icon,
+  .header-danger {
+    animation: none;
   }
 }
 </style>

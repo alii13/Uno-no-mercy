@@ -118,6 +118,7 @@
       title="ROULETTE TRAP DETECTED"
       subtitle="CHOOSE YOUR FATE"
       :is-roulette="true"
+      :color-counts="myColorCounts"
       @select="(c) => store.setRouletteColor(c)"
     />
 
@@ -126,6 +127,7 @@
       title="WILD CARD DRAWN"
       subtitle="CHOOSE COLOR TO PLAY"
       :card="store.pendingDrawnWildCard"
+      :color-counts="myColorCounts"
       @select="(c) => store.playDrawnWildCard(c)"
     />
 
@@ -134,6 +136,7 @@
       v-if="showColorPicker"
       title="WILD CARD ACTIVATED"
       subtitle="CHOOSE NEXT COLOR"
+      :color-counts="myColorCounts"
       @select="handleWildColorSelect"
     />
 
@@ -184,6 +187,7 @@ import { useRetentionStore } from '../../stores/retentionStore'
 import { useGameStore } from '../../stores/gameStore'
 import { useAuthStore } from '../../stores/authStore'
 import { canPlayCard } from '../../utils/gameRules'
+import { countByColor } from '../../utils/gameHelpers'
 import type { Card as CardType, CardColor } from '../../types/card'
 import { soundEffects } from '../../composables/useSoundEffects'
 import { useCardAnimations } from '../../composables/useCardAnimations'
@@ -265,6 +269,7 @@ provide('discardAreaRef', discardAreaRef)
 provide('animationLayer', animationLayer)
 
 const myPlayer = computed(() => store.players.find(p => p.id === myPlayerId))
+const myColorCounts = computed(() => countByColor(myPlayer.value?.hand ?? []))
 const opponents = computed(() => store.players.filter(p => p.id !== myPlayerId))
 
 // An opponent caught without calling UNO — the human can penalize them.
