@@ -1,5 +1,5 @@
 <template>
-  <Modal :close-on-esc="false" aria-label="Select a player to swap hands with">
+  <Modal sheet :close-on-esc="false" aria-label="Select a player to swap hands with">
     <div class="select-card">
       <header class="select-header">
         <svg class="select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">

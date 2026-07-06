@@ -19,11 +19,15 @@ const props = withDefaults(
     closeOnBackdrop?: boolean
     closeOnEsc?: boolean
     ariaLabel?: string
+    /** Mobile: dock to the bottom edge as a slide-up sheet in the thumb zone.
+        Inert on desktop and when false — existing consumers stay centered. */
+    sheet?: boolean
   }>(),
   {
     open: true,
     closeOnBackdrop: false,
     closeOnEsc: true,
+    sheet: false,
   },
 )
 
@@ -76,6 +80,7 @@ onUnmounted(() => {
       <div
         v-if="open"
         class="modal-overlay"
+        :class="{ sheet }"
         :aria-label="ariaLabel"
         role="dialog"
         aria-modal="true"
@@ -126,9 +131,47 @@ onUnmounted(() => {
   opacity: 0;
 }
 
+/* Bottom sheet (mobile only): dock to the bottom edge in the thumb zone and
+   slide up. Desktop keeps the centered dialog above. */
+@media (max-width: 768px) {
+  .modal-overlay.sheet {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .modal-overlay.sheet .modal-shell {
+    width: 100%;
+    max-width: none;
+    max-height: 85dvh;
+    border-radius: 18px 18px 0 0;
+    padding-bottom: max(var(--spacing-4), env(safe-area-inset-bottom));
+    transition: transform var(--duration-soft) var(--ease-soft);
+  }
+  /* Grabber bar. */
+  .modal-overlay.sheet .modal-shell::before {
+    content: '';
+    flex-shrink: 0;
+    width: 40px;
+    height: 4px;
+    margin: 8px auto 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.3);
+  }
+  /* Let the slotted card stretch to the full sheet width. */
+  .modal-overlay.sheet .modal-shell > :deep(*) {
+    max-width: none;
+  }
+  .modal-overlay.sheet.modal-enter-from .modal-shell,
+  .modal-overlay.sheet.modal-leave-to .modal-shell {
+    transform: translateY(100%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .modal-enter-active,
   .modal-leave-active {
+    transition: none;
+  }
+  .modal-overlay.sheet .modal-shell {
     transition: none;
   }
 }

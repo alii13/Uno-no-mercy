@@ -1,5 +1,5 @@
 <template>
-  <Modal :close-on-esc="false" aria-label="Pick the top card">
+  <Modal sheet :close-on-esc="false" aria-label="Pick the top card">
     <div class="picker-card">
       <header class="picker-header">
         <svg class="picker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
