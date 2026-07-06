@@ -126,6 +126,7 @@
       v-if="showColorPicker"
       title="WILD CARD"
       subtitle="CHOOSE COLOR"
+      :color-counts="myColorCounts"
       @select="handleColorSelect"
     />
 
@@ -135,6 +136,7 @@
       title="ROULETTE TRAP DETECTED"
       subtitle="CHOOSE YOUR FATE"
       :is-roulette="true"
+      :color-counts="myColorCounts"
       @select="handleRouletteColorSelect"
     />
 
@@ -144,6 +146,7 @@
       title="WILD CARD DRAWN"
       subtitle="CHOOSE COLOR TO PLAY"
       :card="mpStore.pendingDrawnWildCard"
+      :color-counts="myColorCounts"
       @select="handleDrawnWildColorSelect"
     />
 
@@ -246,6 +249,7 @@ import ConfirmDialog from '../ConfirmDialog.vue'
 import RulesModal from '../RulesModal.vue'
 import type { Card, CardColor } from '../../types/card'
 import { canPlayCard } from '../../utils/gameRules'
+import { countByColor } from '../../utils/gameHelpers'
 import { useStackEscalation } from '../../composables/useStackEscalation'
 import { playDealerIntro } from '../../composables/useDealerIntro'
 import { useRetentionStore } from '../../stores/retentionStore'
@@ -322,6 +326,7 @@ const visibleHand = computed(() => {
 const myPlayer = computed(() => mpStore.myPlayer)
 const allOpponents = computed(() => mpStore.opponents)
 const myHand = computed(() => (myPlayer.value?.hand as Card[]) || [])
+const myColorCounts = computed(() => countByColor(myHand.value))
 const isMyTurn = computed(() => mpStore.isMyTurn)
 const gameStatus = computed(() => mpStore.gameStatus)
 const opponentLeft = computed(() => mpStore.opponentLeft)

@@ -112,6 +112,20 @@ export function getWildCardColor(hand: Card[]): CardColor {
 }
 
 /**
+ * Count a hand's cards per pickable color (wilds excluded).
+ * Used by the color picker to show what each choice keeps playable.
+ * @param hand - Player's current hand
+ * @returns Count per color, all four keys always present
+ */
+export function countByColor(hand: Card[]): Record<'red' | 'blue' | 'green' | 'yellow', number> {
+    const counts = { red: 0, blue: 0, green: 0, yellow: 0 }
+    hand.forEach(card => {
+        if (card.color !== 'wild') counts[card.color]++
+    })
+    return counts
+}
+
+/**
  * Rotate hands between players (for 0 card effect)
  * @param hands - Array of player hands
  * @param direction - Game direction (1 or -1)
