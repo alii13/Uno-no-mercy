@@ -506,6 +506,11 @@ function triggerPileFlash(color: string) {
   scrollbar-width: none;
   touch-action: pan-x;
   padding: 0 var(--spacing-3);
+  /* Fade the horizontal edges so clipped cards read as "more off-screen"
+     rather than hard-cut. Vertical stays full-alpha so hover/arc lifts aren't
+     touched. Scroll mode only — a fitted fan needs no cue. */
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
 }
 .hand-scroller.scroll::-webkit-scrollbar { display: none; }
 
