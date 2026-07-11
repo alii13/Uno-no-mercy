@@ -18,15 +18,23 @@ const h = vi.hoisted(() => {
         payload: unknown
         filters: [string, unknown][]
     }
+    interface RpcCall { name: string; args: Record<string, unknown> }
     const state = {
         queue: [] as Resp[],
         calls: [] as Recorded[],
+        rpcQueue: [] as Resp[],
+        rpcCalls: [] as RpcCall[],
         reset() {
             state.queue = []
             state.calls = []
+            state.rpcQueue = []
+            state.rpcCalls = []
         },
         respond(r: Resp) {
             state.queue.push(r)
+        },
+        respondRpc(r: Resp) {
+            state.rpcQueue.push(r)
         },
     }
     function makeBuilder(table: string) {
@@ -60,6 +68,11 @@ const h = vi.hoisted(() => {
 vi.mock('../../lib/supabase', () => ({
     supabase: {
         from: (table: string) => h.makeBuilder(table),
+        rpc: (name: string, args: Record<string, unknown>) => {
+            h.state.rpcCalls.push({ name, args })
+            const resp = h.state.rpcQueue.shift() ?? { data: null, error: null }
+            return Promise.resolve(resp)
+        },
         auth: { getUser: async () => ({ data: { user: null } }) },
     },
 }))
@@ -91,13 +104,13 @@ function gameRow(over: Partial<GameRow> = {}): GameRow {
     }
 }
 
-function playerRow(userId: string, seat: number): GamePlayerRow {
+function playerRow(userId: string, seat: number, hand: unknown[] = []): GamePlayerRow {
     return {
         id: `gp-${userId}`,
         game_id: 'g1',
         user_id: userId,
         name: userId,
-        hand: [],
+        hand: hand as GamePlayerRow['hand'],
         seat_order: seat,
         is_eliminated: false,
         has_called_uno: false,
@@ -114,20 +127,21 @@ beforeEach(() => {
 })
 
 describe('compare-and-swap board writes (via skipSwap)', () => {
-    it('writes conditionally on the version it computed from and bumps it on success', async () => {
+    it('commits through the commit_move RPC on the version it computed from and bumps it on success', async () => {
         const mp = useMultiplayerStore()
         mp.currentGame = gameRow()
         mp.myPlayer = playerRow('me', 0)
         mp.gamePlayers = [playerRow('me', 0), playerRow('opp', 1)]
 
-        h.state.respond({ data: [{ id: 'g1' }], error: null })
+        h.state.respondRpc({ data: true, error: null })
 
         await mp.skipSwap()
 
-        const update = h.state.calls.find(c => c.table === 'games' && c.op === 'update')
-        expect(update).toBeDefined()
-        expect(update!.filters).toContainEqual(['version', 3])
-        expect((update!.payload as { version: number }).version).toBe(4)
+        expect(h.state.rpcCalls).toHaveLength(1)
+        const call = h.state.rpcCalls[0]!
+        expect(call.name).toBe('commit_move')
+        expect(call.args.p_expected_version).toBe(3)
+        expect((call.args.p_patch as { current_player_id: string }).current_player_id).toBe('opp')
         expect(mp.currentGame?.version).toBe(4)
         expect(mp.currentGame?.current_player_id).toBe('opp')
     })
@@ -138,8 +152,8 @@ describe('compare-and-swap board writes (via skipSwap)', () => {
         mp.myPlayer = playerRow('me', 0)
         mp.gamePlayers = [playerRow('me', 0), playerRow('p2', 1), playerRow('p3', 2)]
 
-        // CAS misses (0 rows — someone else wrote version 3 first) ...
-        h.state.respond({ data: [], error: null })
+        // CAS misses (RPC returns false — someone else wrote version 3 first) ...
+        h.state.respondRpc({ data: false, error: null })
         // ... so resyncFromDb pulls the authoritative row, which disagrees
         // with our optimistic apply (turn went to p3, not our computed p2) ...
         h.state.respond({
@@ -157,8 +171,7 @@ describe('compare-and-swap board writes (via skipSwap)', () => {
         expect(mp.currentGame?.version).toBe(5)
         expect(mp.currentGame?.current_player_id).toBe('p3')
         // Exactly one CAS attempt — the loser must not retry blindly.
-        const updates = h.state.calls.filter(c => c.table === 'games' && c.op === 'update')
-        expect(updates).toHaveLength(1)
+        expect(h.state.rpcCalls).toHaveLength(1)
     })
 
     it('refuses to act when the turn is not ours', async () => {
@@ -169,6 +182,39 @@ describe('compare-and-swap board writes (via skipSwap)', () => {
 
         await mp.skipSwap()
 
+        expect(h.state.rpcCalls).toHaveLength(0)
         expect(h.state.calls).toHaveLength(0)
+    })
+})
+
+describe('board + hands commit in a single RPC (via swapHands)', () => {
+    it('sends both swapped hands in the same commit_move call as the board patch', async () => {
+        const mp = useMultiplayerStore()
+        const myCards = [{ id: 'c-mine', type: 'number', color: 'red', value: 3 }]
+        const oppCards = [{ id: 'c-opp', type: 'number', color: 'blue', value: 5 }]
+        mp.currentGame = gameRow({ turn_state: 'CHOOSING_PLAYER_TO_SWAP', current_player_id: 'me' })
+        mp.myPlayer = playerRow('me', 0, myCards)
+        mp.gamePlayers = [playerRow('me', 0, myCards), playerRow('opp', 1, oppCards)]
+
+        // swapHands re-fetches hands fresh from the DB before swapping ...
+        h.state.respond({
+            data: [playerRow('me', 0, myCards), playerRow('opp', 1, oppCards)],
+            error: null,
+        })
+        // ... then the single commit lands.
+        h.state.respondRpc({ data: true, error: null })
+
+        await mp.swapHands('gp-opp')
+
+        // No standalone game_players UPDATE — hands ride inside the RPC.
+        expect(h.state.calls.some(c => c.table === 'game_players' && c.op === 'update')).toBe(false)
+        expect(h.state.rpcCalls).toHaveLength(1)
+        const hands = h.state.rpcCalls[0]!.args.p_hands as { id: string; hand: unknown[] }[]
+        expect(hands).toHaveLength(2)
+        const mine = hands.find(x => x.id === 'gp-me')!
+        const theirs = hands.find(x => x.id === 'gp-opp')!
+        // I now hold what was the opponent's hand, and vice versa.
+        expect(mine.hand).toEqual(oppCards)
+        expect(theirs.hand).toEqual(myCards)
     })
 })

@@ -79,9 +79,17 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         senderId: string
         epoch: number
         seq: number
+        sentAt: number
         game: GameRow
         players: GamePlayerRow[]
     }
+
+    // Rolling window of the last ~50 sender→receiver broadcast deltas (ms), kept
+    // for measuring perceived move latency. Read it from the store in devtools
+    // or a headless session. Deltas span two devices, so they include clock
+    // skew — on NTP-synced phones on one wifi that's small enough to read the
+    // hundreds-of-ms signal we care about.
+    const latencyLog = ref<number[]>([])
 
     function broadcastState() {
         if (!gameChannel || !currentGame.value) return
@@ -97,6 +105,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     senderId,
                     epoch: broadcastEpoch,
                     seq: broadcastSeq,
+                    sentAt: Date.now(),
                     game: { ...currentGame.value },
                     players: gamePlayers.value.map(p => ({ ...p }))
                 } satisfies StateBroadcastPayload
@@ -213,11 +222,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             const committed = await commitGameUpdate(currentGame.value.id, expectedVersion, {
                 deck,
                 discard_pile: discard
-            })
+            }, [{ id: target.id, hand: newHand }])
             if (!committed) return
-            await writeHandsAfterCommit(() =>
-                supabase.from('game_players').update({ hand: newHand }).eq('id', target.id)
-            )
             announce(`${target.name} got caught — draws ${UNO_PENALTY}!`)
             sendCatchEvent('catch_close', targetUserId)
             broadcastAction(`${target.name} forgot UNO — caught for ${UNO_PENALTY}!`)
@@ -389,25 +395,39 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         return { winner_id: null, status: 'playing' }
     }
 
-    // Compare-and-swap commit for the games row. Every writer passes the
-    // version of the board it computed from; the UPDATE only lands if that
-    // version is still current (no one else wrote in between). A lost race
-    // returns false after resyncing local state from the DB — the caller's
-    // optimistic apply has already been corrected by the resync, so it should
-    // simply stop instead of overwriting a newer board (last-write-wins fork).
+    // One hand row to write alongside the board. is_eliminated / has_called_uno
+    // are optional — omit them to leave the row's current value untouched.
+    interface HandUpdate {
+        id: string
+        hand: Card[]
+        is_eliminated?: boolean
+        has_called_uno?: boolean
+    }
+
+    // Compare-and-swap commit for the board AND the hands it touches, in one
+    // round trip. Every writer passes the version of the board it computed from;
+    // the commit_move RPC only lands if that version is still current (no one
+    // else wrote in between) and writes the hand rows in the same transaction.
+    // A lost race returns false after resyncing local state from the DB — the
+    // caller's optimistic apply has already been corrected by the resync, so it
+    // should simply stop instead of overwriting a newer board (last-write-wins
+    // fork).
     async function commitGameUpdate(
         gameId: string,
         expectedVersion: number,
-        patch: Record<string, unknown>
+        patch: Record<string, unknown>,
+        hands: HandUpdate[] = []
     ): Promise<boolean> {
-        const { data, error: err } = await supabase
-            .from('games')
-            .update({ ...patch, version: expectedVersion + 1 })
-            .eq('id', gameId)
-            .eq('version', expectedVersion)
-            .select('id')
+        const t0 = performance.now()
+        const { data, error: err } = await supabase.rpc('commit_move', {
+            p_game_id: gameId,
+            p_expected_version: expectedVersion,
+            p_patch: patch,
+            p_hands: hands,
+        })
+        console.debug('[mp] commit rtt', Math.round(performance.now() - t0), 'ms')
         if (err) throw err
-        if (!data?.length) {
+        if (data !== true) {
             await resyncFromDb()
             return false
         }
@@ -421,21 +441,14 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         return currentGame.value?.version ?? 0
     }
 
-    // Hand rows are written AFTER the games-row CAS commits, so a failure here
-    // leaves the committed board pointing at hands that were never written.
-    // Retry once; if it still fails, resync so every client at least agrees
-    // with the DB instead of the actor's local state silently forking from it.
-    async function writeHandsAfterCommit(write: () => PromiseLike<unknown>): Promise<void> {
-        try {
-            await write()
-        } catch {
-            try {
-                await write()
-            } catch (err) {
-                await resyncFromDb()
-                throw err
-            }
+    // Build the hand-write list for a resolved play. 0-rotate and 7-swap fill
+    // handsToUpdate with every affected seat; a plain play touches only mine.
+    function handsFromState(state: PlayCardState): HandUpdate[] {
+        if (state.handsToUpdate.length > 0) {
+            return state.handsToUpdate.map(u => ({ id: u.playerId, hand: u.hand }))
         }
+        if (!myPlayer.value) return []
+        return [{ id: myPlayer.value.id, hand: state.newHand }]
     }
 
     // Create a new game
@@ -843,7 +856,14 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 // Equal versions are fine: hand-only changes don't bump it.
                 if (p.game && ((p.game as GameRow).version ?? 0) < localGameVersion()) return
 
-                lastBroadcastReceivedAt = Date.now()
+                const now = Date.now()
+                if (typeof p.sentAt === 'number') {
+                    const delta = now - p.sentAt
+                    latencyLog.value.push(delta)
+                    if (latencyLog.value.length > 50) latencyLog.value.shift()
+                    console.debug('[mp] broadcast latency', delta, 'ms')
+                }
+                lastBroadcastReceivedAt = now
 
                 if (p.game) {
                     currentGame.value = {
@@ -1487,7 +1507,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     currentGame.value.roulette_target_color = state.rouletteTargetColor
                 }
 
-                // CAS the games row first — only the race winner writes hands.
+                // CAS the board and my drawn hand in one commit.
                 const committed = await commitGameUpdate(game.id, game.version ?? 0, {
                     deck,
                     discard_pile: state.newDiscard,
@@ -1497,14 +1517,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     draw_stack: state.drawStack,
                     turn_state: state.turnState,
                     roulette_target_color: state.rouletteTargetColor
-                })
+                }, [{ id: myPlayer.value!.id, hand: drawn, has_called_uno: false }])
                 if (committed) {
-                    await writeHandsAfterCommit(() =>
-                        supabase
-                            .from('game_players')
-                            .update({ hand: drawn, has_called_uno: false })
-                            .eq('id', myPlayer.value!.id)
-                    )
                     broadcastState()
                 }
 
@@ -1518,28 +1532,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         return { winnerId: null, status: 'playing', finalHand }
     }
 
-    // Update player hands in database. Multi-hand updates (0 rotate, 7 swap)
-    // are issued in parallel — they're independent row updates.
-    async function updatePlayerHands(state: PlayCardState): Promise<void> {
-        if (state.handsToUpdate.length > 0) {
-            await Promise.all(
-                state.handsToUpdate.map(update =>
-                    supabase
-                        .from('game_players')
-                        .update({ hand: update.hand })
-                        .eq('id', update.playerId)
-                )
-            )
-        } else {
-            await supabase
-                .from('game_players')
-                .update({ hand: state.newHand })
-                .eq('id', myPlayer.value!.id)
-        }
-    }
-
-    // Update game state in database. CAS-guarded — returns false (after a
-    // resync) when another client wrote the board first.
+    // Update the board and the hands it touched in one CAS-guarded commit.
+    // Returns false (after a resync) when another client wrote the board first.
     async function updateGameState(
         gameId: string,
         expectedVersion: number,
@@ -1559,7 +1553,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             roulette_target_color: state.rouletteTargetColor,
             winner_id: winnerId,
             status
-        })
+        }, handsFromState(state))
     }
 
     // Play a card
@@ -1651,7 +1645,6 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 game.id, game.version ?? 0, game.deck as Card[], state, winResult.winnerId, winResult.status
             )
             if (!committed) return
-            await writeHandsAfterCommit(() => updatePlayerHands(state))
             // Count the play only once it actually landed.
             const st = mpStats.value
             st.cardsPlayedTotal++
@@ -1665,8 +1658,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         } catch (err: any) {
             error.value = err.message
             // Roll back the optimistic apply only if the board never committed.
-            // After a commit the DB is ahead of the snapshot — restoring it
-            // would fork local state; writeHandsAfterCommit already resynced.
+            // The commit is atomic (board + hands in one RPC transaction), so a
+            // throw means nothing landed and the snapshot is safe to restore; a
+            // committed board is ahead of the snapshot and must not be reverted.
             if (!committed) {
                 if (myPlayer.value) myPlayer.value.hand = savedMyHand
                 for (const s of savedHands) {
@@ -1746,22 +1740,15 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         }
 
         try {
-            // CAS the games row first — only the race winner writes hands.
+            // CAS the board and both swapped hands in one commit.
             const committed = await commitGameUpdate(currentGame.value.id, expectedVersion, {
                 turn_state: 'WAITING_FOR_ACTION',
                 current_player_id: nextPlayerId
-            })
+            }, [
+                { id: freshMe.id, hand: targetHand },
+                { id: freshTarget.id, hand: myHand }
+            ])
             if (!committed) return
-            await writeHandsAfterCommit(() => Promise.all([
-                supabase
-                    .from('game_players')
-                    .update({ hand: targetHand })
-                    .eq('id', freshMe.id),
-                supabase
-                    .from('game_players')
-                    .update({ hand: myHand })
-                    .eq('id', freshTarget.id)
-            ]))
             mpStats.value.swapsMade++
             broadcastState()
         } catch (err: any) {
@@ -1898,7 +1885,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 currentGame.value.status = gStatus as typeof currentGame.value.status
             }
 
-            // CAS the games row first — only the race winner writes the hand.
+            // CAS the board and my resolved hand in one commit.
             const committed = await commitGameUpdate(game.id, expectedVersion, {
                 deck: localDeck,
                 discard_pile: newDiscard,
@@ -1908,18 +1895,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 current_player_id: nextId,
                 winner_id,
                 status: gStatus
-            })
+            }, [{ id: myPlayer.value!.id, hand: finalHand, is_eliminated: isEliminated, has_called_uno: false }])
             if (!committed) return
-            await writeHandsAfterCommit(() =>
-                supabase
-                    .from('game_players')
-                    .update({
-                        hand: finalHand,
-                        is_eliminated: isEliminated,
-                        has_called_uno: false
-                    })
-                    .eq('id', myPlayer.value!.id)
-            )
             broadcastState()
         } catch (err: any) {
             error.value = err.message
@@ -1987,21 +1964,15 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             currentGame.value.status = gStatus as typeof currentGame.value.status
         }
 
-        // CAS the games row first — only the race winner writes the hand.
+        // CAS the board and my emptied, eliminated hand in one commit.
         const committed = await commitGameUpdate(gameId, expectedVersion, {
             deck: state.deck,
             discard_pile: state.discardPile,
             current_player_id: nextId,
             winner_id,
             status: gStatus
-        })
+        }, [{ id: myPlayer.value!.id, hand: [], is_eliminated: true }])
         if (!committed) return
-        await writeHandsAfterCommit(() =>
-            supabase
-                .from('game_players')
-                .update({ hand: [], is_eliminated: true })
-                .eq('id', myPlayer.value!.id)
-        )
         broadcastState()
     }
 
@@ -2045,7 +2016,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             ? await checkForWinnerAfterElimination()
             : { winner_id: null, status: 'playing' }
 
-        // CAS the games row first — only the race winner writes the hand.
+        // CAS the board and my post-penalty hand in one commit.
         const committed = await commitGameUpdate(gameId, expectedVersion, {
             deck: state.deck,
             discard_pile: state.discardPile,
@@ -2053,18 +2024,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             current_player_id: nextId,
             winner_id,
             status: gStatus
-        })
+        }, [{ id: myPlayer.value!.id, hand: isEliminated ? [] : newHand, is_eliminated: isEliminated, has_called_uno: false }])
         if (!committed) return
-        await writeHandsAfterCommit(() =>
-            supabase
-                .from('game_players')
-                .update({
-                    hand: isEliminated ? [] : newHand,
-                    is_eliminated: isEliminated,
-                    has_called_uno: false
-                })
-                .eq('id', myPlayer.value!.id)
-        )
         broadcastState()
     }
 
@@ -2124,17 +2085,11 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 const committed = await commitGameUpdate(currentGame.value.id, expectedVersion, {
                     deck: state.deck,
                     discard_pile: state.discardPile
-                })
+                }, [{ id: myPlayer.value!.id, hand: newHand, has_called_uno: false }])
                 if (!committed) {
                     actionInProgress.value = false
                     return
                 }
-                await writeHandsAfterCommit(() =>
-                    supabase
-                        .from('game_players')
-                        .update({ hand: newHand, has_called_uno: false })
-                        .eq('id', myPlayer.value!.id)
-                )
                 broadcastState()
 
                 // Check if drawn card is playable
@@ -2316,15 +2271,15 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 game.id, game.version ?? 0, game.deck as Card[], state, winnerId, status
             )
             if (!committed) return
-            await writeHandsAfterCommit(() => updatePlayerHands(state))
             broadcastState()
             maybeOpenSelfCatch()
         } catch (err: any) {
             error.value = err.message
             // Roll back the optimistic apply so the picker reopens and the turn
             // stays on us, rather than silently desyncing both clients. Only
-            // valid while the board never committed — after a commit the DB is
-            // ahead of this snapshot and writeHandsAfterCommit already resynced.
+            // valid while the board never committed — the commit is atomic, so a
+            // throw means nothing landed; a committed board is ahead of this
+            // snapshot and must not be reverted.
             if (!committed) {
                 pendingDiscardAllCards.value = savedPending
                 if (currentGame.value) {
@@ -2562,6 +2517,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         kickPlayer,
         updateMyName,
         leaveGame,
-        loadGamePlayers
+        loadGamePlayers,
+        latencyLog
     }
 })
