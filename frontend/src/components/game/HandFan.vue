@@ -1,14 +1,19 @@
 <template>
   <div
     class="hand-fan"
-    :class="{ 'not-my-turn': !isMyTurn }"
+    :class="{ 'not-my-turn': !isMyTurn, 'is-peeking': peekPhase === 'PEEKING' }"
     ref="rootEl"
+    @focusout="onFocusOut"
   >
     <div class="hand-scroller" :class="{ scroll: layout.mode === 'scroll' }">
       <div
         class="hand-strip"
         ref="handContainer"
         :style="{ width: stripWidth + 'px', height: layout.cardH + 'px' }"
+        @pointermove="peek.onPointerMove"
+        @pointerup="peek.onPointerUp"
+        @pointercancel="peek.onPointerCancel"
+        @contextmenu.prevent
       >
         <div
           v-for="(card, index) in cards"
@@ -28,7 +33,8 @@
           @mouseenter="hoverIndex = index"
           @mouseleave="hoverIndex = -1"
           @focus="focusIndex = index"
-          @click="handleCardClick(card)"
+          @pointerdown="onCardPointerDown($event, index)"
+          @click="onCardClick(card)"
           @keydown="onKeydown($event, card, index)"
         >
           <Card
@@ -40,6 +46,34 @@
         </div>
       </div>
     </div>
+
+    <!-- Parked selection catches a tap outside the preview to dismiss. -->
+    <div
+      v-if="peekPhase === 'SELECTED'"
+      class="peek-backdrop"
+      @pointerdown.self="peek.dismiss()"
+    ></div>
+
+    <!-- Lifted preview lives OUTSIDE the scroller so overflow can't clip it. -->
+    <Transition name="peek">
+      <div v-if="previewCard" class="peek-overlay" :class="{ 'peek-static': motionReduced }">
+        <div
+          ref="peekPreviewEl"
+          class="peek-preview"
+          @click.stop="onPreviewTap"
+        >
+          <Card
+            :card="previewCard"
+            :size="previewSize"
+            :is-playable="previewPlayable"
+            class="peek-card"
+          />
+          <div class="peek-hint" :class="{ playable: previewSelected && previewPlayable }">
+            {{ previewHint }}
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -51,6 +85,8 @@ import type { Card as CardType } from '../../types/card'
 import Card from './Card.vue'
 import { computeHandLayout } from '../../utils/handLayout'
 import { useScreenSize } from '../../composables/useScreenSize'
+import { useMotion } from '../../composables/useMotion'
+import { useHandPeek } from '../../composables/useHandPeek'
 import { soundEffects } from '../../composables/useSoundEffects'
 import { burstImpactParticles } from '../../composables/useGameFeel'
 
@@ -67,7 +103,9 @@ const props = defineProps<{
 
 const emit = defineEmits<{ (e: 'play', card: CardType): void }>()
 
-const { screenWidth, isCoarsePointer } = useScreenSize()
+const { screenWidth, screenHeight, isCoarsePointer } = useScreenSize()
+const motion = useMotion()
+const motionReduced = computed(() => motion.reduced)
 const hoverIndex = ref(-1)
 
 // Measure the hand band so the layout solver can cap card height to it.
@@ -155,6 +193,9 @@ function setCardRef(cardId: string, el: HTMLElement | ComponentPublicInstance | 
 // (including unplayable ones, so keyboard users can inspect the whole hand).
 const focusIndex = ref(0)
 const clampedFocus = computed(() => Math.min(focusIndex.value, Math.max(0, props.cards.length - 1)))
+// True only while the hand is being driven by the keyboard, so the lifted
+// preview appears on arrow navigation but never on a mouse click.
+const keyboardNav = ref(false)
 
 function focusCard(index: number) {
   const card = props.cards[index]
@@ -171,9 +212,15 @@ function moveFocus(delta: number) {
 }
 
 function onKeydown(e: KeyboardEvent, card: CardType, _index: number) {
-  if (e.key === 'ArrowRight') { e.preventDefault(); moveFocus(1) }
-  else if (e.key === 'ArrowLeft') { e.preventDefault(); moveFocus(-1) }
+  if (e.key === 'ArrowRight') { e.preventDefault(); keyboardNav.value = true; moveFocus(1) }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); keyboardNav.value = true; moveFocus(-1) }
   else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCardClick(card) }
+  else if (e.key === 'Escape') { keyboardNav.value = false }
+}
+
+function onFocusOut(e: FocusEvent) {
+  // Leaving the fan entirely hides the keyboard preview.
+  if (!rootEl.value?.contains(e.relatedTarget as Node)) keyboardNav.value = false
 }
 
 function cardLabel(card: CardType): string {
@@ -193,6 +240,96 @@ function handleCardClick(card: CardType) {
   if (props.disabled) return
   if (!props.isMyTurn || !props.canPlay(card)) return
   executePlay(card)
+}
+
+// On touch, the peek gesture owns the tap (its TAP_PLAY effect calls the play
+// path); the synthetic click that follows a tap is ignored so a card never
+// plays twice. Fine pointers keep click-to-play.
+function onCardClick(card: CardType) {
+  if (peekEnabled.value) return
+  handleCardClick(card)
+}
+
+function onCardPointerDown(e: PointerEvent, index: number) {
+  keyboardNav.value = false
+  peek.onPointerDown(e, index)
+}
+
+// ── Long-press peek ────────────────────────────────────────────────────────
+const peekPreviewEl = ref<HTMLElement | null>(null)
+const peekEnabled = computed(() => isCoarsePointer.value && !props.disabled)
+
+function playByIndex(index: number) {
+  const card = props.cards[index]
+  if (card) handleCardClick(card)
+}
+
+function canPlayIndex(index: number): boolean {
+  const card = props.cards[index]
+  return !!card && props.isMyTurn && !props.disabled && props.canPlay(card)
+}
+
+// Nearest card centre to the finger — cards overlap, so containment is
+// ambiguous; closest centre is the honest pick for slide-to-browse.
+function indexAtPoint(clientX: number): number {
+  let best = clampedFocus.value
+  let bestDist = Infinity
+  props.cards.forEach((card, i) => {
+    const el = cardRefs.value.get(card.id)
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    const d = Math.abs((r.left + r.right) / 2 - clientX)
+    if (d < bestDist) { bestDist = d; best = i }
+  })
+  return best
+}
+
+function shakePreview() {
+  const el = peekPreviewEl.value
+  if (!el || motion.reduced) return
+  gsap.fromTo(el, { x: -9 }, { x: 0, duration: 0.45, ease: 'elastic.out(1, 0.3)' })
+}
+
+const peek = useHandPeek({
+  stripRef: handContainer,
+  enabled: peekEnabled,
+  cardCount: computed(() => props.cards.length),
+  indexAtPoint,
+  canPlayIndex,
+  play: playByIndex,
+  shakePreview,
+})
+const peekPhase = peek.peekPhase
+
+// The lifted preview is shared by touch peek (PEEKING/SELECTED) and keyboard
+// navigation. Touch wins when both could apply.
+const previewIndex = computed(() => {
+  if (peek.peekIndex.value >= 0) return peek.peekIndex.value
+  if (keyboardNav.value && props.isMyTurn) return clampedFocus.value
+  return -1
+})
+const previewCard = computed(() => props.cards[previewIndex.value] ?? null)
+const previewPlayable = computed(() => {
+  const c = previewCard.value
+  return !!c && props.isMyTurn && !props.disabled && props.canPlay(c)
+})
+const previewSelected = computed(() => peek.peekPhase.value === 'SELECTED')
+const previewSize = computed(() => {
+  let w = Math.min(190, Math.max(120, screenWidth.value * 0.34))
+  let h = w * 1.4
+  // Never let the lifted card exceed the viewport — short landscape would
+  // otherwise clip its top and collide with the opponent bar.
+  const hCap = screenHeight.value * 0.6
+  if (h > hCap) { h = hCap; w = h / 1.4 }
+  return { width: Math.round(w), height: Math.round(h) }
+})
+const previewHint = computed(() => {
+  if (previewSelected.value) return previewPlayable.value ? 'TAP TO PLAY' : "CAN'T PLAY"
+  return previewCard.value ? cardLabel(previewCard.value) : ''
+})
+
+function onPreviewTap() {
+  peek.confirmTap()
 }
 
 // Fires the throw sound, hands the play to the parent (which does the store
@@ -382,6 +519,16 @@ function triggerPileFlash(color: string) {
   cursor: pointer;
   transform-origin: bottom center;
   will-change: transform;
+  /* Kill the iOS/Android long-press callout + text selection so a hold peeks. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* While actively peeking, stop the scroller from also panning under the finger
+   (the non-passive touchmove guard in useHandPeek backs this up). */
+.hand-fan.is-peeking .hand-scroller.scroll {
+  touch-action: none;
 }
 
 .hand-card-wrapper.fresh-card {
@@ -437,6 +584,73 @@ function triggerPileFlash(color: string) {
 }
 .not-my-turn .hand-card-wrapper {
   cursor: not-allowed;
+}
+
+/* ── Long-press peek overlay ─────────────────────────────────────────────── */
+.peek-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.peek-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* Float above the hand band, over the pit, where the card is readable. */
+  bottom: calc(100% - 48px);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 50;
+}
+
+.peek-preview {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  transform-origin: center bottom;
+  filter: drop-shadow(0 22px 38px rgba(0, 0, 0, 0.7));
+}
+
+.peek-hint {
+  font-family: var(--font-display, sans-serif);
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  color: var(--text-secondary, #cbd5e1);
+  background: rgba(8, 10, 14, 0.88);
+  padding: 4px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  white-space: nowrap;
+}
+.peek-hint.playable {
+  color: #04121a;
+  background: var(--color-neon-blue, #2ad4ff);
+  border-color: transparent;
+  font-weight: 700;
+}
+
+.peek-enter-active,
+.peek-leave-active {
+  transition: opacity 0.16s ease, transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.35);
+}
+.peek-enter-from,
+.peek-leave-to {
+  opacity: 0;
+  transform: translateY(14px) scale(0.9);
+}
+
+/* Reduced motion (OS or in-app override): instant preview, no scale tween. */
+.peek-overlay.peek-static.peek-enter-active,
+.peek-overlay.peek-static.peek-leave-active {
+  transition: none;
+}
+.peek-overlay.peek-static.peek-enter-from,
+.peek-overlay.peek-static.peek-leave-to {
+  transform: none;
 }
 
 @media (max-width: 768px) {
