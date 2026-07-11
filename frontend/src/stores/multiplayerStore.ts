@@ -217,8 +217,10 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 currentGame.value.deck = deck as any
                 currentGame.value.discard_pile = discard as any
             }
-            // CAS the games row first — it's the lock. Only the winner of the
-            // race may touch the target's hand; the loser was resynced already.
+            // PROVISIONAL: show the penalty draw on peers before the commit.
+            broadcastState()
+            // Commit the board + target's grown hand. Only the winner of the
+            // race lands; the loser was resynced (and corrected) already.
             const committed = await commitGameUpdate(currentGame.value.id, expectedVersion, {
                 deck,
                 discard_pile: discard
@@ -428,7 +430,11 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         console.debug('[mp] commit rtt', Math.round(performance.now() - t0), 'ms')
         if (err) throw err
         if (data !== true) {
+            // Lost the CAS race. Pull DB truth, then CORRECTION-broadcast it so
+            // any peer that applied our provisional snaps back to the real board
+            // instead of waiting on the slow pgchanges backstop.
             await resyncFromDb()
+            broadcastState()
             return false
         }
         if (currentGame.value?.id === gameId) {
@@ -1590,9 +1596,11 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         // Apply all card effects
         applyAllCardEffects(card, myId, myIndex, playerCount, myPlayer.value.id, state)
 
-        // Announced only after the write commits — telling peers about a move
-        // that then fails to land desyncs what they heard from the board. The
-        // card rides along so peers can run the remote-throw animation.
+        // The action feed (toast + remote-throw animation) is broadcast only
+        // AFTER the commit, unlike the board state which fans out provisionally.
+        // An animation can't be un-played, so it must announce committed moves
+        // only; a move that fails to land would otherwise animate then correct.
+        // The card rides along so peers can run the remote-throw animation.
         const label = actionLabel(card, myPlayer.value.name || 'Someone')
 
         // Check win condition
@@ -1636,11 +1644,20 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             if (winResult.status) currentGame.value.status = winResult.status as typeof currentGame.value.status
         }
 
+        // PROVISIONAL broadcast — fan out the optimistic board to peers before
+        // the commit so the move shows on their screen in one fan-out hop (~100ms)
+        // instead of after our commit round trip. It carries the pre-bump version
+        // (equal to what peers hold), so the receiver's version + seq gates order
+        // it ahead of the post-commit CONFIRM below; a lost CAS race is undone by
+        // the CORRECTION broadcast in commitGameUpdate. Skipped on a winning move:
+        // a provisional "you lost" that then rolls back is not worth the flicker.
+        if (!winResult.winnerId) broadcastState()
+
         let committed = false
         try {
-            // CAS the games row first — it's the lock on the board. Only the
-            // winner of the race may write hands; a loser has already been
-            // resynced from the DB inside commitGameUpdate.
+            // Commit the board + hands in one CAS'd RPC. Only the winner of the
+            // race lands; a loser has already been resynced from the DB inside
+            // commitGameUpdate (which also broadcasts the correction).
             committed = await updateGameState(
                 game.id, game.version ?? 0, game.deck as Card[], state, winResult.winnerId, winResult.status
             )
@@ -1668,6 +1685,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     if (gp && s.hand) gp.hand = s.hand
                 }
                 if (savedGame && currentGame.value?.id === savedGame.id) currentGame.value = savedGame
+                // Undo the provisional on any peer that applied it.
+                broadcastState()
             }
         } finally {
             actionInProgress.value = false
@@ -1739,6 +1758,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             currentGame.value.current_player_id = nextPlayerId
         }
 
+        // PROVISIONAL: show the swapped hands + turn advance before the commit.
+        broadcastState()
+
         try {
             // CAS the board and both swapped hands in one commit.
             const committed = await commitGameUpdate(currentGame.value.id, expectedVersion, {
@@ -1782,6 +1804,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             currentGame.value.turn_state = 'WAITING_FOR_ACTION'
             currentGame.value.current_player_id = nextPlayerId
         }
+
+        // PROVISIONAL: hand the turn to the next player on peers before the commit.
+        broadcastState()
 
         try {
             const committed = await commitGameUpdate(currentGame.value.id, expectedVersion, {
@@ -1885,6 +1910,10 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 currentGame.value.status = gStatus as typeof currentGame.value.status
             }
 
+            // PROVISIONAL: show the roulette result before the commit, unless it
+            // ended the game (a rolled-back "you lost" is not worth the flicker).
+            if (!winner_id) broadcastState()
+
             // CAS the board and my resolved hand in one commit.
             const committed = await commitGameUpdate(game.id, expectedVersion, {
                 deck: localDeck,
@@ -1964,6 +1993,10 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             currentGame.value.status = gStatus as typeof currentGame.value.status
         }
 
+        // PROVISIONAL: show the elimination before the commit, unless it ended
+        // the game (skip the rolled-back "you lost" flicker).
+        if (!winner_id) broadcastState()
+
         // CAS the board and my emptied, eliminated hand in one commit.
         const committed = await commitGameUpdate(gameId, expectedVersion, {
             deck: state.deck,
@@ -2016,6 +2049,10 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             ? await checkForWinnerAfterElimination()
             : { winner_id: null, status: 'playing' }
 
+        // PROVISIONAL: show the penalty draw before the commit, unless it ended
+        // the game (skip the rolled-back "you lost" flicker).
+        if (!winner_id) broadcastState()
+
         // CAS the board and my post-penalty hand in one commit.
         const committed = await commitGameUpdate(gameId, expectedVersion, {
             deck: state.deck,
@@ -2045,6 +2082,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     const expectedVersion = localGameVersion()
                     const nextId = getNextPlayerId()
                     if (currentGame.value) currentGame.value.current_player_id = nextId
+                    // PROVISIONAL: hand the turn on before the commit.
+                    broadcastState()
                     const committed = await commitGameUpdate(currentGame.value.id, expectedVersion, {
                         current_player_id: nextId
                     })
@@ -2079,9 +2118,12 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     currentGame.value.discard_pile = state.discardPile as any
                 }
 
-                // CAS the games row first — a lost race (e.g. the watchdog
-                // advanced past us mid-draw) stops the loop; resync inside
-                // commitGameUpdate already restored the true board and hand.
+                // PROVISIONAL: show the drawn card before the commit.
+                broadcastState()
+
+                // A lost race (e.g. the watchdog advanced past us mid-draw) stops
+                // the loop; resync inside commitGameUpdate already restored the
+                // true board and hand (and broadcast the correction).
                 const committed = await commitGameUpdate(currentGame.value.id, expectedVersion, {
                     deck: state.deck,
                     discard_pile: state.discardPile
@@ -2264,9 +2306,12 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 currentGame.value.status = status as typeof currentGame.value.status
             }
 
-            // CAS the games row first — only the race winner writes hands. On a
-            // lost race the resync restored the true board; the stranded-picker
-            // watcher recovers if the turn is genuinely still ours.
+            // PROVISIONAL: show the bulk discard before the commit, unless it
+            // won the game (skip the rolled-back flicker).
+            if (!winnerId) broadcastState()
+
+            // On a lost race the resync restored the true board; the stranded-
+            // picker watcher recovers if the turn is genuinely still ours.
             committed = await updateGameState(
                 game.id, game.version ?? 0, game.deck as Card[], state, winnerId, status
             )
@@ -2287,6 +2332,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     currentGame.value.turn_state = 'CHOOSING_DISCARD_ALL_TOP'
                     currentGame.value.current_player_id = authStore.user?.id ?? null
                 }
+                // Undo the provisional on any peer that applied it.
+                broadcastState()
             }
         } finally {
             actionInProgress.value = false
@@ -2518,6 +2565,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         updateMyName,
         leaveGame,
         loadGamePlayers,
+        subscribeToGame,
         latencyLog
     }
 })

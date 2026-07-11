@@ -19,16 +19,21 @@ const h = vi.hoisted(() => {
         filters: [string, unknown][]
     }
     interface RpcCall { name: string; args: Record<string, unknown> }
+    // A single ordered timeline of broadcast sends and rpc calls, so a test can
+    // assert e.g. "a state broadcast fired before the commit".
+    type TimelineEntry = { kind: 'send'; event: string } | { kind: 'rpc'; name: string }
     const state = {
         queue: [] as Resp[],
         calls: [] as Recorded[],
         rpcQueue: [] as Resp[],
         rpcCalls: [] as RpcCall[],
+        timeline: [] as TimelineEntry[],
         reset() {
             state.queue = []
             state.calls = []
             state.rpcQueue = []
             state.rpcCalls = []
+            state.timeline = []
         },
         respond(r: Resp) {
             state.queue.push(r)
@@ -36,6 +41,22 @@ const h = vi.hoisted(() => {
         respondRpc(r: Resp) {
             state.rpcQueue.push(r)
         },
+    }
+    // Minimal realtime channel: chainable .on(), a .subscribe() that does NOT
+    // invoke its callback (so the disconnect watchdog interval never starts and
+    // leaks across tests), and a .send() that records onto the timeline.
+    function makeChannel() {
+        const ch: Record<string, unknown> = {}
+        ch.on = () => ch
+        ch.subscribe = () => ch
+        ch.track = () => Promise.resolve()
+        ch.presenceState = () => ({})
+        ch.unsubscribe = () => Promise.resolve()
+        ch.send = (msg: { event: string }) => {
+            state.timeline.push({ kind: 'send', event: msg.event })
+            return Promise.resolve({ status: 'ok' })
+        }
+        return ch
     }
     function makeBuilder(table: string) {
         const rec: Recorded = { table, op: 'select', payload: null, filters: [] }
@@ -62,7 +83,7 @@ const h = vi.hoisted(() => {
         }
         return b
     }
-    return { state, makeBuilder }
+    return { state, makeBuilder, makeChannel }
 })
 
 vi.mock('../../lib/supabase', () => ({
@@ -70,9 +91,12 @@ vi.mock('../../lib/supabase', () => ({
         from: (table: string) => h.makeBuilder(table),
         rpc: (name: string, args: Record<string, unknown>) => {
             h.state.rpcCalls.push({ name, args })
+            h.state.timeline.push({ kind: 'rpc', name })
             const resp = h.state.rpcQueue.shift() ?? { data: null, error: null }
             return Promise.resolve(resp)
         },
+        channel: () => h.makeChannel(),
+        removeChannel: () => {},
         auth: { getUser: async () => ({ data: { user: null } }) },
     },
 }))
@@ -216,5 +240,96 @@ describe('board + hands commit in a single RPC (via swapHands)', () => {
         // I now hold what was the opponent's hand, and vice versa.
         expect(mine.hand).toEqual(oppCards)
         expect(theirs.hand).toEqual(myCards)
+    })
+})
+
+describe('broadcast-first fast lane (via playCard)', () => {
+    // A plain number play that leaves a non-empty hand — no win, no UNO penalty.
+    function setupPlayable() {
+        const mp = useMultiplayerStore()
+        const keep = { id: 'c-keep', type: 'number', color: 'red', value: 3 }
+        const play = { id: 'c-play', type: 'number', color: 'red', value: 5 }
+        const hand = [play, keep]
+        mp.currentGame = gameRow({
+            turn_state: 'WAITING_FOR_ACTION',
+            current_player_id: 'me',
+            current_color: 'red',
+            discard_pile: [{ id: 'top', type: 'number', color: 'red', value: 1 }],
+        })
+        mp.myPlayer = playerRow('me', 0, hand)
+        mp.gamePlayers = [playerRow('me', 0, hand), playerRow('opp', 1, [{ id: 'o1' }])]
+        mp.subscribeToGame('g1') // wire a real (mock) channel so broadcasts record
+        return { mp, play }
+    }
+
+    it('fans out a provisional state broadcast BEFORE the commit, and the action only AFTER', async () => {
+        const { mp, play } = setupPlayable()
+        h.state.respondRpc({ data: true, error: null })
+
+        await mp.playCard(play as never)
+
+        const t = h.state.timeline
+        const rpcIdx = t.findIndex(e => e.kind === 'rpc' && e.name === 'commit_move')
+        const firstStateIdx = t.findIndex(e => e.kind === 'send' && e.event === 'state')
+        const actionIdx = t.findIndex(e => e.kind === 'send' && e.event === 'action')
+
+        expect(rpcIdx).toBeGreaterThanOrEqual(0)
+        // Provisional: a state broadcast precedes the commit.
+        expect(firstStateIdx).toBeGreaterThanOrEqual(0)
+        expect(firstStateIdx).toBeLessThan(rpcIdx)
+        // Confirm: a state broadcast also follows the commit.
+        expect(t.slice(rpcIdx + 1).some(e => e.kind === 'send' && e.event === 'state')).toBe(true)
+        // The action (toast + throw animation) never rides the provisional.
+        expect(actionIdx).toBeGreaterThan(rpcIdx)
+    })
+
+    it('does NOT send a provisional on a winning move', async () => {
+        const mp = useMultiplayerStore()
+        const play = { id: 'c-win', type: 'number', color: 'red', value: 5 }
+        mp.currentGame = gameRow({
+            turn_state: 'WAITING_FOR_ACTION',
+            current_player_id: 'me',
+            current_color: 'red',
+            discard_pile: [{ id: 'top', type: 'number', color: 'red', value: 1 }],
+        })
+        // Last card + UNO already called → emptying the hand wins outright.
+        const me = playerRow('me', 0, [play])
+        me.has_called_uno = true
+        mp.myPlayer = me
+        mp.gamePlayers = [me, playerRow('opp', 1, [{ id: 'o1' }])]
+        mp.subscribeToGame('g1')
+
+        h.state.respond({ data: null, error: null }) // updateWinnerScore write
+        h.state.respondRpc({ data: true, error: null }) // the winning commit
+
+        await mp.playCard(play as never)
+
+        const t = h.state.timeline
+        const rpcIdx = t.findIndex(e => e.kind === 'rpc' && e.name === 'commit_move')
+        expect(rpcIdx).toBeGreaterThanOrEqual(0)
+        // No state broadcast before the commit — the win takes the commit path.
+        expect(t.slice(0, rpcIdx).some(e => e.kind === 'send' && e.event === 'state')).toBe(false)
+    })
+
+    it('CORRECTION-broadcasts DB truth after losing the CAS race (via skipSwap)', async () => {
+        const mp = useMultiplayerStore()
+        mp.currentGame = gameRow({ turn_state: 'CHOOSING_PLAYER_TO_SWAP', current_player_id: 'me' })
+        mp.myPlayer = playerRow('me', 0)
+        mp.gamePlayers = [playerRow('me', 0), playerRow('opp', 1)]
+        mp.subscribeToGame('g1')
+
+        h.state.respondRpc({ data: false, error: null }) // CAS miss
+        h.state.respond({ data: gameRow({ current_player_id: 'opp', version: 5 }), error: null }) // resync game
+        h.state.respond({ data: [playerRow('me', 0), playerRow('opp', 1)], error: null }) // resync players
+
+        await mp.skipSwap()
+
+        const t = h.state.timeline
+        const rpcIdx = t.findIndex(e => e.kind === 'rpc' && e.name === 'commit_move')
+        // Exactly one commit attempt — a loser must not retry.
+        expect(h.state.rpcCalls).toHaveLength(1)
+        // A correction state broadcast follows the failed commit.
+        expect(t.slice(rpcIdx + 1).some(e => e.kind === 'send' && e.event === 'state')).toBe(true)
+        expect(mp.currentGame?.current_player_id).toBe('opp')
     })
 })
