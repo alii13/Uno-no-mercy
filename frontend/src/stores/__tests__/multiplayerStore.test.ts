@@ -262,7 +262,7 @@ describe('broadcast-first fast lane (via playCard)', () => {
         return { mp, play }
     }
 
-    it('fans out a provisional state broadcast BEFORE the commit, and the action only AFTER', async () => {
+    it('sends the action then the provisional state, both BEFORE the commit, then a confirm after', async () => {
         const { mp, play } = setupPlayable()
         h.state.respondRpc({ data: true, error: null })
 
@@ -270,17 +270,19 @@ describe('broadcast-first fast lane (via playCard)', () => {
 
         const t = h.state.timeline
         const rpcIdx = t.findIndex(e => e.kind === 'rpc' && e.name === 'commit_move')
-        const firstStateIdx = t.findIndex(e => e.kind === 'send' && e.event === 'state')
         const actionIdx = t.findIndex(e => e.kind === 'send' && e.event === 'action')
+        const firstStateIdx = t.findIndex(e => e.kind === 'send' && e.event === 'state')
 
         expect(rpcIdx).toBeGreaterThanOrEqual(0)
-        // Provisional: a state broadcast precedes the commit.
-        expect(firstStateIdx).toBeGreaterThanOrEqual(0)
+        // Both the action (throw) and the provisional state fire before the commit,
+        // so the opponent's throw + pile update land together, not a commit apart.
+        expect(actionIdx).toBeGreaterThanOrEqual(0)
+        expect(actionIdx).toBeLessThan(rpcIdx)
         expect(firstStateIdx).toBeLessThan(rpcIdx)
+        // Action goes out first so the receiver starts the throw before the pile updates.
+        expect(actionIdx).toBeLessThan(firstStateIdx)
         // Confirm: a state broadcast also follows the commit.
         expect(t.slice(rpcIdx + 1).some(e => e.kind === 'send' && e.event === 'state')).toBe(true)
-        // The action (toast + throw animation) never rides the provisional.
-        expect(actionIdx).toBeGreaterThan(rpcIdx)
     })
 
     it('does NOT send a provisional on a winning move', async () => {
@@ -307,8 +309,12 @@ describe('broadcast-first fast lane (via playCard)', () => {
         const t = h.state.timeline
         const rpcIdx = t.findIndex(e => e.kind === 'rpc' && e.name === 'commit_move')
         expect(rpcIdx).toBeGreaterThanOrEqual(0)
-        // No state broadcast before the commit — the win takes the commit path.
+        // No state OR action broadcast before the commit — the win takes the
+        // commit path (a rolled-back "you lost" throw/flicker isn't worth it).
         expect(t.slice(0, rpcIdx).some(e => e.kind === 'send' && e.event === 'state')).toBe(false)
+        expect(t.slice(0, rpcIdx).some(e => e.kind === 'send' && e.event === 'action')).toBe(false)
+        // The win still announces — after the commit lands.
+        expect(t.slice(rpcIdx + 1).some(e => e.kind === 'send' && e.event === 'action')).toBe(true)
     })
 
     it('CORRECTION-broadcasts DB truth after losing the CAS race (via skipSwap)', async () => {
