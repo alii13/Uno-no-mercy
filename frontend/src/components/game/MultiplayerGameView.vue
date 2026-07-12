@@ -153,7 +153,7 @@
     <!-- Player Select Modal (for Number 7 swap - shows all active opponents) -->
     <PlayerSelectModal
       v-if="turnState === 'CHOOSING_PLAYER_TO_SWAP' && isMyTurn"
-      :eligible-players="allOpponents.filter(o => !o.is_eliminated).map(o => ({ id: o.user_id, name: o.name, hand: (o.hand as Card[]) || [], isEliminated: false }))"
+      :eligible-players="allOpponents.filter(o => !mpStore.eliminatedIds.has(o.user_id)).map(o => ({ id: o.user_id, name: o.name, hand: (o.hand as Card[]) || [], isEliminated: false }))"
       @select="handleSwapPlayer"
       @skip="mpStore.skipSwap()"
     />
@@ -467,7 +467,7 @@ watch(() => mpStore.lastRemotePlay, (play) => {
 
   if (play.card.type === 'skipEveryone' && discardEl) {
     const victims = allOpponents.value
-      .filter(o => !o.is_eliminated && o.user_id !== play.userId)
+      .filter(o => !mpStore.eliminatedIds.has(o.user_id) && o.user_id !== play.userId)
       .map(o => opponentChipEl(o.user_id))
       .filter((el): el is HTMLElement => !!el)
     setTimeout(() => skipEveryoneShockwave(discardEl, victims), 480)
@@ -479,7 +479,7 @@ function triggerOwnSkipEveryone(card: Card) {
   if (card.type !== 'skipEveryone' || !discardAreaRef.value) return
   const discardEl = discardAreaRef.value
   const victims = allOpponents.value
-    .filter(o => !o.is_eliminated)
+    .filter(o => !mpStore.eliminatedIds.has(o.user_id))
     .map(o => opponentChipEl(o.user_id))
     .filter((el): el is HTMLElement => !!el)
   setTimeout(() => skipEveryoneShockwave(discardEl, victims), 480)

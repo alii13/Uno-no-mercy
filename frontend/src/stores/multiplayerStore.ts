@@ -317,10 +317,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         actionInProgress.value = true
         try {
             const expectedVersion = localGameVersion()
-            const myIndex = gamePlayers.value.findIndex(p => p.user_id === myId)
-            const direction = currentGame.value.direction as (1 | -1)
-            const nextIdx = calculateNextPlayerIndex(myIndex, direction, gamePlayers.value.length)
-            const nextPlayerId = gamePlayers.value[nextIdx]?.user_id || null
+            const nextPlayerId = getNextPlayerId(myId)
             currentGame.value.turn_state = 'WAITING_FOR_ACTION'
             currentGame.value.current_player_id = nextPlayerId
             const committed = await commitGameUpdate(currentGame.value.id, expectedVersion, {
@@ -363,6 +360,32 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         throw new Error('Could not find a free seat — try again')
     }
 
+    // Single source of truth for elimination. Prefers the board's
+    // eliminated_user_ids (version-CAS'd, can't be lost to a dropped broadcast);
+    // falls back to the game_players row flag for games started before the
+    // migration ran. Every game-logic elimination check must go through this.
+    function isUserEliminated(userId: string | null | undefined): boolean {
+        if (!userId) return false
+        const board = (currentGame.value?.eliminated_user_ids as string[] | undefined) ?? []
+        if (board.includes(userId)) return true
+        return !!gamePlayers.value.find(p => p.user_id === userId)?.is_eliminated
+    }
+
+    // Set of eliminated user_ids, for view-side filters (swap targets, throw
+    // targets). Recomputes when the board array or any row flag changes.
+    const eliminatedIds = computed(() => {
+        const ids = new Set<string>((currentGame.value?.eliminated_user_ids as string[] | undefined) ?? [])
+        for (const p of gamePlayers.value) if (p.is_eliminated) ids.add(p.user_id)
+        return ids
+    })
+
+    // The board's eliminated_user_ids with userId appended (deduped). Every
+    // eliminating commit writes this into the patch so knockout rides the CAS.
+    function eliminatedListWith(userId: string): string[] {
+        const cur = (currentGame.value?.eliminated_user_ids as string[] | undefined) ?? []
+        return cur.includes(userId) ? cur : [...cur, userId]
+    }
+
     // Helper: Calculate next active (non-eliminated) player ID based on current player and direction
     function getNextPlayerId(fromUserId?: string): string | null {
         if (!currentGame.value) return null
@@ -374,23 +397,28 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         // Skip eliminated players
         let nextIdx = calculateNextPlayerIndex(fromIndex, direction, playerCount)
         let attempts = 0
-        while (gamePlayers.value[nextIdx]?.is_eliminated && attempts < playerCount) {
+        while (isUserEliminated(gamePlayers.value[nextIdx]?.user_id) && attempts < playerCount) {
             nextIdx = calculateNextPlayerIndex(nextIdx, direction, playerCount)
             attempts++
         }
         return gamePlayers.value[nextIdx]?.user_id || null
     }
 
-    // Helper: Check if elimination results in a winner (last player standing), update scores if so
-    async function checkForWinnerAfterElimination(): Promise<{ winner_id: string | null; status: string }> {
-        // Count ALL active (non-eliminated) players
-        const activePlayers = gamePlayers.value.filter(gp => !gp.is_eliminated)
+    // Helper: Check if elimination results in a winner (last player standing),
+    // update scores if so. eliminatedUserId is the player being knocked out in
+    // this same commit — their DB flag/board entry isn't written yet, so we
+    // exclude them from the active count explicitly (defaults to me for the
+    // self-elimination flows; the captain path passes the absent victim's id).
+    async function checkForWinnerAfterElimination(
+        eliminatedUserId: string | undefined = myPlayer.value?.user_id
+    ): Promise<{ winner_id: string | null; status: string }> {
+        // Count ALL active (non-eliminated) players, excluding the in-flight victim.
+        const stillActive = gamePlayers.value.filter(gp =>
+            !isUserEliminated(gp.user_id) && gp.user_id !== eliminatedUserId
+        )
 
-        // Also account for the player currently being eliminated (whose DB flag hasn't been written yet)
-        const activeExcludingMe = activePlayers.filter(gp => gp.user_id !== myPlayer.value?.user_id)
-
-        if (activeExcludingMe.length === 1 && activeExcludingMe[0]) {
-            const winnerId = activeExcludingMe[0].user_id
+        if (stillActive.length === 1 && stillActive[0]) {
+            const winnerId = stillActive[0].user_id
             await updateWinnerScore(winnerId)
             return { winner_id: winnerId, status: 'finished' }
         }
@@ -1072,10 +1100,20 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 resyncFromDb()
             }
 
+            // Turn-on-eliminated guard: elimination is a durable fact, not a
+            // network flap, so if the current player is out per the board there's
+            // no grace period — the captain advances immediately. Heals a peer
+            // that committed a turn onto a player it hadn't yet seen eliminated.
+            if (game.current_player_id && isUserEliminated(game.current_player_id)
+                && authStore.user?.id === watchdogCaptainId()) {
+                advancePastPlayer(game.current_player_id)
+                return
+            }
+
             // Disconnect handling is scoped to ACTIVE (non-eliminated) players so
             // an eliminated-but-still-seated player can't be mistaken for the
             // live opponent or trigger a false end-of-game.
-            const active = gamePlayers.value.filter(p => !p.is_eliminated)
+            const active = gamePlayers.value.filter(p => !isUserEliminated(p.user_id))
             const others = active.filter(p => p.user_id !== authStore.user?.id)
 
             if (active.length <= 2) {
@@ -1104,7 +1142,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     // lowest-seat player currently present; falls back to lowest-seat active
     // (presence may be empty if peers run an older build), then the host.
     function watchdogCaptainId(): string | null {
-        const active = gamePlayers.value.filter(p => !p.is_eliminated)
+        const active = gamePlayers.value.filter(p => !isUserEliminated(p.user_id))
         const present = active.filter(p => presentUserIds.value.includes(p.user_id))
         const pool = present.length ? present : active
         const sorted = [...pool].sort((a, b) => a.seat_order - b.seat_order)
@@ -1137,7 +1175,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     // we can't continue. Centralized so every roster-changing path agrees.
     function checkOpponentLeft() {
         if (currentGame.value?.status !== 'playing') return
-        const active = gamePlayers.value.filter(p => !p.is_eliminated)
+        const active = gamePlayers.value.filter(p => !isUserEliminated(p.user_id))
         if (active.length < 2) opponentLeft.value = true
     }
 
@@ -1149,15 +1187,32 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     }
 
     // Move play off a player who left/was kicked while holding the turn. Clears
-    // any pending CHOOSING_* state so the next active player can act.
+    // any pending CHOOSING_* state so the next active player can act. If they
+    // vanished while facing a draw stack, the captain resolves the penalty on
+    // their behalf (below) so a quitter can't freeze the table forever.
     async function advancePastPlayer(leaverUserId: string) {
         if (!currentGame.value) return
         if (currentGame.value.current_player_id !== leaverUserId) return
+
+        const drawStack = currentGame.value.draw_stack || 0
+        const leaver = gamePlayers.value.find(p => p.user_id === leaverUserId)
+
+        // Active player who vanished mid-stack: draw their penalty for them.
+        // Already-eliminated leaver (a stale peer parked the turn on them) just
+        // gets skipped — no penalty on a dead hand.
+        if (drawStack > 0 && leaver && !isUserEliminated(leaverUserId)) {
+            await resolveAbsentVictimPenalty(leaver, drawStack)
+            return
+        }
+
         const expectedVersion = localGameVersion()
         const nextId = getNextPlayerId(leaverUserId)
         currentGame.value.turn_state = 'WAITING_FOR_ACTION'
         currentGame.value.current_player_id = nextId
         currentGame.value.roulette_target_color = null
+        // Any stack was aimed at the player we're skipping — clear it so it
+        // doesn't fall on the next seat.
+        currentGame.value.draw_stack = 0
         try {
             // CAS: if the "vanished" player actually just played (their write
             // bumped the version), this advance loses the race and is dropped
@@ -1165,9 +1220,82 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             const committed = await commitGameUpdate(currentGame.value.id, expectedVersion, {
                 turn_state: 'WAITING_FOR_ACTION',
                 current_player_id: nextId,
-                roulette_target_color: null
+                roulette_target_color: null,
+                draw_stack: 0
             })
             if (!committed) return
+            broadcastState()
+        } catch (err: any) {
+            error.value = err.message
+        }
+    }
+
+    // Captain draws an absent player's stack penalty from the authoritative DB
+    // hand (their roster copy may be stale, but nobody else is writing an absent
+    // seat). Mirrors drawStackCards for another seat. Same client-authoritative
+    // trust model as catchPlayer: one elected writer mutates another's hand, all
+    // CAS-protected so a real move by the "absent" player wins instead.
+    async function resolveAbsentVictimPenalty(victim: GamePlayerRow, drawStack: number) {
+        if (!currentGame.value) return
+        const game = currentGame.value
+        const expectedVersion = localGameVersion()
+
+        let victimHand = victim.hand as Card[]
+        try {
+            const { data } = await supabase
+                .from('game_players')
+                .select('hand')
+                .eq('id', victim.id)
+                .maybeSingle()
+            if (data && Array.isArray((data as { hand?: unknown }).hand)) {
+                victimHand = (data as { hand: Card[] }).hand
+            }
+        } catch { /* fall back to the roster copy */ }
+
+        const deck = [...(game.deck as Card[])]
+        const discard = [...(game.discard_pile as Card[])]
+        const drawn: Card[] = []
+        for (let i = 0; i < drawStack; i++) {
+            if (deck.length === 0 && !reshuffleDeckHelper(deck, discard)) break
+            const c = deck.pop()
+            if (c) drawn.push(c)
+        }
+
+        const newHand = [...victimHand, ...drawn]
+        const isEliminated = checkMercyRule(newHand.length)
+        const newDiscard = isEliminated ? [...discard, ...newHand] : discard
+        const eliminatedList = isEliminated ? eliminatedListWith(victim.user_id) : undefined
+        const { winner_id, status: gStatus } = isEliminated
+            ? await checkForWinnerAfterElimination(victim.user_id)
+            : { winner_id: null, status: 'playing' }
+        const nextId = getNextPlayerId(victim.user_id)
+
+        // Optimistic local apply.
+        const victimRef = gamePlayers.value.find(p => p.id === victim.id)
+        if (victimRef) {
+            victimRef.hand = (isEliminated ? [] : newHand) as GamePlayerRow['hand']
+            victimRef.is_eliminated = isEliminated
+        }
+        currentGame.value.deck = deck as any
+        currentGame.value.discard_pile = newDiscard as any
+        currentGame.value.draw_stack = 0
+        currentGame.value.current_player_id = nextId
+        if (eliminatedList) currentGame.value.eliminated_user_ids = eliminatedList
+        if (winner_id) currentGame.value.winner_id = winner_id
+        currentGame.value.status = gStatus as typeof currentGame.value.status
+
+        try {
+            const committed = await commitGameUpdate(game.id, expectedVersion, {
+                deck,
+                discard_pile: newDiscard,
+                draw_stack: 0,
+                current_player_id: nextId,
+                ...(eliminatedList ? { eliminated_user_ids: eliminatedList } : {}),
+                winner_id,
+                status: gStatus
+            }, [{ id: victim.id, hand: isEliminated ? [] : newHand, is_eliminated: isEliminated }])
+            if (!committed) return
+            broadcastAction(`${victim.name} drew ${drawn.length}`)
             broadcastState()
         } catch (err: any) {
             error.value = err.message
@@ -1265,7 +1393,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 current_player_id: startingPlayerId,
                 direction: startingDirection,
                 draw_stack: startingDrawStack,
-                turn_state: 'WAITING_FOR_ACTION'
+                turn_state: 'WAITING_FOR_ACTION',
+                // Reset so a reused row never leaks a previous round's knockouts.
+                eliminated_user_ids: []
             })
             if (!committed) return
 
@@ -1335,14 +1465,14 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         // Find next active player (the one being skipped)
         let skipIdx = calculateNextPlayerIndex(myIndex, state.direction, playerCount)
         let attempts = 0
-        while (gamePlayers.value[skipIdx]?.is_eliminated && attempts < playerCount) {
+        while (isUserEliminated(gamePlayers.value[skipIdx]?.user_id) && attempts < playerCount) {
             skipIdx = calculateNextPlayerIndex(skipIdx, state.direction, playerCount)
             attempts++
         }
         // Now find the player AFTER the skipped one
         let nextIdx = calculateNextPlayerIndex(skipIdx, state.direction, playerCount)
         attempts = 0
-        while (gamePlayers.value[nextIdx]?.is_eliminated && attempts < playerCount) {
+        while (isUserEliminated(gamePlayers.value[nextIdx]?.user_id) && attempts < playerCount) {
             nextIdx = calculateNextPlayerIndex(nextIdx, state.direction, playerCount)
             attempts++
         }
@@ -1368,7 +1498,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         // Find next active (non-eliminated) player as victim
         let victimIdx = calculateNextPlayerIndex(myIndex, state.direction, playerCount)
         let attempts = 0
-        while (gamePlayers.value[victimIdx]?.is_eliminated && attempts < playerCount) {
+        while (isUserEliminated(gamePlayers.value[victimIdx]?.user_id) && attempts < playerCount) {
             victimIdx = calculateNextPlayerIndex(victimIdx, state.direction, playerCount)
             attempts++
         }
@@ -1461,7 +1591,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         if (state.nextPlayerId === null) {
             let nextIdx = calculateNextPlayerIndex(myIndex, state.direction, playerCount)
             let attempts = 0
-            while (gamePlayers.value[nextIdx]?.is_eliminated && attempts < playerCount) {
+            while (isUserEliminated(gamePlayers.value[nextIdx]?.user_id) && attempts < playerCount) {
                 nextIdx = calculateNextPlayerIndex(nextIdx, state.direction, playerCount)
                 attempts++
             }
@@ -1748,12 +1878,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         const myHand = [...(freshMe.hand as Card[])]
         const targetHand = [...(freshTarget.hand as Card[])]
 
-        // Calculate next player
-        const myIndex = gamePlayers.value.findIndex(p => p.user_id === myId)
-        const playerCount = gamePlayers.value.length
-        const direction = currentGame.value.direction as (1 | -1)
-        const nextIdx = calculateNextPlayerIndex(myIndex, direction, playerCount)
-        const nextPlayerId = gamePlayers.value[nextIdx]?.user_id || null
+        // Calculate next player (skips eliminated seats)
+        const nextPlayerId = getNextPlayerId(myId)
 
         // Optimistic local apply — both hands swap locally before the round-trips.
         const expectedVersion = localGameVersion()
@@ -1801,11 +1927,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             return
         }
 
-        const myIndex = gamePlayers.value.findIndex(p => p.user_id === myId)
-        const playerCount = gamePlayers.value.length
-        const direction = currentGame.value.direction as (1 | -1)
-        const nextIdx = calculateNextPlayerIndex(myIndex, direction, playerCount)
-        const nextPlayerId = gamePlayers.value[nextIdx]?.user_id || null
+        const nextPlayerId = getNextPlayerId(myId)
 
         const expectedVersion = localGameVersion()
         if (currentGame.value) {
@@ -1895,6 +2017,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 newColor = color
             }
 
+            const myUserId = myPlayer.value!.user_id
+            const eliminatedList = isEliminated ? eliminatedListWith(myUserId) : undefined
             const { winner_id, status: gStatus } = isEliminated
                 ? await checkForWinnerAfterElimination()
                 : { winner_id: null, status: 'playing' }
@@ -1914,6 +2038,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 currentGame.value.turn_state = 'WAITING_FOR_ACTION'
                 currentGame.value.roulette_target_color = null
                 currentGame.value.current_player_id = nextId
+                if (eliminatedList) currentGame.value.eliminated_user_ids = eliminatedList
                 if (winner_id) currentGame.value.winner_id = winner_id
                 currentGame.value.status = gStatus as typeof currentGame.value.status
             }
@@ -1930,6 +2055,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 turn_state: 'WAITING_FOR_ACTION',
                 roulette_target_color: null,
                 current_player_id: nextId,
+                ...(eliminatedList ? { eliminated_user_ids: eliminatedList } : {}),
                 winner_id,
                 status: gStatus
             }, [{ id: myPlayer.value!.id, hand: finalHand, is_eliminated: isEliminated, has_called_uno: false }])
@@ -1987,6 +2113,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         const expectedVersion = localGameVersion()
         const { winner_id, status: gStatus } = await checkForWinnerAfterElimination()
         const nextId = getNextPlayerId()
+        const myUserId = myPlayer.value!.user_id
+        const eliminatedList = eliminatedListWith(myUserId)
 
         // Optimistic local apply so broadcastState() reflects the elimination
         if (myPlayer.value) {
@@ -1997,6 +2125,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             currentGame.value.deck = state.deck as any
             currentGame.value.discard_pile = state.discardPile as any
             currentGame.value.current_player_id = nextId
+            currentGame.value.eliminated_user_ids = eliminatedList
             if (winner_id) currentGame.value.winner_id = winner_id
             currentGame.value.status = gStatus as typeof currentGame.value.status
         }
@@ -2010,6 +2139,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             deck: state.deck,
             discard_pile: state.discardPile,
             current_player_id: nextId,
+            eliminated_user_ids: eliminatedList,
             winner_id,
             status: gStatus
         }, [{ id: myPlayer.value!.id, hand: [], is_eliminated: true }])
@@ -2038,6 +2168,11 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         }
 
         const expectedVersion = localGameVersion()
+        const myUserId = myPlayer.value!.user_id
+        const eliminatedList = isEliminated ? eliminatedListWith(myUserId) : undefined
+        const { winner_id, status: gStatus } = isEliminated
+            ? await checkForWinnerAfterElimination()
+            : { winner_id: null, status: 'playing' }
         const nextId = getNextPlayerId()
 
         // Optimistic local apply before the network round-trip.
@@ -2051,11 +2186,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             currentGame.value.discard_pile = state.discardPile as any
             currentGame.value.draw_stack = 0
             currentGame.value.current_player_id = nextId
+            if (eliminatedList) currentGame.value.eliminated_user_ids = eliminatedList
         }
-
-        const { winner_id, status: gStatus } = isEliminated
-            ? await checkForWinnerAfterElimination()
-            : { winner_id: null, status: 'playing' }
 
         // PROVISIONAL: show the penalty draw before the commit, unless it ended
         // the game (skip the rolled-back "you lost" flicker).
@@ -2067,6 +2199,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             discard_pile: state.discardPile,
             draw_stack: 0,
             current_player_id: nextId,
+            ...(eliminatedList ? { eliminated_user_ids: eliminatedList } : {}),
             winner_id,
             status: gStatus
         }, [{ id: myPlayer.value!.id, hand: isEliminated ? [] : newHand, is_eliminated: isEliminated, has_called_uno: false }])
@@ -2536,6 +2669,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         myPlayer,
         opponent,
         opponents,
+        eliminatedIds,
         loading,
         error,
         isHost,
@@ -2574,6 +2708,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         leaveGame,
         loadGamePlayers,
         subscribeToGame,
+        advancePastPlayer,
         latencyLog
     }
 })
