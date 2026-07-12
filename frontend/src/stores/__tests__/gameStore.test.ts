@@ -135,6 +135,86 @@ describe('UNO button visibility', () => {
     })
 })
 
+describe('single-player rule fixes', () => {
+    it('detects a win when wildColorRoulette is played as the last card', () => {
+        vi.useFakeTimers()
+        const store = useGameStore()
+        const roulette: Card = { id: 'c-roul', color: 'wild', type: 'wildColorRoulette' }
+        const bot = makePlayer('p-1', 'Bot')
+        bot.isBot = true
+        store.players = [makePlayer('p-0', 'You', [roulette]), bot]
+        store.gameState = 'PLAYING'
+        store.currentPlayerIndex = 0
+        store.discardPile = [red5]
+        store.currentColor = 'red'
+        store.turnState = 'WAITING_FOR_ACTION'
+
+        store.playCard('p-0', roulette)
+
+        // Pre-fix, the roulette early-return skipped the win check entirely and
+        // the game limped on with a 0-card player.
+        expect(store.winnerId).toBe('p-0')
+        expect(store.gameState).toBe('GAME_OVER')
+    })
+
+    it('rotates hands only among active players, skipping eliminated seats', () => {
+        vi.useFakeTimers()
+        const store = useGameStore()
+        const zero: Card = { id: 'c-zero', color: 'red', type: 'number', value: 0 }
+        const cardA: Card = { id: 'c-a', color: 'blue', type: 'number', value: 1 }
+        const cardB: Card = { id: 'c-b', color: 'green', type: 'number', value: 2 }
+        const cardC: Card = { id: 'c-c', color: 'yellow', type: 'number', value: 3 }
+        const elim = makePlayer('p-1', 'Elim', [])
+        elim.isEliminated = true
+        store.players = [
+            makePlayer('p-0', 'You', [zero, cardA]),
+            elim,
+            makePlayer('p-2', 'Bot', [cardB, cardC]),
+        ]
+        store.gameState = 'PLAYING'
+        store.currentPlayerIndex = 0
+        store.discardPile = [red5]
+        store.currentColor = 'red'
+        store.turnState = 'WAITING_FOR_ACTION'
+
+        store.playCard('p-0', zero)
+
+        // The eliminated seat is never dealt into the rotation (pre-fix it would
+        // receive an active hand and strand an active player on 0 cards).
+        expect(store.players[1]!.hand).toEqual([])
+        // The two active players swapped hands (p-0 held [cardA] after playing 0).
+        expect(store.players[0]!.hand.map(c => c.id).sort()).toEqual(['c-b', 'c-c'])
+        expect(store.players[2]!.hand.map(c => c.id)).toEqual(['c-a'])
+    })
+
+    it('applies the top card effect on an auto (single-match) DiscardAll', () => {
+        vi.useFakeTimers()
+        const store = useGameStore()
+        const discallRed: Card = { id: 'c-da', color: 'red', type: 'discardAll' }
+        const redReverse: Card = { id: 'c-rr', color: 'red', type: 'reverse' }
+        const blue3: Card = { id: 'c-b3', color: 'blue', type: 'number', value: 3 }
+        store.players = [
+            makePlayer('p-0', 'You', [discallRed, redReverse, blue3]),
+            makePlayer('p-1', 'B1'),
+            makePlayer('p-2', 'B2'),
+        ]
+        store.gameState = 'PLAYING'
+        store.currentPlayerIndex = 0
+        store.discardPile = [red5]
+        store.currentColor = 'red'
+        store.direction = 1
+        store.turnState = 'WAITING_FOR_ACTION'
+
+        store.playCard('p-0', discallRed)
+
+        // The single matching red card (reverse) became the top and its effect
+        // fired — a 3-player reverse flips direction. Pre-fix it was dropped.
+        expect(store.direction).toBe(-1)
+        // Both red cards were dumped; only the non-matching blue card remains.
+        expect(store.players[0]!.hand.map(c => c.id)).toEqual(['c-b3'])
+    })
+})
+
 describe('dealInitialCards generation guard', () => {
     it('stops an abandoned deal loop from mutating the next game', async () => {
         const store = useGameStore()

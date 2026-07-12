@@ -453,11 +453,18 @@ export const useGameStore = defineStore('game', () => {
 
         applyCardEffect(card)
 
-        if (card.type === 'wildColorRoulette') {
-            // Roulette handling stops here; turn has already advanced to victim in applyCardEffect
-            return
-        }
+        // DiscardAll fully owns its own resolution (discard + top-card effect +
+        // win/catch/advance) inside its handler's auto path or the picker's
+        // resolveDiscardAllTop. Bail so playCard's generic post-play logic below
+        // doesn't double-process it (double advance / double score).
+        if (card.type === 'discardAll') return
 
+        // Win / UNO-penalty and catch checks run for EVERY card type, roulette
+        // included. Emptying your hand wins even if the card's own effect (the
+        // roulette draw on the victim) is still resolving — the old early-return
+        // for roulette below skipped both checks, so a roulette played as your
+        // last card never won and a roulette that left you on 1 was never
+        // catchable.
         if (player.hand.length === 0) {
             // UNO penalty only applies if player went from exactly 2→1→0 (they had a chance to call UNO)
             // If DiscardAll or other effects dropped them from 3+→0, no UNO call was expected
@@ -486,6 +493,11 @@ export const useGameStore = defineStore('game', () => {
             } else {
                 openCatchWindow(player)
             }
+        }
+
+        if (card.type === 'wildColorRoulette') {
+            // Roulette handling stops here; turn has already advanced to victim in applyCardEffect
+            return
         }
 
         // Advance only if not blocked by special states
@@ -546,20 +558,21 @@ export const useGameStore = defineStore('game', () => {
         const toDiscard = player.hand.filter(c => c.color === card.color)
         if (toDiscard.length === 0) return
 
-        // If only 1 matching card, no choice needed — auto-discard
-        if (toDiscard.length === 1) {
-            executeDiscardAll(toDiscard, toDiscard[0]!)
-            return
+        // No human choice to make (single match, or a bot): auto-pick the top
+        // card and resolve through the SAME path as the human picker so the top
+        // card's effect fires. These paths previously discarded the cards but
+        // dropped the top card's effect entirely.
+        if (toDiscard.length === 1 || player.isBot) {
+            const topChoice = toDiscard.length === 1
+                ? toDiscard[0]!
+                : toDiscard[Math.floor(Math.random() * toDiscard.length)]!
+            pendingDiscardAllCards.value = toDiscard
+            turnState.value = 'CHOOSING_DISCARD_ALL_TOP'
+            resolveDiscardAllTop(toDiscard, topChoice)
+            return true // discardAll fully owns its resolution; playCard early-returns
         }
 
-        if (player.isBot) {
-            // Bot picks a random top card
-            const topChoice = toDiscard[Math.floor(Math.random() * toDiscard.length)]!
-            executeDiscardAll(toDiscard, topChoice)
-            return
-        }
-
-        // Human: show picker to choose which card goes on top
+        // Human with 2+ matches: show picker to choose which card goes on top
         pendingDiscardAllCards.value = toDiscard
         turnState.value = 'CHOOSING_DISCARD_ALL_TOP'
         return true // Signal to stop — don't advance turn yet
@@ -580,12 +593,10 @@ export const useGameStore = defineStore('game', () => {
         }
     }
 
-    function selectDiscardAllTop(topCardId: string) {
-        if (turnState.value !== 'CHOOSING_DISCARD_ALL_TOP') return
-        const cards = pendingDiscardAllCards.value
-        const topCard = cards.find(c => c.id === topCardId)
-        if (!topCard) return
-
+    // Sole resolver for a DiscardAll — used by the human picker (selectDiscardAllTop)
+    // AND the auto paths (single match / bot) in handleDiscardAll, so the chosen
+    // top card's effect fires the same way regardless of who's playing.
+    function resolveDiscardAllTop(cards: Card[], topCard: Card) {
         executeDiscardAll(cards, topCard)
         pendingDiscardAllCards.value = []
         turnState.value = 'WAITING_FOR_ACTION'
@@ -602,7 +613,7 @@ export const useGameStore = defineStore('game', () => {
 
         // Apply the chosen TOP card's effect, exactly as if it had just been
         // played — a 7 opens the swap prompt, 0 rotates hands, skip/reverse/
-        // draw/skip-all all fire. Previously the picked card did nothing.
+        // draw/skip-all all fire. Previously only the human picker did this.
         applyCardEffect(topCard)
 
         if (player && player.hand.length === 1 && !hasCalledUno.value[player.id]) {
@@ -617,6 +628,14 @@ export const useGameStore = defineStore('game', () => {
         } else if (turnState.value === 'WAITING_FOR_ACTION') {
             advanceTurn()
         }
+    }
+
+    function selectDiscardAllTop(topCardId: string) {
+        if (turnState.value !== 'CHOOSING_DISCARD_ALL_TOP') return
+        const cards = pendingDiscardAllCards.value
+        const topCard = cards.find(c => c.id === topCardId)
+        if (!topCard) return
+        resolveDiscardAllTop(cards, topCard)
     }
 
     function handleNumberZero() {
@@ -670,10 +689,15 @@ export const useGameStore = defineStore('game', () => {
     }
 
     function rotateHands() {
-        if (players.value.length < 2) return
-        const hands = players.value.map(p => [...p.hand])
+        // Rotate only among players still in the game. Including eliminated
+        // seats (whose hands were dumped to empty) would rotate an active hand
+        // into a dead seat — those cards leave play — and hand the empty array
+        // to an active player, stranding them on 0 cards.
+        const active = players.value.filter(p => !p.isEliminated)
+        if (active.length < 2) return
+        const hands = active.map(p => [...p.hand])
         const rotated = rotateHandsHelper(hands, direction.value)
-        players.value.forEach((p, i) => {
+        active.forEach((p, i) => {
             p.hand = rotated[i] || []
         })
     }
@@ -831,7 +855,10 @@ export const useGameStore = defineStore('game', () => {
         if (turnState.value !== 'CHOOSING_PLAYER_TO_SWAP') return
         const initiator = players.value.find(p => p.id === swapInitiatorId.value)
         const target = players.value.find(p => p.id === targetPlayerId)
-        if (initiator && target) {
+        // Never swap with an eliminated seat — it holds an empty hand, so the
+        // swap would hand the initiator a 0-card "win" and revive the dead seat.
+        // The UI already filters eliminated targets; this guards the store path.
+        if (initiator && target && !target.isEliminated) {
             const s = playerStats.value[initiator.id]
             if (s) s.swapsMade++
             const temp = [...initiator.hand]
