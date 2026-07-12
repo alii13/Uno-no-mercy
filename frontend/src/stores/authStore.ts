@@ -17,50 +17,61 @@ export const useAuthStore = defineStore('auth', () => {
     async function initialize() {
         loading.value = true
 
-        // Get current session
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session?.user) {
-            user.value = session.user
-            accessToken.value = session.access_token
-            await fetchProfile()
-        }
-
-        // Listen for auth changes
-        // IMPORTANT: Per Supabase docs, avoid await inside this callback!
-        // Use setTimeout to defer Supabase calls to avoid deadlocks
-        supabase.auth.onAuthStateChange((event, session) => {
-
-            // Always sync user and token state immediately (non-async)
-            user.value = session?.user || null
-            accessToken.value = session?.access_token || null
-
-            // Handle specific events
-            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-                // Defer profile fetch to avoid blocking
-                if (session?.user) {
-                    setTimeout(async () => {
-                        await fetchProfile()
-                    }, 0)
-                }
-            } else if (event === 'SIGNED_OUT') {
-                profile.value = null
+        // The whole app is gated behind `loading` (App.vue), so a throw here —
+        // an expired refresh token, or a slow/blocked proxy on the India/UAE
+        // path — must never leave loading stuck true, or the app hangs on the
+        // splash forever. try/finally guarantees we release the gate.
+        try {
+            // Get current session
+            const { data: { session } } = await supabase.auth.getSession()
+            if (session?.user) {
+                user.value = session.user
+                accessToken.value = session.access_token
+                await fetchProfile()
             }
-            // INITIAL_SESSION is handled by initialize() directly
-        })
 
-        loading.value = false
+            // Listen for auth changes
+            // IMPORTANT: Per Supabase docs, avoid await inside this callback!
+            // Use setTimeout to defer Supabase calls to avoid deadlocks
+            supabase.auth.onAuthStateChange((event, session) => {
+
+                // Always sync user and token state immediately (non-async)
+                user.value = session?.user || null
+                accessToken.value = session?.access_token || null
+
+                // Handle specific events
+                if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+                    // Defer profile fetch to avoid blocking
+                    if (session?.user) {
+                        setTimeout(async () => {
+                            await fetchProfile()
+                        }, 0)
+                    }
+                } else if (event === 'SIGNED_OUT') {
+                    profile.value = null
+                }
+                // INITIAL_SESSION is handled by initialize() directly
+            })
+        } catch (err) {
+            console.error('auth initialize failed:', err)
+        } finally {
+            loading.value = false
+        }
     }
 
     async function fetchProfile() {
         if (!user.value) return
 
+        // maybeSingle, not single: a missing profile row (a reused anon session,
+        // or a signed-up account before email confirmation) returns null data
+        // with no error, instead of a 406/PGRST116 the caller has to special-case.
         const { data, error: err } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', user.value.id)
-            .single()
+            .maybeSingle()
 
-        if (err && err.code !== 'PGRST116') {
+        if (err) {
             console.error('Error fetching profile:', err)
         }
 
@@ -89,9 +100,10 @@ export const useAuthStore = defineStore('auth', () => {
 
             user.value = authData.user
 
-            // Profile will be created by database trigger after email confirmation
-            // Try to fetch it (will be null until confirmed)
-            await fetchProfile()
+            // The profile is created by the DB trigger after email confirmation.
+            // Only fetch once a session exists — a pre-confirmation fetch runs as
+            // the anon role and 403s (harmless, but noisy in the console).
+            if (authData.session) await fetchProfile()
 
             return { success: true, needsConfirmation: !authData.session }
         } catch (err: any) {
@@ -141,6 +153,14 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     async function signInAnonymously(nickname?: string) {
+        // Already signed in (a double-click, or "Play as guest" on a session
+        // that already has a user)? Reuse that identity. Minting a fresh anon
+        // user here orphans the previous one and its stats.
+        if (user.value) {
+            if (!profile.value) await fetchProfile()
+            return { success: true }
+        }
+
         loading.value = true
         error.value = null
 
@@ -161,21 +181,16 @@ export const useAuthStore = defineStore('auth', () => {
 
             user.value = data.user
 
-            // Create profile for anonymous user (trigger may not fire for anon)
-            const { data: existing } = await supabase
+            // Ensure a profile row exists. upsert is idempotent, so it races the
+            // auth trigger safely (no 409 if the trigger already inserted) and
+            // self-heals a missing row; ignoreDuplicates keeps an existing
+            // username. The old select-then-insert both discarded its error
+            // (silent failure → "Player" fallback + lost renames) and 409'd
+            // against the trigger row.
+            const { error: profileErr } = await supabase
                 .from('profiles')
-                .select('id')
-                .eq('id', data.user.id)
-                .single()
-
-            if (!existing) {
-                await supabase
-                    .from('profiles')
-                    .insert({
-                        id: data.user.id,
-                        username: guestName
-                    })
-            }
+                .upsert({ id: data.user.id, username: guestName }, { onConflict: 'id', ignoreDuplicates: true })
+            if (profileErr) console.error('guest profile upsert failed:', profileErr)
 
             await fetchProfile()
             return { success: true }
@@ -194,10 +209,12 @@ export const useAuthStore = defineStore('auth', () => {
         const clean = sanitizeName(name)
         if (!clean || !user.value) return { success: false, error: 'Invalid name' }
         try {
+            // upsert, not update: a guest whose profile row is missing (see the
+            // trigger race in signInAnonymously) would get a silent 0-row update
+            // and a rename that never persists. upsert creates the row if absent.
             const { error: upErr } = await supabase
                 .from('profiles')
-                .update({ username: clean })
-                .eq('id', user.value.id)
+                .upsert({ id: user.value.id, username: clean }, { onConflict: 'id' })
             if (upErr) throw upErr
             await supabase.auth.updateUser({ data: { username: clean } })
             if (profile.value) profile.value.username = clean
