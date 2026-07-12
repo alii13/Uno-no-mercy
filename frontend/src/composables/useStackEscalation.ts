@@ -17,11 +17,15 @@
  */
 
 import { onUnmounted, ref, watch } from 'vue'
+import { useMotion } from './useMotion'
 
 const VIGNETTE_ID = 'uno-stack-vignette'
 
-const reducedMotion = typeof window !== 'undefined'
-    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+// Live reduced-motion state — honours both the OS preference AND the in-app
+// settings toggle. A one-shot matchMedia read here ignored the toggle, so the
+// screen-shake + red vignette (the vestibular triggers the control exists to
+// kill) kept firing after a player turned motion down in the drawer.
+const motion = useMotion()
 
 function ensureVignetteEl(): HTMLElement | null {
     if (typeof document === 'undefined') return null
@@ -48,7 +52,7 @@ function setVignetteIntensity(intensity: number): void {
     // intensity 0 = invisible, 1 = full red pulse
     const el = ensureVignetteEl()
     if (!el) return
-    if (reducedMotion) {
+    if (motion.reduced) {
         el.style.opacity = String(Math.min(intensity * 0.5, 0.4))
         return
     }
@@ -58,7 +62,7 @@ function setVignetteIntensity(intensity: number): void {
 let shakeTimer: number | null = null
 
 function triggerShake(intensity: 'light' | 'heavy'): void {
-    if (reducedMotion) return
+    if (motion.reduced) return
     if (typeof document === 'undefined') return
     const body = document.body
     if (shakeTimer) window.clearTimeout(shakeTimer)

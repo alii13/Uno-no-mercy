@@ -920,14 +920,6 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 const uid = (payload as { userId?: string })?.userId
                 if (uid && catchableUserId.value === uid) closeCatchWindow()
             })
-            .on('broadcast', { event: 'catch_open' }, ({ payload }) => {
-                const uid = (payload as { userId?: string })?.userId
-                if (uid) openCatchWindowFor(uid)
-            })
-            .on('broadcast', { event: 'catch_close' }, ({ payload }) => {
-                const uid = (payload as { userId?: string })?.userId
-                if (uid && catchableUserId.value === uid) closeCatchWindow()
-            })
             .on('broadcast', { event: 'player_left' }, ({ payload }) => {
                 // Explicit, instant leave signal. We don't rely on the
                 // game_players DELETE pgchanges for this — its payload.old only
@@ -1197,7 +1189,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
         try {
             // Generate and shuffle deck
-            const deck = shuffleDeck(generateFullDeck())
+            let deck = shuffleDeck(generateFullDeck())
             const playerCount = gamePlayers.value.length
 
             // Deal 7 cards to each player
@@ -1210,11 +1202,14 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 }
             }
 
-            // Find first non-wild card for discard
+            // Find first non-wild card for discard. If the top is a wild, put it
+            // back and reshuffle (Fisher-Yates via shuffleDeck — `sort(() =>
+            // Math.random() - 0.5)` is a biased shuffle, not a uniform one), then
+            // draw again.
             let firstCard = deck.pop()
             while (firstCard?.type === 'wild' || firstCard?.color === 'wild') {
                 deck.push(firstCard)
-                deck.sort(() => Math.random() - 0.5)
+                deck = shuffleDeck(deck)
                 firstCard = deck.pop()
             }
 
