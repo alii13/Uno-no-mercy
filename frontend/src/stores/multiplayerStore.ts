@@ -1512,23 +1512,29 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         const matchingCards = state.newHand.filter(c => c.color === card.color)
         if (matchingCards.length === 0) return
 
-        if (matchingCards.length === 1) {
-            // Only 1 card — auto-discard, it becomes the top card
-            const finalHand = state.newHand.filter(c => c.color !== card.color)
-            state.newDiscard.push(matchingCards[0]!)
+        const finalHand = state.newHand.filter(c => c.color !== card.color)
+
+        // Auto-resolve when there's nothing to choose: a single matching card, OR
+        // the discard empties the hand. The picker exists so the player orders
+        // which discarded card lands on top before their NEXT turn — but if this
+        // empties the hand it's a terminal move (win, or a no-UNO penalty that
+        // hands the turn on), and keeping CHOOSING_DISCARD_ALL_TOP with the turn
+        // pinned to me strands it (checkWinCondition then commits that stuck
+        // state). All matching cards share the played color, so the top's color
+        // is identical regardless — a deterministic order is fine here.
+        if (matchingCards.length === 1 || finalHand.length === 0) {
+            state.newDiscard.push(...matchingCards)
             state.handsToUpdate.push({ playerId, hand: finalHand })
             return
         }
 
-        // Multiple cards — player needs to pick which goes on top
-        // Store matching cards for the picker, pause the turn
+        // Multiple cards and the hand continues — let the player pick which goes
+        // on top, keeping the turn on them for the picker.
         pendingDiscardAllCards.value = matchingCards
         state.turnState = 'CHOOSING_DISCARD_ALL_TOP'
-        state.nextPlayerId = myId // Keep turn on me to show the picker
+        state.nextPlayerId = myId
 
-        // Still discard all matching cards except we need to reorder later
-        // For now, discard them all (the selectDiscardAllTop will fix the order)
-        const finalHand = state.newHand.filter(c => c.color !== card.color)
+        // Discard them all now; selectDiscardAllTop reorders which lands on top.
         state.newDiscard.push(...matchingCards)
         state.handsToUpdate.push({ playerId, hand: finalHand })
     }
