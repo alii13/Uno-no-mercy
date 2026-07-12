@@ -25,14 +25,19 @@ const ALLOWED_ORIGINS = [
 
 function getCorsHeaders(request: Request): Record<string, string> {
   const origin = request.headers.get('Origin') || ''
-  const isAllowed = ALLOWED_ORIGINS.includes(origin) || origin === 'https://uno-no-mercy.com' || origin === 'https://www.uno-no-mercy.com' || origin.endsWith('.pages.dev') || origin.endsWith('.vercel.app') || origin.endsWith('.netlify.app')
+  // The production site plus Cloudflare Pages preview deploys. vercel/netlify
+  // suffixes were dropped (the game ships on Cloudflare Pages, so they only
+  // widened the reflected-origin surface). Auth is bearer-token (Authorization
+  // header), never cookies, so we do NOT send Allow-Credentials — that removes
+  // the credentialed-cross-origin grant a reflected wildcard would otherwise
+  // hand to any *.pages.dev site.
+  const isAllowed = ALLOWED_ORIGINS.includes(origin) || origin === 'https://uno-no-mercy.com' || origin === 'https://www.uno-no-mercy.com' || origin.endsWith('.pages.dev')
 
   return {
     'Access-Control-Allow-Origin': isAllowed ? origin : ALLOWED_ORIGINS[0]!,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey, x-client-info, x-supabase-api-version, range, prefer, accept, accept-profile, content-profile, x-retry-count',
     'Access-Control-Expose-Headers': 'Content-Range, x-supabase-api-version',
-    'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Max-Age': '86400',
   }
 }
@@ -64,6 +69,18 @@ export default {
     //   /realtime/v1/* → Realtime (WebSocket)
     //   /functions/v1/* → Edge Functions
     const targetUrl = new URL(url.pathname + url.search, env.SUPABASE_URL)
+
+    // Never forward off the configured Supabase project. A request path that
+    // begins with `//` (or `/\`) is a protocol-relative reference, so the URL
+    // parser above would take the host from the PATH — e.g. `//evil.com/rest/v1`
+    // resolves to `https://evil.com/...`, turning the worker into an open relay
+    // to any host. Pin the target host to Supabase's.
+    if (targetUrl.host !== new URL(env.SUPABASE_URL).host) {
+      return new Response(JSON.stringify({ error: 'Invalid target' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json', ...getCorsHeaders(request) },
+      })
+    }
 
     // --- WebSocket Upgrade (Realtime) ---
     if (request.headers.get('Upgrade')?.toLowerCase() === 'websocket') {
