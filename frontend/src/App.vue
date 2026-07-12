@@ -100,15 +100,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import LandingPage from './components/LandingPage.vue'
 import AuthView from './components/AuthView.vue'
-import MultiplayerLobby from './components/MultiplayerLobby.vue'
-import PlayerDashboard from './components/PlayerDashboard.vue'
-import GameView from './components/game/GameView.vue'
-import MultiplayerGameView from './components/game/MultiplayerGameView.vue'
 import SettingsDrawer from './components/SettingsDrawer.vue'
 import Button from './components/ui/Button.vue'
+// The gameplay surfaces are code-split: a first-time visitor who only sees the
+// landing page shouldn't download the whole game engine + dashboard. They load
+// on demand when the view is first shown.
+const MultiplayerLobby = defineAsyncComponent(() => import('./components/MultiplayerLobby.vue'))
+const PlayerDashboard = defineAsyncComponent(() => import('./components/PlayerDashboard.vue'))
+const GameView = defineAsyncComponent(() => import('./components/game/GameView.vue'))
+const MultiplayerGameView = defineAsyncComponent(() => import('./components/game/MultiplayerGameView.vue'))
 import { vFocusRing } from './directives/focusRing'
 import { useAuthStore } from './stores/authStore'
 import { supabase } from './lib/supabase'

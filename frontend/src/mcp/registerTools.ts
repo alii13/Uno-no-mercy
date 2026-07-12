@@ -579,9 +579,20 @@ export function registerMcpTools(pinia: Pinia): void {
         tools: all.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })),
         callTool,
     }
-    void import('./webmcpServer')
-        .then((m) => m.connectWebMcp(catalog))
-        .catch((err) => console.warn('[uno-mcp] WebMCP transport unavailable:', err))
+    // Defer the transport fetch to idle time. It's a separate chunk, but firing
+    // the import eagerly still made every human visitor download + parse the MCP
+    // SDK while the app was booting. An agent connects via postMessage after the
+    // page settles, so idle is soon enough; humans get a lighter first load.
+    const loadWebMcp = () => {
+        void import('./webmcpServer')
+            .then((m) => m.connectWebMcp(catalog))
+            .catch((err) => console.warn('[uno-mcp] WebMCP transport unavailable:', err))
+    }
+    const ric = (window as any).requestIdleCallback as
+        | ((cb: () => void, opts?: { timeout: number }) => number)
+        | undefined
+    if (ric) ric(loadWebMcp, { timeout: 3000 })
+    else setTimeout(loadWebMcp, 1200)
 }
 
 export interface ToolCatalog {
