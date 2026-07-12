@@ -435,6 +435,40 @@ describe('elimination rides the version-CAS board (eliminated_user_ids)', () => 
         expect(victim.hand).toEqual([])
     })
 
+    it('does NOT strand the turn when a Discard All empties the hand (all cards that color)', async () => {
+        // Repro: hand is a red Discard All + only red cards. Playing it discards
+        // every red card, emptying the hand. The multi-card "pick the top" picker
+        // must NOT engage (there's no hand left to keep the turn for) — otherwise
+        // the no-UNO penalty commits with turn_state CHOOSING_DISCARD_ALL_TOP and
+        // current_player_id still me → permanent "my turn" soft-lock.
+        const mp = useMultiplayerStore()
+        const da = { id: 'da', type: 'discardAll', color: 'red' }
+        const hand = [da, { id: 'r3', type: 'number', color: 'red', value: 3 }, { id: 'r7', type: 'number', color: 'red', value: 7 }]
+        mp.currentGame = gameRow({
+            turn_state: 'WAITING_FOR_ACTION',
+            current_player_id: 'me',
+            current_color: 'red',
+            deck: [{ id: 'd1', type: 'number', color: 'blue', value: 8 }, { id: 'd2', type: 'number', color: 'green', value: 2 }],
+            discard_pile: [{ id: 'top', type: 'number', color: 'red', value: 1 }],
+        })
+        const me = playerRow('me', 0, hand)
+        me.has_called_uno = false // no UNO → penalty path, the one that strands
+        mp.myPlayer = me
+        mp.gamePlayers = [me, playerRow('p2', 1), playerRow('p3', 2)]
+        mp.subscribeToGame('g1')
+
+        h.state.respondRpc({ data: true, error: null })
+
+        await mp.playCard(da as never)
+
+        expect(h.state.rpcCalls).toHaveLength(1)
+        const patch = h.state.rpcCalls[0]!.args.p_patch as { current_player_id: string; turn_state: string }
+        expect(patch.turn_state).toBe('WAITING_FOR_ACTION')
+        expect(patch.current_player_id).toBe('p2')
+        expect(mp.currentGame?.turn_state).not.toBe('CHOOSING_DISCARD_ALL_TOP')
+        expect(mp.pendingDiscardAllCards).toHaveLength(0)
+    })
+
     it('advances past an already-eliminated current player without applying a penalty', async () => {
         const mp = useMultiplayerStore()
         mp.currentGame = gameRow({
