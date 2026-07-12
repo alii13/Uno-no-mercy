@@ -282,8 +282,14 @@
   color: var(--text-primary);
 }
 
+/* Knocked out: dim the seat and flag it red, but grayscale only the avatar so
+   the OUT badge stays full-color and unmissable (a filter on the whole card
+   would gray the badge too). */
 .opponent-card.eliminated {
-  opacity: 0.35;
+  opacity: 0.6;
+  border-color: var(--color-alert);
+}
+.opponent-card.eliminated .avatar {
   filter: grayscale(1);
 }
 
@@ -401,7 +407,11 @@
   font-family: var(--font-display);
   font-size: var(--text-xs);
   letter-spacing: 0.2em;
-  color: var(--color-alert);
+  color: #fff;
+  background: var(--color-alert);
+  padding: 1px 7px;
+  border-radius: 4px;
+  align-self: flex-start;
 }
 
 .opponent-card .status-indicator {
