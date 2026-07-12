@@ -339,3 +339,123 @@ describe('broadcast-first fast lane (via playCard)', () => {
         expect(mp.currentGame?.current_player_id).toBe('opp')
     })
 })
+
+describe('elimination rides the version-CAS board (eliminated_user_ids)', () => {
+    function numberCards(n: number): unknown[] {
+        return Array.from({ length: n }, (_, i) => ({ id: `c${i}`, type: 'number', color: 'red', value: i % 10 }))
+    }
+
+    it('skips a player who is out on the BOARD array even when their roster flag is stale', async () => {
+        // The core regression: a peer never saw p2 get eliminated (row flag
+        // false), but the version-CAS'd board carries them in eliminated_user_ids.
+        // A turn advance must still skip p2.
+        const mp = useMultiplayerStore()
+        mp.currentGame = gameRow({
+            turn_state: 'CHOOSING_PLAYER_TO_SWAP',
+            current_player_id: 'me',
+            eliminated_user_ids: ['p2'],
+        })
+        mp.myPlayer = playerRow('me', 0)
+        mp.gamePlayers = [playerRow('me', 0), playerRow('p2', 1), playerRow('p3', 2)]
+
+        h.state.respondRpc({ data: true, error: null })
+
+        await mp.skipSwap()
+
+        expect(h.state.rpcCalls).toHaveLength(1)
+        const patch = h.state.rpcCalls[0]!.args.p_patch as { current_player_id: string }
+        // Next after me (seat 0) skipping the boarded-eliminated p2 → p3.
+        expect(patch.current_player_id).toBe('p3')
+    })
+
+    it('drawing into the mercy threshold writes the victim into eliminated_user_ids in the same commit', async () => {
+        // 3 players so my elimination does not end the game (no winner short-circuit).
+        const mp = useMultiplayerStore()
+        const hand24 = numberCards(24)
+        mp.currentGame = gameRow({
+            turn_state: 'WAITING_FOR_ACTION',
+            current_player_id: 'me',
+            draw_stack: 1,
+            deck: numberCards(1),
+            discard_pile: [{ id: 'top', type: 'number', color: 'red', value: 1 }],
+        })
+        mp.myPlayer = playerRow('me', 0, hand24)
+        mp.gamePlayers = [playerRow('me', 0, hand24), playerRow('p2', 1), playerRow('p3', 2)]
+        mp.subscribeToGame('g1')
+
+        h.state.respondRpc({ data: true, error: null })
+
+        await mp.drawCard()
+
+        expect(h.state.rpcCalls).toHaveLength(1)
+        const args = h.state.rpcCalls[0]!.args
+        const patch = args.p_patch as { eliminated_user_ids?: string[]; draw_stack: number }
+        expect(patch.eliminated_user_ids).toContain('me')
+        expect(patch.draw_stack).toBe(0)
+        const hands = args.p_hands as { id: string; hand: unknown[]; is_eliminated?: boolean }[]
+        const mine = hands.find(x => x.id === 'gp-me')!
+        expect(mine.is_eliminated).toBe(true)
+        expect(mine.hand).toEqual([])
+        // Local board reflects the elimination before the provisional broadcast.
+        expect(mp.currentGame?.eliminated_user_ids).toContain('me')
+    })
+
+    it('captain resolves an absent victim facing a stack: draws their penalty and eliminates at 25+', async () => {
+        const mp = useMultiplayerStore()
+        const p3Hand = numberCards(23)
+        mp.currentGame = gameRow({
+            turn_state: 'WAITING_FOR_ACTION',
+            current_player_id: 'p3',
+            draw_stack: 3,
+            deck: numberCards(5),
+            discard_pile: [{ id: 'top', type: 'number', color: 'red', value: 1 }],
+        })
+        mp.myPlayer = playerRow('me', 0)
+        mp.gamePlayers = [playerRow('me', 0), playerRow('p2', 1), playerRow('p3', 2, p3Hand)]
+        mp.subscribeToGame('g1')
+
+        // Fresh authoritative hand read for the absent victim ...
+        h.state.respond({ data: { hand: p3Hand }, error: null })
+        // ... then the single commit lands.
+        h.state.respondRpc({ data: true, error: null })
+
+        await mp.advancePastPlayer('p3')
+
+        expect(h.state.rpcCalls).toHaveLength(1)
+        const args = h.state.rpcCalls[0]!.args
+        const patch = args.p_patch as { eliminated_user_ids?: string[]; draw_stack: number; current_player_id: string }
+        // 23 + 3 = 26 ≥ 25 → eliminated, and the stack is consumed.
+        expect(patch.eliminated_user_ids).toContain('p3')
+        expect(patch.draw_stack).toBe(0)
+        // Turn advances off p3 (seat 2, dir +1) → me (seat 0).
+        expect(patch.current_player_id).toBe('me')
+        const hands = args.p_hands as { id: string; hand: unknown[]; is_eliminated?: boolean }[]
+        const victim = hands.find(x => x.id === 'gp-p3')!
+        expect(victim.is_eliminated).toBe(true)
+        expect(victim.hand).toEqual([])
+    })
+
+    it('advances past an already-eliminated current player without applying a penalty', async () => {
+        const mp = useMultiplayerStore()
+        mp.currentGame = gameRow({
+            turn_state: 'WAITING_FOR_ACTION',
+            current_player_id: 'p3',
+            draw_stack: 0,
+            eliminated_user_ids: ['p3'],
+        })
+        mp.myPlayer = playerRow('me', 0)
+        mp.gamePlayers = [playerRow('me', 0), playerRow('p2', 1), playerRow('p3', 2)]
+        mp.subscribeToGame('g1')
+
+        h.state.respondRpc({ data: true, error: null })
+
+        await mp.advancePastPlayer('p3')
+
+        expect(h.state.rpcCalls).toHaveLength(1)
+        const args = h.state.rpcCalls[0]!.args
+        const patch = args.p_patch as { current_player_id: string }
+        expect(patch.current_player_id).toBe('me')
+        // Plain advance — no hand writes, nobody drew a penalty.
+        expect(args.p_hands).toEqual([])
+    })
+})

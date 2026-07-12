@@ -33,6 +33,11 @@ export interface GameRow {
     winner_id: string | null
     turn_state: string
     roulette_target_color: string | null
+    // user_ids of players knocked out by the mercy rule. Lives on the board (not
+    // just game_players.is_eliminated) so it rides the version-CAS and can't be
+    // lost to a dropped broadcast. Optional: rows written before the migration
+    // ran won't have it — treated as [].
+    eliminated_user_ids?: string[]
     stacking_mode: 'official' | 'house' | 'casual'
     is_public?: boolean
     // Optimistic-concurrency counter — see commitGameUpdate in multiplayerStore.
