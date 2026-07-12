@@ -138,6 +138,11 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             gameChannel.send({ type: 'broadcast', event: 'action', payload: { senderId, text, card } })
         ).catch(() => {})
     }
+    // Uniform elimination shout for the action feed. One place so the wording
+    // never drifts between the self-elimination flows and the captain path.
+    function announceElimination(name: string) {
+        broadcastAction(`${name} is ELIMINATED`)
+    }
     function actionLabel(card: Card, who: string): string {
         switch (card.type) {
             case 'skip': return `${who} played Skip`
@@ -1295,7 +1300,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 status: gStatus
             }, [{ id: victim.id, hand: isEliminated ? [] : newHand, is_eliminated: isEliminated }])
             if (!committed) return
-            broadcastAction(`${victim.name} drew ${drawn.length}`)
+            if (isEliminated && !winner_id) announceElimination(victim.name)
+            else broadcastAction(`${victim.name} drew ${drawn.length}`)
             broadcastState()
         } catch (err: any) {
             error.value = err.message
@@ -2060,6 +2066,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 status: gStatus
             }, [{ id: myPlayer.value!.id, hand: finalHand, is_eliminated: isEliminated, has_called_uno: false }])
             if (!committed) return
+            if (isEliminated && !winner_id) announceElimination(myPlayer.value!.name)
             broadcastState()
         } catch (err: any) {
             error.value = err.message
@@ -2144,6 +2151,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             status: gStatus
         }, [{ id: myPlayer.value!.id, hand: [], is_eliminated: true }])
         if (!committed) return
+        if (!winner_id) announceElimination(myPlayer.value!.name)
         broadcastState()
     }
 
@@ -2204,6 +2212,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             status: gStatus
         }, [{ id: myPlayer.value!.id, hand: isEliminated ? [] : newHand, is_eliminated: isEliminated, has_called_uno: false }])
         if (!committed) return
+        if (isEliminated && !winner_id) announceElimination(myPlayer.value!.name)
         broadcastState()
     }
 
