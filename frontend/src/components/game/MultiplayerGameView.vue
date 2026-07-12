@@ -438,10 +438,13 @@ function opponentChipEl(userId: string): HTMLElement | null {
   return document.querySelector(`.opponent-card[data-uid="${userId}"]`)
 }
 
-// Seat-to-pile throw when a remote opponent plays. The action broadcast
-// arrives before the state broadcast (same channel, sent in order), so the
-// clone is already flying when the pile updates beneath it — and the slam
-// suppression is set before CardPile's length watcher can fire.
+// Seat-to-pile throw when a remote opponent plays. The store sends the action
+// broadcast just before the provisional state broadcast (action-before-state),
+// so the clone is already flying when the pile updates beneath it — and the
+// slam suppression is set before CardPile's length watcher fires. This ordering
+// is load-bearing: if the action ever moves back to the post-commit path (as it
+// briefly did), the pile pops the card first and the throw arrives a commit-RTT
+// late, double-rendering. Keep them together on the provisional path.
 watch(() => mpStore.lastRemotePlay, (play) => {
   if (!play || gameStatus.value !== 'playing') return
   const discardEl = discardAreaRef.value
@@ -530,8 +533,15 @@ watch([gameStatus, opponentLeft], () => {
   }
 })
 
+// Bumped on every new draw reveal. An in-flight loop bails the moment a newer
+// draw starts, so two overlapping reveals (rapid forced draws / a realtime
+// resync mid-draw) can't interleave writes to visibleCardCount and pop cards
+// in and out — the latest draw owns the progressive reveal.
+let drawRevealGen = 0
+
 // Flying card animation function - now async and syncs with card reveal
 async function triggerDrawAnimation(targetEl: HTMLElement | null, count: number, startingVisibleCount: number): Promise<void> {
+  const myGen = ++drawRevealGen
   const deckEl = document.querySelector('.draw-station .card-pile') as HTMLElement
   if (!targetEl || !deckEl) {
     // No animation possible, just show all cards
@@ -541,12 +551,16 @@ async function triggerDrawAnimation(targetEl: HTMLElement | null, count: number,
 
   // Animate each card one by one using composable
   for (let i = 0; i < count; i++) {
+    if (myGen !== drawRevealGen) return // superseded by a newer draw
+
     // Play sound for this card
     soundEffects.playCardPick()
 
     // Animate using composable
     await animateFlyingCard(deckEl, targetEl, { duration: 0.3 })
-    
+
+    if (myGen !== drawRevealGen) return // superseded mid-flight
+
     // Increment visible count so the real card appears
     visibleCardCount.value = startingVisibleCount + i + 1
 

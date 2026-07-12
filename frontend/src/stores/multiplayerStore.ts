@@ -1651,7 +1651,18 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         // it ahead of the post-commit CONFIRM below; a lost CAS race is undone by
         // the CORRECTION broadcast in commitGameUpdate. Skipped on a winning move:
         // a provisional "you lost" that then rolls back is not worth the flicker.
-        if (!winResult.winnerId) broadcastState()
+        //
+        // The action rides the provisional too, sent FIRST so the receiver starts
+        // the seat-to-pile throw a beat before the state lands the card on the
+        // pile — the two animate together. (Leaving the action on the post-commit
+        // path, as PR B did, double-rendered: the pile popped the card at ~100ms,
+        // then a late throw flew a second card onto it a commit-RTT later.) The
+        // turn holder is the only one who can play, so this move can't lose the
+        // CAS race — the provisional throw is safe from a rollback here.
+        if (!winResult.winnerId) {
+            broadcastAction(label, card)
+            broadcastState()
+        }
 
         let committed = false
         try {
@@ -1669,7 +1680,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             if (getDrawValue(card) > 0) st.drawCardsPlayed++
             if (card.type === 'skip' || card.type === 'skipEveryone') st.skipsDealt++
             broadcastState()
-            broadcastAction(label, card)
+            // A winning move stayed on the commit path (no provisional), so its
+            // announce fires here — the win can afford the extra round trip.
+            if (winResult.winnerId) broadcastAction(label, card)
             // Exposed on 1 card without calling UNO — open the catch window.
             maybeOpenSelfCatch()
         } catch (err: any) {
