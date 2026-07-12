@@ -18,12 +18,15 @@
  */
 
 import gsap from 'gsap'
+import { useMotion } from './useMotion'
 
 const TITLE_ID = 'uno-dealer-intro-title'
 const TITLE_TEXT = 'DEAL'
 
-const reducedMotion = typeof window !== 'undefined'
-    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+// Live reduced-motion state (OS preference + in-app settings toggle). A one-shot
+// matchMedia read ignored the toggle, so the deck-riffle "DEAL" ceremony still
+// played after a player turned motion down.
+const motion = useMotion()
 
 function ensureTitleEl(): HTMLElement | null {
     if (typeof document === 'undefined') return null
@@ -61,7 +64,7 @@ function removeTitle(): void {
  * resolves immediately so the deal starts without delay.
  */
 export async function playDealerIntro(): Promise<void> {
-    if (reducedMotion) return
+    if (motion.reduced) return
 
     // Pull the deck card-back elements rendered by CardPile via BattlePit.
     // Selector is the same in both SP (GameView) and MP (MultiplayerGameView)

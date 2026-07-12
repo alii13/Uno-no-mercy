@@ -647,8 +647,7 @@ watch(
       }
       prevOpponentHandLengths.value[id] = len
     }
-  },
-  { deep: true }
+  }
 )
 
 // Separate animation for opponent (visual only, no card reveal sync)

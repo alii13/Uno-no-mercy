@@ -510,9 +510,14 @@ function inviteUrl() {
 // Copy the full invite link (not just the code) — tapping it opens the join
 // lobby directly, which is what people actually share.
 function copyLink() {
-  navigator.clipboard.writeText(inviteUrl())
-  copied.value = true
-  setTimeout(() => (copied.value = false), 2000)
+  // clipboard is unavailable / throws on an insecure context — only flip the
+  // "copied" state when the write actually succeeds, so the UI doesn't lie.
+  navigator.clipboard?.writeText(inviteUrl())
+    .then(() => {
+      copied.value = true
+      setTimeout(() => (copied.value = false), 2000)
+    })
+    .catch(() => { /* no clipboard access — leave the UI unchanged */ })
 }
 </script>
 
