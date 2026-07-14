@@ -275,8 +275,12 @@ export const useGameStore = defineStore('game', () => {
                 // Set pending card for animation
                 pendingDealCard.value = { playerId: player.id, card }
 
-                // Wait for animation callback
-                await onCardDealt(player.id, card)
+                // Wait for animation callback. Animations are best-effort eye
+                // candy — if one throws, the card is dealt instantly rather
+                // than aborting the loop and stranding the game in DEALING.
+                try {
+                    await onCardDealt(player.id, card)
+                } catch { /* animation failed — deal without it */ }
 
                 // Deal became obsolete while awaiting (player left mid-deal,
                 // rematch re-initialized) — stop before touching fresh state.
