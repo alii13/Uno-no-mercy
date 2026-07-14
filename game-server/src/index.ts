@@ -4,6 +4,15 @@ interface Env {
     ROOM: DurableObjectNamespace
 }
 
+const CONTINENT_HINTS: Record<string, string> = {
+    AS: 'apac',
+    OC: 'oc',
+    EU: 'weur',
+    NA: 'enam',
+    SA: 'sam',
+    AF: 'afr',
+}
+
 // Phase 0 echo room: accepts WebSockets via the hibernation API (the same
 // wiring the real game server will use) and echoes every message back.
 export class GameRoomDO {
@@ -29,7 +38,10 @@ export default {
             }
             const room = url.searchParams.get('room') ?? 'phase0'
             const id = env.ROOM.idFromName(room)
-            return env.ROOM.get(id).fetch(req)
+            // Pin the object near whoever creates the room - auto-placement
+            // sometimes lands a continent away (measured in phase 0).
+            const hint = (url.searchParams.get('hint') ?? CONTINENT_HINTS[(req.cf?.continent as string) ?? '']) as DurableObjectLocationHint | undefined
+            return env.ROOM.get(id, hint ? { locationHint: hint } : undefined).fetch(req)
         }
         const colo = (req.cf?.colo as string) ?? 'unknown'
         return new Response(PAGE.replace('{{COLO}}', colo), {
