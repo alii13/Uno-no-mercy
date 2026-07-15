@@ -301,7 +301,8 @@ const prevHandLengths = ref<Record<string, number>>({})
 onMounted(async () => {
   music.start()
   if (store.isDealing) {
-    await playDealerIntro()
+    // The intro is eye candy — a failure in it must not abort the deal.
+    await playDealerIntro().catch(() => {})
     await store.dealInitialCards(animateSingleCardDeal)
   }
 })
@@ -317,7 +318,7 @@ watch(() => store.isDealing, async (dealing) => {
     // baselines, or the draw-animation watcher compares against stale counts.
     prevHandLengths.value = {}
     turnBannerShown = false
-    await playDealerIntro()
+    await playDealerIntro().catch(() => {})
     await store.dealInitialCards(animateSingleCardDeal)
   }
 })
@@ -414,15 +415,22 @@ watch(() => store.lastPlay, (play) => {
     const fromEl = opponentRefs.value[play.playerId]
     if (fromEl) {
       store.suppressDiscardSlam = true
-      animateOpponentThrow({
-        fromEl,
-        toEl: discardEl,
-        card: play.card,
-        layer: animationLayer.value,
-        onImpact: () => {
-          if (isPowerCard) burstImpactParticles(discardEl, play.card.color)
-        }
-      })
+      // This watcher is flush:'sync', so an exception here would unwind the
+      // store's playCard mid-flight. The animation is best-effort: on failure,
+      // fall back to CardPile's slam as the visual.
+      try {
+        animateOpponentThrow({
+          fromEl,
+          toEl: discardEl,
+          card: play.card,
+          layer: animationLayer.value,
+          onImpact: () => {
+            if (isPowerCard) burstImpactParticles(discardEl, play.card.color)
+          }
+        })
+      } catch {
+        store.suppressDiscardSlam = false
+      }
     }
   }
 

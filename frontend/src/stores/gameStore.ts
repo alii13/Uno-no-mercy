@@ -1,16 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { Card, Player, GameState, TurnState, CardColor } from '../types/card'
-import { generateFullDeck, shuffleDeck } from '../utils/deckGenerator'
-import { canPlayCard, getDrawValue, type StackingMode, DEFAULT_STACKING_MODE } from '../utils/gameRules'
-import {
-    calculateNextPlayerIndex,
-    calculateScore,
-    reshuffleDeck as reshuffleDeckHelper,
-    checkMercyRule as checkMercyRuleHelper,
-    getWildCardColor,
-    rotateHands as rotateHandsHelper
-} from '../utils/gameHelpers'
+import * as engine from '@engine'
+import type { EngineEvent, EngineState } from '@engine'
+import { canPlayCard, getDrawValue, getWildCardColor, generateFullDeck, shuffleDeck, DEFAULT_STACKING_MODE } from '@engine'
+import type { StackingMode } from '@engine'
 import { soundEffects } from '../composables/useSoundEffects'
 import { supabase } from '../lib/supabase'
 
@@ -141,6 +135,75 @@ export const useGameStore = defineStore('game', () => {
             && human.hand.length === 2
     })
 
+    // --- Engine bridge ---
+
+    // The engine works on plain mutable state; here that state lives in the
+    // store's refs, bridged through accessors so engine mutations hit the same
+    // reactive objects the components render.
+    const engineState: EngineState = {
+        get players() { return players.value }, set players(v) { players.value = v },
+        get deck() { return deck.value }, set deck(v) { deck.value = v },
+        get discardPile() { return discardPile.value }, set discardPile(v) { discardPile.value = v },
+        get currentPlayerIndex() { return currentPlayerIndex.value }, set currentPlayerIndex(v) { currentPlayerIndex.value = v },
+        get direction() { return direction.value }, set direction(v) { direction.value = v },
+        get drawStack() { return drawStack.value }, set drawStack(v) { drawStack.value = v },
+        get currentColor() { return currentColor.value }, set currentColor(v) { currentColor.value = v },
+        get turnState() { return turnState.value }, set turnState(v) { turnState.value = v },
+        get gameState() { return gameState.value }, set gameState(v) { gameState.value = v },
+        get winnerId() { return winnerId.value }, set winnerId(v) { winnerId.value = v },
+        get rouletteTargetColor() { return rouletteTargetColor.value }, set rouletteTargetColor(v) { rouletteTargetColor.value = v },
+        get pendingDiscardAllCards() { return pendingDiscardAllCards.value }, set pendingDiscardAllCards(v) { pendingDiscardAllCards.value = v },
+        get swapInitiatorId() { return swapInitiatorId.value }, set swapInitiatorId(v) { swapInitiatorId.value = v },
+        get hasCalledUno() { return hasCalledUno.value }, set hasCalledUno(v) { hasCalledUno.value = v },
+        get stackingMode() { return stackingMode.value }, set stackingMode(v) { stackingMode.value = v },
+    }
+
+    // Map engine events onto host concerns: sounds, stats, the action guard,
+    // and UNO policy (bot auto-call odds / catch windows are host decisions).
+    function applyEvents(events: EngineEvent[]) {
+        for (const e of events) {
+            switch (e.t) {
+                case 'RESHUFFLE':
+                    soundEffects.playCardShuffle()
+                    break
+                case 'DRAW': {
+                    soundEffects.playCardPick()
+                    const p = players.value.find(x => x.id === e.playerId)
+                    const s = playerStats.value[e.playerId]
+                    if (p && s && p.hand.length > s.peakCards) {
+                        s.peakCards = p.hand.length
+                    }
+                    break
+                }
+                case 'TURN_ADVANCED':
+                case 'PLAY_AGAIN':
+                    // The previous player's action has fully resolved (or Skip
+                    // Everyone kept the turn) — release the action guard.
+                    actionInProgress.value = false
+                    break
+                case 'UNO_PENALTY': {
+                    const s = playerStats.value[e.playerId]
+                    if (s) s.unoPenalties++
+                    break
+                }
+                case 'AT_ONE_UNCALLED': {
+                    const p = players.value.find(x => x.id === e.playerId)
+                    if (!p) break
+                    if (p.isBot && Math.random() > 0.3) {
+                        callUno(p.id)
+                    } else {
+                        openCatchWindow(p)
+                    }
+                    break
+                }
+                case 'ELIMINATED':
+                case 'GAME_OVER':
+                case 'CHOOSE_DISCARD_ALL_TOP':
+                    // State carries these; the gameState watcher handles logging.
+                    break
+            }
+        }
+    }
 
     // --- Actions ---
 
@@ -212,8 +275,12 @@ export const useGameStore = defineStore('game', () => {
                 // Set pending card for animation
                 pendingDealCard.value = { playerId: player.id, card }
 
-                // Wait for animation callback
-                await onCardDealt(player.id, card)
+                // Wait for animation callback. Animations are best-effort eye
+                // candy — if one throws, the card is dealt instantly rather
+                // than aborting the loop and stranding the game in DEALING.
+                try {
+                    await onCardDealt(player.id, card)
+                } catch { /* animation failed — deal without it */ }
 
                 // Deal became obsolete while awaiting (player left mid-deal,
                 // rematch re-initialized) — stop before touching fresh state.
@@ -232,40 +299,10 @@ export const useGameStore = defineStore('game', () => {
 
         if (myGen !== dealGeneration) return
 
-        // Deal first discard card
-        let firstCard = drawCardFromDeck()
-        while (firstCard?.type === 'wild' || firstCard?.color === 'wild') {
-            deck.value.push(firstCard)
-            deck.value = shuffleDeck(deck.value)
-            firstCard = drawCardFromDeck()
-        }
-        if (firstCard) {
-            discardPile.value.push(firstCard)
-            currentColor.value = firstCard.color
-
-            // Apply first card effect per UNO rules
-            if (firstCard.type === 'skip') {
-                // First player is skipped
-                advanceTurn()
-            } else if (firstCard.type === 'reverse') {
-                // Reverse direction (in 2-player, first player gets skipped)
-                if (players.value.length === 2) {
-                    advanceTurn()
-                } else {
-                    direction.value = -1
-                }
-            } else if (firstCard.type === 'draw2') {
-                // First player draws 2 and is skipped
-                drawStack.value = 2
-            } else if (firstCard.type === 'draw4') {
-                // First player draws 4 and is skipped
-                drawStack.value = 4
-            } else if (firstCard.type === 'skipEveryone') {
-                // All players skipped - dealer (p0) plays again (no-op since p0 starts)
-            } else if (firstCard.type === 'discardAll') {
-                // First player may discard matching color cards on their turn
-            }
-        }
+        // Deal the first discard and apply its effect per UNO rules
+        const ev: EngineEvent[] = []
+        engine.drawFirstDiscard(engineState, ev)
+        applyEvents(ev)
 
         // Dealing complete
         isDealing.value = false
@@ -274,74 +311,23 @@ export const useGameStore = defineStore('game', () => {
     }
 
     function drawCardFromDeck(): Card | undefined {
-        if (deck.value.length === 0) {
-            const reshuffled = reshuffleDeckHelper(deck.value, discardPile.value)
-            if (!reshuffled) return undefined
-            soundEffects.playCardShuffle()
-        }
-        return deck.value.pop()
-    }
-
-    function drawCardToHand(player: Player): Card | undefined {
-        const card = drawCardFromDeck()
-        if (card) {
-            player.hand.push(card)
-            hasCalledUno.value[player.id] = false
-            soundEffects.playCardPick()
-            // Track peak cards
-            const s = playerStats.value[player.id]
-            if (s && player.hand.length > s.peakCards) {
-                s.peakCards = player.hand.length
-            }
-        }
-        checkMercyRule(player)
+        const ev: EngineEvent[] = []
+        const card = engine.drawCardFromDeck(engineState, ev)
+        applyEvents(ev)
         return card
     }
 
-    function checkMercyRule(player: Player): boolean {
-        if (checkMercyRuleHelper(player.hand.length)) {
-            player.isEliminated = true
-            discardPile.value.push(...player.hand)
-            player.hand = []
-
-            const activePlayers = players.value.filter(p => !p.isEliminated)
-            if (activePlayers.length === 1 && activePlayers[0]) {
-                winnerId.value = activePlayers[0].id
-                applyScoresToWinner(activePlayers[0].id)
-                gameState.value = 'GAME_OVER'
-            }
-            return true
-        }
-        return false
+    function drawCardToHand(player: Player): Card | undefined {
+        const ev: EngineEvent[] = []
+        const card = engine.drawCardToHand(engineState, player.id, ev)
+        applyEvents(ev)
+        return card
     }
 
     function advanceTurn() {
-        // Release the action guard now that the previous player's action has fully resolved.
-        actionInProgress.value = false
-        const count = players.value.length
-        currentPlayerIndex.value = calculateNextPlayerIndex(
-            currentPlayerIndex.value,
-            direction.value,
-            count
-        )
-
-        // If coming from Roulette, reset state default
-        // FIX: Don't reset if we are just entering CHOOSING logic
-        if (turnState.value !== 'ROULETTE_DRAWING' && turnState.value !== 'CHOOSING_ROULETTE_COLOR') {
-            turnState.value = 'WAITING_FOR_ACTION'
-        }
-
-        // Skip eliminated players
-        let sanity = 0
-        while (players.value[currentPlayerIndex.value]?.isEliminated && sanity < 20) {
-            currentPlayerIndex.value = calculateNextPlayerIndex(
-                currentPlayerIndex.value,
-                direction.value,
-                count
-            )
-            sanity++
-        }
-
+        const ev: EngineEvent[] = []
+        engine.advanceTurn(engineState, ev)
+        applyEvents(ev)
     }
 
     function callUno(playerId: string) {
@@ -390,11 +376,10 @@ export const useGameStore = defineStore('game', () => {
         closeCatchWindow()
         const s = playerStats.value[p.id]
         if (s) s.unoPenalties++
-        // Draw the penalty (mercy elimination is handled inside drawCardToHand).
-        for (let i = 0; i < UNO_PENALTY; i++) {
-            if (p.isEliminated || gameState.value === 'GAME_OVER') break
-            drawCardToHand(p)
-        }
+        // Draw the penalty (mercy elimination is handled inside the engine).
+        const ev: EngineEvent[] = []
+        engine.penalizeUnoDraws(engineState, p.id, UNO_PENALTY, ev)
+        applyEvents(ev)
     }
 
     // Human catches an opponent (bot) who forgot UNO.
@@ -407,17 +392,23 @@ export const useGameStore = defineStore('game', () => {
         const player = players.value.find(p => p.id === playerId)
         if (!player) return
 
-        if (!topCard.value) return
-        if (!canPlayCard(card, topCard.value, currentColor.value, drawStack.value, stackingMode.value)) return
+        // Host policy: a bot facing a multi-match Discard All picks its top
+        // card at random; a human gets the picker (engine enters that state).
+        let discardAllTopPickId: string | undefined
+        if (card.type === 'discardAll' && player.isBot) {
+            const matches = player.hand.filter(c => c.color === card.color)
+            if (matches.length > 1) {
+                discardAllTopPickId = matches[Math.floor(Math.random() * matches.length)]!.id
+            }
+        }
 
-        const cardIndex = player.hand.findIndex(c => c.id === card.id)
-        if (cardIndex === -1) return
-        const handSizeBeforePlay = player.hand.length
-        player.hand.splice(cardIndex, 1)
+        const res = engine.playCard(engineState, playerId, card.id, { selectedColor, discardAllTopPickId })
+        if (!res.ok) return
 
-        discardPile.value.push(card)
-        playCounter++
-        lastPlay.value = { playerId, card, n: playCounter }
+        // Apply events before setting lastPlay: its watcher is flush:'sync'
+        // (GameView throw animation), so an exception there would unwind this
+        // function — the action guard and UNO policy must already be settled.
+        applyEvents(res.events)
 
         // Track card play stats
         const s = playerStats.value[playerId]
@@ -428,278 +419,24 @@ export const useGameStore = defineStore('game', () => {
             if (card.type === 'skip' || card.type === 'skipEveryone') s.skipsDealt++
         }
 
-        // Handle Color Selection (Wilds)
-        if (card.type === 'wildColorRoulette') {
-            // Roulette: Color is chosen by NEXT player (Victim)
-            // We leave currentColor as is for now, or set to 'wild'
-            // It will be set effectively when the victim finds their color.
-        } else if (card.color === 'wild') {
-            if (selectedColor) {
-                currentColor.value = selectedColor
-            } else {
-                // Fallback (shouldn't happen with UI)
-                console.warn("Wild card played without color selection!")
-                currentColor.value = 'red'
-            }
-        } else {
-            currentColor.value = card.color
-        }
+        playCounter++
+        lastPlay.value = { playerId, card, n: playCounter }
 
         // Sounds
         soundEffects.playCardLand()
         if (card.color === 'wild' || card.type.includes('draw') || card.type === 'skip' || card.type === 'reverse') {
             soundEffects.playSpecialCard()
         }
-
-        applyCardEffect(card)
-
-        // DiscardAll fully owns its own resolution (discard + top-card effect +
-        // win/catch/advance) inside its handler's auto path or the picker's
-        // resolveDiscardAllTop. Bail so playCard's generic post-play logic below
-        // doesn't double-process it (double advance / double score).
-        if (card.type === 'discardAll') return
-
-        // Win / UNO-penalty and catch checks run for EVERY card type, roulette
-        // included. Emptying your hand wins even if the card's own effect (the
-        // roulette draw on the victim) is still resolving — the old early-return
-        // for roulette below skipped both checks, so a roulette played as your
-        // last card never won and a roulette that left you on 1 was never
-        // catchable.
-        if (player.hand.length === 0) {
-            // UNO penalty only applies if player went from exactly 2→1→0 (they had a chance to call UNO)
-            // If DiscardAll or other effects dropped them from 3+→0, no UNO call was expected
-            const neededUno = handSizeBeforePlay === 2
-            if (neededUno && !hasCalledUno.value[player.id]) {
-                // Penalty: Draw 2
-                if (s) s.unoPenalties++
-                drawCardToHand(player)
-                drawCardToHand(player)
-                // The penalty draws can mercy-eliminate the player and end the game.
-                if (gameState.value !== 'GAME_OVER') advanceTurn()
-                return
-            }
-            winnerId.value = player.id
-            applyScoresToWinner(player.id)
-            gameState.value = 'GAME_OVER'
-            return
-        }
-
-        // UNO handling when player reaches 1 card. Bots auto-call ~70% of the
-        // time; whoever is still exposed (the human, or a bot that forgot)
-        // becomes catchable.
-        if (player.hand.length === 1 && !hasCalledUno.value[player.id]) {
-            if (player.isBot && Math.random() > 0.3) {
-                callUno(player.id)
-            } else {
-                openCatchWindow(player)
-            }
-        }
-
-        if (card.type === 'wildColorRoulette') {
-            // Roulette handling stops here; turn has already advanced to victim in applyCardEffect
-            return
-        }
-
-        // Advance only if not blocked by special states
-        // If applied effect was Roulette, state is now ROULETTE_DRAWING, so we advance to victim
-        // FIX: Do not advance if card is 'skipEveryone' (Play Again)
-        if (card.type !== 'skipEveryone') {
-            if (turnState.value === 'WAITING_FOR_ACTION' || turnState.value === 'ROULETTE_DRAWING' || turnState.value === 'CHOOSING_ROULETTE_COLOR') {
-                // Note: CHOOSING_ROULETTE_COLOR means we advance to victim to pick color.
-                // If wildColorRoulette played, state is CHOOSING_ROULETTE_COLOR (set in applyCardEffect).
-                // We MUST advance so it becomes victim's turn to choose.
-                advanceTurn()
-            }
-        } else {
-            // Skip Everyone: turn stays with the current player (play again). advanceTurn
-            // is the only place that resets actionInProgress — without this explicit
-            // reset, the player who just played Skip Everyone is locked out of their
-            // own follow-up turn (canPlay short-circuits on actionInProgress, draw
-            // button bails on the same flag). Stuck game.
-            actionInProgress.value = false
-        }
-    }
-
-    // --- Card Effect Handlers ---
-    
-    function handleReverse(card: Card) {
-        const isTwoPlayer = players.value.length === 2
-        if (isTwoPlayer) {
-            if (card.type === 'reverse') {
-                // Reverse acts as Skip in 2p
-                advanceTurn()
-            }
-            // Wild Reverse Draw 4 in 2p: just reverse direction, penalty goes to opponent
-            // (the normal advanceTurn in playCard will move to the other player)
-            direction.value = direction.value === 1 ? -1 : 1
-        } else {
-            direction.value = direction.value === 1 ? -1 : 1
-        }
-    }
-
-    function handleSkip() {
-        advanceTurn()
-    }
-
-    function handleSkipEveryone(): boolean {
-        return true // Signal to stop processing (play again)
-    }
-
-    function handleWildColorRoulette() {
-        // Next player chooses the color, then draws until they get it
-        turnState.value = 'CHOOSING_ROULETTE_COLOR'
-        advanceTurn()
-    }
-
-    function handleDiscardAll(card: Card): boolean | void {
-        const player = currentPlayer.value
-        if (!player) return
-
-        const toDiscard = player.hand.filter(c => c.color === card.color)
-        if (toDiscard.length === 0) return
-
-        // No human choice to make (single match, or a bot): auto-pick the top
-        // card and resolve through the SAME path as the human picker so the top
-        // card's effect fires. These paths previously discarded the cards but
-        // dropped the top card's effect entirely.
-        if (toDiscard.length === 1 || player.isBot) {
-            const topChoice = toDiscard.length === 1
-                ? toDiscard[0]!
-                : toDiscard[Math.floor(Math.random() * toDiscard.length)]!
-            pendingDiscardAllCards.value = toDiscard
-            turnState.value = 'CHOOSING_DISCARD_ALL_TOP'
-            resolveDiscardAllTop(toDiscard, topChoice)
-            return true // discardAll fully owns its resolution; playCard early-returns
-        }
-
-        // Human with 2+ matches: show picker to choose which card goes on top
-        pendingDiscardAllCards.value = toDiscard
-        turnState.value = 'CHOOSING_DISCARD_ALL_TOP'
-        return true // Signal to stop — don't advance turn yet
-    }
-
-    function executeDiscardAll(cards: Card[], topCard: Card) {
-        const player = currentPlayer.value
-        if (!player) return
-
-        // Discard all except the chosen top card first, then top card last
-        const others = cards.filter(c => c.id !== topCard.id)
-        for (const c of [...others, topCard]) {
-            const idx = player.hand.findIndex(h => h.id === c.id)
-            if (idx > -1) {
-                player.hand.splice(idx, 1)
-                discardPile.value.push(c)
-            }
-        }
-    }
-
-    // Sole resolver for a DiscardAll — used by the human picker (selectDiscardAllTop)
-    // AND the auto paths (single match / bot) in handleDiscardAll, so the chosen
-    // top card's effect fires the same way regardless of who's playing.
-    function resolveDiscardAllTop(cards: Card[], topCard: Card) {
-        executeDiscardAll(cards, topCard)
-        pendingDiscardAllCards.value = []
-        turnState.value = 'WAITING_FOR_ACTION'
-
-        const player = currentPlayer.value
-
-        // Bulk discard emptied the hand → win (no UNO call expected for a dump).
-        if (player && player.hand.length === 0) {
-            winnerId.value = player.id
-            applyScoresToWinner(player.id)
-            gameState.value = 'GAME_OVER'
-            return
-        }
-
-        // Apply the chosen TOP card's effect, exactly as if it had just been
-        // played — a 7 opens the swap prompt, 0 rotates hands, skip/reverse/
-        // draw/skip-all all fire. Previously only the human picker did this.
-        applyCardEffect(topCard)
-
-        if (player && player.hand.length === 1 && !hasCalledUno.value[player.id]) {
-            if (player.isBot && Math.random() > 0.3) callUno(player.id)
-            else openCatchWindow(player)
-        }
-
-        // Mirror playCard's advance: Skip Everyone plays again; a swap/choosing
-        // state waits for input; otherwise pass the turn.
-        if (topCard.type === 'skipEveryone') {
-            actionInProgress.value = false
-        } else if (turnState.value === 'WAITING_FOR_ACTION') {
-            advanceTurn()
-        }
-    }
-
-    function selectDiscardAllTop(topCardId: string) {
-        if (turnState.value !== 'CHOOSING_DISCARD_ALL_TOP') return
-        const cards = pendingDiscardAllCards.value
-        const topCard = cards.find(c => c.id === topCardId)
-        if (!topCard) return
-        resolveDiscardAllTop(cards, topCard)
-    }
-
-    function handleNumberZero() {
-        rotateHands()
-    }
-
-    function handleNumberSeven(): boolean {
-        turnState.value = 'CHOOSING_PLAYER_TO_SWAP'
-        if (currentPlayer.value) {
-            swapInitiatorId.value = currentPlayer.value.id
-        }
-        return true // Signal to stop processing
-    }
-
-    // Card effect dispatch map
-    type CardEffectHandler = (card: Card) => boolean | void
-    const cardEffectHandlers: Record<string, CardEffectHandler> = {
-        reverse: handleReverse,
-        wildReverseDraw4: handleReverse,
-        skip: handleSkip,
-        skipEveryone: handleSkipEveryone,
-        wildColorRoulette: handleWildColorRoulette,
-        discardAll: handleDiscardAll
     }
 
     function applyCardEffect(card: Card) {
-        // Apply draw stack (except roulette)
-        const drawVal = getDrawValue(card)
-        if (drawVal > 0 && card.type !== 'wildColorRoulette') {
-            drawStack.value += drawVal
-        }
-
-        // Handle special number cards (0 and 7)
-        if (card.type === 'number') {
-            if (card.value === 0) {
-                handleNumberZero()
-                return
-            }
-            if (card.value === 7) {
-                handleNumberSeven()
-                return
-            }
-        }
-
-        // Dispatch to effect handler if exists
-        const handler = cardEffectHandlers[card.type]
-        if (handler) {
-            const shouldStop = handler(card)
-            if (shouldStop) return
-        }
+        const ev: EngineEvent[] = []
+        engine.applyCardEffect(engineState, card, ev)
+        applyEvents(ev)
     }
 
     function rotateHands() {
-        // Rotate only among players still in the game. Including eliminated
-        // seats (whose hands were dumped to empty) would rotate an active hand
-        // into a dead seat — those cards leave play — and hand the empty array
-        // to an active player, stranding them on 0 cards.
-        const active = players.value.filter(p => !p.isEliminated)
-        if (active.length < 2) return
-        const hands = active.map(p => [...p.hand])
-        const rotated = rotateHandsHelper(hands, direction.value)
-        active.forEach((p, i) => {
-            p.hand = rotated[i] || []
-        })
+        engine.rotateActiveHands(engineState)
     }
 
     function drawCardsForCurrentPlayer() {
@@ -782,59 +519,29 @@ export const useGameStore = defineStore('game', () => {
         }
     }
 
-    // NEW: Execute Roulette Draw Logic
+    // Execute Roulette Draw Logic — the engine does one draw per step, the
+    // store owns the pacing stalls between steps.
     function executeRouletteDraw() {
-        if (turnState.value !== 'ROULETTE_DRAWING') return
-        const p = currentPlayer.value
-        if (!p) return
+        const ev: EngineEvent[] = []
+        const outcome = engine.rouletteDrawStep(engineState, ev)
+        applyEvents(ev)
 
-        // Draw card
-        const card = drawCardToHand(p)
-
-        // Deck + discard ran dry mid-roulette — nothing left to draw, so the
-        // roulette can never resolve. Without this bail the setTimeout loop below
-        // spins forever in ROULETTE_DRAWING. Victim keeps their hand, turn passes.
-        if (!card) {
-            turnState.value = 'WAITING_FOR_ACTION'
-            advanceTurn()
-            return
-        }
-
-        // Rule: "Wild cards revealed do not count as matching the color – they have to pull an actual colored card of that color"
-        if (card && rouletteTargetColor.value && card.color === rouletteTargetColor.value) {
-            // Found matching color
-            // Rule: "The card that stopped the roulette is discarded and becomes the new top of the discard pile"
-
-            // Remove from hand (it was just added by drawCardToHand)
-            const idx = p.hand.indexOf(card)
-            if (idx > -1) {
-                p.hand.splice(idx, 1)
-            }
-
-            // Discard it
-            discardPile.value.push(card)
-
-            // Updates current color to the card found (or the target color if wild?)
-            currentColor.value = card.color === 'wild' ? rouletteTargetColor.value : card.color
-
-            // Turn ends (Victim loses turn)
+        if (outcome === 'match') {
             // Add a stall so the user can see the final card before turn jumps
-            setTimeout(() => {
-                turnState.value = 'WAITING_FOR_ACTION'
-                if (gameState.value !== 'GAME_OVER') advanceTurn()
-            }, TIMINGS.rouletteSafeStall)
-
-        } else if (p.isEliminated) {
-            // Mercy rule trigger. The elimination may have just ended the game —
-            // don't advance the turn pointer on a finished game.
-            setTimeout(() => {
-                turnState.value = 'WAITING_FOR_ACTION'
-                if (gameState.value !== 'GAME_OVER') advanceTurn()
-            }, TIMINGS.rouletteEliminatedStall)
-        } else {
-            // Keep drawing
+            setTimeout(finishRouletteTurn, TIMINGS.rouletteSafeStall)
+        } else if (outcome === 'eliminated') {
+            // Mercy rule trigger — emotional landing needs to breathe.
+            setTimeout(finishRouletteTurn, TIMINGS.rouletteEliminatedStall)
+        } else if (outcome === 'continue') {
             setTimeout(executeRouletteDraw, TIMINGS.rouletteSpin)
         }
+        // 'exhausted': the engine already ended the turn — nothing to schedule.
+    }
+
+    function finishRouletteTurn() {
+        const ev: EngineEvent[] = []
+        engine.finishRouletteTurn(engineState, ev)
+        applyEvents(ev)
     }
 
     function executeBotRouletteChoice() {
@@ -853,26 +560,21 @@ export const useGameStore = defineStore('game', () => {
 
     function swapHands(targetPlayerId: string) {
         if (turnState.value !== 'CHOOSING_PLAYER_TO_SWAP') return
-        const initiator = players.value.find(p => p.id === swapInitiatorId.value)
-        const target = players.value.find(p => p.id === targetPlayerId)
-        // Never swap with an eliminated seat — it holds an empty hand, so the
-        // swap would hand the initiator a 0-card "win" and revive the dead seat.
-        // The UI already filters eliminated targets; this guards the store path.
-        if (initiator && target && !target.isEliminated) {
-            const s = playerStats.value[initiator.id]
+        const initiatorId = swapInitiatorId.value
+        const ev: EngineEvent[] = []
+        const swapped = engine.swapHands(engineState, targetPlayerId, ev)
+        if (swapped && initiatorId) {
+            const s = playerStats.value[initiatorId]
             if (s) s.swapsMade++
-            const temp = [...initiator.hand]
-            initiator.hand = [...target.hand]
-            target.hand = temp
         }
-        turnState.value = 'WAITING_FOR_ACTION'
-        advanceTurn()
+        applyEvents(ev)
     }
 
     function skipSwap() {
         if (turnState.value !== 'CHOOSING_PLAYER_TO_SWAP') return
-        turnState.value = 'WAITING_FOR_ACTION'
-        advanceTurn()
+        const ev: EngineEvent[] = []
+        engine.skipSwap(engineState, ev)
+        applyEvents(ev)
     }
 
     function returnToLobby() {
@@ -986,34 +688,11 @@ export const useGameStore = defineStore('game', () => {
                 }
             }, turnState.value === 'ROULETTE_DRAWING' ? TIMINGS.botRoulette : TIMINGS.botThink)
         } else {
-            // Human player logic: 
+            // Human player logic:
             // The drawing loop is started by setRouletteColor once they choose.
             // No automated action needed here for WAITING_FOR_ACTION.
         }
     }, { immediate: true })
-
-    function applyScoresToWinner(winningPlayerId: string) {
-        const winner = players.value.find(p => p.id === winningPlayerId)
-        if (!winner) return
-
-        // Collect opponent hands and elimination flags
-        const opponentHands: Card[][] = []
-        const eliminatedFlags: boolean[] = []
-
-        players.value.forEach(p => {
-            if (p.id === winningPlayerId) return
-            opponentHands.push(p.hand)
-            eliminatedFlags.push(p.isEliminated)
-        })
-
-        const totalPoints = calculateScore(opponentHands, eliminatedFlags)
-
-        if (winner.score !== undefined) {
-            winner.score += totalPoints
-        } else {
-            winner.score = totalPoints
-        }
-    }
 
     // Auto-log results when game ends
     watch(gameState, (newState) => {
@@ -1108,10 +787,9 @@ export const useGameStore = defineStore('game', () => {
     }
 
     function setRouletteColor(color: CardColor) {
-        if (turnState.value !== 'CHOOSING_ROULETTE_COLOR') return
-        rouletteTargetColor.value = color
-        turnState.value = 'ROULETTE_DRAWING'
-        executeRouletteDraw()
+        if (engine.setRouletteColor(engineState, color)) {
+            executeRouletteDraw()
+        }
     }
 
     function playDrawnWildCard(color: CardColor) {
@@ -1121,5 +799,10 @@ export const useGameStore = defineStore('game', () => {
         pendingDrawnWildCard.value = null
         turnState.value = 'WAITING_FOR_ACTION'
         playerActionPlayCard(card, color)
+    }
+
+    function selectDiscardAllTop(topCardId: string) {
+        const ev = engine.selectDiscardAllTop(engineState, topCardId)
+        applyEvents(ev)
     }
 })
