@@ -1,0 +1,326 @@
+import * as engine from '../../shared/engine'
+import type { Card, EngineEvent, EngineState, StackingMode } from '../../shared/engine'
+import type { GameEvent, IntentAction, PersonalView, SnapshotPlayer } from './protocol'
+
+export interface GameRecord {
+    engine: EngineState
+    /** Card drawn via draw-until-playable that is a wild — waiting for its color. */
+    pendingDrawnWildCardId: string | null
+    startedAt: number
+}
+
+export interface SeatedPlayer {
+    userId: string
+    name: string
+}
+
+export interface IntentResult {
+    ok: boolean
+    errorCode?: 'invalid-intent'
+    /** Engine + synthesized events, in order; personalize with viewEventFor. */
+    events: GameEvent[]
+    /** Events only the acting player should receive (e.g. their drawn cards). */
+    privateEvents?: { userId: string; events: GameEvent[] }[]
+}
+
+/** Deal and start a game for the seated players (roster join order = seats). */
+export function startGame(players: SeatedPlayer[], stackingMode: StackingMode): { game: GameRecord; events: GameEvent[] } {
+    const s: EngineState = {
+        players: players.map(p => ({ id: p.userId, name: p.name, hand: [], isEliminated: false, score: 0 })),
+        deck: engine.shuffleDeck(engine.generateFullDeck()),
+        discardPile: [],
+        currentPlayerIndex: 0,
+        direction: 1,
+        drawStack: 0,
+        currentColor: 'red',
+        turnState: 'WAITING_FOR_ACTION',
+        gameState: 'PLAYING',
+        winnerId: null,
+        rouletteTargetColor: null,
+        pendingDiscardAllCards: [],
+        swapInitiatorId: null,
+        hasCalledUno: {},
+        stackingMode,
+    }
+
+    // Server-side deal: hands never leave this object except to their owner.
+    for (let round = 0; round < 7; round++) {
+        for (const p of s.players) {
+            const card = s.deck.pop()
+            if (card) p.hand.push(card)
+        }
+    }
+    const ev: EngineEvent[] = []
+    engine.drawFirstDiscard(s, ev)
+
+    return {
+        game: { engine: s, pendingDrawnWildCardId: null, startedAt: Date.now() },
+        events: [{ t: 'STARTED' }, ...translateEngineEvents(ev)],
+    }
+}
+
+/** Apply one client intent to the authoritative state. Fully synchronous. */
+export function applyIntent(game: GameRecord, userId: string, action: IntentAction): IntentResult {
+    const s = game.engine
+    const invalid: IntentResult = { ok: false, errorCode: 'invalid-intent', events: [] }
+
+    if (s.gameState !== 'PLAYING') return invalid
+
+    // CALL_UNO is the only intent allowed off-turn.
+    if (action.kind === 'CALL_UNO') {
+        const player = s.players.find(p => p.id === userId)
+        if (!player || player.isEliminated || player.hand.length > 2) return invalid
+        s.hasCalledUno[userId] = true
+        return { ok: true, events: [{ t: 'UNO_CALLED', playerId: userId }] }
+    }
+
+    if (engine.currentPlayer(s)?.id !== userId) return invalid
+
+    switch (action.kind) {
+        case 'PLAY_CARD': {
+            if (s.turnState !== 'WAITING_FOR_ACTION') return invalid
+            const card = engine.currentPlayer(s)?.hand.find(c => c.id === action.cardId)
+            if (!card) return invalid
+            const res = engine.playCard(s, userId, action.cardId, { selectedColor: action.chosenColor })
+            if (!res.ok) return invalid
+            return {
+                ok: true,
+                events: [
+                    { t: 'CARD_PLAYED', by: userId, card, chosenColor: action.chosenColor },
+                    ...translateEngineEvents(res.events),
+                ],
+            }
+        }
+
+        case 'DRAW': {
+            if (s.turnState !== 'WAITING_FOR_ACTION') return invalid
+            return resolveDraw(game, userId)
+        }
+
+        case 'PICK_DISCARD_ALL_TOP': {
+            if (s.turnState !== 'CHOOSING_DISCARD_ALL_TOP') return invalid
+            const before = s.pendingDiscardAllCards.length
+            const ev = engine.selectDiscardAllTop(s, action.cardId)
+            if (s.pendingDiscardAllCards.length === before && before > 0) return invalid
+            return { ok: true, events: translateEngineEvents(ev) }
+        }
+
+        case 'CHOOSE_DRAWN_WILD_COLOR': {
+            if (s.turnState !== 'CHOOSING_DRAWN_WILD_COLOR' || !game.pendingDrawnWildCardId) return invalid
+            const cardId = game.pendingDrawnWildCardId
+            const card = engine.currentPlayer(s)?.hand.find(c => c.id === cardId)
+            game.pendingDrawnWildCardId = null
+            s.turnState = 'WAITING_FOR_ACTION'
+            if (!card) return invalid
+            const res = engine.playCard(s, userId, cardId, { selectedColor: action.color })
+            if (!res.ok) return invalid
+            return {
+                ok: true,
+                events: [
+                    { t: 'CARD_PLAYED', by: userId, card, chosenColor: action.color },
+                    ...translateEngineEvents(res.events),
+                ],
+            }
+        }
+
+        case 'SET_ROULETTE_COLOR': {
+            if (!engine.setRouletteColor(s, action.color)) return invalid
+            // Resolve the whole spin synchronously; clients pace the reveal
+            // from the per-draw events.
+            const ev: EngineEvent[] = []
+            let outcome = engine.rouletteDrawStep(s, ev)
+            while (outcome === 'continue') outcome = engine.rouletteDrawStep(s, ev)
+            const matchCard = outcome === 'match' ? s.discardPile[s.discardPile.length - 1] : undefined
+            if (outcome === 'match' || outcome === 'eliminated') {
+                engine.finishRouletteTurn(s, ev)
+            }
+            const events = translateEngineEvents(ev)
+            events.push({
+                t: 'ROULETTE_ENDED',
+                playerId: userId,
+                outcome: outcome === 'invalid' ? 'exhausted' : outcome,
+                matchCard,
+            })
+            return { ok: true, events }
+        }
+
+        case 'SWAP_HANDS': {
+            const ev: EngineEvent[] = []
+            const target = s.players.find(p => p.id === action.targetUserId)
+            if (!target || target.id === userId) return invalid
+            if (!engine.swapHands(s, action.targetUserId, ev) && s.turnState === 'CHOOSING_PLAYER_TO_SWAP') return invalid
+            return { ok: true, events: translateEngineEvents(ev) }
+        }
+
+        case 'SKIP_SWAP': {
+            const ev: EngineEvent[] = []
+            if (!engine.skipSwap(s, ev)) return invalid
+            return { ok: true, events: translateEngineEvents(ev) }
+        }
+
+        default:
+            return invalid
+    }
+}
+
+/**
+ * DRAW resolves server-side exactly like single-player:
+ *  - facing a stack: draw it all (mercy may fire mid-stack), then pass the turn
+ *  - otherwise: draw until playable; a playable non-wild auto-plays, a playable
+ *    wild parks in CHOOSING_DRAWN_WILD_COLOR for the owner's color choice
+ */
+function resolveDraw(game: GameRecord, userId: string): IntentResult {
+    const s = game.engine
+    const ev: EngineEvent[] = []
+    const events: GameEvent[] = []
+    const player = engine.currentPlayer(s)
+    if (!player) return { ok: false, errorCode: 'invalid-intent', events: [] }
+
+    if (s.drawStack > 0) {
+        const count = s.drawStack
+        s.drawStack = 0
+        for (let i = 0; i < count; i++) {
+            if (player.isEliminated || s.gameState === 'GAME_OVER') break
+            engine.drawCardToHand(s, userId, ev)
+        }
+        if (s.gameState !== 'GAME_OVER') engine.advanceTurn(s, ev)
+        return { ok: true, events: [...events, ...translateEngineEvents(ev)] }
+    }
+
+    // Draw until playable.
+    for (let sanity = 0; sanity < 300; sanity++) {
+        const top = engine.topCard(s)
+        if (!top) { engine.advanceTurn(s, ev); break }
+        const card = engine.drawCardToHand(s, userId, ev)
+        if (!card) { engine.advanceTurn(s, ev); break }
+        if (player.isEliminated || s.gameState === 'GAME_OVER') break
+        if (engine.canPlayCard(card, top, s.currentColor, 0, s.stackingMode)) {
+            if (card.color === 'wild') {
+                game.pendingDrawnWildCardId = card.id
+                s.turnState = 'CHOOSING_DRAWN_WILD_COLOR'
+                break
+            }
+            events.push(...translateEngineEvents(ev))
+            ev.length = 0
+            const res = engine.playCard(s, userId, card.id, {})
+            if (res.ok) {
+                events.push({ t: 'CARD_PLAYED', by: userId, card })
+                events.push(...translateEngineEvents(res.events))
+            }
+            return { ok: true, events }
+        }
+    }
+    return { ok: true, events: [...events, ...translateEngineEvents(ev)] }
+}
+
+/** Engine events → wire events (viewer-neutral; DRAW personalization happens at send time). */
+function translateEngineEvents(ev: EngineEvent[]): GameEvent[] {
+    const out: GameEvent[] = []
+    for (const e of ev) {
+        switch (e.t) {
+            case 'RESHUFFLE': out.push({ t: 'RESHUFFLED' }); break
+            case 'DRAW': out.push({ t: 'YOU_DREW', cards: [e.card], _owner: e.playerId } as GameEvent & { _owner: string }); break
+            case 'ELIMINATED': out.push({ t: 'ELIMINATED', playerId: e.playerId }); break
+            case 'GAME_OVER': out.push({ t: 'GAME_OVER', winnerId: e.winnerId }); break
+            case 'UNO_PENALTY': out.push({ t: 'UNO_PENALTY', playerId: e.playerId }); break
+            case 'AT_ONE_UNCALLED': out.push({ t: 'AT_ONE', playerId: e.playerId }); break
+            case 'TURN_ADVANCED':
+            case 'PLAY_AGAIN':
+            case 'CHOOSE_DISCARD_ALL_TOP':
+                // Snapshots carry turn/picker state.
+                break
+        }
+    }
+    return out
+}
+
+/**
+ * Personalize an event for one viewer. Draw events reveal card identities only
+ * to their owner; everyone else sees a count.
+ */
+export function viewEventFor(ev: GameEvent, viewerId: string): GameEvent {
+    if (ev.t === 'YOU_DREW') {
+        const owner = (ev as GameEvent & { _owner?: string })._owner
+        if (owner && owner !== viewerId) {
+            return { t: 'PLAYER_DREW', playerId: owner, count: ev.cards.length }
+        }
+        return { t: 'YOU_DREW', cards: ev.cards }
+    }
+    return ev
+}
+
+export function personalView(
+    game: GameRecord | null,
+    roomStatus: 'lobby' | 'playing' | 'finished',
+    viewerId: string,
+    roster: { userId: string; name: string }[],
+    connectedIds: Set<string>,
+    hostUserId: string | null,
+): PersonalView {
+    if (!game) {
+        return {
+            status: 'lobby',
+            hostUserId,
+            players: roster.map((r, seat) => ({
+                userId: r.userId, name: r.name, seat,
+                handCount: 0, isEliminated: false,
+                connected: connectedIds.has(r.userId), calledUno: false,
+            })),
+            you: null,
+            currentPlayerId: null,
+            turnState: 'WAITING_FOR_ACTION',
+            direction: 1,
+            drawStack: 0,
+            currentColor: 'red',
+            discardTop: null,
+            deckCount: 0,
+            discardCount: 0,
+            rouletteTargetColor: null,
+            pendingDiscardAllCards: null,
+            pendingDrawnWildCard: null,
+            stackingMode: 'official',
+            winnerId: null,
+        }
+    }
+
+    const s = game.engine
+    const current = engine.currentPlayer(s)
+    const me = s.players.find(p => p.id === viewerId) ?? null
+    const isChooser = current?.id === viewerId
+
+    const players: SnapshotPlayer[] = s.players.map((p, seat) => ({
+        userId: p.id,
+        name: p.name,
+        seat,
+        handCount: p.hand.length,
+        isEliminated: p.isEliminated,
+        connected: connectedIds.has(p.id),
+        calledUno: !!s.hasCalledUno[p.id],
+    }))
+
+    const pendingWild = game.pendingDrawnWildCardId && isChooser
+        ? me?.hand.find(c => c.id === game.pendingDrawnWildCardId) ?? null
+        : null
+
+    return {
+        status: roomStatus,
+        hostUserId,
+        players,
+        you: me ? { userId: me.id, seat: s.players.indexOf(me), hand: me.hand } : null,
+        currentPlayerId: current?.id ?? null,
+        turnState: s.turnState,
+        direction: s.direction,
+        drawStack: s.drawStack,
+        currentColor: s.currentColor,
+        discardTop: engine.topCard(s) ?? null,
+        deckCount: s.deck.length,
+        discardCount: s.discardPile.length,
+        rouletteTargetColor: s.rouletteTargetColor,
+        pendingDiscardAllCards: isChooser && s.turnState === 'CHOOSING_DISCARD_ALL_TOP' ? s.pendingDiscardAllCards : null,
+        pendingDrawnWildCard: pendingWild,
+        stackingMode: s.stackingMode,
+        winnerId: s.winnerId,
+    }
+}
+
+export type { Card }
