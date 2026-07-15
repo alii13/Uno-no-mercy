@@ -344,6 +344,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { Copy, Check, Pencil, X } from 'lucide-vue-next'
 import { vFocusRing } from '../directives/focusRing'
+import { preloadCardImages } from '../utils/preloadCardImages'
 import { useAuthStore } from '../stores/authStore'
 import { useMultiplayerStore } from '../stores/multiplayerStore'
 import { useVoiceStore } from '../stores/voiceStore'
@@ -382,6 +383,8 @@ const selectedStackingMode = ref<StackingMode>(gameStore.stackingMode)
 // fire the join automatically. Friends sharing the invite URL drop
 // straight into the room instead of copy-pasting the code manually.
 onMounted(() => {
+  // Warm the deck art while the player is still in the lobby.
+  preloadCardImages()
   const params = new URLSearchParams(window.location.search)
   const code = params.get('join')?.toUpperCase().trim()
   if (!code) return
