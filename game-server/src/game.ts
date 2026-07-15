@@ -2,11 +2,71 @@ import * as engine from '../../shared/engine'
 import type { Card, EngineEvent, EngineState, StackingMode } from '../../shared/engine'
 import type { GameEvent, IntentAction, PersonalView, SnapshotPlayer } from './protocol'
 
+export interface PlayerGameStats {
+    cardsPlayedTotal: number
+    drawCardsPlayed: number
+    wildCardsPlayed: number
+    skipsDealt: number
+    swapsMade: number
+    drawsTaken: number
+    peakCards: number
+    biggestStackSurvived: number
+    unoCalls: number
+    unoPenalties: number
+}
+
+export function emptyStats(): PlayerGameStats {
+    return {
+        cardsPlayedTotal: 0, drawCardsPlayed: 0, wildCardsPlayed: 0, skipsDealt: 0,
+        swapsMade: 0, drawsTaken: 0, peakCards: 0, biggestStackSurvived: 0,
+        unoCalls: 0, unoPenalties: 0,
+    }
+}
+
 export interface GameRecord {
     engine: EngineState
     /** Card drawn via draw-until-playable that is a wild — waiting for its color. */
     pendingDrawnWildCardId: string | null
     startedAt: number
+    /** Per-player stats, persisted to game_results at game end. */
+    stats?: Record<string, PlayerGameStats>
+    resultsLogged?: boolean
+}
+
+export function statsFor(game: GameRecord, userId: string): PlayerGameStats {
+    if (!game.stats) game.stats = {}
+    return (game.stats[userId] ??= emptyStats())
+}
+
+/** Fold a batch of wire events into the per-player stats. */
+export function updateStats(game: GameRecord, events: GameEvent[]): void {
+    for (const ev of events) {
+        switch (ev.t) {
+            case 'CARD_PLAYED': {
+                const s = statsFor(game, ev.by)
+                s.cardsPlayedTotal++
+                if (ev.card.color === 'wild') s.wildCardsPlayed++
+                if (engine.getDrawValue(ev.card) > 0) s.drawCardsPlayed++
+                if (ev.card.type === 'skip' || ev.card.type === 'skipEveryone') s.skipsDealt++
+                break
+            }
+            case 'YOU_DREW': {
+                const owner = (ev as GameEvent & { _owner?: string })._owner
+                if (owner) statsFor(game, owner).drawsTaken += ev.cards.length
+                break
+            }
+            case 'UNO_CALLED':
+                statsFor(game, ev.playerId).unoCalls++
+                break
+            case 'UNO_PENALTY':
+                statsFor(game, ev.playerId).unoPenalties++
+                break
+        }
+    }
+    for (const p of game.engine.players) {
+        const s = statsFor(game, p.id)
+        if (p.hand.length > s.peakCards) s.peakCards = p.hand.length
+    }
 }
 
 export interface SeatedPlayer {
@@ -53,8 +113,14 @@ export function startGame(players: SeatedPlayer[], stackingMode: StackingMode): 
     const ev: EngineEvent[] = []
     engine.drawFirstDiscard(s, ev)
 
+    const stats: Record<string, PlayerGameStats> = {}
+    for (const p of s.players) {
+        stats[p.id] = emptyStats()
+        stats[p.id]!.peakCards = p.hand.length
+    }
+
     return {
-        game: { engine: s, pendingDrawnWildCardId: null, startedAt: Date.now() },
+        game: { engine: s, pendingDrawnWildCardId: null, startedAt: Date.now(), stats, resultsLogged: false },
         events: [{ t: 'STARTED' }, ...translateEngineEvents(ev)],
     }
 }
@@ -148,7 +214,9 @@ export function applyIntent(game: GameRecord, userId: string, action: IntentActi
             const ev: EngineEvent[] = []
             const target = s.players.find(p => p.id === action.targetUserId)
             if (!target || target.id === userId) return invalid
-            if (!engine.swapHands(s, action.targetUserId, ev) && s.turnState === 'CHOOSING_PLAYER_TO_SWAP') return invalid
+            const swapped = engine.swapHands(s, action.targetUserId, ev)
+            if (!swapped && s.turnState === 'CHOOSING_PLAYER_TO_SWAP') return invalid
+            if (swapped) statsFor(game, userId).swapsMade++
             return { ok: true, events: translateEngineEvents(ev) }
         }
 
@@ -179,6 +247,8 @@ function resolveDraw(game: GameRecord, userId: string): IntentResult {
     if (s.drawStack > 0) {
         const count = s.drawStack
         s.drawStack = 0
+        const stats = statsFor(game, userId)
+        if (count > stats.biggestStackSurvived) stats.biggestStackSurvived = count
         for (let i = 0; i < count; i++) {
             if (player.isEliminated || s.gameState === 'GAME_OVER') break
             engine.drawCardToHand(s, userId, ev)
@@ -277,6 +347,64 @@ export function autoResolveAbsentTurn(game: GameRecord, userId: string): GameEve
         break
     }
     return out
+}
+
+/**
+ * Persist one game_results row per player, server-to-server. Requires the
+ * service-role key (wrangler secret SUPABASE_SERVICE_KEY); without it this is
+ * a no-op so the game itself never depends on stats plumbing.
+ */
+export async function persistResults(
+    game: GameRecord,
+    roomCode: string,
+    env: { SUPABASE_URL: string; SUPABASE_SERVICE_KEY?: string },
+): Promise<boolean> {
+    if (!env.SUPABASE_SERVICE_KEY || game.resultsLogged) return false
+    const s = game.engine
+    if (s.gameState !== 'GAME_OVER') return false
+    game.resultsLogged = true
+
+    const gameId = `do-${roomCode}-${game.startedAt}`
+    const duration = Math.max(0, Math.round((Date.now() - game.startedAt) / 1000))
+    const rows = s.players.map(p => {
+        const st = statsFor(game, p.id)
+        const result = s.winnerId === p.id ? 'won' : p.isEliminated ? 'eliminated' : 'lost'
+        return {
+            game_id: gameId,
+            user_id: p.id,
+            opponent_count: s.players.length - 1,
+            result,
+            cards_remaining: p.hand.length,
+            peak_cards: st.peakCards,
+            draw_cards_played: st.drawCardsPlayed,
+            wild_cards_played: st.wildCardsPlayed,
+            cards_played_total: st.cardsPlayedTotal,
+            skips_dealt: st.skipsDealt,
+            swaps_made: st.swapsMade,
+            draws_taken: st.drawsTaken,
+            biggest_stack_survived: st.biggestStackSurvived,
+            uno_calls: st.unoCalls,
+            uno_penalties: st.unoPenalties,
+            game_duration_secs: duration,
+            is_bot_game: false,
+        }
+    })
+
+    const res = await fetch(`${env.SUPABASE_URL}/rest/v1/game_results`, {
+        method: 'POST',
+        headers: {
+            apikey: env.SUPABASE_SERVICE_KEY,
+            Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+            'content-type': 'application/json',
+            Prefer: 'return=minimal',
+        },
+        body: JSON.stringify(rows),
+    })
+    if (!res.ok) {
+        console.log('game_results insert failed', res.status, (await res.text()).slice(0, 200))
+        return false
+    }
+    return true
 }
 
 /** Draw-10 penalty for a caught UNO miss. Window validation is the room's job. */

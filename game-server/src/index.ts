@@ -2,11 +2,13 @@
 
 import { verifySupabaseToken, type AuthEnv } from './auth'
 import type { ClientMsg, GameEvent, PresencePlayer, ServerMsg } from './protocol'
-import { applyIntent, applyUnoCatch, autoResolveAbsentTurn, forceEliminate, personalView, startGame, viewEventFor, type GameRecord } from './game'
+import { applyIntent, applyUnoCatch, autoResolveAbsentTurn, forceEliminate, persistResults, personalView, startGame, updateStats, viewEventFor, type GameRecord } from './game'
 import type { StackingMode } from '../../shared/engine'
 
 interface Env extends AuthEnv {
     ROOM: DurableObjectNamespace
+    /** Optional wrangler secret; enables server-side game_results persistence. */
+    SUPABASE_SERVICE_KEY?: string
 }
 
 const CONTINENT_HINTS: Record<string, string> = {
@@ -310,6 +312,7 @@ export class GameRoomDO {
     private async broadcastGame(events: GameEvent[], intentId?: string): Promise<void> {
         this.seq++
         await this.processCatchWindows(events)
+        if (this.game) updateStats(this.game, events)
         const roster = await this.rosterList()
         const roomRec = await this.ctx.storage.get<RoomRecord>('room')
         for (const { ws, userId } of this.roomSockets()) {
@@ -317,6 +320,9 @@ export class GameRoomDO {
                 this.send(ws, { t: 'event', seq: this.seq, ev: viewEventFor(ev, userId), intentId })
             }
             this.send(ws, { t: 'snapshot', seq: this.seq, game: this.viewFor(userId, roster, roomRec) })
+        }
+        if (this.game && roomRec && events.some(e => e.t === 'GAME_OVER')) {
+            await persistResults(this.game, roomRec.code, this.env)
         }
         await this.saveGame()
         await this.armTurnGrace()
