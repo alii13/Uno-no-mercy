@@ -7,7 +7,8 @@
     "paths": {
       "@/*": ["./src/*"],
       "@engine": ["../shared/engine/index.ts"],
-      "@engine/*": ["../shared/engine/*"]
+      "@engine/*": ["../shared/engine/*"],
+      "@protocol": ["../shared/protocol.ts"]
     },
 
     /* Linting */
