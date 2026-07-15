@@ -520,7 +520,10 @@ export class GameRoomDO {
                     }
                     const roster = (await this.ctx.storage.get<Record<string, RosterEntry>>('roster')) ?? {}
                     const name = roster[tag.userId]?.name ?? 'PLAYER'
-                    const token = await addParticipant(this.env, meetingId, { name, customParticipantId: tag.userId })
+                    // The room host gets the moderation preset (mute others).
+                    const token = await addParticipant(this.env, meetingId, {
+                        name, customParticipantId: tag.userId, isHost: tag.userId === room.hostUserId,
+                    })
                     this.send(ws, { t: 'voice-token', token, meetingId })
                     await this.touchGc()
                 } catch (err) {

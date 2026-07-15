@@ -16,6 +16,12 @@
         :is-eliminated="mpStore.eliminatedIds.has(opp.user_id)"
         :is-disconnected="isDisconnected(opp.user_id)"
         :can-kick="mpStore.isHost && !mpStore.eliminatedIds.has(opp.user_id)"
+        :in-voice="voiceStore.voiceUserIds.has(opp.user_id)"
+        :is-speaking="voiceStore.speakingUserIds.has(opp.user_id)"
+        :can-voice-mute="canVoiceMute(opp.user_id)"
+        :voice-muted="voiceStore.localMutedUserIds.has(opp.user_id)"
+        :voice-mute-title="voiceMuteTitle(opp.user_id)"
+        @voice-mute="handleVoiceMute(opp.user_id)"
         @kick="requestKick(opp.user_id, opp.name)"
       />
       <template #controls>
@@ -32,12 +38,6 @@
           </svg>
         </button>
         <button
-          class="hud-help"
-          @click="showRules = true"
-          aria-label="How to play"
-          title="How to play"
-        >?</button>
-        <button
           class="hud-audio"
           :class="{ active: !soundEffects.isMuted.value }"
           @click="toggleSound"
@@ -46,6 +46,7 @@
           <span class="hud-audio-label">AUDIO</span>
           <span class="hud-audio-dot"></span>
         </button>
+        <VoiceMicCluster :can-moderate="mpStore.isHost" />
         <SettingsButton />
       </template>
     </SurveillanceBar>
@@ -223,8 +224,6 @@
       @cancel="showLeaveConfirm = false"
     />
 
-    <RulesModal v-if="showRules" @close="showRules = false" />
-
     <ConfirmDialog
       :open="!!kickTarget"
       title="Remove this player?"
@@ -242,6 +241,7 @@ import { ref, computed, watch, provide, onMounted, onUnmounted } from 'vue'
 import { music } from '../../composables/useMusic'
 import { useMultiplayerStore } from '../../stores/multiplayerStore'
 import { useAuthStore } from '../../stores/authStore'
+import { useVoiceStore } from '../../stores/voiceStore'
 import { soundEffects } from '../../composables/useSoundEffects'
 import { useCardAnimations } from '../../composables/useCardAnimations'
 import CardPile from './CardPile.vue'
@@ -253,12 +253,12 @@ import DiscardAllPickerModal from './DiscardAllPickerModal.vue'
 import GameBackground from './GameBackground.vue'
 import SurveillanceBar from './SurveillanceBar.vue'
 import SettingsButton from '../SettingsButton.vue'
+import VoiceMicCluster from './VoiceMicCluster.vue'
 import BattlePit from './BattlePit.vue'
 import StatusPanel from './StatusPanel.vue'
 import PlayerConsoleBar from './PlayerConsoleBar.vue'
 import GameOverModal from './GameOverModal.vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
-import RulesModal from '../RulesModal.vue'
 import type { Card, CardColor } from '../../types/card'
 import { canPlayCard } from '../../utils/gameRules'
 import { countByColor } from '../../utils/gameHelpers'
@@ -269,11 +269,26 @@ import { animateOpponentThrow, burstImpactParticles, skipEveryoneShockwave, show
 
 const mpStore = useMultiplayerStore()
 const authStore = useAuthStore()
+const voiceStore = useVoiceStore()
+
+// One speaker button per seat: hosts cut the mic for the whole room (shown
+// while the target is unmuted), everyone else silences the seat locally.
+function canVoiceMute(userId: string): boolean {
+  if (!voiceStore.voiceUserIds.has(userId)) return false
+  return mpStore.isHost ? voiceStore.unmutedUserIds.has(userId) : true
+}
+function voiceMuteTitle(userId: string): string {
+  if (mpStore.isHost) return 'Mute for everyone'
+  return voiceStore.localMutedUserIds.has(userId) ? 'Unmute for me' : 'Mute for me'
+}
+function handleVoiceMute(userId: string) {
+  if (mpStore.isHost) void voiceStore.muteParticipant(userId)
+  else voiceStore.toggleMuteForMe(userId)
+}
 const { animateFlyingCard, animateDrawCardsStaggered, killAllFlyingCards } = useCardAnimations()
 
 const isShakeActive = ref(false)
 const showColorPicker = ref(false)
-const showRules = ref(false)
 const pendingCard = ref<Card | null>(null)
 
 // Transient "who played what" feed, driven by the store's broadcast action feed.

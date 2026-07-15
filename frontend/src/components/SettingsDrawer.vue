@@ -101,6 +101,14 @@
               </p>
             </section>
 
+            <!-- Help -->
+            <section class="settings-section">
+              <h3 class="section-title">HELP</h3>
+              <button class="help-btn" type="button" @click="showRules = true">
+                HOW TO PLAY
+              </button>
+            </section>
+
             <!-- About -->
             <section class="settings-section">
               <h3 class="section-title">ABOUT</h3>
@@ -122,14 +130,19 @@
       </div>
     </Transition>
   </Teleport>
+
+  <RulesModal v-if="showRules" @close="showRules = false" />
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useSettingsStore } from '../stores/settingsStore'
 import { soundEffects } from '../composables/useSoundEffects'
 import { music as musicComposable } from '../composables/useMusic'
+import RulesModal from './RulesModal.vue'
 
 const settings = useSettingsStore()
+const showRules = ref(false)
 const sfx = soundEffects
 const music = musicComposable
 
@@ -251,6 +264,21 @@ input[type="range"]:disabled { opacity: 0.4; }
   transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
 .mute-btn:hover { border-color: #ffcc00; color: #ffcc00; }
+
+.help-btn {
+  width: 100%;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #e6e6e6;
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.18em;
+  padding: 0.65rem 0;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.help-btn:hover { border-color: #ffcc00; color: #ffcc00; }
 .mute-btn.muted {
   border-color: #ff2a2a;
   color: #ff2a2a;

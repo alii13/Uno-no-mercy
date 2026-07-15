@@ -15,13 +15,30 @@
     @keydown.enter.prevent="isSelectable && $emit('click')"
     @keydown.space.prevent="isSelectable && $emit('click')"
   >
-    <div class="avatar" :class="{ 'avatar-active': isActive }">{{ name.charAt(0).toUpperCase() }}</div>
+    <div class="avatar" :class="{ 'avatar-active': isActive, speaking: isSpeaking }">{{ name.charAt(0).toUpperCase() }}</div>
     <div class="opponent-info">
-      <span class="name">{{ name }}</span>
+      <span class="name">{{ name }}
+        <span v-if="inVoice" class="voice-dot" :class="{ speaking: isSpeaking }" title="In voice"></span>
+      </span>
       <span v-if="isDisconnected && !isEliminated" class="card-count dc-text">DISCONNECTED</span>
       <span v-else-if="isEliminated" class="card-count eliminated-text">OUT</span>
       <span v-else class="card-count">{{ cardCount }} {{ displayLabel }}</span>
     </div>
+    <button
+      v-if="canVoiceMute"
+      class="opp-voice-btn"
+      :class="{ 'is-muted': voiceMuted }"
+      :title="voiceMuteTitle"
+      :aria-label="voiceMuteTitle"
+      @click.stop="$emit('voiceMute')"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" aria-hidden="true">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+        <path v-if="!voiceMuted" d="M15.5 8.5a5 5 0 0 1 0 7" />
+        <line v-if="voiceMuted" x1="15" y1="9" x2="21" y2="15" />
+        <line v-if="voiceMuted" x1="21" y1="9" x2="15" y2="15" />
+      </svg>
+    </button>
     <button
       v-if="canKick"
       class="opp-kick-btn"
@@ -46,9 +63,14 @@ const props = defineProps<{
   isSelectable?: boolean
   canKick?: boolean
   countLabel?: string
+  inVoice?: boolean
+  isSpeaking?: boolean
+  canVoiceMute?: boolean
+  voiceMuted?: boolean
+  voiceMuteTitle?: string
 }>()
 
-defineEmits<{ click: []; kick: [] }>()
+defineEmits<{ click: []; kick: []; voiceMute: [] }>()
 
 // Explicit label (e.g. multiplayer's "INTEL") wins; otherwise pluralize.
 const displayLabel = computed(() => props.countLabel ?? (props.cardCount === 1 ? 'card' : 'cards'))

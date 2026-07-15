@@ -182,6 +182,27 @@
               </button>
               <span v-else class="player-name">{{ player.name }}</span>
               <span
+                v-if="voiceStore.voiceUserIds.has(player.user_id)"
+                class="voice-dot"
+                :class="{ speaking: voiceStore.speakingUserIds.has(player.user_id) }"
+                title="In voice"
+              ></span>
+              <button
+                v-if="canVoiceMute(player.user_id)"
+                class="seat-voice-btn"
+                :class="{ 'is-muted': voiceStore.localMutedUserIds.has(player.user_id) }"
+                :title="voiceMuteTitle(player.user_id)"
+                :aria-label="voiceMuteTitle(player.user_id)"
+                @click="handleVoiceMute(player.user_id)"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" aria-hidden="true">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <path v-if="!voiceStore.localMutedUserIds.has(player.user_id)" d="M15.5 8.5a5 5 0 0 1 0 7" />
+                  <line v-if="voiceStore.localMutedUserIds.has(player.user_id)" x1="15" y1="9" x2="21" y2="15" />
+                  <line v-if="voiceStore.localMutedUserIds.has(player.user_id)" x1="21" y1="9" x2="15" y2="15" />
+                </svg>
+              </button>
+              <span
                 v-if="player.user_id === mpStore.currentGame?.host_id"
                 class="player-badge"
               >HOST</span>
@@ -206,6 +227,10 @@
         </div>
 
         <div class="waiting-actions">
+          <div v-if="voiceStore.available" class="waiting-voice">
+            <VoiceMicCluster :can-moderate="mpStore.isHost" />
+            <span class="waiting-voice-hint">Talk while you play</span>
+          </div>
           <p
             v-if="mpStore.isHost && mpStore.gamePlayers.length < 2"
             class="waiting-nudge"
@@ -321,12 +346,14 @@ import { Copy, Check, Pencil, X } from 'lucide-vue-next'
 import { vFocusRing } from '../directives/focusRing'
 import { useAuthStore } from '../stores/authStore'
 import { useMultiplayerStore } from '../stores/multiplayerStore'
+import { useVoiceStore } from '../stores/voiceStore'
 import { useGameStore } from '../stores/gameStore'
 import SiteFooter from './SiteFooter.vue'
 import LandingStatsBadge from './LandingStatsBadge.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import RulesModal from './RulesModal.vue'
 import Button from './ui/Button.vue'
+import VoiceMicCluster from './game/VoiceMicCluster.vue'
 import type { StackingMode } from '../utils/gameRules'
 
 const emit = defineEmits<{
@@ -337,6 +364,7 @@ const emit = defineEmits<{
 
 const authStore = useAuthStore()
 const mpStore = useMultiplayerStore()
+const voiceStore = useVoiceStore()
 const gameStore = useGameStore()
 
 const showJoinModal = ref(false)
@@ -374,6 +402,21 @@ onMounted(() => {
   joinCode.value = code
   mpStore.joinGame(code)
 })
+
+// Speaker button per seat: host cuts the mic room-wide, others mute locally.
+function canVoiceMute(userId: string): boolean {
+  if (userId === authStore.user?.id) return false
+  if (!voiceStore.voiceUserIds.has(userId)) return false
+  return mpStore.isHost ? voiceStore.unmutedUserIds.has(userId) : true
+}
+function voiceMuteTitle(userId: string): string {
+  if (mpStore.isHost) return 'Mute for everyone'
+  return voiceStore.localMutedUserIds.has(userId) ? 'Unmute for me' : 'Mute for me'
+}
+function handleVoiceMute(userId: string) {
+  if (mpStore.isHost) void voiceStore.muteParticipant(userId)
+  else voiceStore.toggleMuteForMe(userId)
+}
 
 const stackingModes: { value: StackingMode; label: string; desc: string }[] = [
   { value: 'official', label: 'OFFICIAL', desc: 'Printed rules — stack a draw only with equal or higher value' },
@@ -1108,6 +1151,75 @@ function copyLink() {
   align-items: center;
   gap: var(--spacing-3);
   width: 100%;
+}
+
+.waiting-voice {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+/* The discovery nudge is right-anchored for the in-game top bar; here the
+   button sits mid-page, so anchor it left instead of letting it clip
+   off-screen. */
+.waiting-voice :deep(.voice-nudge) {
+  right: auto;
+  left: 0;
+}
+
+.waiting-voice-hint {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+}
+
+.seat-voice-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--color-neon-green);
+  color: var(--color-neon-green);
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.seat-voice-btn:hover { opacity: 1; }
+
+.seat-voice-btn.is-muted {
+  border-color: var(--color-alert);
+  color: var(--color-alert);
+}
+
+/* Green presence dot on seats connected to voice; pulses while they talk. */
+.voice-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-neon-green);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.voice-dot.speaking {
+  opacity: 1;
+  box-shadow: 0 0 8px var(--color-neon-green);
+  animation: voice-dot-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes voice-dot-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.5); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-dot.speaking { animation: none; }
 }
 
 .waiting-text {

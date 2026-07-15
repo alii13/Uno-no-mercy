@@ -5,6 +5,7 @@ import { DEFAULT_STACKING_MODE, type StackingMode } from '../utils/gameRules'
 import { getDrawValue } from '../utils/gameRules'
 import { supabase, type GameRow, type GamePlayerRow } from '../lib/supabase'
 import { useAuthStore } from './authStore'
+import { useVoiceStore } from './voiceStore'
 import type { ClientMsg, IntentAction, PersonalView, PresencePlayer, ServerMsg } from '@protocol'
 
 // The authoritative game server (Cloudflare Worker + one Durable Object per
@@ -227,7 +228,15 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 break
             }
 
+            case 'voice-token':
+                useVoiceStore().onVoiceToken(msg.token)
+                break
+
             case 'error':
+                if (msg.code === 'voice-unavailable') {
+                    useVoiceStore().onVoiceUnavailable()
+                    break
+                }
                 if (msg.code === 'need-players') {
                     error.value = 'Need at least 2 connected players to start'
                 }
@@ -292,10 +301,19 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 if (msg.t === 'snapshot') settle(true)
             }
             socket.onerror = () => settle(false)
-            socket.onclose = () => {
+            socket.onclose = (e) => {
                 settle(false)
                 if (ws !== socket) return
                 realtimeStatus.value = 'CLOSED'
+                if (e?.reason === 'kicked') {
+                    // Being removed ends the whole session — voice included.
+                    closedByUs = true
+                    void useVoiceStore().leaveVoice()
+                    try { localStorage.removeItem(STORED_ROOM_KEY) } catch { /* noop */ }
+                    resetState()
+                    error.value = 'You were removed from the room'
+                    return
+                }
                 if (!closedByUs && roomCodeRef.value) scheduleReconnect()
             }
         })
@@ -431,7 +449,14 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         sendMsg({ t: 'start', stackingMode: stackingMode.value })
     }
 
+    /** The voice store asks for a RealtimeKit token over the game socket. */
+    function requestVoiceJoin() {
+        sendMsg({ t: 'voice-join' })
+    }
+
     async function leaveGame() {
+        // Leaving the room leaves its voice channel; rematches keep it.
+        void useVoiceStore().leaveVoice()
         closedByUs = true
         if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
         sendMsg({ t: 'leave' })
@@ -444,6 +469,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
     async function kickPlayer(userId: string) {
         sendMsg({ t: 'kick', userId })
+        // Eject them from the voice channel too (host permission; no-op otherwise —
+        // the kicked client also leaves voice itself when its socket closes).
+        void useVoiceStore().kickFromVoice(userId)
     }
 
     async function updateMyName(name: string) {
@@ -549,6 +577,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         callUno,
         kickPlayer,
         updateMyName,
+        requestVoiceJoin,
         leaveGame,
     }
 })

@@ -168,30 +168,6 @@
   color: var(--color-neon-blue);
 }
 
-.hud-help {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  min-height: 44px;
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid #333;
-  color: var(--text-secondary);
-  font-family: var(--font-mono);
-  font-size: 1rem;
-  font-weight: bold;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  transition:
-    border-color var(--duration-snap) var(--ease-snap),
-    color var(--duration-snap) var(--ease-snap);
-}
-
-.hud-help:hover {
-  border-color: var(--color-neon-blue);
-  color: var(--color-neon-blue);
-}
-
 .hud-exit {
   display: inline-flex;
   align-items: center;
@@ -253,6 +229,38 @@
 .hud-audio.active .hud-audio-dot {
   background: var(--color-neon-blue);
   box-shadow: 0 0 8px var(--color-neon-blue);
+}
+
+/* Who's in voice / who's talking — on the opponent chips. (The mic cluster
+   itself is self-styled in VoiceMicCluster.vue so it works outside the game
+   views too.) */
+.opponent-card .avatar.speaking {
+  box-shadow: 0 0 0 2px var(--color-neon-green), 0 0 12px rgba(0, 255, 102, 0.7);
+}
+
+.voice-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-neon-green);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.voice-dot.speaking {
+  opacity: 1;
+  box-shadow: 0 0 8px var(--color-neon-green);
+  animation: voice-dot-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes voice-dot-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.5); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-dot.speaking { animation: none; }
 }
 
 /* Multiplayer opponent card — same pill pattern as single-player OpponentHand */
@@ -346,6 +354,37 @@
 .opp-kick-btn:hover {
   opacity: 1;
   transform: scale(1.12);
+}
+
+/* Voice mute on a seat — host cuts their mic for everyone, non-hosts
+   silence them locally. Sits opposite the kick badge. */
+.opp-voice-btn {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: #1c2a1f;
+  border: 1px solid var(--color-neon-green);
+  color: var(--color-neon-green);
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.opp-voice-btn:hover {
+  opacity: 1;
+  transform: scale(1.12);
+}
+
+.opp-voice-btn.is-muted {
+  border-color: var(--color-alert);
+  color: var(--color-alert);
+  background: #2a1717;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1365,11 +1404,20 @@
   .opponents-grid {
     flex: 1 1 0;
     min-width: 0;
+    /* The base grid wraps (desktop has room); in this scrolling strip the
+       chips must stay on ONE line or 3+ opponents stack the bar tall. */
+    flex-wrap: nowrap;
     overflow-x: auto;
     gap: var(--spacing-2);
     justify-content: flex-start;
-    padding-bottom: var(--spacing-1);
+    /* Room for the -6px seat badges (mute/kick), which the scroll
+       container would otherwise clip. */
+    padding: 6px 0 var(--spacing-1) 6px;
     scrollbar-width: none;
+  }
+
+  .opponents-grid .opponent-card {
+    flex-shrink: 0;
   }
 
   .opponents-grid::-webkit-scrollbar {
