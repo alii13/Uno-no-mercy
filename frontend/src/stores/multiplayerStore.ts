@@ -269,13 +269,15 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 if (msg.t === 'hello') {
                     roomCodeRef.value = code
                     try { localStorage.setItem(STORED_ROOM_KEY, code) } catch { /* noop */ }
-                    settle(true)
                 }
                 if (msg.t === 'error' && (msg.code === 'unauthorized' || msg.code === 'room-not-found')) {
                     error.value = msg.code === 'room-not-found' ? 'Room not found' : 'Could not authenticate'
                     settle(false)
                 }
                 handleServerMsg(msg)
+                // Settle on the first snapshot, not hello — callers read
+                // currentGame off the result, and the view fills in here.
+                if (msg.t === 'snapshot') settle(true)
             }
             socket.onerror = () => settle(false)
             socket.onclose = () => {
@@ -338,14 +340,20 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     async function createRoom(mode: StackingMode, isPublic: boolean): Promise<string | null> {
         const token = await accessToken()
         if (!token) { error.value = 'You must be logged in to create a game'; return null }
-        const res = await fetch(`${GAME_SERVER}/rooms`, {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-            body: JSON.stringify({ stackingMode: mode, public: isPublic }),
-        })
-        if (!res.ok) { error.value = 'Could not create the room'; return null }
-        const { code } = await res.json() as { code: string }
-        return code
+        try {
+            const res = await fetch(`${GAME_SERVER}/rooms`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+                body: JSON.stringify({ stackingMode: mode, public: isPublic }),
+            })
+            if (!res.ok) { error.value = 'Could not create the room'; return null }
+            const { code } = await res.json() as { code: string }
+            return code
+        } catch {
+            // Network/CORS failure — surface it instead of dying silently.
+            error.value = 'Could not reach the game server'
+            return null
+        }
     }
 
     async function createGame(mode: StackingMode = DEFAULT_STACKING_MODE) {
@@ -379,8 +387,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         error.value = null
         resetState()
         try {
-            const res = await fetch(`${GAME_SERVER}/public-rooms`)
-            const codes = res.ok ? (await res.json() as string[]) : []
+            const codes = await fetch(`${GAME_SERVER}/public-rooms`)
+                .then(res => (res.ok ? (res.json() as Promise<string[]>) : []))
+                .catch(() => [] as string[])
             for (const code of codes) {
                 if (await connect(code)) return code
             }
