@@ -3,6 +3,7 @@
 import { verifySupabaseToken, type AuthEnv } from './auth'
 import type { ClientMsg, GameEvent, PresencePlayer, ServerMsg } from './protocol'
 import { applyIntent, personalView, startGame, viewEventFor, type GameRecord } from './game'
+import type { StackingMode } from '../../shared/engine'
 
 interface Env extends AuthEnv {
     ROOM: DurableObjectNamespace
@@ -43,6 +44,12 @@ function candidateStub(env: Env, code: string, i: number, hint?: string): Durabl
     return env.ROOM.get(id, hint ? { locationHint: hint as DurableObjectLocationHint } : undefined)
 }
 
+// Singleton directory of open public rooms (quick match). Reuses the room DO
+// class under a reserved name that can't collide with share codes.
+function directoryStub(env: Env): DurableObjectStub {
+    return env.ROOM.get(env.ROOM.idFromName('!directory'))
+}
+
 /** Find which lottery candidate holds the active room, if any. */
 async function locateRoom(env: Env, code: string): Promise<DurableObjectStub | null> {
     const probes = Array.from({ length: CANDIDATES }, async (_, i) => {
@@ -54,17 +61,52 @@ async function locateRoom(env: Env, code: string): Promise<DurableObjectStub | n
     return Promise.any(probes).catch(() => null)
 }
 
+// Browser origins allowed to call the HTTP endpoints (WebSockets don't
+// preflight). Allowlist, not '*': the game's domains plus local dev.
+function corsOrigin(req: Request): string | null {
+    const origin = req.headers.get('Origin')
+    if (!origin) return null
+    if (origin === 'https://uno-no-mercy.com' || origin === 'https://www.uno-no-mercy.com') return origin
+    if (/^http:\/\/localhost(:\d+)?$/.test(origin)) return origin
+    if (/^https:\/\/[a-z0-9-]+\.uno-no-mercy\.pages\.dev$/.test(origin)) return origin
+    return null
+}
+
+function withCors(res: Response, req: Request): Response {
+    const origin = corsOrigin(req)
+    if (!origin) return res
+    const out = new Response(res.body, res)
+    out.headers.set('Access-Control-Allow-Origin', origin)
+    out.headers.set('Vary', 'Origin')
+    return out
+}
+
 export default {
     async fetch(req: Request, env: Env): Promise<Response> {
         const url = new URL(req.url)
         const hint = CONTINENT_HINTS[(req.cf?.continent as string) ?? '']
+
+        if (req.method === 'OPTIONS') {
+            const origin = corsOrigin(req)
+            if (!origin) return new Response(null, { status: 403 })
+            return new Response(null, {
+                headers: {
+                    'Access-Control-Allow-Origin': origin,
+                    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+                    'Access-Control-Max-Age': '86400',
+                    'Vary': 'Origin',
+                },
+            })
+        }
 
         // Create a room: run the placement lottery and activate the winner.
         // Creation is authenticated — the creator becomes the room host.
         if (req.method === 'POST' && url.pathname === '/rooms') {
             const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '')
             const creator = await verifySupabaseToken(token, env)
-            if (!creator) return new Response('unauthorized', { status: 401 })
+            if (!creator) return withCors(new Response('unauthorized', { status: 401 }), req)
+            const opts = await req.json<{ public?: boolean; stackingMode?: string }>().catch(() => ({} as { public?: boolean; stackingMode?: string }))
             const code = generateRoomCode()
             const timings = await Promise.all(
                 Array.from({ length: CANDIDATES }, async (_, i) => {
@@ -81,9 +123,18 @@ export default {
             const winner = timings[0]!
             await candidateStub(env, code, winner.i).fetch('https://do/activate', {
                 method: 'POST',
-                body: JSON.stringify({ code, hostUserId: creator.userId }),
+                body: JSON.stringify({ code, hostUserId: creator.userId, stackingMode: opts.stackingMode ?? 'official', isPublic: !!opts.public }),
             })
-            return Response.json({ code, placementMs: winner.ms })
+            if (opts.public) {
+                await directoryStub(env).fetch('https://do/dir-register', { method: 'POST', body: JSON.stringify({ code }) })
+            }
+            return withCors(Response.json({ code, placementMs: winner.ms }), req)
+        }
+
+        // Open public rooms for quick match.
+        if (url.pathname === '/public-rooms') {
+            const res = await directoryStub(env).fetch('https://do/dir-list')
+            return withCors(Response.json(await res.json()), req)
         }
 
         // Join a room over WebSocket: /room/CODE/ws
@@ -119,6 +170,8 @@ interface RoomRecord {
     code: string
     createdAt: number
     hostUserId: string
+    stackingMode: string
+    isPublic: boolean
 }
 
 interface RosterEntry {
@@ -162,32 +215,29 @@ export class GameRoomDO {
             .sort((a, b) => a.joinedAt - b.joinedAt)
     }
 
+    private viewFor(userId: string, roster: { userId: string; name: string }[], roomRec: RoomRecord | undefined) {
+        const connected = new Set(this.roomSockets().map(s => s.userId))
+        const view = personalView(this.game ?? null, this.roomStatus(), userId, roster, connected, roomRec?.hostUserId ?? null)
+        if (!this.game && roomRec) view.stackingMode = roomRec.stackingMode as StackingMode
+        return view
+    }
+
     private async snapshotFor(userId: string): Promise<ServerMsg> {
         const roster = await this.rosterList()
-        const connected = new Set(this.roomSockets().map(s => s.userId))
-        const host = (await this.ctx.storage.get<RoomRecord>('room'))?.hostUserId ?? null
-        return {
-            t: 'snapshot',
-            seq: this.seq,
-            game: personalView(this.game ?? null, this.roomStatus(), userId, roster, connected, host),
-        }
+        const roomRec = await this.ctx.storage.get<RoomRecord>('room')
+        return { t: 'snapshot', seq: this.seq, game: this.viewFor(userId, roster, roomRec) }
     }
 
     /** Send an intent's events (personalized) + a fresh snapshot to every seated socket. */
     private async broadcastGame(events: GameEvent[], intentId?: string): Promise<void> {
         this.seq++
         const roster = await this.rosterList()
-        const connected = new Set(this.roomSockets().map(s => s.userId))
-        const host = (await this.ctx.storage.get<RoomRecord>('room'))?.hostUserId ?? null
+        const roomRec = await this.ctx.storage.get<RoomRecord>('room')
         for (const { ws, userId } of this.roomSockets()) {
             for (const ev of events) {
                 this.send(ws, { t: 'event', seq: this.seq, ev: viewEventFor(ev, userId), intentId })
             }
-            this.send(ws, {
-                t: 'snapshot',
-                seq: this.seq,
-                game: personalView(this.game ?? null, this.roomStatus(), userId, roster, connected, host),
-            })
+            this.send(ws, { t: 'snapshot', seq: this.seq, game: this.viewFor(userId, roster, roomRec) })
         }
         await this.saveGame()
     }
@@ -203,11 +253,36 @@ export class GameRoomDO {
                 return Response.json(!!(await this.ctx.storage.get('room')))
 
             case '/activate': {
-                const body = await req.json<{ code: string; hostUserId: string }>()
-                const room: RoomRecord = { code: body.code, createdAt: Date.now(), hostUserId: body.hostUserId }
+                const body = await req.json<{ code: string; hostUserId: string; stackingMode?: string; isPublic?: boolean }>()
+                const room: RoomRecord = {
+                    code: body.code, createdAt: Date.now(), hostUserId: body.hostUserId,
+                    stackingMode: body.stackingMode ?? 'official', isPublic: !!body.isPublic,
+                }
                 await this.ctx.storage.put('room', room)
                 await this.ctx.storage.setAlarm(Date.now() + ROOM_GC_MS)
                 return new Response('ok')
+            }
+
+            // --- Public-rooms directory (this DO under the reserved '!directory' name) ---
+            case '/dir-register': {
+                const { code } = await req.json<{ code: string }>()
+                const dir = (await this.ctx.storage.get<Record<string, number>>('dir')) ?? {}
+                dir[code] = Date.now()
+                await this.ctx.storage.put('dir', dir)
+                return new Response('ok')
+            }
+            case '/dir-unregister': {
+                const { code } = await req.json<{ code: string }>()
+                const dir = (await this.ctx.storage.get<Record<string, number>>('dir')) ?? {}
+                delete dir[code]
+                await this.ctx.storage.put('dir', dir)
+                return new Response('ok')
+            }
+            case '/dir-list': {
+                const dir = (await this.ctx.storage.get<Record<string, number>>('dir')) ?? {}
+                // Oldest first so early rooms fill up before new ones open.
+                const codes = Object.entries(dir).sort((a, b) => a[1] - b[1]).map(([code]) => code)
+                return Response.json(codes)
             }
 
             case '/room-ws': {
@@ -279,12 +354,11 @@ export class GameRoomDO {
             // Activity resets the GC clock.
             await this.ctx.storage.setAlarm(Date.now() + ROOM_GC_MS)
 
-            this.send(ws, { t: 'hello', roomCode: room.code, userId: verified.userId })
+            this.send(ws, { t: 'hello', roomCode: room.code, userId: verified.userId, hostUserId: room.hostUserId })
             await this.broadcastPresence(roster)
-            // Late joiner / reconnect while a game is running: catch them up.
-            if (await this.loadGame()) {
-                this.send(ws, await this.snapshotFor(verified.userId))
-            }
+            // Catch the joiner up — lobby state or a running game.
+            await this.loadGame()
+            this.send(ws, await this.snapshotFor(verified.userId))
             return
         }
 
@@ -293,9 +367,54 @@ export class GameRoomDO {
                 this.send(ws, { t: 'pong', now: msg.now })
                 return
 
-            case 'leave':
+            case 'leave': {
+                // Leaving the lobby removes the seat; leaving a running game
+                // keeps the roster entry so the player can reconnect.
+                await this.loadGame()
+                if (!this.game) {
+                    const roster = (await this.ctx.storage.get<Record<string, RosterEntry>>('roster')) ?? {}
+                    delete roster[tag.userId]
+                    await this.ctx.storage.put('roster', roster)
+                }
                 ws.close(1000, 'left')
                 return
+            }
+
+            case 'rename': {
+                const roster = (await this.ctx.storage.get<Record<string, RosterEntry>>('roster')) ?? {}
+                const entry = roster[tag.userId]
+                if (entry && msg.name) {
+                    entry.name = msg.name
+                    await this.ctx.storage.put('roster', roster)
+                    await this.loadGame()
+                    const seated = this.game?.engine.players.find(p => p.id === tag.userId)
+                    if (seated) seated.name = msg.name
+                    await this.saveGame()
+                }
+                await this.broadcastPresence(roster)
+                return
+            }
+
+            case 'kick': {
+                const roomRec = await this.ctx.storage.get<RoomRecord>('room')
+                if (roomRec?.hostUserId !== tag.userId) {
+                    this.send(ws, { t: 'error', code: 'not-host' })
+                    return
+                }
+                await this.loadGame()
+                if (this.game && this.roomStatus() === 'playing') {
+                    this.send(ws, { t: 'error', code: 'not-in-lobby' })
+                    return
+                }
+                const roster = (await this.ctx.storage.get<Record<string, RosterEntry>>('roster')) ?? {}
+                delete roster[msg.userId]
+                await this.ctx.storage.put('roster', roster)
+                for (const s of this.roomSockets()) {
+                    if (s.userId === msg.userId) s.ws.close(1008, 'kicked')
+                }
+                await this.broadcastPresence(roster)
+                return
+            }
 
             case 'start': {
                 await this.loadGame()
@@ -315,8 +434,14 @@ export class GameRoomDO {
                     this.send(ws, { t: 'error', code: 'need-players' })
                     return
                 }
-                const { game, events } = startGame(seated, msg.stackingMode ?? 'official')
+                const { game, events } = startGame(seated, msg.stackingMode ?? (roomRec.stackingMode as StackingMode) ?? 'official')
                 this.game = game
+                if (roomRec.isPublic) {
+                    // A started room is no longer joinable via quick match.
+                    await directoryStub(this.env).fetch('https://do/dir-unregister', {
+                        method: 'POST', body: JSON.stringify({ code: roomRec.code }),
+                    })
+                }
                 await this.broadcastGame(events)
                 return
             }
@@ -354,7 +479,14 @@ export class GameRoomDO {
     // GC: a room idle (no connected room sockets) past its alarm evaporates.
     async alarm() {
         if (this.roomSockets().length === 0) {
+            const roomRec = await this.ctx.storage.get<RoomRecord>('room')
+            if (roomRec?.isPublic) {
+                await directoryStub(this.env).fetch('https://do/dir-unregister', {
+                    method: 'POST', body: JSON.stringify({ code: roomRec.code }),
+                })
+            }
             await this.ctx.storage.deleteAll()
+            this.game = undefined
         } else {
             await this.ctx.storage.setAlarm(Date.now() + ROOM_GC_MS)
         }

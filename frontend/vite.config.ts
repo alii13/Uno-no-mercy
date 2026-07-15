@@ -10,6 +10,7 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@engine': path.resolve(__dirname, '../shared/engine'),
+      '@protocol': path.resolve(__dirname, '../shared/protocol.ts'),
     },
   },
   assetsInclude: ['**/*.png', '**/*.jpg', '**/*.jpeg'],
