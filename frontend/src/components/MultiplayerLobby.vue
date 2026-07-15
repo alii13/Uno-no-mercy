@@ -1129,6 +1129,14 @@ function copyLink() {
   gap: var(--spacing-3);
 }
 
+/* The discovery nudge is right-anchored for the in-game top bar; here the
+   button sits mid-page, so anchor it left instead of letting it clip
+   off-screen. */
+.waiting-voice :deep(.voice-nudge) {
+  right: auto;
+  left: 0;
+}
+
 .waiting-voice-hint {
   font-family: var(--font-mono);
   font-size: var(--text-xs);

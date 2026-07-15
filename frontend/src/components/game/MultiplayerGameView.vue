@@ -34,12 +34,6 @@
           </svg>
         </button>
         <button
-          class="hud-help"
-          @click="showRules = true"
-          aria-label="How to play"
-          title="How to play"
-        >?</button>
-        <button
           class="hud-audio"
           :class="{ active: !soundEffects.isMuted.value }"
           @click="toggleSound"
@@ -226,8 +220,6 @@
       @cancel="showLeaveConfirm = false"
     />
 
-    <RulesModal v-if="showRules" @close="showRules = false" />
-
     <ConfirmDialog
       :open="!!kickTarget"
       title="Remove this player?"
@@ -263,7 +255,6 @@ import StatusPanel from './StatusPanel.vue'
 import PlayerConsoleBar from './PlayerConsoleBar.vue'
 import GameOverModal from './GameOverModal.vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
-import RulesModal from '../RulesModal.vue'
 import type { Card, CardColor } from '../../types/card'
 import { canPlayCard } from '../../utils/gameRules'
 import { countByColor } from '../../utils/gameHelpers'
@@ -279,7 +270,6 @@ const { animateFlyingCard, animateDrawCardsStaggered, killAllFlyingCards } = use
 
 const isShakeActive = ref(false)
 const showColorPicker = ref(false)
-const showRules = ref(false)
 const pendingCard = ref<Card | null>(null)
 
 // Transient "who played what" feed, driven by the store's broadcast action feed.

@@ -1,9 +1,11 @@
 <template>
   <!-- One-button voice cluster: JOIN VOICE → spinner → mic (tap = mute).
        Hidden entirely when the server has no voice support. Failures show
-       RETRY with the reason as a tooltip — never a modal, never blocks play. -->
+       RETRY with the reason as a tooltip — never a modal, never blocks play.
+       A once-ever nudge points at the button so nobody misses that voice
+       exists (on phones the button is icon-only). -->
+  <span v-if="voice.available" class="voice-wrap">
   <button
-    v-if="voice.available"
     class="hud-voice"
     :class="{
       live: voice.state === 'live',
@@ -25,13 +27,42 @@
     </svg>
     <span class="hud-voice-label">{{ label }}</span>
   </button>
+  <Transition name="nudge">
+    <span v-if="showNudge" class="voice-nudge" role="status">
+      <span class="nudge-text">Talk with everyone in this room</span>
+      <button class="nudge-join" @click="acceptNudge">JOIN VOICE</button>
+      <button class="nudge-x" aria-label="Dismiss voice prompt" @click="dismissNudge">×</button>
+    </span>
+  </Transition>
+  </span>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useVoiceStore } from '../../stores/voiceStore'
 
 const voice = useVoiceStore()
+
+const NUDGE_KEY = 'uno_voice_nudge_v1'
+const nudgeSeen = ref((() => {
+  try { return !!localStorage.getItem(NUDGE_KEY) } catch { return true }
+})())
+function markNudgeSeen() {
+  nudgeSeen.value = true
+  try { localStorage.setItem(NUDGE_KEY, '1') } catch { /* private mode */ }
+}
+const showNudge = computed(() => !nudgeSeen.value && voice.state === 'off')
+function acceptNudge() {
+  markNudgeSeen()
+  void voice.joinVoice()
+}
+function dismissNudge() {
+  markNudgeSeen()
+}
+// Finding the button unaided counts as seen too.
+watch(() => voice.state, (s) => {
+  if (s !== 'off' && s !== 'error') markNudgeSeen()
+})
 
 const busy = computed(() => voice.state === 'requesting-token' || voice.state === 'connecting')
 const selfSpeaking = computed(() =>
@@ -57,6 +88,63 @@ function handleClick() {
 </script>
 
 <style scoped>
+.voice-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Once-ever discovery nudge anchored under the mic button. */
+.voice-nudge {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: max-content;
+  max-width: min(300px, 82vw);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: rgba(8, 12, 9, 0.96);
+  border: 1px solid var(--color-neon-green);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 6px 24px rgba(0, 255, 102, 0.25);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.05em;
+  text-align: left;
+}
+
+.nudge-join {
+  background: var(--color-neon-green);
+  color: #000;
+  border: none;
+  padding: 0.35rem 0.55rem;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.nudge-x {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1.05rem;
+  line-height: 1;
+  padding: 0 0.15rem;
+  cursor: pointer;
+}
+
+.nudge-enter-active,
+.nudge-leave-active { transition: opacity 0.2s, transform 0.2s; }
+.nudge-enter-from,
+.nudge-leave-to { opacity: 0; transform: translateY(-4px); }
+
 /* Same tactical pill as .hud-audio, self-contained so the cluster renders
    right in the lobby too (game-shared.css only loads with the game views).
    LIVE = green, muted = red, a glow while your own mic is picking you up. */

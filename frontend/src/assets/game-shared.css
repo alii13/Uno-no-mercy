@@ -168,30 +168,6 @@
   color: var(--color-neon-blue);
 }
 
-.hud-help {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  min-height: 44px;
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid #333;
-  color: var(--text-secondary);
-  font-family: var(--font-mono);
-  font-size: 1rem;
-  font-weight: bold;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  transition:
-    border-color var(--duration-snap) var(--ease-snap),
-    color var(--duration-snap) var(--ease-snap);
-}
-
-.hud-help:hover {
-  border-color: var(--color-neon-blue);
-  color: var(--color-neon-blue);
-}
-
 .hud-exit {
   display: inline-flex;
   align-items: center;
