@@ -20,6 +20,7 @@ import { watch } from 'vue'
 import type { Pinia } from 'pinia'
 import { useMultiplayerStore } from '../stores/multiplayerStore'
 import { useGameStore } from '../stores/gameStore'
+import { useAuthStore } from '../stores/authStore'
 import { canPlayCard } from '../utils/gameRules'
 import type { Card, CardColor } from '../types/card'
 
@@ -76,6 +77,13 @@ in \`legal_moves\`, then repeat until the game is finished.`
 export function registerMcpTools(pinia: Pinia): void {
     const mp = useMultiplayerStore(pinia)
     const sp = useGameStore(pinia)
+    const auth = useAuthStore(pinia)
+
+    // Multiplayer needs a session. A visiting agent never clicks PLAY NOW, so
+    // provision the same guest session the button would.
+    const ensureSession = async () => {
+        if (!auth.user) await auth.signInAnonymously()
+    }
 
     const mode = (): Mode => {
         if (mp.currentGame) return 'multi'
@@ -341,6 +349,7 @@ export function registerMcpTools(pinia: Pinia): void {
                 properties: { stacking_mode: { type: 'string', enum: ['official', 'house', 'casual'] } },
             },
             handler: async (args) => {
+                await ensureSession()
                 const game = await mp.createGame(args.stacking_mode)
                 return { room_code: game?.room_code ?? null, ...(buildState() as object) }
             },
@@ -355,6 +364,7 @@ export function registerMcpTools(pinia: Pinia): void {
             },
             handler: async (args) => {
                 if (typeof args.room_code !== 'string') throw new Error('room_code is required.')
+                await ensureSession()
                 await mp.joinGame(args.room_code)
                 return buildState()
             },
