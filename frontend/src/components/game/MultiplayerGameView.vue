@@ -13,9 +13,9 @@
         :card-count="(opp.hand as Card[])?.length || 0"
         count-label="INTEL"
         :is-active="currentGame?.current_player_id === opp.user_id"
-        :is-eliminated="opp.is_eliminated"
+        :is-eliminated="mpStore.eliminatedIds.has(opp.user_id)"
         :is-disconnected="isDisconnected(opp.user_id)"
-        :can-kick="mpStore.isHost && !opp.is_eliminated"
+        :can-kick="mpStore.isHost && !mpStore.eliminatedIds.has(opp.user_id)"
         @kick="requestKick(opp.user_id, opp.name)"
       />
       <template #controls>
@@ -188,6 +188,16 @@
       </div>
     </div>
 
+    <!-- You're out, but the round plays on — spectate or bail. Non-blocking
+         banner so the table stays visible behind it. -->
+    <div v-if="amEliminated && gameStatus === 'playing'" class="eliminated-banner" role="status">
+      <div class="eliminated-banner__text">
+        <span class="eliminated-banner__title">YOU'RE OUT</span>
+        <span class="eliminated-banner__sub">Knocked out by No Mercy — spectating</span>
+      </div>
+      <button class="eliminated-banner__leave" @click="leaveGame">LEAVE</button>
+    </div>
+
     <GameOverModal
       v-if="gameStatus === 'finished' && !opponentLeft"
       :is-winner="isMpWinner"
@@ -330,6 +340,9 @@ const myColorCounts = computed(() => countByColor(myHand.value))
 const isMyTurn = computed(() => mpStore.isMyTurn)
 const gameStatus = computed(() => mpStore.gameStatus)
 const opponentLeft = computed(() => mpStore.opponentLeft)
+const amEliminated = computed(() =>
+  !!myPlayer.value && mpStore.eliminatedIds.has(myPlayer.value.user_id)
+)
 
 const currentGame = computed(() => mpStore.currentGame)
 const direction = computed(() => currentGame.value?.direction || 1)
@@ -906,5 +919,62 @@ async function handleUpgrade() {
 
 @media (prefers-reduced-motion: reduce) {
   .rt-dot { animation: none; }
+}
+
+/* Spectator banner shown to a player after they're knocked out. Pinned near
+   the bottom (their hand is empty) so the table stays fully visible. */
+.eliminated-banner {
+  position: fixed;
+  bottom: max(1.5rem, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.7rem 0.85rem 0.7rem 1.25rem;
+  background: rgba(20, 0, 0, 0.92);
+  border: 1px solid rgba(255, 42, 42, 0.65);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(255, 42, 42, 0.35);
+  z-index: var(--z-toast);
+  max-width: calc(100vw - 2rem);
+}
+
+.eliminated-banner__text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.eliminated-banner__title {
+  font-family: 'Black Ops One', 'Impact', sans-serif;
+  font-size: 1.1rem;
+  letter-spacing: 0.14em;
+  color: #ff2a2a;
+  text-transform: uppercase;
+}
+
+.eliminated-banner__sub {
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.72);
+  text-transform: uppercase;
+}
+
+.eliminated-banner__leave {
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 0.8rem;
+  letter-spacing: 0.18em;
+  color: #fff;
+  background: rgba(255, 42, 42, 0.9);
+  border: none;
+  border-radius: 8px;
+  padding: 0.55rem 1.1rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.eliminated-banner__leave:hover {
+  background: #ff2a2a;
 }
 </style>
