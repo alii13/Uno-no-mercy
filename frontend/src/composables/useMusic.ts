@@ -88,6 +88,8 @@ const volume = ref(initial.volume)
 const isMuted = ref(initial.isMuted)
 const isPlaying = ref(false)
 const isDucked = ref(false)
+// Held down while the voice channel is live so players hear each other.
+const isVoiceDucked = ref(false)
 // Increments every time stop() is called. Any in-flight start() captures
 // the value at call time; if the value differs when its play() promise
 // resolves, the start was cancelled while async and must NOT fade up.
@@ -106,7 +108,10 @@ watch([volume, isMuted], () => {
 
 function effectiveVolume(): number {
     if (isMuted.value) return 0
-    return isDucked.value ? volume.value * 0.35 : volume.value
+    const base = isDucked.value ? volume.value * 0.35 : volume.value
+    // Voice ducking composes with sting ducking rather than sharing its flag —
+    // a win sting ending must not restore full volume over a live call.
+    return isVoiceDucked.value ? base * 0.4 : base
 }
 
 export function useMusic() {
@@ -160,6 +165,12 @@ export function useMusic() {
         if (audio) fadeTo(audio, effectiveVolume(), 400)
     }
 
+    function setVoiceDucking(on: boolean): void {
+        if (isVoiceDucked.value === on) return
+        isVoiceDucked.value = on
+        if (audio) fadeTo(audio, effectiveVolume(), 400)
+    }
+
     function toggleMute(): void {
         isMuted.value = !isMuted.value
         // If we just muted, fade out; if unmuted while playing, fade in.
@@ -196,6 +207,7 @@ export function useMusic() {
         stop,
         duck,
         unduck,
+        setVoiceDucking,
         toggleMute,
         setVolume,
     }

@@ -129,4 +129,19 @@ function handleClick() {
 @media (prefers-reduced-motion: reduce) {
   .hud-voice-spinner { animation-duration: 1.6s; }
 }
+
+/* Phone widths: the label is the overflow source (same treatment as the
+   AUDIO button) — the mic icon + color carry the state. RETRY keeps its
+   word: a bare red mic reads as "muted", not "tap to retry". */
+@media (max-width: 640px) {
+  .hud-voice:not(.error) {
+    padding: var(--spacing-2);
+    min-width: 44px;
+    justify-content: center;
+  }
+
+  .hud-voice:not(.error) .hud-voice-label {
+    display: none;
+  }
+}
 </style>

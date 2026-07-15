@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useMultiplayerStore } from './multiplayerStore'
+import { music } from '../composables/useMusic'
 
 // Voice channel for a game room, on Cloudflare RealtimeKit. The token comes
 // over the game socket (voice-join → voice-token), so only seated roster
@@ -95,6 +96,8 @@ export const useVoiceStore = defineStore('voice', () => {
             syncRoster()
             // Anyone already talking before we joined has a live track now.
             for (const p of m.participants.joined.values()) playParticipantAudio(p)
+            // Drop the background music while the call is live.
+            music.setVoiceDucking(true)
         } catch (err) {
             console.error('voice connect failed:', err)
             await teardown()
@@ -222,6 +225,7 @@ export const useVoiceStore = defineStore('voice', () => {
     async function teardown() {
         const m = meeting
         meeting = null
+        music.setVoiceDucking(false)
         clearAudio()
         for (const t of speakingTimers.values()) clearTimeout(t)
         speakingTimers.clear()

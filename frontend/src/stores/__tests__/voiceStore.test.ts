@@ -22,6 +22,9 @@ vi.mock('../authStore', () => ({
     useAuthStore: () => ({ username: 'TESTER', user: { id: 'me' } }),
 }))
 
+const { setVoiceDucking } = vi.hoisted(() => ({ setVoiceDucking: vi.fn() }))
+vi.mock('../../composables/useMusic', () => ({ music: { setVoiceDucking } }))
+
 // --- Fake RealtimeKit SDK ---
 
 type Handler = (...args: unknown[]) => void
@@ -150,6 +153,7 @@ beforeEach(() => {
     fakeMeeting = makeFakeMeeting()
     init.mockClear()
     createdAudioEls.length = 0
+    setVoiceDucking.mockClear()
 })
 
 afterEach(() => {
@@ -172,6 +176,8 @@ describe('joining voice', () => {
         expect(voice.state).toBe('live')
         expect(voice.muted).toBe(false)
         expect(voice.voiceUserIds.has('me')).toBe(true)
+        // Background music drops while the call is live.
+        expect(setVoiceDucking).toHaveBeenCalledWith(true)
     })
 
     it('hides the feature when the server answers voice-unavailable', async () => {
@@ -278,5 +284,6 @@ describe('leaving', () => {
         expect(fakeMeeting.leave).toHaveBeenCalled()
         expect(voice.state).toBe('off')
         expect(voice.voiceUserIds.size).toBe(0)
+        expect(setVoiceDucking).toHaveBeenLastCalledWith(false)
     })
 })
