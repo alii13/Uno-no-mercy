@@ -15,6 +15,9 @@ interface RtkParticipant {
     customParticipantId?: string
     audioEnabled?: boolean
     audioTrack?: MediaStreamTrack | null
+    /** Moderation — permission-gated by the caller's preset (room host). */
+    disableAudio?(): Promise<void>
+    kick?(): Promise<void>
 }
 interface RtkMeeting {
     join(): Promise<void>
@@ -29,6 +32,7 @@ interface RtkMeeting {
     }
     participants: {
         joined: Map<string, RtkParticipant> & { on(ev: string, cb: (...args: never[]) => void): unknown }
+        disableAllAudio?(allowUnmute: boolean): Promise<void>
         on(ev: string, cb: (...args: never[]) => void): unknown
     }
 }
@@ -49,6 +53,10 @@ export const useVoiceStore = defineStore('voice', () => {
     /** Supabase userIds currently in the voice channel (including me when live). */
     const voiceUserIds = ref(new Set<string>())
     const speakingUserIds = ref(new Set<string>())
+    /** Remote participants whose mic is currently on. */
+    const unmutedUserIds = ref(new Set<string>())
+    /** Players I've silenced locally — only my ears, survives their re-join. */
+    const localMutedUserIds = ref(new Set<string>())
     const selfUserId = ref<string | null>(null)
 
     let meeting: RtkMeeting | null = null
@@ -120,13 +128,25 @@ export const useVoiceStore = defineStore('voice', () => {
 
     function syncRoster() {
         const ids = new Set<string>()
+        const unmuted = new Set<string>()
         if (meeting) {
             if (meeting.self.customParticipantId) ids.add(meeting.self.customParticipantId)
             for (const p of meeting.participants.joined.values()) {
-                if (p.customParticipantId) ids.add(p.customParticipantId)
+                if (!p.customParticipantId) continue
+                ids.add(p.customParticipantId)
+                if (p.audioEnabled) unmuted.add(p.customParticipantId)
             }
         }
         voiceUserIds.value = ids
+        unmutedUserIds.value = unmuted
+    }
+
+    function findParticipant(userId: string): RtkParticipant | null {
+        if (!meeting) return null
+        for (const p of meeting.participants.joined.values()) {
+            if (p.customParticipantId === userId) return p
+        }
+        return null
     }
 
     // --- Remote audio playback ---
@@ -149,6 +169,7 @@ export const useVoiceStore = defineStore('voice', () => {
         const el = existing ?? document.createElement('audio')
         el.autoplay = true
         el.srcObject = new MediaStream([p.audioTrack])
+        el.muted = !!p.customParticipantId && localMutedUserIds.value.has(p.customParticipantId)
         if (!existing) {
             document.body.appendChild(el)
             audioEls.set(p.id, el)
@@ -215,6 +236,7 @@ export const useVoiceStore = defineStore('voice', () => {
         })
         m.participants.joined.on('audioUpdate', (p: RtkParticipant) => {
             playParticipantAudio(p)
+            syncRoster()
         })
         m.participants.on('activeSpeaker', (payload: { peerId: string }) => {
             const userId = participantUserId(payload.peerId)
@@ -254,6 +276,38 @@ export const useVoiceStore = defineStore('voice', () => {
         await teardown()
     }
 
+    // --- Moderation ---
+
+    /** Silence a player for my ears only. They stay audible to everyone else. */
+    function toggleMuteForMe(userId: string) {
+        const next = new Set(localMutedUserIds.value)
+        if (next.has(userId)) next.delete(userId)
+        else next.add(userId)
+        localMutedUserIds.value = next
+        const p = findParticipant(userId)
+        const el = p ? audioEls.get(p.id) : undefined
+        if (el) el.muted = next.has(userId)
+    }
+
+    /** Host: cut a player's mic for the whole room. They may unmute themselves. */
+    async function muteParticipant(userId: string) {
+        await findParticipant(userId)?.disableAudio?.().catch(err => {
+            console.error('force mute failed:', err)
+        })
+    }
+
+    /** Host: cut every mic in the room (players may unmute themselves). */
+    async function muteEveryone() {
+        await meeting?.participants.disableAllAudio?.(true).catch(err => {
+            console.error('mute everyone failed:', err)
+        })
+    }
+
+    /** Host: eject a player from the voice channel (rides the game kick). */
+    async function kickFromVoice(userId: string) {
+        await findParticipant(userId)?.kick?.().catch(() => { /* not in voice or no permission */ })
+    }
+
     return {
         state,
         muted,
@@ -261,10 +315,16 @@ export const useVoiceStore = defineStore('voice', () => {
         errorText,
         voiceUserIds,
         speakingUserIds,
+        unmutedUserIds,
+        localMutedUserIds,
         selfUserId,
         joinVoice,
         toggleMute,
         leaveVoice,
+        toggleMuteForMe,
+        muteParticipant,
+        muteEveryone,
+        kickFromVoice,
         onVoiceToken,
         onVoiceUnavailable,
     }

@@ -301,10 +301,19 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 if (msg.t === 'snapshot') settle(true)
             }
             socket.onerror = () => settle(false)
-            socket.onclose = () => {
+            socket.onclose = (e) => {
                 settle(false)
                 if (ws !== socket) return
                 realtimeStatus.value = 'CLOSED'
+                if (e?.reason === 'kicked') {
+                    // Being removed ends the whole session — voice included.
+                    closedByUs = true
+                    void useVoiceStore().leaveVoice()
+                    try { localStorage.removeItem(STORED_ROOM_KEY) } catch { /* noop */ }
+                    resetState()
+                    error.value = 'You were removed from the room'
+                    return
+                }
                 if (!closedByUs && roomCodeRef.value) scheduleReconnect()
             }
         })
@@ -460,6 +469,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
     async function kickPlayer(userId: string) {
         sendMsg({ t: 'kick', userId })
+        // Eject them from the voice channel too (host permission; no-op otherwise —
+        // the kicked client also leaves voice itself when its socket closes).
+        void useVoiceStore().kickFromVoice(userId)
     }
 
     async function updateMyName(name: string) {

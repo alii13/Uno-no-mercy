@@ -46,7 +46,7 @@ function makeFakeMeeting() {
         disableAudio: vi.fn(() => { self.audioEnabled = false; self.emit('audioUpdate', { audioEnabled: false }) }),
     })
     const joined = Object.assign(new Map<string, { id: string; customParticipantId?: string }>(), emitter())
-    const participants = Object.assign(emitter(), { joined })
+    const participants = Object.assign(emitter(), { joined, disableAllAudio: vi.fn(async (_allow: boolean) => {}) })
     return {
         join: vi.fn(async () => {}),
         leave: vi.fn(async () => { self.emit('roomLeft', { state: 'left' }) }),
@@ -70,7 +70,7 @@ class FakeWebSocket {
     onopen: (() => void) | null = null
     onmessage: ((e: { data: string }) => void) | null = null
     onerror: (() => void) | null = null
-    onclose: (() => void) | null = null
+    onclose: ((e?: { reason?: string }) => void) | null = null
     url: string
     constructor(url: string) { this.url = url; FakeWebSocket.instances.push(this) }
     send(data: string) { this.sent.push(data) }
@@ -83,6 +83,7 @@ class FakeWebSocket {
 function makeFakeAudioEl() {
     return {
         autoplay: false,
+        muted: false,
         srcObject: null as unknown,
         play: vi.fn(async () => {}),
         remove: vi.fn(),
@@ -269,6 +270,83 @@ describe('remote audio playback', () => {
         expect(createdAudioEls.length).toBe(2)
         await voice.leaveVoice()
         expect(createdAudioEls[1]!.remove).toHaveBeenCalled()
+    })
+})
+
+describe('moderation', () => {
+    function seatOpp(overrides: Record<string, unknown> = {}) {
+        const opp = {
+            id: 'peer-2',
+            customParticipantId: 'opp',
+            audioEnabled: true,
+            audioTrack: { kind: 'audio' },
+            disableAudio: vi.fn(async () => {}),
+            kick: vi.fn(async () => {}),
+            ...overrides,
+        }
+        fakeMeeting.participants.joined.set('peer-2', opp)
+        fakeMeeting.participants.joined.emit('participantJoined', opp)
+        return opp
+    }
+
+    it('host force-mute, mute-everyone, and voice-kick go through the SDK', async () => {
+        const mp = useMultiplayerStore()
+        const voice = useVoiceStore()
+        const ws = await joinRoom(mp)
+        await goLive(ws, voice)
+        const opp = seatOpp()
+        expect(voice.unmutedUserIds.has('opp')).toBe(true)
+
+        await voice.muteParticipant('opp')
+        expect(opp.disableAudio).toHaveBeenCalled()
+
+        await voice.muteEveryone()
+        expect(fakeMeeting.participants.disableAllAudio).toHaveBeenCalledWith(true)
+
+        await mp.kickPlayer('opp')
+        expect(opp.kick).toHaveBeenCalled()
+
+        // Their mic going off is reflected for the button visibility.
+        opp.audioEnabled = false
+        fakeMeeting.participants.joined.emit('audioUpdate', opp)
+        expect(voice.unmutedUserIds.has('opp')).toBe(false)
+    })
+
+    it('mute-for-me silences only my element and survives track re-attach', async () => {
+        const mp = useMultiplayerStore()
+        const voice = useVoiceStore()
+        const ws = await joinRoom(mp)
+        await goLive(ws, voice)
+        const opp = seatOpp()
+        fakeMeeting.participants.joined.emit('audioUpdate', opp)
+        const el = createdAudioEls[0]!
+        expect(el.muted).toBe(false)
+
+        voice.toggleMuteForMe('opp')
+        expect(el.muted).toBe(true)
+        expect(opp.disableAudio).not.toHaveBeenCalled()
+
+        // Their track re-flows (e.g. self unmute) — my local mute must hold.
+        fakeMeeting.participants.joined.emit('audioUpdate', opp)
+        expect(el.muted).toBe(true)
+
+        voice.toggleMuteForMe('opp')
+        expect(el.muted).toBe(false)
+    })
+
+    it('being kicked tears voice down with the session', async () => {
+        const mp = useMultiplayerStore()
+        const voice = useVoiceStore()
+        const ws = await joinRoom(mp)
+        await goLive(ws, voice)
+
+        ws.onclose?.({ reason: 'kicked' })
+        for (let i = 0; i < 10; i++) await Promise.resolve()
+
+        expect(fakeMeeting.leave).toHaveBeenCalled()
+        expect(voice.state).toBe('off')
+        expect(mp.currentGame).toBeNull()
+        expect(mp.error).toBe('You were removed from the room')
     })
 })
 

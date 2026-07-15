@@ -35,6 +35,20 @@
     ><i></i><i></i><i></i></span>
     <span v-if="label" class="hud-voice-label">{{ label }}</span>
   </button>
+  <!-- Host's nuclear option: cut every mic at once (players may unmute). -->
+  <button
+    v-if="canModerate && voice.state === 'live' && voice.unmutedUserIds.size > 0"
+    class="hud-voice hud-voice-all"
+    title="Mute everyone"
+    aria-label="Mute everyone"
+    @click="voice.muteEveryone()"
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true">
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+      <line x1="15" y1="9" x2="21" y2="15" />
+      <line x1="21" y1="9" x2="15" y2="15" />
+    </svg>
+  </button>
   <Transition name="nudge">
     <span v-if="showNudge" class="voice-nudge" role="status">
       <span class="nudge-text">Talk with everyone in this room</span>
@@ -48,6 +62,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useVoiceStore } from '../../stores/voiceStore'
+
+defineProps<{
+  /** Room host: shows the mute-everyone control while mics are open. */
+  canModerate?: boolean
+}>()
 
 const voice = useVoiceStore()
 
@@ -101,6 +120,12 @@ function handleClick() {
 .voice-wrap {
   position: relative;
   display: inline-flex;
+  gap: var(--spacing-2);
+}
+
+.hud-voice-all:hover {
+  border-color: var(--color-alert);
+  color: var(--color-alert);
 }
 
 /* Once-ever discovery nudge anchored under the mic button. */

@@ -6,6 +6,8 @@
 export interface VoiceEnv {
     REALTIMEKIT_ACCOUNT_ID?: string
     REALTIMEKIT_PRESET?: string
+    /** Preset with moderation permissions (mute others); the room host gets it. */
+    REALTIMEKIT_HOST_PRESET?: string
     /** wrangler secrets */
     REALTIMEKIT_APP_ID?: string
     REALTIMEKIT_API_TOKEN?: string
@@ -43,11 +45,14 @@ export async function createMeeting(env: VoiceEnv, title: string): Promise<strin
 export async function addParticipant(
     env: VoiceEnv,
     meetingId: string,
-    opts: { name: string; customParticipantId: string }
+    opts: { name: string; customParticipantId: string; isHost?: boolean }
 ): Promise<string> {
+    const preset = opts.isHost
+        ? env.REALTIMEKIT_HOST_PRESET ?? 'group_call_host'
+        : env.REALTIMEKIT_PRESET ?? 'group_call_participant'
     const data = await rtk<{ token?: string; authToken?: string }>(env, 'POST', `/meetings/${meetingId}/participants`, {
         name: opts.name,
-        preset_name: env.REALTIMEKIT_PRESET ?? 'group_call_participant',
+        preset_name: preset,
         custom_participant_id: opts.customParticipantId,
     })
     const token = data.token ?? data.authToken

@@ -356,6 +356,37 @@
   transform: scale(1.12);
 }
 
+/* Voice mute on a seat — host cuts their mic for everyone, non-hosts
+   silence them locally. Sits opposite the kick badge. */
+.opp-voice-btn {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: #1c2a1f;
+  border: 1px solid var(--color-neon-green);
+  color: var(--color-neon-green);
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.opp-voice-btn:hover {
+  opacity: 1;
+  transform: scale(1.12);
+}
+
+.opp-voice-btn.is-muted {
+  border-color: var(--color-alert);
+  color: var(--color-alert);
+  background: #2a1717;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .opponent-card.selectable { animation: none; }
   .opponent-card .dc-text { animation: none; }
@@ -1373,11 +1404,20 @@
   .opponents-grid {
     flex: 1 1 0;
     min-width: 0;
+    /* The base grid wraps (desktop has room); in this scrolling strip the
+       chips must stay on ONE line or 3+ opponents stack the bar tall. */
+    flex-wrap: nowrap;
     overflow-x: auto;
     gap: var(--spacing-2);
     justify-content: flex-start;
-    padding-bottom: var(--spacing-1);
+    /* Room for the -6px seat badges (mute/kick), which the scroll
+       container would otherwise clip. */
+    padding: 6px 0 var(--spacing-1) 6px;
     scrollbar-width: none;
+  }
+
+  .opponents-grid .opponent-card {
+    flex-shrink: 0;
   }
 
   .opponents-grid::-webkit-scrollbar {

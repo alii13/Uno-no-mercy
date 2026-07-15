@@ -18,6 +18,10 @@
         :can-kick="mpStore.isHost && !mpStore.eliminatedIds.has(opp.user_id)"
         :in-voice="voiceStore.voiceUserIds.has(opp.user_id)"
         :is-speaking="voiceStore.speakingUserIds.has(opp.user_id)"
+        :can-voice-mute="canVoiceMute(opp.user_id)"
+        :voice-muted="voiceStore.localMutedUserIds.has(opp.user_id)"
+        :voice-mute-title="voiceMuteTitle(opp.user_id)"
+        @voice-mute="handleVoiceMute(opp.user_id)"
         @kick="requestKick(opp.user_id, opp.name)"
       />
       <template #controls>
@@ -42,7 +46,7 @@
           <span class="hud-audio-label">AUDIO</span>
           <span class="hud-audio-dot"></span>
         </button>
-        <VoiceMicCluster />
+        <VoiceMicCluster :can-moderate="mpStore.isHost" />
         <SettingsButton />
       </template>
     </SurveillanceBar>
@@ -266,6 +270,21 @@ import { animateOpponentThrow, burstImpactParticles, skipEveryoneShockwave, show
 const mpStore = useMultiplayerStore()
 const authStore = useAuthStore()
 const voiceStore = useVoiceStore()
+
+// One speaker button per seat: hosts cut the mic for the whole room (shown
+// while the target is unmuted), everyone else silences the seat locally.
+function canVoiceMute(userId: string): boolean {
+  if (!voiceStore.voiceUserIds.has(userId)) return false
+  return mpStore.isHost ? voiceStore.unmutedUserIds.has(userId) : true
+}
+function voiceMuteTitle(userId: string): string {
+  if (mpStore.isHost) return 'Mute for everyone'
+  return voiceStore.localMutedUserIds.has(userId) ? 'Unmute for me' : 'Mute for me'
+}
+function handleVoiceMute(userId: string) {
+  if (mpStore.isHost) void voiceStore.muteParticipant(userId)
+  else voiceStore.toggleMuteForMe(userId)
+}
 const { animateFlyingCard, animateDrawCardsStaggered, killAllFlyingCards } = useCardAnimations()
 
 const isShakeActive = ref(false)
