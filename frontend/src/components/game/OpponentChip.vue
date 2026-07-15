@@ -15,9 +15,11 @@
     @keydown.enter.prevent="isSelectable && $emit('click')"
     @keydown.space.prevent="isSelectable && $emit('click')"
   >
-    <div class="avatar" :class="{ 'avatar-active': isActive }">{{ name.charAt(0).toUpperCase() }}</div>
+    <div class="avatar" :class="{ 'avatar-active': isActive, speaking: isSpeaking }">{{ name.charAt(0).toUpperCase() }}</div>
     <div class="opponent-info">
-      <span class="name">{{ name }}</span>
+      <span class="name">{{ name }}
+        <span v-if="inVoice" class="voice-dot" :class="{ speaking: isSpeaking }" title="In voice"></span>
+      </span>
       <span v-if="isDisconnected && !isEliminated" class="card-count dc-text">DISCONNECTED</span>
       <span v-else-if="isEliminated" class="card-count eliminated-text">OUT</span>
       <span v-else class="card-count">{{ cardCount }} {{ displayLabel }}</span>
@@ -46,6 +48,8 @@ const props = defineProps<{
   isSelectable?: boolean
   canKick?: boolean
   countLabel?: string
+  inVoice?: boolean
+  isSpeaking?: boolean
 }>()
 
 defineEmits<{ click: []; kick: [] }>()

@@ -182,6 +182,12 @@
               </button>
               <span v-else class="player-name">{{ player.name }}</span>
               <span
+                v-if="voiceStore.voiceUserIds.has(player.user_id)"
+                class="voice-dot"
+                :class="{ speaking: voiceStore.speakingUserIds.has(player.user_id) }"
+                title="In voice"
+              ></span>
+              <span
                 v-if="player.user_id === mpStore.currentGame?.host_id"
                 class="player-badge"
               >HOST</span>
@@ -206,6 +212,10 @@
         </div>
 
         <div class="waiting-actions">
+          <div v-if="voiceStore.available" class="waiting-voice">
+            <VoiceMicCluster />
+            <span class="waiting-voice-hint">Talk while you play</span>
+          </div>
           <p
             v-if="mpStore.isHost && mpStore.gamePlayers.length < 2"
             class="waiting-nudge"
@@ -321,12 +331,14 @@ import { Copy, Check, Pencil, X } from 'lucide-vue-next'
 import { vFocusRing } from '../directives/focusRing'
 import { useAuthStore } from '../stores/authStore'
 import { useMultiplayerStore } from '../stores/multiplayerStore'
+import { useVoiceStore } from '../stores/voiceStore'
 import { useGameStore } from '../stores/gameStore'
 import SiteFooter from './SiteFooter.vue'
 import LandingStatsBadge from './LandingStatsBadge.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import RulesModal from './RulesModal.vue'
 import Button from './ui/Button.vue'
+import VoiceMicCluster from './game/VoiceMicCluster.vue'
 import type { StackingMode } from '../utils/gameRules'
 
 const emit = defineEmits<{
@@ -337,6 +349,7 @@ const emit = defineEmits<{
 
 const authStore = useAuthStore()
 const mpStore = useMultiplayerStore()
+const voiceStore = useVoiceStore()
 const gameStore = useGameStore()
 
 const showJoinModal = ref(false)
@@ -1108,6 +1121,45 @@ function copyLink() {
   align-items: center;
   gap: var(--spacing-3);
   width: 100%;
+}
+
+.waiting-voice {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.waiting-voice-hint {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+}
+
+/* Green presence dot on seats connected to voice; pulses while they talk. */
+.voice-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-neon-green);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.voice-dot.speaking {
+  opacity: 1;
+  box-shadow: 0 0 8px var(--color-neon-green);
+  animation: voice-dot-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes voice-dot-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.5); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-dot.speaking { animation: none; }
 }
 
 .waiting-text {

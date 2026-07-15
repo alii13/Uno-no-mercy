@@ -16,6 +16,8 @@
         :is-eliminated="mpStore.eliminatedIds.has(opp.user_id)"
         :is-disconnected="isDisconnected(opp.user_id)"
         :can-kick="mpStore.isHost && !mpStore.eliminatedIds.has(opp.user_id)"
+        :in-voice="voiceStore.voiceUserIds.has(opp.user_id)"
+        :is-speaking="voiceStore.speakingUserIds.has(opp.user_id)"
         @kick="requestKick(opp.user_id, opp.name)"
       />
       <template #controls>
@@ -46,6 +48,7 @@
           <span class="hud-audio-label">AUDIO</span>
           <span class="hud-audio-dot"></span>
         </button>
+        <VoiceMicCluster />
         <SettingsButton />
       </template>
     </SurveillanceBar>
@@ -242,6 +245,7 @@ import { ref, computed, watch, provide, onMounted, onUnmounted } from 'vue'
 import { music } from '../../composables/useMusic'
 import { useMultiplayerStore } from '../../stores/multiplayerStore'
 import { useAuthStore } from '../../stores/authStore'
+import { useVoiceStore } from '../../stores/voiceStore'
 import { soundEffects } from '../../composables/useSoundEffects'
 import { useCardAnimations } from '../../composables/useCardAnimations'
 import CardPile from './CardPile.vue'
@@ -253,6 +257,7 @@ import DiscardAllPickerModal from './DiscardAllPickerModal.vue'
 import GameBackground from './GameBackground.vue'
 import SurveillanceBar from './SurveillanceBar.vue'
 import SettingsButton from '../SettingsButton.vue'
+import VoiceMicCluster from './VoiceMicCluster.vue'
 import BattlePit from './BattlePit.vue'
 import StatusPanel from './StatusPanel.vue'
 import PlayerConsoleBar from './PlayerConsoleBar.vue'
@@ -269,6 +274,7 @@ import { animateOpponentThrow, burstImpactParticles, skipEveryoneShockwave, show
 
 const mpStore = useMultiplayerStore()
 const authStore = useAuthStore()
+const voiceStore = useVoiceStore()
 const { animateFlyingCard, animateDrawCardsStaggered, killAllFlyingCards } = useCardAnimations()
 
 const isShakeActive = ref(false)

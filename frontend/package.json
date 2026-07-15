@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@cloudflare/realtimekit": "2.0.0",
     "@mcp-b/transports": "^3.0.0",
     "@mcp-b/webmcp-ts-sdk": "^3.0.0",
     "@supabase/supabase-js": "^2.90.1",

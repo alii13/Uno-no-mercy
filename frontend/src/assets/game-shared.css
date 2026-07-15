@@ -255,6 +255,38 @@
   box-shadow: 0 0 8px var(--color-neon-blue);
 }
 
+/* Who's in voice / who's talking — on the opponent chips. (The mic cluster
+   itself is self-styled in VoiceMicCluster.vue so it works outside the game
+   views too.) */
+.opponent-card .avatar.speaking {
+  box-shadow: 0 0 0 2px var(--color-neon-green), 0 0 12px rgba(0, 255, 102, 0.7);
+}
+
+.voice-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-neon-green);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.voice-dot.speaking {
+  opacity: 1;
+  box-shadow: 0 0 8px var(--color-neon-green);
+  animation: voice-dot-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes voice-dot-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.5); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-dot.speaking { animation: none; }
+}
+
 /* Multiplayer opponent card — same pill pattern as single-player OpponentHand */
 .opponent-card {
   position: relative;
