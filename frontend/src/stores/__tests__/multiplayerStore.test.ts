@@ -33,7 +33,9 @@ class FakeWebSocket {
     onmessage: ((e: { data: string }) => void) | null = null
     onerror: (() => void) | null = null
     onclose: (() => void) | null = null
-    constructor(public url: string) {
+    url: string
+    constructor(url: string) {
+        this.url = url
         FakeWebSocket.instances.push(this)
     }
     send(data: string) { this.sent.push(data) }
@@ -228,7 +230,7 @@ describe('leaving', () => {
         await mp.leaveGame()
 
         expect(mp.currentGame).toBeNull()
-        expect(mp.roomCode).toBeNull()
+        expect(mp.roomCode).toBe('')
         expect(localStorage.getItem('uno_mp_room')).toBeNull()
         expect(ws.sent.some(s => JSON.parse(s).t === 'leave')).toBe(true)
     })

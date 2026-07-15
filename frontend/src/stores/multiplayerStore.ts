@@ -20,7 +20,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     // --- Server state mirrors ---
     const view = ref<PersonalView | null>(null)
     const presence = ref<PresencePlayer[]>([])
-    const roomCode = ref<string | null>(null)
+    const roomCodeRef = ref<string | null>(null)
+    // Legacy contract: always a string ('' when not in a room).
+    const roomCode = computed(() => roomCodeRef.value ?? '')
     const myUserId = ref<string | null>(null)
     const hostUserId = ref<string | null>(null)
     let lastSeq = 0
@@ -74,7 +76,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
     const currentGame = computed<GameRow | null>(() => {
         const v = view.value
-        if (!v || !roomCode.value) return null
+        if (!v || !roomCodeRef.value) return null
         return {
             id: roomCode.value,
             room_code: roomCode.value,
@@ -103,7 +105,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         if (v && v.status !== 'lobby') {
             return v.players.map(p => ({
                 id: p.userId,
-                game_id: roomCode.value ?? '',
+                game_id: roomCodeRef.value ?? '',
                 user_id: p.userId,
                 name: p.name,
                 hand: p.userId === myUserId.value ? (v.you?.hand ?? []) : hiddenHand(p.userId, p.handCount),
@@ -116,7 +118,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         }
         // Waiting room: live presence is the roster.
         return presence.value.map((p, i) => ({
-            id: p.userId, game_id: roomCode.value ?? '', user_id: p.userId, name: p.name,
+            id: p.userId, game_id: roomCodeRef.value ?? '', user_id: p.userId, name: p.name,
             hand: [], seat_order: i, is_eliminated: false, has_called_uno: false, score: 0, joined_at: '',
         }))
     })
@@ -253,7 +255,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             socket.onmessage = (e) => {
                 const msg = JSON.parse(e.data) as ServerMsg
                 if (msg.t === 'hello') {
-                    roomCode.value = code
+                    roomCodeRef.value = code
                     try { localStorage.setItem(STORED_ROOM_KEY, code) } catch { /* noop */ }
                     settle(true)
                 }
@@ -268,7 +270,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 settle(false)
                 if (ws !== socket) return
                 realtimeStatus.value = 'CLOSED'
-                if (!closedByUs && roomCode.value) scheduleReconnect()
+                if (!closedByUs && roomCodeRef.value) scheduleReconnect()
             }
         })
     }
@@ -280,9 +282,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         realtimeStatus.value = 'CONNECTING'
         reconnectTimer = setTimeout(async () => {
             reconnectTimer = null
-            if (closedByUs || !roomCode.value) return
-            const ok = await connect(roomCode.value)
-            if (!ok && !closedByUs && roomCode.value) scheduleReconnect()
+            if (closedByUs || !roomCodeRef.value) return
+            const ok = await connect(roomCodeRef.value)
+            if (!ok && !closedByUs && roomCodeRef.value) scheduleReconnect()
         }, delay)
     }
 
@@ -304,7 +306,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     function resetState() {
         view.value = null
         presence.value = []
-        roomCode.value = null
+        roomCodeRef.value = null
         hostUserId.value = null
         lastSeq = 0
         pendingIntent = null
@@ -342,7 +344,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             const code = await createRoom(mode, false)
             if (!code) return null
             stackingMode.value = mode
-            return (await connect(code)) ? code : null
+            return (await connect(code)) ? currentGame.value : null
         } finally {
             loading.value = false
         }
@@ -354,7 +356,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         resetState()
         try {
             const ok = await connect(code.trim().toUpperCase())
-            return ok ? code : null
+            return ok ? currentGame.value : null
         } finally {
             loading.value = false
         }
@@ -374,7 +376,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             const code = await createRoom(mode, true)
             if (!code) return null
             stackingMode.value = mode
-            return (await connect(code)) ? code : null
+            return (await connect(code)) ? currentGame.value : null
         } finally {
             loading.value = false
         }
