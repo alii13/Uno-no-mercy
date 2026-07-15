@@ -76,6 +76,31 @@ class FakeWebSocket {
     receive(msg: ServerMsg) { this.onmessage?.({ data: JSON.stringify(msg) }) }
 }
 
+// Node test env has no DOM/media — stub the slice the playback path touches.
+function makeFakeAudioEl() {
+    return {
+        autoplay: false,
+        srcObject: null as unknown,
+        play: vi.fn(async () => {}),
+        remove: vi.fn(),
+    }
+}
+const createdAudioEls: ReturnType<typeof makeFakeAudioEl>[] = []
+vi.stubGlobal('document', {
+    createElement: (tag: string) => {
+        if (tag !== 'audio') throw new Error('unexpected element: ' + tag)
+        const el = makeFakeAudioEl()
+        createdAudioEls.push(el)
+        return el
+    },
+    body: { appendChild: vi.fn() },
+})
+vi.stubGlobal('MediaStream', class {
+    tracks: unknown[]
+    constructor(tracks: unknown[]) { this.tracks = tracks }
+})
+vi.stubGlobal('window', { addEventListener: vi.fn() })
+
 vi.stubGlobal('WebSocket', FakeWebSocket)
 const fakeStorage = {
     store: {} as Record<string, string>,
@@ -124,6 +149,7 @@ beforeEach(() => {
     fakeStorage.store = {}
     fakeMeeting = makeFakeMeeting()
     init.mockClear()
+    createdAudioEls.length = 0
 })
 
 afterEach(() => {
@@ -209,6 +235,34 @@ describe('live controls', () => {
 
         vi.advanceTimersByTime(1500)
         expect(voice.speakingUserIds.has('opp')).toBe(false)
+    })
+})
+
+describe('remote audio playback', () => {
+    it('attaches a playing element per remote track and detaches on mute/leave', async () => {
+        const mp = useMultiplayerStore()
+        const voice = useVoiceStore()
+        const ws = await joinRoom(mp)
+        await goLive(ws, voice)
+
+        // The core SDK plays nothing itself — audioUpdate must land in an <audio>.
+        const opp = { id: 'peer-2', customParticipantId: 'opp', audioEnabled: true, audioTrack: { kind: 'audio' } }
+        fakeMeeting.participants.joined.set('peer-2', opp)
+        fakeMeeting.participants.joined.emit('audioUpdate', opp)
+        expect(createdAudioEls.length).toBe(1)
+        expect(createdAudioEls[0]!.autoplay).toBe(true)
+        expect(createdAudioEls[0]!.srcObject).toBeTruthy()
+        expect(createdAudioEls[0]!.play).toHaveBeenCalled()
+
+        // Opponent mutes: their track stops, the element goes away.
+        fakeMeeting.participants.joined.emit('audioUpdate', { ...opp, audioEnabled: false, audioTrack: null })
+        expect(createdAudioEls[0]!.remove).toHaveBeenCalled()
+
+        // A participant already talking when we tear down gets cleaned up too.
+        fakeMeeting.participants.joined.emit('audioUpdate', opp)
+        expect(createdAudioEls.length).toBe(2)
+        await voice.leaveVoice()
+        expect(createdAudioEls[1]!.remove).toHaveBeenCalled()
     })
 })
 

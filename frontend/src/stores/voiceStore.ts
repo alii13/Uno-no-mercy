@@ -12,6 +12,8 @@ import { useMultiplayerStore } from './multiplayerStore'
 interface RtkParticipant {
     id: string
     customParticipantId?: string
+    audioEnabled?: boolean
+    audioTrack?: MediaStreamTrack | null
 }
 interface RtkMeeting {
     join(): Promise<void>
@@ -91,6 +93,8 @@ export const useVoiceStore = defineStore('voice', () => {
             muted.value = !m.self.audioEnabled
             selfUserId.value = m.self.customParticipantId ?? null
             syncRoster()
+            // Anyone already talking before we joined has a live track now.
+            for (const p of m.participants.joined.values()) playParticipantAudio(p)
         } catch (err) {
             console.error('voice connect failed:', err)
             await teardown()
@@ -122,6 +126,56 @@ export const useVoiceStore = defineStore('voice', () => {
         voiceUserIds.value = ids
     }
 
+    // --- Remote audio playback ---
+    // The core SDK hands over raw MediaStreamTracks and plays NOTHING itself
+    // (that's the UI kits' job). One hidden <audio> element per remote
+    // participant: attached when their audio flows, removed when it stops.
+    const audioEls = new Map<string, HTMLAudioElement>()
+    let gestureRetryArmed = false
+
+    function playParticipantAudio(p: RtkParticipant) {
+        const existing = audioEls.get(p.id)
+        if (!p.audioEnabled || !p.audioTrack) {
+            if (existing) {
+                existing.srcObject = null
+                existing.remove()
+                audioEls.delete(p.id)
+            }
+            return
+        }
+        const el = existing ?? document.createElement('audio')
+        el.autoplay = true
+        el.srcObject = new MediaStream([p.audioTrack])
+        if (!existing) {
+            document.body.appendChild(el)
+            audioEls.set(p.id, el)
+        }
+        el.play().catch(() => armGestureRetry())
+    }
+
+    /** Autoplay refused — retry every element on the next tap anywhere. */
+    function armGestureRetry() {
+        if (gestureRetryArmed) return
+        gestureRetryArmed = true
+        window.addEventListener('pointerdown', () => {
+            gestureRetryArmed = false
+            for (const el of audioEls.values()) el.play().catch(() => { /* still blocked */ })
+        }, { once: true })
+    }
+
+    function removeParticipantAudio(id: string) {
+        const el = audioEls.get(id)
+        if (el) {
+            el.srcObject = null
+            el.remove()
+            audioEls.delete(id)
+        }
+    }
+
+    function clearAudio() {
+        for (const id of [...audioEls.keys()]) removeParticipantAudio(id)
+    }
+
     function markSpeaking(userId: string) {
         const next = new Set(speakingUserIds.value)
         next.add(userId)
@@ -148,8 +202,17 @@ export const useVoiceStore = defineStore('voice', () => {
             void teardown()
             if (state.value === 'live' || state.value === 'connecting') state.value = 'off'
         })
-        m.participants.joined.on('participantJoined', () => syncRoster())
-        m.participants.joined.on('participantLeft', () => syncRoster())
+        m.participants.joined.on('participantJoined', (p: RtkParticipant) => {
+            syncRoster()
+            playParticipantAudio(p)
+        })
+        m.participants.joined.on('participantLeft', (p: RtkParticipant) => {
+            syncRoster()
+            removeParticipantAudio(p.id)
+        })
+        m.participants.joined.on('audioUpdate', (p: RtkParticipant) => {
+            playParticipantAudio(p)
+        })
         m.participants.on('activeSpeaker', (payload: { peerId: string }) => {
             const userId = participantUserId(payload.peerId)
             if (userId) markSpeaking(userId)
@@ -159,6 +222,7 @@ export const useVoiceStore = defineStore('voice', () => {
     async function teardown() {
         const m = meeting
         meeting = null
+        clearAudio()
         for (const t of speakingTimers.values()) clearTimeout(t)
         speakingTimers.clear()
         speakingUserIds.value = new Set()
