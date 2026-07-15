@@ -38,6 +38,7 @@ export {
     drawCardFromDeck,
     drawCardToHand,
     checkMercyElimination,
+    eliminatePlayer,
     endGame,
     applyScoresToWinner,
     advanceTurn,

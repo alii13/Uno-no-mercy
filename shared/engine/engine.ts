@@ -54,6 +54,34 @@ export function checkMercyElimination(s: EngineState, player: Player, ev: Engine
     return true
 }
 
+/**
+ * Forced elimination (host kick, permanent leave). Unlike the mercy path —
+ * whose callers own the turn advance — this also unparks the turn if the
+ * dead seat was holding it.
+ */
+export function eliminatePlayer(s: EngineState, playerId: string, ev: EngineEvent[]): boolean {
+    const player = s.players.find(p => p.id === playerId)
+    if (!player || player.isEliminated) return false
+    const hadTurn = currentPlayer(s)?.id === playerId
+    player.isEliminated = true
+    s.discardPile.push(...player.hand)
+    player.hand = []
+    ev.push({ t: 'ELIMINATED', playerId: player.id })
+
+    const activePlayers = s.players.filter(p => !p.isEliminated)
+    if (activePlayers.length === 1 && activePlayers[0]) {
+        endGame(s, activePlayers[0].id, ev)
+        return true
+    }
+    if (s.gameState === 'PLAYING' && hadTurn) {
+        s.turnState = 'WAITING_FOR_ACTION'
+        s.drawStack = 0
+        s.pendingDiscardAllCards = []
+        advanceTurn(s, ev)
+    }
+    return true
+}
+
 export function endGame(s: EngineState, winnerId: string, ev: EngineEvent[]): void {
     s.winnerId = winnerId
     applyScoresToWinner(s, winnerId)

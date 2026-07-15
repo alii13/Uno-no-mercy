@@ -220,6 +220,28 @@ describe('remote events', () => {
     })
 })
 
+describe('UNO catch windows', () => {
+    it('tracks the catchable player from window events and sends the catch intent', async () => {
+        const mp = useMultiplayerStore()
+        const ws = await joinRoom(mp)
+        ws.receive({ t: 'snapshot', seq: 2, game: playingView() })
+
+        ws.receive({ t: 'event', seq: 3, ev: { t: 'UNO_WINDOW_OPEN', playerId: 'opp' } })
+        expect(mp.catchableUserId).toBe('opp')
+
+        await mp.catchPlayer('opp')
+        expect(ws.lastSent()).toMatchObject({ t: 'intent', action: { kind: 'CATCH_UNO', targetUserId: 'opp' } })
+
+        ws.receive({ t: 'event', seq: 4, ev: { t: 'UNO_WINDOW_CLOSED', playerId: 'opp' } })
+        expect(mp.catchableUserId).toBeNull()
+
+        // Catching nobody in particular is a no-op.
+        const sentBefore = ws.sent.length
+        await mp.catchPlayer('opp')
+        expect(ws.sent.length).toBe(sentBefore)
+    })
+})
+
 describe('leaving', () => {
     it('clears state and the stored room', async () => {
         const mp = useMultiplayerStore()

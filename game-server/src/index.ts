@@ -2,7 +2,7 @@
 
 import { verifySupabaseToken, type AuthEnv } from './auth'
 import type { ClientMsg, GameEvent, PresencePlayer, ServerMsg } from './protocol'
-import { applyIntent, personalView, startGame, viewEventFor, type GameRecord } from './game'
+import { applyIntent, applyUnoCatch, autoResolveAbsentTurn, forceEliminate, personalView, startGame, viewEventFor, type GameRecord } from './game'
 import type { StackingMode } from '../../shared/engine'
 
 interface Env extends AuthEnv {
@@ -27,6 +27,13 @@ const CANDIDATES = 3
 
 // A room with no connected players is garbage-collected after this long.
 const ROOM_GC_MS = 10 * 60 * 1000
+
+// A disconnected player holding the turn gets this long to come back before
+// the room resolves the turn for them (the server-side watchdog).
+const TURN_GRACE_MS = 20 * 1000
+
+// How long a player who hit 1 card without calling UNO stays catchable.
+const CATCH_WINDOW_MS = 8 * 1000
 
 // Unambiguous alphabet (no 0/O, 1/I/L) for share codes.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
@@ -179,6 +186,15 @@ interface RosterEntry {
     joinedAt: number
 }
 
+// One DO alarm serves three clocks; the earliest due time is armed.
+interface RoomTimers {
+    gcAt: number
+    graceAt?: number
+    graceSeat?: string
+    catchAt?: number
+    catchFor?: string
+}
+
 type SocketTag = { echo: true } | { userId: string } | null
 
 export class GameRoomDO {
@@ -208,6 +224,68 @@ export class GameRoomDO {
         return this.game.engine.gameState === 'GAME_OVER' ? 'finished' : 'playing'
     }
 
+    // --- Timer multiplexing (GC, turn grace, catch window) ---
+
+    private async getTimers(): Promise<RoomTimers> {
+        return (await this.ctx.storage.get<RoomTimers>('timers')) ?? { gcAt: 0 }
+    }
+
+    private async putTimers(t: RoomTimers): Promise<void> {
+        await this.ctx.storage.put('timers', t)
+        const due = [t.gcAt, t.graceAt, t.catchAt].filter((x): x is number => !!x)
+        if (due.length) await this.ctx.storage.setAlarm(Math.min(...due))
+    }
+
+    /** Any room activity pushes garbage collection out. */
+    private async touchGc(): Promise<void> {
+        const t = await this.getTimers()
+        t.gcAt = Date.now() + ROOM_GC_MS
+        await this.putTimers(t)
+    }
+
+    /** Arm (or cancel) the grace clock for a disconnected current player. */
+    private async armTurnGrace(exclude?: WebSocket): Promise<void> {
+        await this.loadGame()
+        const t = await this.getTimers()
+        const s = this.game?.engine
+        const current = s && s.gameState === 'PLAYING' ? s.players[s.currentPlayerIndex] : null
+        const connected = new Set(this.roomSockets(exclude).map(x => x.userId))
+        if (current && !current.isEliminated && !connected.has(current.id)) {
+            if (t.graceSeat !== current.id || !t.graceAt) {
+                t.graceAt = Date.now() + TURN_GRACE_MS
+                t.graceSeat = current.id
+                await this.putTimers(t)
+            }
+        } else if (t.graceAt) {
+            delete t.graceAt
+            delete t.graceSeat
+            await this.putTimers(t)
+        }
+    }
+
+    /** Open/close UNO catch windows based on this batch's events. */
+    private async processCatchWindows(events: GameEvent[]): Promise<void> {
+        const t = await this.getTimers()
+        let dirty = false
+        for (const ev of [...events]) {
+            if (ev.t === 'AT_ONE') {
+                t.catchAt = Date.now() + CATCH_WINDOW_MS
+                t.catchFor = ev.playerId
+                dirty = true
+                events.push({ t: 'UNO_WINDOW_OPEN', playerId: ev.playerId })
+            }
+            const closes = (ev.t === 'UNO_CALLED' || ev.t === 'ELIMINATED') && ev.playerId === t.catchFor
+            if ((closes || ev.t === 'GAME_OVER') && t.catchFor) {
+                const who = t.catchFor
+                delete t.catchAt
+                delete t.catchFor
+                dirty = true
+                events.push({ t: 'UNO_WINDOW_CLOSED', playerId: who })
+            }
+        }
+        if (dirty) await this.putTimers(t)
+    }
+
     private async rosterList(): Promise<{ userId: string; name: string; joinedAt: number }[]> {
         const roster = (await this.ctx.storage.get<Record<string, RosterEntry>>('roster')) ?? {}
         return Object.entries(roster)
@@ -231,6 +309,7 @@ export class GameRoomDO {
     /** Send an intent's events (personalized) + a fresh snapshot to every seated socket. */
     private async broadcastGame(events: GameEvent[], intentId?: string): Promise<void> {
         this.seq++
+        await this.processCatchWindows(events)
         const roster = await this.rosterList()
         const roomRec = await this.ctx.storage.get<RoomRecord>('room')
         for (const { ws, userId } of this.roomSockets()) {
@@ -240,6 +319,8 @@ export class GameRoomDO {
             this.send(ws, { t: 'snapshot', seq: this.seq, game: this.viewFor(userId, roster, roomRec) })
         }
         await this.saveGame()
+        await this.armTurnGrace()
+        await this.touchGc()
     }
 
     async fetch(req: Request): Promise<Response> {
@@ -259,7 +340,7 @@ export class GameRoomDO {
                     stackingMode: body.stackingMode ?? 'official', isPublic: !!body.isPublic,
                 }
                 await this.ctx.storage.put('room', room)
-                await this.ctx.storage.setAlarm(Date.now() + ROOM_GC_MS)
+                await this.touchGc()
                 return new Response('ok')
             }
 
@@ -352,13 +433,15 @@ export class GameRoomDO {
             await this.ctx.storage.put('roster', roster)
             ws.serializeAttachment({ userId: verified.userId })
             // Activity resets the GC clock.
-            await this.ctx.storage.setAlarm(Date.now() + ROOM_GC_MS)
+            await this.touchGc()
 
             this.send(ws, { t: 'hello', roomCode: room.code, userId: verified.userId, hostUserId: room.hostUserId })
             await this.broadcastPresence(roster)
             // Catch the joiner up — lobby state or a running game.
             await this.loadGame()
             this.send(ws, await this.snapshotFor(verified.userId))
+            // A reconnecting current player cancels their grace clock.
+            await this.armTurnGrace()
             return
         }
 
@@ -397,13 +480,8 @@ export class GameRoomDO {
 
             case 'kick': {
                 const roomRec = await this.ctx.storage.get<RoomRecord>('room')
-                if (roomRec?.hostUserId !== tag.userId) {
+                if (roomRec?.hostUserId !== tag.userId || msg.userId === tag.userId) {
                     this.send(ws, { t: 'error', code: 'not-host' })
-                    return
-                }
-                await this.loadGame()
-                if (this.game && this.roomStatus() === 'playing') {
-                    this.send(ws, { t: 'error', code: 'not-in-lobby' })
                     return
                 }
                 const roster = (await this.ctx.storage.get<Record<string, RosterEntry>>('roster')) ?? {}
@@ -413,6 +491,12 @@ export class GameRoomDO {
                     if (s.userId === msg.userId) s.ws.close(1008, 'kicked')
                 }
                 await this.broadcastPresence(roster)
+                // Mid-game, a kick is a forced elimination — the seat can't return.
+                await this.loadGame()
+                if (this.game && this.roomStatus() === 'playing') {
+                    const events = forceEliminate(this.game, msg.userId)
+                    if (events) await this.broadcastGame(events)
+                }
                 return
             }
 
@@ -452,6 +536,27 @@ export class GameRoomDO {
                     this.send(ws, { t: 'error', code: 'not-started', intentId: msg.id })
                     return
                 }
+
+                // Catching a missed UNO call is window-gated room state, not a rule.
+                if (msg.action.kind === 'CATCH_UNO') {
+                    const target = msg.action.targetUserId
+                    const t = await this.getTimers()
+                    const targetPlayer = game.engine.players.find(p => p.id === target)
+                    const windowOpen = t.catchFor === target && (t.catchAt ?? 0) > Date.now()
+                    if (!windowOpen || target === tag.userId || !targetPlayer || targetPlayer.isEliminated
+                        || targetPlayer.hand.length !== 1 || game.engine.hasCalledUno[target]) {
+                        this.send(ws, { t: 'error', code: 'invalid-intent', intentId: msg.id })
+                        return
+                    }
+                    delete t.catchAt
+                    delete t.catchFor
+                    await this.putTimers(t)
+                    const events = applyUnoCatch(game, target)
+                    events.push({ t: 'UNO_WINDOW_CLOSED', playerId: target })
+                    await this.broadcastGame(events, msg.id)
+                    return
+                }
+
                 const res = applyIntent(game, tag.userId, msg.action)
                 if (!res.ok) {
                     this.send(ws, { t: 'error', code: 'invalid-intent', intentId: msg.id })
@@ -470,15 +575,52 @@ export class GameRoomDO {
     // handlers run — exclude it or it counts itself as connected.
     async webSocketClose(ws: WebSocket) {
         await this.broadcastPresence(undefined, ws)
+        await this.armTurnGrace(ws)
     }
 
     async webSocketError(ws: WebSocket) {
         await this.broadcastPresence(undefined, ws)
+        await this.armTurnGrace(ws)
     }
 
-    // GC: a room idle (no connected room sockets) past its alarm evaporates.
+    // The single alarm dispatches whichever clocks are due: catch-window
+    // expiry, turn grace for an absent player, and room GC.
     async alarm() {
-        if (this.roomSockets().length === 0) {
+        const now = Date.now()
+        const t = await this.getTimers()
+
+        const catchDue = !!t.catchAt && t.catchAt <= now
+        const catchWho = t.catchFor
+        if (catchDue) { delete t.catchAt; delete t.catchFor }
+
+        const graceDue = !!t.graceAt && t.graceAt <= now
+        const graceSeat = t.graceSeat
+        if (graceDue) { delete t.graceAt; delete t.graceSeat }
+
+        const gcDue = !!t.gcAt && t.gcAt <= now
+        if (gcDue) t.gcAt = now + ROOM_GC_MS
+        await this.putTimers(t)
+
+        if (catchDue && catchWho) {
+            await this.loadGame()
+            if (this.game && this.roomStatus() === 'playing') {
+                await this.broadcastGame([{ t: 'UNO_WINDOW_CLOSED', playerId: catchWho }])
+            }
+        }
+
+        if (graceDue && graceSeat) {
+            await this.loadGame()
+            const s = this.game?.engine
+            const connected = new Set(this.roomSockets().map(x => x.userId))
+            if (this.game && s && this.roomStatus() === 'playing'
+                && s.players[s.currentPlayerIndex]?.id === graceSeat
+                && !connected.has(graceSeat)) {
+                const events = autoResolveAbsentTurn(this.game, graceSeat)
+                await this.broadcastGame(events)
+            }
+        }
+
+        if (gcDue && this.roomSockets().length === 0) {
             const roomRec = await this.ctx.storage.get<RoomRecord>('room')
             if (roomRec?.isPublic) {
                 await directoryStub(this.env).fetch('https://do/dir-unregister', {
@@ -487,8 +629,6 @@ export class GameRoomDO {
             }
             await this.ctx.storage.deleteAll()
             this.game = undefined
-        } else {
-            await this.ctx.storage.setAlarm(Date.now() + ROOM_GC_MS)
         }
     }
 

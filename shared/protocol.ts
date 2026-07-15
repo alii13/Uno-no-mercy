@@ -17,6 +17,7 @@ export type IntentAction =
     | { kind: 'SWAP_HANDS'; targetUserId: string }
     | { kind: 'SKIP_SWAP' }
     | { kind: 'CALL_UNO' }
+    | { kind: 'CATCH_UNO'; targetUserId: string }
 
 export type ClientMsg =
     | { t: 'auth'; token: string; name: string }
@@ -39,6 +40,9 @@ export type GameEvent =
     | { t: 'UNO_PENALTY'; playerId: string }
     | { t: 'AT_ONE'; playerId: string }
     | { t: 'UNO_CALLED'; playerId: string }
+    | { t: 'UNO_WINDOW_OPEN'; playerId: string }
+    | { t: 'UNO_WINDOW_CLOSED'; playerId: string }
+    | { t: 'TURN_AUTO_RESOLVED'; playerId: string }
     | { t: 'ROULETTE_ENDED'; playerId: string; outcome: 'match' | 'eliminated' | 'exhausted'; matchCard?: Card }
     | { t: 'GAME_OVER'; winnerId: string }
 
