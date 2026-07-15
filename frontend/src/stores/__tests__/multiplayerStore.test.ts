@@ -96,6 +96,8 @@ async function joinRoom(mp: ReturnType<typeof useMultiplayerStore>) {
     expect(JSON.parse(ws.sent[0]!)).toMatchObject({ t: 'auth', token: 'test-token', name: 'TESTER' })
     ws.receive({ t: 'hello', roomCode: 'AB12CD', userId: 'me', hostUserId: 'me' })
     ws.receive({ t: 'presence', players: [{ userId: 'me', name: 'TESTER', connected: true }] })
+    // connect() resolves on the first snapshot (callers read currentGame off it).
+    ws.receive({ t: 'snapshot', seq: 0, game: playingView({ status: 'lobby', you: null, currentPlayerId: null, players: [] }) })
     await joining
     return ws
 }
