@@ -3,9 +3,10 @@
 import { verifySupabaseToken, type AuthEnv } from './auth'
 import type { ClientMsg, GameEvent, PresencePlayer, ServerMsg } from './protocol'
 import { applyIntent, applyUnoCatch, autoResolveAbsentTurn, forceEliminate, persistResults, personalView, startGame, updateStats, viewEventFor, type GameRecord } from './game'
+import { addParticipant, createMeeting, deactivateMeeting, voiceConfigured, type VoiceEnv } from './voice'
 import type { StackingMode } from '../../shared/engine'
 
-interface Env extends AuthEnv {
+interface Env extends AuthEnv, VoiceEnv {
     ROOM: DurableObjectNamespace
     /** Optional wrangler secret; enables server-side game_results persistence. */
     SUPABASE_SERVICE_KEY?: string
@@ -143,7 +144,7 @@ export default {
 
         if (url.pathname === '/health') {
             console.log('health check, secret bound:', !!env.SUPABASE_SERVICE_KEY)
-            return withCors(Response.json({ ok: true, resultsPersistence: !!env.SUPABASE_SERVICE_KEY }), req)
+            return withCors(Response.json({ ok: true, resultsPersistence: !!env.SUPABASE_SERVICE_KEY, voice: voiceConfigured(env) }), req)
         }
 
         // Open public rooms for quick match.
@@ -187,6 +188,8 @@ interface RoomRecord {
     hostUserId: string
     stackingMode: string
     isPublic: boolean
+    /** RealtimeKit meeting backing this room's voice channel; created lazily. */
+    voiceMeetingId?: string
 }
 
 interface RosterEntry {
@@ -492,6 +495,41 @@ export class GameRoomDO {
                 return
             }
 
+            case 'voice-join': {
+                // Voice rides the authed game socket: only seated roster
+                // members can mint a RealtimeKit token. Never blocks the game.
+                const room = await this.ctx.storage.get<RoomRecord>('room')
+                if (!room || !voiceConfigured(this.env)) {
+                    this.send(ws, { t: 'error', code: 'voice-unavailable' })
+                    return
+                }
+                try {
+                    let meetingId = room.voiceMeetingId
+                    if (!meetingId) {
+                        meetingId = await createMeeting(this.env, `uno-${room.code}`)
+                        // Two simultaneous joiners can race the creation —
+                        // whoever persisted first wins, the loser's meeting
+                        // is abandoned (free).
+                        const latest = await this.ctx.storage.get<RoomRecord>('room')
+                        if (latest?.voiceMeetingId) {
+                            meetingId = latest.voiceMeetingId
+                        } else if (latest) {
+                            latest.voiceMeetingId = meetingId
+                            await this.ctx.storage.put('room', latest)
+                        }
+                    }
+                    const roster = (await this.ctx.storage.get<Record<string, RosterEntry>>('roster')) ?? {}
+                    const name = roster[tag.userId]?.name ?? 'PLAYER'
+                    const token = await addParticipant(this.env, meetingId, { name, customParticipantId: tag.userId })
+                    this.send(ws, { t: 'voice-token', token, meetingId })
+                    await this.touchGc()
+                } catch (err) {
+                    console.error('voice-join failed:', err)
+                    this.send(ws, { t: 'error', code: 'voice-unavailable' })
+                }
+                return
+            }
+
             case 'kick': {
                 const roomRec = await this.ctx.storage.get<RoomRecord>('room')
                 if (roomRec?.hostUserId !== tag.userId || msg.userId === tag.userId) {
@@ -641,6 +679,7 @@ export class GameRoomDO {
                     method: 'POST', body: JSON.stringify({ code: roomRec.code }),
                 })
             }
+            if (roomRec?.voiceMeetingId) await deactivateMeeting(this.env, roomRec.voiceMeetingId)
             await this.ctx.storage.deleteAll()
             this.game = undefined
         }
