@@ -1,0 +1,17 @@
+name = "uno-game-server"
+main = "src/index.ts"
+compatibility_date = "2026-04-28"
+
+[[durable_objects.bindings]]
+name = "ROOM"
+class_name = "GameRoomDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["GameRoomDO"]
+
+# Supabase project used for token introspection. The anon key is public by
+# design (it ships in every frontend bundle) — it is not a secret.
+[vars]
+SUPABASE_URL = "https://djzqoccutacfueuadflw.supabase.co"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqenFvY2N1dGFjZnVldWFkZmx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg3MjI4ODMsImV4cCI6MjA4NDI5ODg4M30.YVHGJWZmaSc3rrC61ypwsJCAAHWUWBlhzCXFNS7CF_4"
