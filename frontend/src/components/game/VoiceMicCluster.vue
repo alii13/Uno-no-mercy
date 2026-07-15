@@ -25,7 +25,15 @@
       <line x1="12" y1="18" x2="12" y2="22" />
       <line v-if="voice.state === 'live' && voice.muted" x1="3" y1="3" x2="21" y2="21" class="hud-voice-slash" />
     </svg>
-    <span class="hud-voice-label">{{ label }}</span>
+    <!-- Live activity: bars dance while anyone's voice is flowing — the
+         direct "it's working" signal, instead of a static LIVE word. -->
+    <span
+      v-if="voice.state === 'live' && !voice.muted"
+      class="voice-eq"
+      :class="{ active: anySpeaking }"
+      aria-hidden="true"
+    ><i></i><i></i><i></i></span>
+    <span v-if="label" class="hud-voice-label">{{ label }}</span>
   </button>
   <Transition name="nudge">
     <span v-if="showNudge" class="voice-nudge" role="status">
@@ -67,11 +75,13 @@ watch(() => voice.state, (s) => {
 const busy = computed(() => voice.state === 'requesting-token' || voice.state === 'connecting')
 const selfSpeaking = computed(() =>
   voice.state === 'live' && !!voice.selfUserId && voice.speakingUserIds.has(voice.selfUserId))
+const anySpeaking = computed(() => voice.speakingUserIds.size > 0)
 
+// Words only where they carry meaning: discovery (JOIN VOICE) and recovery
+// (RETRY). Live/muted state reads from the icon color + slash + equalizer.
 const label = computed(() => {
   if (voice.state === 'error') return 'RETRY'
-  if (busy.value) return 'VOICE'
-  if (voice.state === 'live') return voice.muted ? 'MUTED' : 'LIVE'
+  if (busy.value || voice.state === 'live') return ''
   return 'JOIN VOICE'
 })
 
@@ -210,12 +220,45 @@ function handleClick() {
   animation: voice-spin 0.8s linear infinite;
 }
 
+.voice-eq {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+}
+
+.voice-eq i {
+  width: 2.5px;
+  border-radius: 1px;
+  background: var(--color-neon-green);
+  opacity: 0.45;
+  transition: opacity 0.2s;
+}
+
+.voice-eq i:nth-child(1) { height: 5px; }
+.voice-eq i:nth-child(2) { height: 9px; }
+.voice-eq i:nth-child(3) { height: 6px; }
+
+.voice-eq.active i {
+  opacity: 1;
+  animation: voice-eq-bounce 0.55s ease-in-out infinite;
+}
+
+.voice-eq.active i:nth-child(2) { animation-delay: 0.12s; }
+.voice-eq.active i:nth-child(3) { animation-delay: 0.24s; }
+
+@keyframes voice-eq-bounce {
+  0%, 100% { transform: scaleY(0.6); }
+  50% { transform: scaleY(1.5); }
+}
+
 @keyframes voice-spin {
   to { transform: rotate(360deg); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .hud-voice-spinner { animation-duration: 1.6s; }
+  .voice-eq.active i { animation: none; }
 }
 
 /* Phone widths: the label is the overflow source (same treatment as the
