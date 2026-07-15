@@ -7,6 +7,7 @@ import {
     rouletteDrawStep,
     selectDiscardAllTop,
     drawCardToHand,
+    eliminatePlayer,
 } from '../engine'
 
 function card(id: string, color: Card['color'], type: Card['type'], value?: number): Card {
@@ -230,6 +231,43 @@ describe('roulette', () => {
         expect(s.players[1]!.hand.map(c => c.id)).toEqual(['c-red-5'])
     })
 })
+
+describe('forced elimination (kick)', () => {
+    it('dumps the hand, unparks the turn, and clears a pending stack', () => {
+        const s = makeState({
+            players: [player('p-0', 'A', [red5]), player('p-1', 'B', [blueCard('k-1'), blueCard('k-2')]), player('p-2', 'C', [red5])],
+            currentPlayerIndex: 1,
+            drawStack: 4,
+            turnState: 'WAITING_FOR_ACTION',
+        })
+        const ev: EngineEvent[] = []
+
+        expect(eliminatePlayer(s, 'p-1', ev)).toBe(true)
+
+        expect(s.players[1]!.isEliminated).toBe(true)
+        expect(s.players[1]!.hand).toEqual([])
+        expect(s.drawStack).toBe(0)
+        expect(s.currentPlayerIndex).toBe(2)
+        expect(s.gameState).toBe('PLAYING')
+        expect(ev.some(e => e.t === 'ELIMINATED')).toBe(true)
+    })
+
+    it('ends the game when only one player remains', () => {
+        const s = makeState({
+            players: [player('p-0', 'A', [red5]), player('p-1', 'B', [red5])],
+        })
+        const ev: EngineEvent[] = []
+
+        eliminatePlayer(s, 'p-1', ev)
+
+        expect(s.winnerId).toBe('p-0')
+        expect(s.gameState).toBe('GAME_OVER')
+    })
+})
+
+function blueCard(id: string): Card {
+    return card(id, 'blue', 'number', 3)
+}
 
 describe('mercy rule', () => {
     it('eliminates at 25 cards and ends the game when one player remains', () => {

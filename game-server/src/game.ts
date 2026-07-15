@@ -213,6 +213,86 @@ function resolveDraw(game: GameRecord, userId: string): IntentResult {
     return { ok: true, events: [...events, ...translateEngineEvents(ev)] }
 }
 
+/**
+ * Resolve the turn of an absent (disconnected past grace) player, minimally:
+ * eat a pending stack or draw one card, and resolve any choosing state with
+ * the obvious pick. Never auto-plays from WAITING — an absent player drifts
+ * toward the mercy threshold instead of playing on autopilot.
+ */
+export function autoResolveAbsentTurn(game: GameRecord, userId: string): GameEvent[] {
+    const s = game.engine
+    const out: GameEvent[] = [{ t: 'TURN_AUTO_RESOLVED', playerId: userId }]
+    // Engine calls mutate gameState mid-loop; a closure keeps TS from narrowing it away.
+    const gameOver = () => s.gameState === 'GAME_OVER'
+
+    for (let sanity = 0; sanity < 5; sanity++) {
+        if (gameOver()) break
+        const current = engine.currentPlayer(s)
+        if (!current || current.id !== userId || current.isEliminated) break
+        const hand = current.hand
+
+        if (s.turnState === 'WAITING_FOR_ACTION') {
+            const ev: EngineEvent[] = []
+            if (s.drawStack > 0) {
+                const count = s.drawStack
+                s.drawStack = 0
+                for (let i = 0; i < count; i++) {
+                    if (current.isEliminated || gameOver()) break
+                    engine.drawCardToHand(s, userId, ev)
+                }
+            } else {
+                engine.drawCardToHand(s, userId, ev)
+            }
+            if (!gameOver() && engine.currentPlayer(s)?.id === userId) {
+                engine.advanceTurn(s, ev)
+            }
+            out.push(...translateEngineEvents(ev))
+            continue
+        }
+
+        if (s.turnState === 'CHOOSING_DRAWN_WILD_COLOR' && game.pendingDrawnWildCardId) {
+            const res = applyIntent(game, userId, { kind: 'CHOOSE_DRAWN_WILD_COLOR', color: engine.getWildCardColor(hand) })
+            out.push(...res.events)
+            if (!res.ok) break
+            continue
+        }
+        if (s.turnState === 'CHOOSING_PLAYER_TO_SWAP') {
+            const res = applyIntent(game, userId, { kind: 'SKIP_SWAP' })
+            out.push(...res.events)
+            if (!res.ok) break
+            continue
+        }
+        if (s.turnState === 'CHOOSING_DISCARD_ALL_TOP' && s.pendingDiscardAllCards[0]) {
+            const res = applyIntent(game, userId, { kind: 'PICK_DISCARD_ALL_TOP', cardId: s.pendingDiscardAllCards[0].id })
+            out.push(...res.events)
+            if (!res.ok) break
+            continue
+        }
+        if (s.turnState === 'CHOOSING_ROULETTE_COLOR') {
+            const res = applyIntent(game, userId, { kind: 'SET_ROULETTE_COLOR', color: engine.getWildCardColor(hand) })
+            out.push(...res.events)
+            if (!res.ok) break
+            continue
+        }
+        break
+    }
+    return out
+}
+
+/** Draw-10 penalty for a caught UNO miss. Window validation is the room's job. */
+export function applyUnoCatch(game: GameRecord, targetUserId: string): GameEvent[] {
+    const ev: EngineEvent[] = []
+    engine.penalizeUnoDraws(game.engine, targetUserId, 10, ev)
+    return [{ t: 'UNO_PENALTY', playerId: targetUserId }, ...translateEngineEvents(ev)]
+}
+
+/** Kick / permanent leave: force-eliminate the seat. Returns null if there was nothing to do. */
+export function forceEliminate(game: GameRecord, userId: string): GameEvent[] | null {
+    const ev: EngineEvent[] = []
+    if (!engine.eliminatePlayer(game.engine, userId, ev)) return null
+    return translateEngineEvents(ev)
+}
+
 /** Engine events → wire events (viewer-neutral; DRAW personalization happens at send time). */
 function translateEngineEvents(ev: EngineEvent[]): GameEvent[] {
     const out: GameEvent[] = []

@@ -194,13 +194,25 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                         break
                     case 'ELIMINATED':
                         shout(`${playerName(ev.playerId)} is ELIMINATED`)
+                        if (catchableUserId.value === ev.playerId) catchableUserId.value = null
                         break
                     case 'UNO_CALLED':
                         if (ev.playerId === myUserId.value) mpStats.value.unoCalls++
                         shout(`${playerName(ev.playerId)} called UNO`)
+                        if (catchableUserId.value === ev.playerId) catchableUserId.value = null
+                        break
+                    case 'UNO_WINDOW_OPEN':
+                        catchableUserId.value = ev.playerId
+                        break
+                    case 'UNO_WINDOW_CLOSED':
+                        if (catchableUserId.value === ev.playerId) catchableUserId.value = null
                         break
                     case 'UNO_PENALTY':
                         if (ev.playerId === myUserId.value) mpStats.value.unoPenalties++
+                        shout(`${playerName(ev.playerId)} got caught — draw 10`)
+                        break
+                    case 'TURN_AUTO_RESOLVED':
+                        shout(`${playerName(ev.playerId)} was away — turn resolved`)
                         break
                 }
                 break
@@ -469,8 +481,10 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         sendIntent({ kind: 'CALL_UNO' })
     }
 
-    // Catch windows arrive with phase 5's server-side timers.
-    async function catchPlayer(_userId: string) { /* not catchable yet */ }
+    async function catchPlayer(userId: string) {
+        if (catchableUserId.value !== userId) return
+        sendIntent({ kind: 'CATCH_UNO', targetUserId: userId })
+    }
 
     return {
         currentGame,
