@@ -191,6 +191,7 @@ import { countByColor } from '../../utils/gameHelpers'
 import type { Card as CardType, CardColor } from '../../types/card'
 import { soundEffects } from '../../composables/useSoundEffects'
 import { useCardAnimations } from '../../composables/useCardAnimations'
+import { preloadCardImages } from '../../utils/preloadCardImages'
 import { animateOpponentThrow, burstImpactParticles, skipEveryoneShockwave, showTurnBanner, pulseSeat } from '../../composables/useGameFeel'
 import OpponentChip from './OpponentChip.vue'
 import HandFan from './HandFan.vue'
@@ -299,6 +300,7 @@ const prevHandLengths = ref<Record<string, number>>({})
 // AFTER a user gesture (the PLAY NOW / VS BOT click that led here counts),
 // so the play() in music.start() usually resolves cleanly.
 onMounted(async () => {
+  preloadCardImages()
   music.start()
   if (store.isDealing) {
     // The intro is eye candy — a failure in it must not abort the deal.

@@ -11,12 +11,13 @@
     @mouseenter="handleHover"
     :style="{ width: size.width + 'px', height: size.height + 'px' }"
   >
+    <!-- Eager, not lazy: hand/pile cards are the game's core content, and
+         lazy-loading made faces pop in as ghost outlines mid-deal. -->
     <img
       class="card-image"
       :src="cardUrl"
       :width="size.width"
       :height="size.height"
-      loading="lazy"
       decoding="async"
       :alt="cardAlt"
       draggable="false"

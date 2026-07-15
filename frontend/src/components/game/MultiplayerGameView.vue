@@ -244,6 +244,7 @@ import { useAuthStore } from '../../stores/authStore'
 import { useVoiceStore } from '../../stores/voiceStore'
 import { soundEffects } from '../../composables/useSoundEffects'
 import { useCardAnimations } from '../../composables/useCardAnimations'
+import { preloadCardImages } from '../../utils/preloadCardImages'
 import CardPile from './CardPile.vue'
 import HandFan from './HandFan.vue'
 import OpponentChip from './OpponentChip.vue'
@@ -747,6 +748,7 @@ watch(gameStatus, (now, prev) => {
 
 // Initialize component and run initial deal animation if needed
 onMounted(async () => {
+  preloadCardImages()
   // If we landed straight into a playing game (refresh / deep link), kick off music.
   if (gameStatus.value === 'playing') music.start()
 
