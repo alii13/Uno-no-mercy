@@ -140,6 +140,11 @@ export default {
             return withCors(Response.json({ code, placementMs: winner.ms }), req)
         }
 
+        if (url.pathname === '/health') {
+            console.log('health check, secret bound:', !!env.SUPABASE_SERVICE_KEY)
+            return withCors(Response.json({ ok: true, resultsPersistence: !!env.SUPABASE_SERVICE_KEY }), req)
+        }
+
         // Open public rooms for quick match.
         if (url.pathname === '/public-rooms') {
             const res = await directoryStub(env).fetch('https://do/dir-list')
