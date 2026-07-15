@@ -1,7 +1,8 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import { verifySupabaseToken, type AuthEnv } from './auth'
-import type { ClientMsg, PresencePlayer, ServerMsg } from './protocol'
+import type { ClientMsg, GameEvent, PresencePlayer, ServerMsg } from './protocol'
+import { applyIntent, personalView, startGame, viewEventFor, type GameRecord } from './game'
 
 interface Env extends AuthEnv {
     ROOM: DurableObjectNamespace
@@ -59,7 +60,11 @@ export default {
         const hint = CONTINENT_HINTS[(req.cf?.continent as string) ?? '']
 
         // Create a room: run the placement lottery and activate the winner.
+        // Creation is authenticated — the creator becomes the room host.
         if (req.method === 'POST' && url.pathname === '/rooms') {
+            const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '')
+            const creator = await verifySupabaseToken(token, env)
+            if (!creator) return new Response('unauthorized', { status: 401 })
             const code = generateRoomCode()
             const timings = await Promise.all(
                 Array.from({ length: CANDIDATES }, async (_, i) => {
@@ -76,7 +81,7 @@ export default {
             const winner = timings[0]!
             await candidateStub(env, code, winner.i).fetch('https://do/activate', {
                 method: 'POST',
-                body: JSON.stringify({ code }),
+                body: JSON.stringify({ code, hostUserId: creator.userId }),
             })
             return Response.json({ code, placementMs: winner.ms })
         }
@@ -113,6 +118,7 @@ export default {
 interface RoomRecord {
     code: string
     createdAt: number
+    hostUserId: string
 }
 
 interface RosterEntry {
@@ -123,7 +129,68 @@ interface RosterEntry {
 type SocketTag = { echo: true } | { userId: string } | null
 
 export class GameRoomDO {
+    // In-memory game cache; undefined = not loaded from storage yet (fresh
+    // wake), null = loaded and no game. Engine transitions are synchronous,
+    // and storage ops are input-gated, so intents never interleave mid-move.
+    private game: GameRecord | null | undefined
+    private seq = 0
+
     constructor(private ctx: DurableObjectState, private env: Env) {}
+
+    private async loadGame(): Promise<GameRecord | null> {
+        if (this.game === undefined) {
+            const stored = await this.ctx.storage.get<{ game: GameRecord; seq: number }>('game')
+            this.game = stored?.game ?? null
+            this.seq = stored?.seq ?? 0
+        }
+        return this.game
+    }
+
+    private async saveGame(): Promise<void> {
+        if (this.game) await this.ctx.storage.put('game', { game: this.game, seq: this.seq })
+    }
+
+    private roomStatus(): 'lobby' | 'playing' | 'finished' {
+        if (!this.game) return 'lobby'
+        return this.game.engine.gameState === 'GAME_OVER' ? 'finished' : 'playing'
+    }
+
+    private async rosterList(): Promise<{ userId: string; name: string; joinedAt: number }[]> {
+        const roster = (await this.ctx.storage.get<Record<string, RosterEntry>>('roster')) ?? {}
+        return Object.entries(roster)
+            .map(([userId, e]) => ({ userId, name: e.name, joinedAt: e.joinedAt }))
+            .sort((a, b) => a.joinedAt - b.joinedAt)
+    }
+
+    private async snapshotFor(userId: string): Promise<ServerMsg> {
+        const roster = await this.rosterList()
+        const connected = new Set(this.roomSockets().map(s => s.userId))
+        const host = (await this.ctx.storage.get<RoomRecord>('room'))?.hostUserId ?? null
+        return {
+            t: 'snapshot',
+            seq: this.seq,
+            game: personalView(this.game ?? null, this.roomStatus(), userId, roster, connected, host),
+        }
+    }
+
+    /** Send an intent's events (personalized) + a fresh snapshot to every seated socket. */
+    private async broadcastGame(events: GameEvent[], intentId?: string): Promise<void> {
+        this.seq++
+        const roster = await this.rosterList()
+        const connected = new Set(this.roomSockets().map(s => s.userId))
+        const host = (await this.ctx.storage.get<RoomRecord>('room'))?.hostUserId ?? null
+        for (const { ws, userId } of this.roomSockets()) {
+            for (const ev of events) {
+                this.send(ws, { t: 'event', seq: this.seq, ev: viewEventFor(ev, userId), intentId })
+            }
+            this.send(ws, {
+                t: 'snapshot',
+                seq: this.seq,
+                game: personalView(this.game ?? null, this.roomStatus(), userId, roster, connected, host),
+            })
+        }
+        await this.saveGame()
+    }
 
     async fetch(req: Request): Promise<Response> {
         const url = new URL(req.url)
@@ -136,8 +203,8 @@ export class GameRoomDO {
                 return Response.json(!!(await this.ctx.storage.get('room')))
 
             case '/activate': {
-                const body = await req.json<{ code: string }>()
-                const room: RoomRecord = { code: body.code, createdAt: Date.now() }
+                const body = await req.json<{ code: string; hostUserId: string }>()
+                const room: RoomRecord = { code: body.code, createdAt: Date.now(), hostUserId: body.hostUserId }
                 await this.ctx.storage.put('room', room)
                 await this.ctx.storage.setAlarm(Date.now() + ROOM_GC_MS)
                 return new Response('ok')
@@ -214,6 +281,10 @@ export class GameRoomDO {
 
             this.send(ws, { t: 'hello', roomCode: room.code, userId: verified.userId })
             await this.broadcastPresence(roster)
+            // Late joiner / reconnect while a game is running: catch them up.
+            if (await this.loadGame()) {
+                this.send(ws, await this.snapshotFor(verified.userId))
+            }
             return
         }
 
@@ -221,9 +292,50 @@ export class GameRoomDO {
             case 'ping':
                 this.send(ws, { t: 'pong', now: msg.now })
                 return
+
             case 'leave':
                 ws.close(1000, 'left')
                 return
+
+            case 'start': {
+                await this.loadGame()
+                if (this.game && this.roomStatus() === 'playing') {
+                    this.send(ws, { t: 'error', code: 'already-started' })
+                    return
+                }
+                const roomRec = await this.ctx.storage.get<RoomRecord>('room')
+                if (roomRec?.hostUserId !== tag.userId) {
+                    this.send(ws, { t: 'error', code: 'not-host' })
+                    return
+                }
+                const roster = await this.rosterList()
+                const connected = new Set(this.roomSockets().map(s => s.userId))
+                const seated = roster.filter(r => connected.has(r.userId))
+                if (seated.length < 2) {
+                    this.send(ws, { t: 'error', code: 'need-players' })
+                    return
+                }
+                const { game, events } = startGame(seated, msg.stackingMode ?? 'official')
+                this.game = game
+                await this.broadcastGame(events)
+                return
+            }
+
+            case 'intent': {
+                const game = await this.loadGame()
+                if (!game || this.roomStatus() !== 'playing') {
+                    this.send(ws, { t: 'error', code: 'not-started', intentId: msg.id })
+                    return
+                }
+                const res = applyIntent(game, tag.userId, msg.action)
+                if (!res.ok) {
+                    this.send(ws, { t: 'error', code: 'invalid-intent', intentId: msg.id })
+                    return
+                }
+                await this.broadcastGame(res.events, msg.id)
+                return
+            }
+
             default:
                 this.send(ws, { t: 'error', code: 'bad-message' })
         }
