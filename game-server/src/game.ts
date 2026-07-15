@@ -465,10 +465,12 @@ export function personalView(
     roster: { userId: string; name: string }[],
     connectedIds: Set<string>,
     hostUserId: string | null,
+    gameId: string | null = null,
 ): PersonalView {
     if (!game) {
         return {
             status: 'lobby',
+            gameId: null,
             hostUserId,
             players: roster.map((r, seat) => ({
                 userId: r.userId, name: r.name, seat,
@@ -513,6 +515,7 @@ export function personalView(
 
     return {
         status: roomStatus,
+        gameId,
         hostUserId,
         players,
         you: me ? { userId: me.id, seat: s.players.indexOf(me), hand: me.hand } : null,

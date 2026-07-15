@@ -78,7 +78,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         const v = view.value
         if (!v || !roomCodeRef.value) return null
         return {
-            id: roomCode.value,
+            id: v.gameId ?? roomCode.value,
             room_code: roomCode.value,
             status: v.status === 'lobby' ? 'waiting' : v.status,
             host_id: v.hostUserId ?? hostUserId.value ?? '',
@@ -179,6 +179,15 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             case 'event': {
                 const ev = msg.ev
                 switch (ev.t) {
+                    case 'STARTED':
+                        // Fresh deal (first game or a rematch) — stats are per game.
+                        mpStats.value = {
+                            peakCards: 0, drawCardsPlayed: 0, wildCardsPlayed: 0, cardsPlayedTotal: 0,
+                            skipsDealt: 0, swapsMade: 0, drawsTaken: 0, biggestStackSurvived: 0,
+                            unoCalls: 0, unoPenalties: 0,
+                        }
+                        catchableUserId.value = null
+                        break
                     case 'CARD_PLAYED':
                         if (ev.by !== myUserId.value) {
                             lastRemotePlay.value = { userId: ev.by, card: ev.card, n: ++playN }
@@ -219,6 +228,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             }
 
             case 'error':
+                if (msg.code === 'need-players') {
+                    error.value = 'Need at least 2 connected players to start'
+                }
                 if (msg.intentId && pendingIntent?.id === msg.intentId) {
                     // Server refused the intent — roll the optimistic render back.
                     view.value = pendingIntent.prevView

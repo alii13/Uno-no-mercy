@@ -40,11 +40,13 @@
 
         <!-- Primary CTA: dominant, color-matched to state -->
         <button class="cta-primary" :class="isWinner ? 'cta-win' : 'cta-loss'" @click="$emit('rematch')">
-          {{ mode === 'sp' ? 'REMATCH' : 'BACK TO LOBBY' }}
+          {{ mode === 'sp' || canRematch ? 'REMATCH' : 'BACK TO LOBBY' }}
         </button>
+        <p v-if="notice" class="rematch-hint rematch-notice">{{ notice }}</p>
+        <p v-else-if="mode === 'mp' && !canRematch" class="rematch-hint">The host can start a rematch — stay put.</p>
 
         <!-- Share row (win only — sharing a loss is tone-deaf) -->
-        <div v-if="isWinner && mode === 'sp'" class="share-row">
+        <div v-if="isWinner" class="share-row">
           <button
             class="share-btn share-x"
             type="button"
@@ -81,7 +83,7 @@
 
         <!-- Footer: small dismissible links, not heavy CTAs -->
         <div class="footer-links">
-          <button v-if="mode === 'sp'" class="link-btn" @click="$emit('back-to-lobby')">Back to menu</button>
+          <button v-if="mode === 'sp' || canRematch" class="link-btn" @click="$emit('back-to-lobby')">Back to menu</button>
           <button v-if="isAnonymous" class="link-btn upgrade-link" @click="$emit('upgrade-account')">Save your stats →</button>
         </div>
       </div>
@@ -110,6 +112,10 @@ const props = defineProps<{
   stats?: Stats
   isAnonymous: boolean
   mode: 'sp' | 'mp'
+  /** Multiplayer: the host can restart the same room; guests wait. */
+  canRematch?: boolean
+  /** One-line status under the CTA (e.g. "need 2 players"). */
+  notice?: string | null
 }>()
 
 defineEmits<{
@@ -210,17 +216,19 @@ async function shareWithImage(opts: { text: string; url: string; fallbackUrl: st
   window.open(opts.fallbackUrl, '_blank')
 }
 
-const SHARE_TEXT = 'Just destroyed the bot in UNO No Mercy. No mercy given. Play me if you dare.'
 const SITE_URL = 'https://uno-no-mercy.com'
+const shareText = () => props.mode === 'mp'
+  ? 'Just destroyed my friends in UNO No Mercy. No mercy given. Play me if you dare.'
+  : 'Just destroyed the bot in UNO No Mercy. No mercy given. Play me if you dare.'
 
 async function onShareWhatsApp() {
   if (sharingWhatsapp.value) return
   sharingWhatsapp.value = true
   try {
     await shareWithImage({
-      text: SHARE_TEXT,
+      text: shareText(),
       url: SITE_URL,
-      fallbackUrl: `https://wa.me/?text=${encodeURIComponent(`${SHARE_TEXT}\n\n${SITE_URL}`)}`,
+      fallbackUrl: `https://wa.me/?text=${encodeURIComponent(`${shareText()}\n\n${SITE_URL}`)}`,
     })
   } finally {
     sharingWhatsapp.value = false
@@ -232,9 +240,9 @@ async function onShareX() {
   sharingX.value = true
   try {
     await shareWithImage({
-      text: SHARE_TEXT,
+      text: shareText(),
       url: SITE_URL,
-      fallbackUrl: `https://twitter.com/intent/tweet?text=${encodeURIComponent(SHARE_TEXT)}&url=${encodeURIComponent(SITE_URL)}`,
+      fallbackUrl: `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText())}&url=${encodeURIComponent(SITE_URL)}`,
     })
   } finally {
     sharingX.value = false
@@ -479,6 +487,19 @@ function confettiStyle(i: number) {
   gap: 1.5rem;
   flex-wrap: wrap;
 }
+.rematch-hint {
+  margin: 0.6rem 0 0;
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.45);
+  text-align: center;
+}
+
+.rematch-notice {
+  color: var(--color-alert, #ff4d4d);
+}
+
 .link-btn {
   background: none;
   border: none;

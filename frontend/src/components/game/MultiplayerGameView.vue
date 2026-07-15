@@ -206,7 +206,9 @@
       :stats="mpGameStats"
       :is-anonymous="authStore.isAnonymous"
       mode="mp"
-      @rematch="leaveFromGameOver"
+      :can-rematch="mpStore.isHost"
+      :notice="mpStore.error"
+      @rematch="handleGameOverPrimary"
       @back-to-lobby="leaveFromGameOver"
       @upgrade-account="handleUpgrade"
     />
@@ -859,6 +861,16 @@ async function confirmLeave() {
 
 // Used by GameOverModal — the user has already seen the result screen,
 // no second confirmation needed.
+// Primary CTA on the game-over modal: the host restarts the same room
+// (server re-deals to everyone still connected); guests leave.
+async function handleGameOverPrimary() {
+  if (mpStore.isHost) {
+    await mpStore.startGame()
+    return
+  }
+  await leaveFromGameOver()
+}
+
 async function leaveFromGameOver() {
   await mpStore.leaveGame()
 }

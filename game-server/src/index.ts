@@ -303,7 +303,9 @@ export class GameRoomDO {
 
     private viewFor(userId: string, roster: { userId: string; name: string }[], roomRec: RoomRecord | undefined) {
         const connected = new Set(this.roomSockets().map(s => s.userId))
-        const view = personalView(this.game ?? null, this.roomStatus(), userId, roster, connected, roomRec?.hostUserId ?? null)
+        // Same id scheme as game_results rows — distinct per dealt game.
+        const gameId = this.game && roomRec ? `do-${roomRec.code}-${this.game.startedAt}` : null
+        const view = personalView(this.game ?? null, this.roomStatus(), userId, roster, connected, roomRec?.hostUserId ?? null, gameId)
         if (!this.game && roomRec) view.stackingMode = roomRec.stackingMode as StackingMode
         return view
     }
