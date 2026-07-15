@@ -60,6 +60,8 @@ export interface SnapshotPlayer {
 
 export interface PersonalView {
     status: 'lobby' | 'playing' | 'finished'
+    /** Distinct per dealt game (rematches in one room get new ids); null in the lobby. */
+    gameId: string | null
     hostUserId: string | null
     players: SnapshotPlayer[]
     you: { userId: string; seat: number; hand: Card[] } | null

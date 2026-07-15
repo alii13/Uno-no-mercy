@@ -64,6 +64,7 @@ const blue3 = card('c-b3', 'blue', 'number', 3)
 function playingView(overrides: Partial<PersonalView> = {}): PersonalView {
     return {
         status: 'playing',
+        gameId: 'do-AB12CD-1',
         hostUserId: 'me',
         players: [
             { userId: 'me', name: 'TESTER', seat: 0, handCount: 2, isEliminated: false, connected: true, calledUno: false },
