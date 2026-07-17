@@ -100,7 +100,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
+import { trackScreen } from './utils/analytics'
 import LandingPage from './components/LandingPage.vue'
 import AuthView from './components/AuthView.vue'
 import SettingsDrawer from './components/SettingsDrawer.vue'
@@ -131,6 +132,24 @@ const confirmPassword = ref('')
 const resetError = ref('')
 const resetSuccess = ref('')
 const resetLoading = ref(false)
+
+// Virtual page views: this SPA has no router, so GA otherwise sees one
+// eternal page. One page_view per screen gives time-per-screen for free
+// in GA's standard engagement reports. Mirrors the template's v-if chain.
+const currentScreen = computed(() => {
+  if (authStore.loading) return null
+  if (showPasswordReset.value) return 'password_reset'
+  if (localGameStore.gameState !== 'LOBBY') return 'sp_game'
+  if (!authStore.isAuthenticated) return showAuthView.value ? 'auth' : 'landing'
+  const mpStatus = mpStore.currentGame?.status
+  if (mpStatus === 'playing' || mpStatus === 'finished') return 'mp_game'
+  if (mpStatus === 'waiting') return 'waiting_room'
+  if (showDashboard.value) return 'dashboard'
+  return 'lobby'
+})
+watch(currentScreen, (screen) => {
+  if (screen) trackScreen(screen)
+})
 
 let authSubscription: { unsubscribe: () => void } | null = null
 

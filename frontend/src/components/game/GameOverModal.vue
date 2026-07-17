@@ -97,6 +97,7 @@ import gsap from 'gsap'
 import { ImageDown } from 'lucide-vue-next'
 import { siX, siWhatsapp } from 'simple-icons'
 import { generateShareImage, shareOrDownload } from '../../utils/shareImage'
+import { track } from '../../utils/analytics'
 
 interface Stats {
   cardsPlayed: number
@@ -224,6 +225,7 @@ const shareText = () => props.mode === 'mp'
 async function onShareWhatsApp() {
   if (sharingWhatsapp.value) return
   sharingWhatsapp.value = true
+  track('share', { method: 'whatsapp', content_type: props.mode === 'mp' ? 'mp_win' : 'sp_win' })
   try {
     await shareWithImage({
       text: shareText(),
@@ -238,6 +240,7 @@ async function onShareWhatsApp() {
 async function onShareX() {
   if (sharingX.value) return
   sharingX.value = true
+  track('share', { method: 'x', content_type: props.mode === 'mp' ? 'mp_win' : 'sp_win' })
   try {
     await shareWithImage({
       text: shareText(),

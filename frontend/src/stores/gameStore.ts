@@ -7,6 +7,7 @@ import { canPlayCard, getDrawValue, getWildCardColor, generateFullDeck, shuffleD
 import type { StackingMode } from '@engine'
 import { soundEffects } from '../composables/useSoundEffects'
 import { supabase } from '../lib/supabase'
+import { track } from '../utils/analytics'
 
 export const useGameStore = defineStore('game', () => {
     // Timings (single tunable block).
@@ -211,11 +212,14 @@ export const useGameStore = defineStore('game', () => {
     // lobby). The async deal loop checks it after every await so a deal that
     // outlives its game can't keep mutating the next game's state.
     let dealGeneration = 0
+    let spStartedAt = 0
 
     function initializeGame(playerNames: string[], mode?: StackingMode) {
         dealGeneration++
         closeCatchWindow()
         if (mode) setStackingMode(mode)
+        spStartedAt = Date.now()
+        track('sp_game_started', { rules: stackingMode.value })
         players.value = playerNames.map((name, index) => ({
             id: `p-${index}`,
             name,
@@ -697,6 +701,12 @@ export const useGameStore = defineStore('game', () => {
     // Auto-log results when game ends
     watch(gameState, (newState) => {
         if (newState === 'GAME_OVER') {
+            const human = players.value.find(p => !p.isBot)
+            track('sp_game_finished', {
+                result: human && winnerId.value === human.id ? 'won' : 'lost',
+                duration_seconds: spStartedAt ? Math.round((Date.now() - spStartedAt) / 1000) : undefined,
+                rules: stackingMode.value,
+            })
             logGameResults()
         }
     })

@@ -24,6 +24,9 @@ vi.mock('../authStore', () => ({
     useAuthStore: () => ({ username: 'TESTER', user: { id: 'me' } }),
 }))
 
+const { track } = vi.hoisted(() => ({ track: vi.fn() }))
+vi.mock('../../utils/analytics', () => ({ track }))
+
 class FakeWebSocket {
     static OPEN = 1
     static instances: FakeWebSocket[] = []
@@ -107,6 +110,7 @@ beforeEach(() => {
     setActivePinia(createPinia())
     FakeWebSocket.instances = []
     fakeStorage.store = {}
+    track.mockClear()
 })
 
 describe('joining and the lobby adapter', () => {
@@ -242,6 +246,39 @@ describe('UNO catch windows', () => {
         const sentBefore = ws.sent.length
         await mp.catchPlayer('opp')
         expect(ws.sent.length).toBe(sentBefore)
+    })
+})
+
+describe('analytics events', () => {
+    it('tracks the room and game lifecycle', async () => {
+        const mp = useMultiplayerStore()
+        const ws = await joinRoom(mp)
+        expect(track).toHaveBeenCalledWith('mp_room_joined', { method: 'code' })
+
+        // STARTED arms the tracker; the playing snapshot fires it with real data.
+        ws.receive({ t: 'event', seq: 1, ev: { t: 'STARTED' } })
+        ws.receive({ t: 'snapshot', seq: 1, game: playingView() })
+        expect(track).toHaveBeenCalledWith('mp_game_started', { players: 2, rules: 'official', rematch: false })
+
+        ws.receive({ t: 'event', seq: 2, ev: { t: 'GAME_OVER', winnerId: 'me' } })
+        expect(track).toHaveBeenCalledWith('mp_game_finished', expect.objectContaining({ result: 'won', players: 2 }))
+
+        // A rematch in the same room is marked as one.
+        ws.receive({ t: 'event', seq: 3, ev: { t: 'STARTED' } })
+        ws.receive({ t: 'snapshot', seq: 3, game: playingView({ gameId: 'do-AB12CD-2' }) })
+        expect(track).toHaveBeenCalledWith('mp_game_started', expect.objectContaining({ rematch: true }))
+
+        await mp.leaveGame()
+        expect(track).toHaveBeenCalledWith('mp_room_left', expect.objectContaining({ phase: 'playing' }))
+    })
+
+    it('a reconnect mid-game does not refire game_started', async () => {
+        const mp = useMultiplayerStore()
+        const ws = await joinRoom(mp)
+        track.mockClear()
+        // Snapshot arrives with a game already running (refresh/reconnect) — no STARTED.
+        ws.receive({ t: 'snapshot', seq: 5, game: playingView() })
+        expect(track).not.toHaveBeenCalledWith('mp_game_started', expect.anything())
     })
 })
 

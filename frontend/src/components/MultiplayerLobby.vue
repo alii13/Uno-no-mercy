@@ -403,7 +403,7 @@ onMounted(() => {
   if (!/^[A-Z0-9]{4,8}$/.test(code)) return
 
   joinCode.value = code
-  mpStore.joinGame(code)
+  mpStore.joinGame(code, 'link')
 })
 
 // Speaker button per seat: host cuts the mic room-wide, others mute locally.
