@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useMultiplayerStore } from './multiplayerStore'
 import { music } from '../composables/useMusic'
+import { track } from '../utils/analytics'
 
 // Voice channel for a game room, on Cloudflare RealtimeKit. The token comes
 // over the game socket (voice-join → voice-token), so only seated roster
@@ -61,6 +62,7 @@ export const useVoiceStore = defineStore('voice', () => {
 
     let meeting: RtkMeeting | null = null
     let tokenTimer: ReturnType<typeof setTimeout> | null = null
+    let voiceLiveAt = 0
     const speakingTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
     function clearTokenTimer() {
@@ -106,6 +108,8 @@ export const useVoiceStore = defineStore('voice', () => {
             for (const p of m.participants.joined.values()) playParticipantAudio(p)
             // Drop the background music while the call is live.
             music.setVoiceDucking(true)
+            voiceLiveAt = Date.now()
+            track('voice_joined')
         } catch (err) {
             console.error('voice connect failed:', err)
             await teardown()
@@ -247,6 +251,10 @@ export const useVoiceStore = defineStore('voice', () => {
     async function teardown() {
         const m = meeting
         meeting = null
+        if (voiceLiveAt) {
+            track('voice_left', { duration_seconds: Math.round((Date.now() - voiceLiveAt) / 1000) })
+            voiceLiveAt = 0
+        }
         music.setVoiceDucking(false)
         clearAudio()
         for (const t of speakingTimers.values()) clearTimeout(t)

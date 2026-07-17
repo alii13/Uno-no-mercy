@@ -4,6 +4,7 @@ import type { Card, CardColor } from '../types/card'
 import { DEFAULT_STACKING_MODE, type StackingMode } from '../utils/gameRules'
 import { getDrawValue } from '../utils/gameRules'
 import { supabase, type GameRow, type GamePlayerRow } from '../lib/supabase'
+import { track } from '../utils/analytics'
 import { useAuthStore } from './authStore'
 import { useVoiceStore } from './voiceStore'
 import type { ClientMsg, IntentAction, PersonalView, PresencePlayer, ServerMsg } from '@protocol'
@@ -66,6 +67,14 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     // One in-flight optimistic intent: remember the pre-mutation view so a
     // server rejection can roll the render back.
     let pendingIntent: { id: string; prevView: PersonalView | null } | null = null
+
+    // --- Analytics clocks (never affect gameplay) ---
+    // STARTED only fires on a real deal (never a reconnect); the player count
+    // lives in the snapshot that follows, so the event arms and the snapshot fires.
+    let pendingStartTrack = false
+    let trackedGameId: string | null = null
+    let gameStartedAt = 0
+    let roomJoinedAt = 0
 
     // --- Adapters: legacy row shapes the views already consume ---
 
@@ -175,6 +184,16 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 if (msg.game.you && msg.game.you.hand.length > mpStats.value.peakCards) {
                     mpStats.value.peakCards = msg.game.you.hand.length
                 }
+                if (pendingStartTrack && msg.game.status === 'playing') {
+                    pendingStartTrack = false
+                    track('mp_game_started', {
+                        players: msg.game.players.length,
+                        rules: msg.game.stackingMode,
+                        rematch: trackedGameId !== null,
+                    })
+                    trackedGameId = msg.game.gameId
+                    gameStartedAt = Date.now()
+                }
                 break
 
             case 'event': {
@@ -188,6 +207,16 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                             unoCalls: 0, unoPenalties: 0,
                         }
                         catchableUserId.value = null
+                        pendingStartTrack = true
+                        break
+
+                    case 'GAME_OVER':
+                        track('mp_game_finished', {
+                            players: view.value?.players.length,
+                            result: ev.winnerId === myUserId.value ? 'won' : 'lost',
+                            duration_seconds: gameStartedAt ? Math.round((Date.now() - gameStartedAt) / 1000) : undefined,
+                            rules: stackingMode.value,
+                        })
                         break
                     case 'CARD_PLAYED':
                         if (ev.by !== myUserId.value) {
@@ -348,6 +377,10 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     // --- Lobby actions ---
 
     function resetState() {
+        pendingStartTrack = false
+        trackedGameId = null
+        gameStartedAt = 0
+        roomJoinedAt = 0
         view.value = null
         presence.value = []
         roomCodeRef.value = null
@@ -386,6 +419,11 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         }
     }
 
+    function trackJoined(method: 'created' | 'code' | 'link' | 'quick_match' | 'restore') {
+        roomJoinedAt = Date.now()
+        track('mp_room_joined', { method })
+    }
+
     async function createGame(mode: StackingMode = DEFAULT_STACKING_MODE) {
         loading.value = true
         error.value = null
@@ -394,19 +432,27 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             const code = await createRoom(mode, false)
             if (!code) return null
             stackingMode.value = mode
-            return (await connect(code)) ? currentGame.value : null
+            track('mp_room_created', { rules: mode, visibility: 'private' })
+            if (!(await connect(code))) return null
+            trackJoined('created')
+            return currentGame.value
         } finally {
             loading.value = false
         }
     }
 
-    async function joinGame(code: string) {
+    async function joinGame(code: string, via: 'code' | 'link' = 'code') {
         loading.value = true
         error.value = null
         resetState()
         try {
             const ok = await connect(code.trim().toUpperCase())
-            return ok ? currentGame.value : null
+            if (!ok) {
+                track('mp_join_failed', { reason: error.value ?? 'unknown' })
+                return null
+            }
+            trackJoined(via)
+            return currentGame.value
         } finally {
             loading.value = false
         }
@@ -421,13 +467,19 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 .then(res => (res.ok ? (res.json() as Promise<string[]>) : []))
                 .catch(() => [] as string[])
             for (const code of codes) {
-                if (await connect(code)) return code
+                if (await connect(code)) {
+                    trackJoined('quick_match')
+                    return code
+                }
             }
             // Nothing open — host a public room and wait for company.
             const code = await createRoom(mode, true)
             if (!code) return null
             stackingMode.value = mode
-            return (await connect(code)) ? currentGame.value : null
+            track('mp_room_created', { rules: mode, visibility: 'public' })
+            if (!(await connect(code))) return null
+            trackJoined('quick_match')
+            return currentGame.value
         } finally {
             loading.value = false
         }
@@ -442,7 +494,13 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         if (!ok) {
             try { localStorage.removeItem(STORED_ROOM_KEY) } catch { /* noop */ }
             resetState()
+            return
         }
+        // A restored game keeps its identity so a rematch isn't miscounted
+        // as a first game, and finish duration isn't nonsense.
+        trackedGameId = view.value?.gameId ?? null
+        gameStartedAt = 0
+        trackJoined('restore')
     }
 
     async function startGame() {
@@ -455,6 +513,10 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     }
 
     async function leaveGame() {
+        track('mp_room_left', {
+            phase: view.value?.status,
+            seconds_in_room: roomJoinedAt ? Math.round((Date.now() - roomJoinedAt) / 1000) : undefined,
+        })
         // Leaving the room leaves its voice channel; rematches keep it.
         void useVoiceStore().leaveVoice()
         closedByUs = true
