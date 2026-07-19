@@ -1,18 +1,29 @@
 <template>
-  <section class="faq-section" aria-labelledby="faq-heading">
+  <section class="faq-section" ref="faqSection">
     <div class="faq-inner">
-      <h2 id="faq-heading" class="faq-heading">
-        <span class="faq-heading-line">FREQUENTLY ASKED</span>
-        <span class="faq-heading-accent">QUESTIONS</span>
+      <div class="section-label">07</div>
+      <h2 class="section-heading" ref="faqHeading">
+        YOUR QUESTIONS, <span class="accent-blue">ANSWERED</span>
       </h2>
+      <p class="section-desc" ref="faqDesc">
+        Everything about playing UNO No Mercy online, in one place.
+      </p>
 
       <div class="faq-list">
-        <details v-for="(item, i) in faqs" :key="i" class="faq-item">
-          <summary class="faq-q">
-            <span>{{ item.q }}</span>
-            <span class="faq-icon" aria-hidden="true"></span>
+        <details
+          v-for="(item, i) in faqs"
+          :key="i"
+          class="faq-row"
+          :ref="(el) => setRow(i, el)"
+        >
+          <summary class="faq-summary">
+            <span class="faq-num">{{ String(i + 1).padStart(2, '0') }}</span>
+            <span class="faq-question">{{ item.q }}</span>
+            <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
           </summary>
-          <p class="faq-a">{{ item.a }}</p>
+          <div class="faq-answer">{{ item.a }}</div>
         </details>
       </div>
     </div>
@@ -20,6 +31,12 @@
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue'
+import gsap from 'gsap'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
+
+gsap.registerPlugin(ScrollTrigger)
+
 // Keep this list in sync with the FAQPage JSON-LD in index.html — the
 // structured data must match the visible questions and answers exactly.
 const faqs = [
@@ -72,126 +89,240 @@ const faqs = [
     a: 'No. This is an independent, fan-made project. It is not affiliated with, endorsed by, or associated with Mattel or the official UNO brand.',
   },
 ]
+
+const faqSection = ref<HTMLElement>()
+const faqHeading = ref<HTMLElement>()
+const faqDesc = ref<HTMLElement>()
+const rowEls: HTMLElement[] = []
+function setRow(i: number, el: unknown) {
+  if (el) rowEls[i] = el as HTMLElement
+}
+
+let trigger: ScrollTrigger | null = null
+
+onMounted(() => {
+  requestAnimationFrame(() => requestAnimationFrame(initFaq))
+})
+
+onUnmounted(() => {
+  trigger?.kill()
+  trigger = null
+})
+
+function initFaq() {
+  if (!faqSection.value) return
+
+  const intro = [faqHeading.value, faqDesc.value].filter(Boolean) as HTMLElement[]
+  const rows = rowEls.filter(Boolean)
+
+  // Reduced motion: render the resolved frame, no animation.
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  if (reduce) {
+    gsap.set([...intro, ...rows], { opacity: 1, y: 0 })
+    return
+  }
+
+  gsap.set(intro, { opacity: 0, y: 30 })
+  gsap.set(rows, { opacity: 0, y: 24 })
+
+  const tl = gsap.timeline({
+    scrollTrigger: {
+      trigger: faqSection.value,
+      start: 'top 70%',
+      toggleActions: 'play none none none',
+    },
+  })
+
+  tl.to(intro, { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out', stagger: 0.08 }, 0)
+  rows.forEach((row, i) => {
+    tl.to(row, { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out' }, 0.25 + i * 0.06)
+  })
+
+  trigger = tl.scrollTrigger ?? null
+}
 </script>
 
 <style scoped>
 .faq-section {
-  background: var(--bg-concrete);
-  color: var(--text-primary);
-  padding: var(--spacing-16) var(--spacing-4);
-  border-top: 1px solid rgba(255, 204, 0, 0.08);
+  position: relative;
+  z-index: 5;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6rem 2rem;
+  overflow: hidden;
 }
 
 .faq-inner {
   max-width: 760px;
-  margin: 0 auto;
-}
-
-.faq-heading {
-  font-family: var(--font-display);
+  width: 100%;
   text-align: center;
-  line-height: 1;
-  margin: 0 0 var(--spacing-8);
-  letter-spacing: 0.04em;
 }
 
-.faq-heading-line {
-  display: block;
-  font-size: clamp(1.5rem, 5vw, 2.25rem);
+.section-label {
+  font-family: 'Courier New', monospace;
+  font-size: 0.7rem;
+  color: #333;
+  letter-spacing: 6px;
+  margin-bottom: 1.5rem;
+}
+
+.section-heading {
+  font-family: var(--font-display);
+  font-size: 4rem;
+  margin: 0 0 1rem;
   color: var(--text-primary);
+  line-height: 1;
 }
 
-.faq-heading-accent {
-  display: block;
-  font-size: clamp(1.5rem, 5vw, 2.25rem);
-  color: var(--color-alert);
-  text-shadow: 0 0 24px rgba(255, 42, 42, 0.4);
+.accent-blue {
+  color: var(--color-neon-blue);
+  text-shadow: 0 0 32px rgba(0, 243, 255, 0.35);
 }
 
+.section-desc {
+  color: var(--text-muted);
+  font-size: 1.15rem;
+  margin: 0 auto 3.5rem;
+  max-width: 460px;
+  line-height: 1.6;
+}
+
+/* ========== FAQ ROWS ========== */
 .faq-list {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2);
+  gap: 0.6rem;
+  text-align: left;
 }
 
-.faq-item {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  background: var(--bg-concrete-light);
-  overflow: hidden;
+.faq-row {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.35);
+  transition: border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+  will-change: transform, opacity;
 }
 
-.faq-item[open] {
-  border-color: rgba(0, 243, 255, 0.35);
+.faq-row:hover {
+  border-color: rgba(0, 243, 255, 0.28);
+  background: rgba(0, 243, 255, 0.03);
 }
 
-.faq-q {
+.faq-row[open] {
+  border-color: rgba(0, 243, 255, 0.45);
+  background: rgba(0, 243, 255, 0.05);
+  box-shadow: 0 0 28px rgba(0, 243, 255, 0.1), inset 0 0 24px rgba(0, 0, 0, 0.4);
+}
+
+.faq-summary {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-3);
-  padding: var(--spacing-4);
+  gap: 1rem;
+  padding: 1.1rem 1.3rem;
   cursor: pointer;
-  font-family: var(--font-body);
-  font-weight: 600;
-  font-size: 1rem;
-  color: var(--text-primary);
   list-style: none;
-  min-height: 44px;
+  min-height: 56px;
 }
 
-.faq-q::-webkit-details-marker {
+.faq-summary::-webkit-details-marker {
   display: none;
 }
 
-.faq-q:hover {
+.faq-num {
+  flex: 0 0 auto;
+  font-family: 'Courier New', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 2px;
+  color: var(--text-muted);
+  transition: color 0.25s ease, text-shadow 0.25s ease;
+}
+
+.faq-row:hover .faq-num,
+.faq-row[open] .faq-num {
+  color: var(--color-neon-blue);
+  text-shadow: 0 0 12px rgba(0, 243, 255, 0.6);
+}
+
+.faq-question {
+  flex: 1 1 auto;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 1.02rem;
+  line-height: 1.35;
+  color: var(--text-primary);
+}
+
+.faq-chevron {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted);
+  transition: transform 0.3s ease, color 0.25s ease;
+}
+
+.faq-row[open] .faq-chevron {
+  transform: rotate(180deg);
   color: var(--color-neon-blue);
 }
 
-.faq-icon {
-  position: relative;
-  flex: 0 0 auto;
-  width: 14px;
-  height: 14px;
-}
-
-.faq-icon::before,
-.faq-icon::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  background: currentColor;
-  transform: translate(-50%, -50%);
-}
-
-.faq-icon::before {
-  width: 14px;
-  height: 2px;
-}
-
-.faq-icon::after {
-  width: 2px;
-  height: 14px;
-  transition: transform var(--duration-snap, 0.2s) ease;
-}
-
-.faq-item[open] .faq-icon::after {
-  transform: translate(-50%, -50%) scaleY(0);
-}
-
-.faq-a {
-  margin: 0;
-  padding: 0 var(--spacing-4) var(--spacing-4);
+.faq-answer {
+  margin: 0 1.3rem 1.2rem calc(1.3rem + 0.72rem + 1rem);
+  padding-left: 1rem;
+  border-left: 2px solid rgba(0, 243, 255, 0.35);
   font-family: var(--font-body);
-  font-size: 0.95rem;
-  line-height: 1.6;
+  font-size: 0.96rem;
+  line-height: 1.7;
   color: var(--text-secondary);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .faq-icon::after {
+  .faq-row,
+  .faq-chevron,
+  .faq-num {
     transition: none;
+  }
+}
+
+/* ========== MOBILE ========== */
+@media (max-width: 768px) {
+  .faq-section {
+    min-height: auto;
+    padding: 4rem 1.5rem;
+  }
+  .section-heading {
+    font-size: 2.8rem;
+  }
+  .section-desc {
+    font-size: 1rem;
+    margin-bottom: 2.5rem;
+  }
+  .faq-summary {
+    gap: 0.75rem;
+    padding: 1rem 1.1rem;
+  }
+  .faq-question {
+    font-size: 0.96rem;
+  }
+  .faq-answer {
+    margin-left: 1.1rem;
+    margin-right: 1.1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .faq-section {
+    padding: 3rem 1rem;
+  }
+  .section-heading {
+    font-size: 2rem;
+  }
+  .faq-num {
+    display: none;
+  }
+  .faq-answer {
+    margin-left: 1.1rem;
   }
 }
 </style>
