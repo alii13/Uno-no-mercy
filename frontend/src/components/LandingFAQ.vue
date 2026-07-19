@@ -98,15 +98,15 @@ function setRow(i: number, el: unknown) {
   if (el) rowEls[i] = el as HTMLElement
 }
 
-let trigger: ScrollTrigger | null = null
+let triggers: ScrollTrigger[] = []
 
 onMounted(() => {
   requestAnimationFrame(() => requestAnimationFrame(initFaq))
 })
 
 onUnmounted(() => {
-  trigger?.kill()
-  trigger = null
+  triggers.forEach((t) => t.kill())
+  triggers = []
 })
 
 function initFaq() {
@@ -122,40 +122,42 @@ function initFaq() {
     return
   }
 
-  // Off-state: the rows sit fanned to alternating sides like an undealt
-  // hand. The scrubbed timeline below "deals" them into the list as the
-  // section scrolls through — same scroll-linked technique as the other panes.
   gsap.set(intro, { opacity: 0, y: 34 })
+  const introTween = gsap.to(intro, {
+    opacity: 1,
+    y: 0,
+    duration: 0.5,
+    ease: 'power3.out',
+    stagger: 0.1,
+    scrollTrigger: { trigger: faqSection.value, start: 'top 75%', toggleActions: 'play none none none' },
+  })
+  if (introTween.scrollTrigger) triggers.push(introTween.scrollTrigger)
+
+  // Each row deals in from an alternating side as it scrolls into view, then
+  // stays put. One shot per row, triggered by the row itself — so the reveal
+  // always completes and never depends on scroll room below the section,
+  // which sits just above the footer with little runway left.
   rows.forEach((row, i) => {
     gsap.set(row, {
       opacity: 0,
       x: i % 2 === 0 ? -70 : 70,
-      y: 46,
+      y: 40,
       rotation: i % 2 === 0 ? -6 : 6,
       scale: 0.92,
       transformOrigin: '50% 50%',
     })
+    const tween = gsap.to(row, {
+      opacity: 1,
+      x: 0,
+      y: 0,
+      rotation: 0,
+      scale: 1,
+      duration: 0.55,
+      ease: 'power3.out',
+      scrollTrigger: { trigger: row, start: 'top 88%', toggleActions: 'play none none none' },
+    })
+    if (tween.scrollTrigger) triggers.push(tween.scrollTrigger)
   })
-
-  const tl = gsap.timeline({
-    scrollTrigger: {
-      trigger: faqSection.value,
-      start: 'top 80%',
-      end: 'bottom 45%',
-      scrub: 0.8,
-    },
-  })
-
-  tl.to(intro, { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out', stagger: 0.1 }, 0)
-  rows.forEach((row, i) => {
-    tl.to(
-      row,
-      { opacity: 1, x: 0, y: 0, rotation: 0, scale: 1, duration: 0.5, ease: 'power3.out' },
-      0.3 + i * 0.09,
-    )
-  })
-
-  trigger = tl.scrollTrigger ?? null
 }
 </script>
 
