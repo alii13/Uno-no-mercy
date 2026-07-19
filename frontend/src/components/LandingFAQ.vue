@@ -118,24 +118,41 @@ function initFaq() {
   // Reduced motion: render the resolved frame, no animation.
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   if (reduce) {
-    gsap.set([...intro, ...rows], { opacity: 1, y: 0 })
+    gsap.set([...intro, ...rows], { opacity: 1, x: 0, y: 0, rotation: 0, scale: 1 })
     return
   }
 
-  gsap.set(intro, { opacity: 0, y: 30 })
-  gsap.set(rows, { opacity: 0, y: 24 })
+  // Off-state: the rows sit fanned to alternating sides like an undealt
+  // hand. The scrubbed timeline below "deals" them into the list as the
+  // section scrolls through — same scroll-linked technique as the other panes.
+  gsap.set(intro, { opacity: 0, y: 34 })
+  rows.forEach((row, i) => {
+    gsap.set(row, {
+      opacity: 0,
+      x: i % 2 === 0 ? -70 : 70,
+      y: 46,
+      rotation: i % 2 === 0 ? -6 : 6,
+      scale: 0.92,
+      transformOrigin: '50% 50%',
+    })
+  })
 
   const tl = gsap.timeline({
     scrollTrigger: {
       trigger: faqSection.value,
-      start: 'top 70%',
-      toggleActions: 'play none none none',
+      start: 'top 80%',
+      end: 'bottom 45%',
+      scrub: 0.8,
     },
   })
 
-  tl.to(intro, { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out', stagger: 0.08 }, 0)
+  tl.to(intro, { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out', stagger: 0.1 }, 0)
   rows.forEach((row, i) => {
-    tl.to(row, { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out' }, 0.25 + i * 0.06)
+    tl.to(
+      row,
+      { opacity: 1, x: 0, y: 0, rotation: 0, scale: 1, duration: 0.5, ease: 'power3.out' },
+      0.3 + i * 0.09,
+    )
   })
 
   trigger = tl.scrollTrigger ?? null
