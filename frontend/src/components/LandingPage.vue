@@ -84,6 +84,8 @@
     <!-- Scroll sections (kept from Phase 1) -->
     <LandingScrollSections @openFeedback="showFeedback = true" />
 
+    <LandingFAQ />
+
     <SiteFooter />
 
     <!-- Sticky mobile CTA — teleported so containing-block doesn't pin it -->
@@ -106,6 +108,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import gsap from 'gsap'
 import LandingScrollSections from './LandingScrollSections.vue'
+import LandingFAQ from './LandingFAQ.vue'
 import SiteFooter from './SiteFooter.vue'
 import FeedbackModal from './FeedbackModal.vue'
 import RulesModal from './RulesModal.vue'

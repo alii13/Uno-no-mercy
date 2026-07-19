@@ -1,0 +1,36 @@
+# UNO No Mercy Online
+
+> Free, browser-based UNO No Mercy card game. Real-time multiplayer with friends or solo against AI opponents. No download, no account required.
+
+Play now: https://uno-no-mercy.com/
+
+## About
+
+UNO No Mercy Online is an independent, fan-made web implementation of the No Mercy-style UNO card game. It runs entirely in the browser on desktop or mobile, with real-time multiplayer and single-player-vs-AI modes.
+
+- Free to play
+- No download or installation
+- No account or registration required to play (guest play; an optional free account saves your stats)
+- 2 to 10 players per game
+- Works on mobile and desktop browsers
+- Open source under the MIT license: https://github.com/alii13/Uno-no-mercy
+
+## Implemented rules and cards
+
+- Draw 6 and Draw 10 action cards
+- Card stacking (draw cards stack onto each other, so a Draw 2 can grow into a much larger penalty)
+- Skip Everyone
+- Color Roulette
+- Discard All (discard every card of one color at once)
+- Number 7 hand swap (swap your entire hand with another player)
+- Number 0 hand rotation (every player passes their hand around the table)
+- 25-card Mercy Rule (a player holding 25 or more cards is eliminated from the game)
+
+## Pages
+
+- Play the game: https://uno-no-mercy.com/
+- Full rules guide: https://uno-no-mercy.com/rules
+
+## Affiliation
+
+This is an independent, fan-made project. It is not affiliated with, endorsed by, or associated with Mattel or the official UNO brand.
