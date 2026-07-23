@@ -182,6 +182,13 @@ onMounted(async () => {
   // re-enter it instead of stranding the player in the lobby.
   if (authStore.isAuthenticated) {
     await mpStore.restoreActiveGame()
+  } else {
+    // An invite link shouldn't demand a PLAY NOW click: sign the guest in on
+    // arrival and let the lobby's auto-join take over. No play_clicked here —
+    // it counts real CTA clicks. Failure falls back to the landing page,
+    // where the invite banner and the retry toast still apply.
+    const invite = new URLSearchParams(window.location.search).get('join')?.toUpperCase().trim() || ''
+    if (/^[A-Z0-9]{4,8}$/.test(invite)) await attemptGuestSignin()
   }
 })
 
