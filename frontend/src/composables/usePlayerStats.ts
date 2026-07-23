@@ -1,6 +1,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
+import { RANKS, rankFor } from '../utils/ranks'
 
 interface GameResult {
   id: string
@@ -23,15 +24,7 @@ interface GameResult {
   played_at: string
 }
 
-const RANKS = [
-  { threshold: 0, title: 'Recruit', color: '#888' },
-  { threshold: 5, title: 'Rookie', color: '#4CAF50' },
-  { threshold: 15, title: 'Enforcer', color: '#2196F3' },
-  { threshold: 30, title: 'Savage', color: '#FF9800' },
-  { threshold: 50, title: 'Warlord', color: '#f44336' },
-  { threshold: 100, title: 'Overlord', color: '#9C27B0' },
-  { threshold: 200, title: 'No Mercy King', color: '#FFD700' },
-]
+
 
 export function usePlayerStats() {
   const authStore = useAuthStore()
@@ -125,14 +118,7 @@ export function usePlayerStats() {
   const totalDamageDealt = computed(() => results.value.reduce((sum, r) => sum + r.draw_cards_played, 0))
 
   // Rank
-  const rank = computed(() => {
-    const wins = gamesWon.value
-    let current = RANKS[0]!
-    for (const r of RANKS) {
-      if (wins >= r.threshold) current = r
-    }
-    return current
-  })
+  const rank = computed(() => rankFor(gamesWon.value))
 
   const nextRank = computed(() => {
     const wins = gamesWon.value

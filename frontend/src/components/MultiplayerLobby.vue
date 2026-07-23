@@ -242,6 +242,14 @@
               </button>
               <span v-else class="player-name">{{ player.name }}</span>
               <span
+                v-if="seatRanks[player.user_id]"
+                class="rank-chip"
+                :style="{ color: seatRanks[player.user_id]!.color, borderColor: seatRanks[player.user_id]!.color }"
+                :title="`Rank: ${seatRanks[player.user_id]!.title}`"
+              >
+                {{ seatRanks[player.user_id]!.title.toUpperCase() }}
+              </span>
+              <span
                 v-if="voiceStore.voiceUserIds.has(player.user_id)"
                 class="voice-dot"
                 :class="{ speaking: voiceStore.speakingUserIds.has(player.user_id) }"
@@ -442,11 +450,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { Copy, Check, Flame, Pencil, X } from 'lucide-vue-next'
 import { useRetentionStore } from '../stores/retentionStore'
 import { getDailyRecord } from '../utils/dailyChallenge'
 import { useLeaderboard } from '../composables/useLeaderboard'
+import { useRanks } from '../composables/useRanks'
 import { vFocusRing } from '../directives/focusRing'
 import { preloadCardImages } from '../utils/preloadCardImages'
 import { useAuthStore } from '../stores/authStore'
@@ -491,6 +500,15 @@ function openLeaderboard() {
 // Eager availability probe: until the SQL functions exist on the project the
 // rpc fails and the VIEW LEADERBOARD link never renders.
 onMounted(() => { void lb.fetchBoards() })
+
+// Rank chips for waiting-room seats. Being seen by rank is the point of
+// having one — feature-detects until supabase/ranks.sql is installed.
+const { ranks: seatRanks, fetchRanks } = useRanks()
+watch(
+  () => mpStore.gamePlayers.map(p => p.user_id),
+  (ids) => { if (ids.length) void fetchRanks(ids) },
+  { immediate: true },
+)
 const voiceStore = useVoiceStore()
 const gameStore = useGameStore()
 
@@ -894,6 +912,17 @@ function copyLink() {
 .daily-result {
   color: rgba(0, 229, 255, 0.85);
   letter-spacing: 0.06em;
+}
+
+.rank-chip {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  border: 1px solid;
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
+  opacity: 0.85;
 }
 
 .lb-link {
