@@ -4,6 +4,8 @@ import type { Card, Player, GameState, TurnState, CardColor } from '../types/car
 import * as engine from '@engine'
 import type { EngineEvent, EngineState } from '@engine'
 import { canPlayCard, getDrawValue, getWildCardColor, generateFullDeck, shuffleDeck, DEFAULT_STACKING_MODE } from '@engine'
+import { seededRng } from '../utils/seededRng'
+import { markDailyDone } from '../utils/dailyChallenge'
 import type { StackingMode } from '@engine'
 import { soundEffects } from '../composables/useSoundEffects'
 import { supabase } from '../lib/supabase'
@@ -190,7 +192,7 @@ export const useGameStore = defineStore('game', () => {
                 case 'AT_ONE_UNCALLED': {
                     const p = players.value.find(x => x.id === e.playerId)
                     if (!p) break
-                    if (p.isBot && Math.random() > 0.3) {
+                    if (p.isBot && hostRng() > 0.3) {
                         callUno(p.id)
                     } else {
                         openCatchWindow(p)
@@ -214,7 +216,15 @@ export const useGameStore = defineStore('game', () => {
     let dealGeneration = 0
     let spStartedAt = 0
 
-    function initializeGame(playerNames: string[], mode?: StackingMode) {
+    // The host's randomness source. The daily challenge swaps in a
+    // date-seeded PRNG so shuffle, deals, and bot decisions replay
+    // identically for every player in the world on the same day.
+    let hostRng: () => number = Math.random
+    let dailyDate: string | null = null
+
+    function initializeGame(playerNames: string[], mode?: StackingMode, opts?: { dailySeed?: string }) {
+        dailyDate = opts?.dailySeed ?? null
+        hostRng = dailyDate ? seededRng(`uno-daily-${dailyDate}`) : Math.random
         dealGeneration++
         closeCatchWindow()
         if (mode) setStackingMode(mode)
@@ -230,7 +240,7 @@ export const useGameStore = defineStore('game', () => {
         }))
 
         const rawDeck = generateFullDeck()
-        deck.value = shuffleDeck(rawDeck)
+        deck.value = shuffleDeck(rawDeck, hostRng)
         discardPile.value = []
 
         // DON'T deal cards here - will be done incrementally via dealInitialCards()
@@ -305,7 +315,7 @@ export const useGameStore = defineStore('game', () => {
 
         // Deal the first discard and apply its effect per UNO rules
         const ev: EngineEvent[] = []
-        engine.drawFirstDiscard(engineState, ev)
+        engine.drawFirstDiscard(engineState, ev, hostRng)
         applyEvents(ev)
 
         // Dealing complete
@@ -316,14 +326,14 @@ export const useGameStore = defineStore('game', () => {
 
     function drawCardFromDeck(): Card | undefined {
         const ev: EngineEvent[] = []
-        const card = engine.drawCardFromDeck(engineState, ev)
+        const card = engine.drawCardFromDeck(engineState, ev, hostRng)
         applyEvents(ev)
         return card
     }
 
     function drawCardToHand(player: Player): Card | undefined {
         const ev: EngineEvent[] = []
-        const card = engine.drawCardToHand(engineState, player.id, ev)
+        const card = engine.drawCardToHand(engineState, player.id, ev, hostRng)
         applyEvents(ev)
         return card
     }
@@ -365,7 +375,7 @@ export const useGameStore = defineStore('game', () => {
         } else {
             // Human is exposed — the UNO button derives from catchableId, and
             // a bot may pounce ~70% of the time before the window closes.
-            const willCatch = Math.random() < 0.7
+            const willCatch = hostRng() < 0.7
             catchTimer = setTimeout(() => {
                 if (catchableId.value !== player.id) return
                 if (willCatch) penalizeForgottenUno(player.id)
@@ -382,7 +392,7 @@ export const useGameStore = defineStore('game', () => {
         if (s) s.unoPenalties++
         // Draw the penalty (mercy elimination is handled inside the engine).
         const ev: EngineEvent[] = []
-        engine.penalizeUnoDraws(engineState, p.id, UNO_PENALTY, ev)
+        engine.penalizeUnoDraws(engineState, p.id, UNO_PENALTY, ev, hostRng)
         applyEvents(ev)
     }
 
@@ -402,11 +412,11 @@ export const useGameStore = defineStore('game', () => {
         if (card.type === 'discardAll' && player.isBot) {
             const matches = player.hand.filter(c => c.color === card.color)
             if (matches.length > 1) {
-                discardAllTopPickId = matches[Math.floor(Math.random() * matches.length)]!.id
+                discardAllTopPickId = matches[Math.floor(hostRng() * matches.length)]!.id
             }
         }
 
-        const res = engine.playCard(engineState, playerId, card.id, { selectedColor, discardAllTopPickId })
+        const res = engine.playCard(engineState, playerId, card.id, { selectedColor, discardAllTopPickId, rng: hostRng })
         if (!res.ok) return
 
         // Apply events before setting lastPlay: its watcher is flush:'sync'
@@ -527,7 +537,7 @@ export const useGameStore = defineStore('game', () => {
     // store owns the pacing stalls between steps.
     function executeRouletteDraw() {
         const ev: EngineEvent[] = []
-        const outcome = engine.rouletteDrawStep(engineState, ev)
+        const outcome = engine.rouletteDrawStep(engineState, ev, hostRng)
         applyEvents(ev)
 
         if (outcome === 'match') {
@@ -626,9 +636,9 @@ export const useGameStore = defineStore('game', () => {
                     c.type !== 'number' && c.type !== 'discardAll'
                 )
                 if (specialCards.length > 0) {
-                    cardToPlay = specialCards[Math.floor(Math.random() * specialCards.length)]!
+                    cardToPlay = specialCards[Math.floor(hostRng() * specialCards.length)]!
                 } else {
-                    cardToPlay = playableCards[Math.floor(Math.random() * playableCards.length)]!
+                    cardToPlay = playableCards[Math.floor(hostRng() * playableCards.length)]!
                 }
             }
 
@@ -643,7 +653,7 @@ export const useGameStore = defineStore('game', () => {
     }
 
     function chooseBotColor(bot: Player): CardColor {
-        return getWildCardColor(bot.hand)
+        return getWildCardColor(bot.hand, hostRng)
     }
 
     function executeBotSwap() {
@@ -652,7 +662,7 @@ export const useGameStore = defineStore('game', () => {
             p.id !== currentPlayer.value?.id && !p.isEliminated
         )
         if (otherPlayers.length > 0) {
-            const target = otherPlayers[Math.floor(Math.random() * otherPlayers.length)]
+            const target = otherPlayers[Math.floor(hostRng() * otherPlayers.length)]
             if (target) {
                 swapHands(target.id)
             }
@@ -678,7 +688,7 @@ export const useGameStore = defineStore('game', () => {
                     // Bot auto-selects a random top card
                     const cards = pendingDiscardAllCards.value
                     if (cards.length > 0) {
-                        const pick = cards[Math.floor(Math.random() * cards.length)]!
+                        const pick = cards[Math.floor(hostRng() * cards.length)]!
                         selectDiscardAllTop(pick.id)
                     }
                 } else if (turnState.value === 'CHOOSING_PLAYER_TO_SWAP') {
@@ -707,6 +717,14 @@ export const useGameStore = defineStore('game', () => {
                 duration_seconds: spStartedAt ? Math.round((Date.now() - spStartedAt) / 1000) : undefined,
                 rules: stackingMode.value,
             })
+            if (dailyDate) {
+                const humanStats = human ? playerStats.value[human.id] : null
+                markDailyDone({
+                    date: dailyDate,
+                    result: human && winnerId.value === human.id ? 'won' : (human?.isEliminated ? 'eliminated' : 'lost'),
+                    turns: humanStats ? humanStats.cardsPlayedTotal + humanStats.drawsTaken : 0,
+                })
+            }
             logGameResults()
         }
     })
@@ -726,7 +744,7 @@ export const useGameStore = defineStore('game', () => {
         if (winnerId.value === humanPlayer.id) result = 'won'
         else if (humanPlayer.isEliminated) result = 'eliminated'
 
-        const gameId = `bot-${Date.now()}`
+        const gameId = dailyDate ? `daily-${dailyDate}` : `bot-${Date.now()}`
 
         await supabase.from('game_results').insert({
             game_id: gameId,
@@ -812,7 +830,7 @@ export const useGameStore = defineStore('game', () => {
     }
 
     function selectDiscardAllTop(topCardId: string) {
-        const ev = engine.selectDiscardAllTop(engineState, topCardId)
+        const ev = engine.selectDiscardAllTop(engineState, topCardId, hostRng)
         applyEvents(ev)
     }
 })

@@ -65,6 +65,24 @@
       <div v-if="!mpStore.currentGame" class="lobby-entry">
         <h1 class="entry-heading">HOW DO YOU WANT TO PLAY?</h1>
 
+        <!-- Daily challenge: the same date-seeded deal for everyone, once a day. -->
+        <div class="daily-card" :class="{ done: !!dailyRecord }">
+          <div class="daily-head">
+            <span class="daily-title">TODAY'S DEAL</span>
+            <span class="daily-date">{{ dailyDateLabel }}</span>
+          </div>
+          <template v-if="!dailyRecord">
+            <p class="daily-desc">The same shuffle for every player in the world. One scored attempt.</p>
+            <Button variant="secondary" size="md" block @click="$emit('playDaily')">
+              PLAY TODAY'S DEAL
+            </Button>
+          </template>
+          <p v-else class="daily-desc daily-result">
+            {{ dailyRecord.result === 'won' ? `CLEARED IN ${dailyRecord.turns} TURNS` : dailyRecord.result === 'eliminated' ? 'MERCY GOT YOU TODAY' : 'LOST TODAY' }}
+            — new deal tomorrow.
+          </p>
+        </div>
+
         <!-- Primary action: CREATE GAME -->
         <div class="primary-action">
           <Button
@@ -373,6 +391,7 @@ import type { StackingMode } from '../utils/gameRules'
 
 const emit = defineEmits<{
   (e: 'playLocal', mode: StackingMode): void
+  (e: 'playDaily'): void
   (e: 'showAuth'): void
   (e: 'showStats'): void
 }>()
