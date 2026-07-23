@@ -95,7 +95,21 @@
             {{ dailyRecord.result === 'won' ? `CLEARED IN ${dailyRecord.turns} TURNS` : dailyRecord.result === 'eliminated' ? 'MERCY GOT YOU TODAY' : 'LOST TODAY' }}
             — new deal tomorrow.
           </p>
+          <button v-if="lb.available.value" class="lb-link" @click="openLeaderboard">
+            VIEW LEADERBOARD &rarr;
+          </button>
         </div>
+
+        <!-- Guest investment hook: streaks and scores die with the guest
+             session — the moment they have something to lose is the moment
+             an account makes sense. -->
+        <button
+          v-if="authStore.isAnonymous && (retention.effectiveStreak > 1 || dailyRecord)"
+          class="streak-keep-link"
+          @click="upgradeAccount"
+        >
+          Your streak and scores live on this guest session - create an account to keep them
+        </button>
 
         <!-- Primary action: CREATE GAME -->
         <div class="primary-action">
@@ -380,6 +394,47 @@
           </div>
         </div>
       </Transition>
+
+      <Transition name="modal">
+        <div
+          v-if="showLeaderboard"
+          class="modal-overlay"
+          @click.self="showLeaderboard = false"
+        >
+          <div class="join-modal lb-modal">
+            <h2 class="join-modal-title">LEADERBOARD</h2>
+
+            <div class="lb-tabs" role="tablist">
+              <button class="lb-tab" :class="{ active: boardTab === 'daily' }" role="tab" @click="boardTab = 'daily'">TODAY'S DEAL</button>
+              <button class="lb-tab" :class="{ active: boardTab === 'weekly' }" role="tab" @click="boardTab = 'weekly'">WEEKLY WINS</button>
+            </div>
+
+            <p v-if="lb.loading.value" class="lb-empty">LOADING...</p>
+            <template v-else-if="boardTab === 'daily'">
+              <p v-if="lb.daily.value.length === 0" class="lb-empty">No one has played today's deal yet. Be first.</p>
+              <ol v-else class="lb-list">
+                <li v-for="row in lb.daily.value" :key="row.rank" class="lb-row" :class="{ me: row.is_me }">
+                  <span class="lb-rank">{{ row.rank }}</span>
+                  <span class="lb-name">{{ row.username }}</span>
+                  <span class="lb-score">{{ row.result === 'won' ? `${row.effort} TURNS` : row.result.toUpperCase() }}</span>
+                </li>
+              </ol>
+            </template>
+            <template v-else>
+              <p v-if="lb.weekly.value.length === 0" class="lb-empty">No wins recorded this week yet.</p>
+              <ol v-else class="lb-list">
+                <li v-for="row in lb.weekly.value" :key="row.rank" class="lb-row" :class="{ me: row.is_me }">
+                  <span class="lb-rank">{{ row.rank }}</span>
+                  <span class="lb-name">{{ row.username }}</span>
+                  <span class="lb-score">{{ row.wins }}W / {{ row.games }}</span>
+                </li>
+              </ol>
+            </template>
+
+            <Button variant="ghost" size="md" block @click="showLeaderboard = false">CLOSE</Button>
+          </div>
+        </div>
+      </Transition>
     </Teleport>
 
     <SiteFooter />
@@ -391,6 +446,7 @@ import { ref, computed, onMounted } from 'vue'
 import { Copy, Check, Flame, Pencil, X } from 'lucide-vue-next'
 import { useRetentionStore } from '../stores/retentionStore'
 import { getDailyRecord } from '../utils/dailyChallenge'
+import { useLeaderboard } from '../composables/useLeaderboard'
 import { vFocusRing } from '../directives/focusRing'
 import { preloadCardImages } from '../utils/preloadCardImages'
 import { useAuthStore } from '../stores/authStore'
@@ -422,6 +478,19 @@ const dailyRecord = ref(getDailyRecord())
 const dailyDateLabel = new Date()
   .toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   .toUpperCase()
+
+const lb = useLeaderboard()
+const showLeaderboard = ref(false)
+const boardTab = ref<'daily' | 'weekly'>('daily')
+
+function openLeaderboard() {
+  showLeaderboard.value = true
+  void lb.fetchBoards()
+}
+
+// Eager availability probe: until the SQL functions exist on the project the
+// rpc fails and the VIEW LEADERBOARD link never renders.
+onMounted(() => { void lb.fetchBoards() })
 const voiceStore = useVoiceStore()
 const gameStore = useGameStore()
 
@@ -823,6 +892,121 @@ function copyLink() {
 }
 
 .daily-result {
+  color: rgba(0, 229, 255, 0.85);
+  letter-spacing: 0.06em;
+}
+
+.lb-link {
+  align-self: flex-end;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.14em;
+  color: rgba(0, 229, 255, 0.7);
+  cursor: pointer;
+}
+
+.lb-link:hover {
+  color: rgba(0, 229, 255, 1);
+}
+
+.streak-keep-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.streak-keep-link:hover {
+  color: var(--text-primary);
+}
+
+.lb-modal {
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.lb-tabs {
+  display: flex;
+  gap: var(--spacing-2);
+}
+
+.lb-tab {
+  flex: 1;
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.lb-tab.active {
+  border-color: rgba(0, 229, 255, 0.5);
+  color: rgba(0, 229, 255, 0.9);
+}
+
+.lb-empty {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  text-align: center;
+  margin: var(--spacing-4) 0;
+}
+
+.lb-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lb-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  border-radius: var(--radius-sm);
+}
+
+.lb-row:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.lb-row.me {
+  border: 1px solid rgba(0, 229, 255, 0.45);
+}
+
+.lb-rank {
+  width: 2ch;
+  text-align: right;
+  color: var(--text-muted);
+}
+
+.lb-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.lb-score {
   color: rgba(0, 229, 255, 0.85);
   letter-spacing: 0.06em;
 }
