@@ -101,7 +101,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
-import { trackScreen } from './utils/analytics'
+import { track, trackScreen } from './utils/analytics'
 import LandingPage from './components/LandingPage.vue'
 import AuthView from './components/AuthView.vue'
 import SettingsDrawer from './components/SettingsDrawer.vue'
@@ -216,10 +216,12 @@ const guestLoading = ref(false)
 
 async function playAsGuest(nickname?: string) {
   guestLoading.value = true
+  track('play_clicked', { method: 'guest' })
   try {
     const result = await authStore.signInAnonymously(nickname)
     if (!result.success) {
       console.error('Guest sign-in failed:', result.error)
+      track('signin_failed', { message: result.error ?? 'unknown' })
     }
   } finally {
     guestLoading.value = false

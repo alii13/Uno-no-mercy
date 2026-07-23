@@ -35,6 +35,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     let closedByUs = false
     let reconnectAttempts = 0
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+    // Why the last connect() failed when the server never said (for mp_join_failed).
+    let connectFailReason: string | null = null
+    const CONNECT_TIMEOUT_MS = 10_000
 
     // --- Host/UI concerns ---
     const loading = ref(false)
@@ -304,12 +307,18 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         if (!token) { error.value = 'You must be logged in to play online'; return false }
 
         closedByUs = false
+        connectFailReason = null
         realtimeStatus.value = 'CONNECTING'
         return new Promise<boolean>((resolve) => {
             const socket = new WebSocket(wsUrl(code))
             ws = socket
             let settled = false
-            const settle = (ok: boolean) => { if (!settled) { settled = true; resolve(ok) } }
+            const timer = setTimeout(() => {
+                connectFailReason ??= 'timeout'
+                try { socket.close() } catch { /* noop */ }
+                settle(false)
+            }, CONNECT_TIMEOUT_MS)
+            const settle = (ok: boolean) => { if (!settled) { settled = true; clearTimeout(timer); resolve(ok) } }
 
             socket.onopen = () => {
                 socket.send(JSON.stringify({ t: 'auth', token, name: myNickname() } satisfies ClientMsg))
@@ -329,8 +338,10 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 // currentGame off the result, and the view fills in here.
                 if (msg.t === 'snapshot') settle(true)
             }
-            socket.onerror = () => settle(false)
+            // No settle on error: the close event that always follows carries the code,
+            // and settling early would read the failure before the code arrives.
             socket.onclose = (e) => {
+                if (!settled && !error.value) connectFailReason ??= `ws_closed_${e?.code ?? 'unknown'}`
                 settle(false)
                 if (ws !== socket) return
                 realtimeStatus.value = 'CLOSED'
@@ -448,7 +459,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         try {
             const ok = await connect(code.trim().toUpperCase())
             if (!ok) {
-                track('mp_join_failed', { reason: error.value ?? 'unknown' })
+                track('mp_join_failed', { reason: error.value ?? connectFailReason ?? 'unknown' })
                 return null
             }
             trackJoined(via)

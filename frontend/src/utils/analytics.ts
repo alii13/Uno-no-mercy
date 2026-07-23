@@ -7,7 +7,7 @@
  *   page_view          { page_title, page_path }  — virtual, per screen
  *   mp_room_created    { rules, visibility }
  *   mp_room_joined     { method: created|code|link|quick_match|restore }
- *   mp_join_failed     { reason }
+ *   mp_join_failed     { reason: <server message>|ws_closed_<code>|timeout|unknown }
  *   mp_game_started    { players, rules, rematch }
  *   mp_game_finished   { players, result: won|lost, duration_seconds, rules }
  *   mp_room_left       { phase: lobby|playing|finished, seconds_in_room }
@@ -16,6 +16,8 @@
  *   voice_joined       {}
  *   voice_left         { duration_seconds }
  *   share              { method: whatsapp|x, content_type: sp_win|mp_win }
+ *   play_clicked       { method: guest }
+ *   signin_failed      { message }
  */
 
 type Params = Record<string, string | number | boolean | undefined>
