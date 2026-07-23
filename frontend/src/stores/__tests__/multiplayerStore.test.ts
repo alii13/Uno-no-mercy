@@ -35,7 +35,7 @@ class FakeWebSocket {
     onopen: (() => void) | null = null
     onmessage: ((e: { data: string }) => void) | null = null
     onerror: (() => void) | null = null
-    onclose: (() => void) | null = null
+    onclose: ((e?: { code?: number; reason?: string }) => void) | null = null
     url: string
     constructor(url: string) {
         this.url = url
@@ -46,6 +46,8 @@ class FakeWebSocket {
     // test helpers
     open() { this.onopen?.() }
     receive(msg: ServerMsg) { this.onmessage?.({ data: JSON.stringify(msg) }) }
+    // A failed connection: the error event never carries details; the close that follows has the code.
+    fail(code: number) { this.readyState = 3; this.onerror?.(); this.onclose?.({ code }) }
     lastSent<T = unknown>(): T { return JSON.parse(this.sent[this.sent.length - 1]!) }
 }
 
@@ -279,6 +281,50 @@ describe('analytics events', () => {
         // Snapshot arrives with a game already running (refresh/reconnect) — no STARTED.
         ws.receive({ t: 'snapshot', seq: 5, game: playingView() })
         expect(track).not.toHaveBeenCalledWith('mp_game_started', expect.anything())
+    })
+})
+
+describe('join failure reasons', () => {
+    async function startJoin(mp: ReturnType<typeof useMultiplayerStore>) {
+        const joining = mp.joinGame('DEADCD')
+        for (let i = 0; i < 20 && FakeWebSocket.instances.length === 0; i++) await Promise.resolve()
+        return { joining, ws: FakeWebSocket.instances[FakeWebSocket.instances.length - 1]! }
+    }
+
+    it('reports the close code when the handshake fails without a server message', async () => {
+        const mp = useMultiplayerStore()
+        const { joining, ws } = await startJoin(mp)
+
+        ws.fail(1006)
+
+        expect(await joining).toBeNull()
+        expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'ws_closed_1006' })
+    })
+
+    it('reports the server message when the room does not exist', async () => {
+        const mp = useMultiplayerStore()
+        const { joining, ws } = await startJoin(mp)
+
+        ws.open()
+        ws.receive({ t: 'error', code: 'room-not-found' })
+
+        expect(await joining).toBeNull()
+        expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'Room not found' })
+    })
+
+    it('reports a timeout when the socket never answers', async () => {
+        vi.useFakeTimers()
+        try {
+            const mp = useMultiplayerStore()
+            const { joining } = await startJoin(mp)
+
+            await vi.advanceTimersByTimeAsync(10_000)
+
+            expect(await joining).toBeNull()
+            expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'timeout' })
+        } finally {
+            vi.useRealTimers()
+        }
     })
 })
 
