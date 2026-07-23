@@ -117,6 +117,7 @@
         </label>
 
         <p v-if="error" class="msg msg-error">{{ error }}</p>
+        <p v-if="successMsg" class="msg msg-success">{{ successMsg }}</p>
 
         <Button
           type="submit"
@@ -195,6 +196,12 @@ async function handleSubmit() {
       const result = await authStore.signUp(email.value, password.value, username.value)
       if (!result.success) {
         error.value = result.error || 'Sign up failed'
+      } else if (result.needsConfirmation) {
+        // No session until the email link is clicked — the app stays on this
+        // view, so the instruction has to live here. setMode clears messages,
+        // so the message is set after switching to the sign-in tab.
+        setMode('login')
+        successMsg.value = 'Account created. Check your email to confirm, then sign in.'
       }
     } else {
       const result = await authStore.signIn(email.value, password.value)

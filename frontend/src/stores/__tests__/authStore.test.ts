@@ -17,6 +17,7 @@ const h = vi.hoisted(() => {
         getSession: async (): Promise<{ data: { session: unknown } }> => ({ data: { session: null } }),
         signInAnonymouslyCalls: 0,
         anonResult: { data: { user: { id: 'anon-1', is_anonymous: true } }, error: null } as unknown,
+        signUpResult: { data: { user: { id: 'reg-1' }, session: null }, error: null } as unknown,
         profileRow: null as unknown,
         upsertCalls: [] as { row: unknown; opts: unknown }[],
         reset() {
@@ -35,6 +36,7 @@ vi.mock('../../lib/supabase', () => ({
             getSession: () => h.state.getSession(),
             onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
             signInAnonymously: async () => { h.state.signInAnonymouslyCalls++; return h.state.anonResult },
+            signUp: async () => h.state.signUpResult,
             updateUser: async () => ({ error: null }),
         },
         from: () => {
@@ -89,5 +91,33 @@ describe('authStore init + guest robustness', () => {
         expect(h.state.upsertCalls).toHaveLength(1)
         expect(h.state.upsertCalls[0]!.row).toMatchObject({ id: 'anon-1', username: 'Bob' })
         expect(h.state.upsertCalls[0]!.opts).toMatchObject({ onConflict: 'id', ignoreDuplicates: true })
+    })
+})
+
+describe('signUp with email confirmation pending', () => {
+    it('does not authenticate a user who has no session yet', async () => {
+        const auth = useAuthStore()
+        h.state.signUpResult = { data: { user: { id: 'reg-1' }, session: null }, error: null }
+
+        const res = await auth.signUp('a@b.com', 'password1', 'NewPlayer')
+
+        expect(res.success).toBe(true)
+        expect(res.needsConfirmation).toBe(true)
+        // The whole app gates on this — a session-less signup must not flip it,
+        // or games silently stop recording and a refresh logs the user out.
+        expect(auth.isAuthenticated).toBe(false)
+        expect(auth.user).toBeNull()
+    })
+
+    it('authenticates immediately when signUp returns a session', async () => {
+        const auth = useAuthStore()
+        h.state.signUpResult = { data: { user: { id: 'reg-2' }, session: { access_token: 't' } }, error: null }
+
+        const res = await auth.signUp('a@b.com', 'password1', 'NewPlayer')
+
+        expect(res.success).toBe(true)
+        expect(res.needsConfirmation).toBe(false)
+        expect(auth.isAuthenticated).toBe(true)
+        expect(auth.user?.id).toBe('reg-2')
     })
 })
