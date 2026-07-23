@@ -83,6 +83,16 @@ function corsOrigin(req: Request): string | null {
     return null
 }
 
+/** Accept the socket just long enough to say the room is gone, then close. */
+function roomGoneSocket(): Response {
+    const pair = new WebSocketPair()
+    const server = pair[1]
+    server.accept()
+    server.send(JSON.stringify({ t: 'error', code: 'room-not-found' }))
+    server.close(1011, 'room gone')
+    return new Response(null, { status: 101, webSocket: pair[0] })
+}
+
 function withCors(res: Response, req: Request): Response {
     const origin = corsOrigin(req)
     if (!origin) return res
@@ -160,7 +170,10 @@ export default {
                 return new Response('expected websocket', { status: 426 })
             }
             const stub = await locateRoom(env, roomWs[1]!.toUpperCase())
-            if (!stub) return new Response('room not found', { status: 404 })
+            // A 404 on the upgrade reaches the client as an anonymous 1006 —
+            // indistinguishable from a network drop. Accept the socket and
+            // deliver the verdict in-protocol so dead links are diagnosable.
+            if (!stub) return roomGoneSocket()
             return stub.fetch('https://do/room-ws', req)
         }
 
@@ -385,7 +398,9 @@ export class GameRoomDO {
 
             case '/room-ws': {
                 if (!(await this.ctx.storage.get('room'))) {
-                    return new Response('room not found', { status: 404 })
+                    // Same in-protocol verdict as the router: a 404 upgrade
+                    // rejection reaches the client as an anonymous 1006.
+                    return roomGoneSocket()
                 }
                 const pair = new WebSocketPair()
                 this.ctx.acceptWebSocket(pair[1])

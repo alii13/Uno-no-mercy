@@ -284,24 +284,66 @@ describe('analytics events', () => {
     })
 })
 
-describe('join failure reasons', () => {
+describe('join failure reasons and retry', () => {
     async function startJoin(mp: ReturnType<typeof useMultiplayerStore>) {
         const joining = mp.joinGame('DEADCD')
         for (let i = 0; i < 20 && FakeWebSocket.instances.length === 0; i++) await Promise.resolve()
         return { joining, ws: FakeWebSocket.instances[FakeWebSocket.instances.length - 1]! }
     }
 
-    it('reports the close code when the handshake fails without a server message', async () => {
-        const mp = useMultiplayerStore()
-        const { joining, ws } = await startJoin(mp)
+    async function nextSocket(n: number) {
+        for (let i = 0; i < 40 && FakeWebSocket.instances.length < n; i++) await Promise.resolve()
+        expect(FakeWebSocket.instances.length).toBeGreaterThanOrEqual(n)
+        return FakeWebSocket.instances[n - 1]!
+    }
 
-        ws.fail(1006)
+    it('reports the close code, retries once, and joins when the retry connects', async () => {
+        vi.useFakeTimers()
+        try {
+            const mp = useMultiplayerStore()
+            const { joining, ws } = await startJoin(mp)
 
-        expect(await joining).toBeNull()
-        expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'ws_closed_1006' })
+            ws.fail(1006)
+            await vi.advanceTimersByTimeAsync(0)
+            await vi.advanceTimersByTimeAsync(2_000)
+
+            const ws2 = await nextSocket(2)
+            ws2.open()
+            ws2.receive({ t: 'hello', roomCode: 'DEADCD', userId: 'me', hostUserId: 'me' })
+            ws2.receive({ t: 'snapshot', seq: 0, game: playingView({ status: 'lobby', you: null, currentPlayerId: null, players: [] }) })
+
+            expect(await joining).not.toBeNull()
+            expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'ws_closed_1006', attempt: 1 })
+            expect(track).toHaveBeenCalledWith('mp_room_joined', { method: 'code' })
+        } finally {
+            vi.useRealTimers()
+        }
     })
 
-    it('reports the server message when the room does not exist', async () => {
+    it('gives up after a second transient failure', async () => {
+        vi.useFakeTimers()
+        try {
+            const mp = useMultiplayerStore()
+            const { joining, ws } = await startJoin(mp)
+
+            ws.fail(1006)
+            await vi.advanceTimersByTimeAsync(0)
+            await vi.advanceTimersByTimeAsync(2_000)
+
+            const ws2 = await nextSocket(2)
+            ws2.fail(1011)
+
+            expect(await joining).toBeNull()
+            expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'ws_closed_1006', attempt: 1 })
+            expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'ws_closed_1011', attempt: 2 })
+            // A transport failure has no server message — the user still needs one.
+            expect(mp.error).toBe('Could not reach the game server')
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it('does not retry when the server says the room is gone', async () => {
         const mp = useMultiplayerStore()
         const { joining, ws } = await startJoin(mp)
 
@@ -309,19 +351,24 @@ describe('join failure reasons', () => {
         ws.receive({ t: 'error', code: 'room-not-found' })
 
         expect(await joining).toBeNull()
-        expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'Room not found' })
+        expect(FakeWebSocket.instances.length).toBe(1)
+        expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'Room not found', attempt: 1 })
     })
 
-    it('reports a timeout when the socket never answers', async () => {
+    it('reports a timeout on both attempts when the socket never answers', async () => {
         vi.useFakeTimers()
         try {
             const mp = useMultiplayerStore()
             const { joining } = await startJoin(mp)
 
             await vi.advanceTimersByTimeAsync(10_000)
+            await vi.advanceTimersByTimeAsync(2_000)
+            await nextSocket(2)
+            await vi.advanceTimersByTimeAsync(10_000)
 
             expect(await joining).toBeNull()
-            expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'timeout' })
+            expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'timeout', attempt: 1 })
+            expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'timeout', attempt: 2 })
         } finally {
             vi.useRealTimers()
         }

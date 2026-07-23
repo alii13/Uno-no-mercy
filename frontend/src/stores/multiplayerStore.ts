@@ -38,6 +38,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     // Why the last connect() failed when the server never said (for mp_join_failed).
     let connectFailReason: string | null = null
     const CONNECT_TIMEOUT_MS = 10_000
+    const JOIN_RETRY_BACKOFF_MS = 2_000
 
     // --- Host/UI concerns ---
     const loading = ref(false)
@@ -457,11 +458,24 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         error.value = null
         resetState()
         try {
-            const ok = await connect(code.trim().toUpperCase())
+            const target = code.trim().toUpperCase()
+            let ok = await connect(target)
             if (!ok) {
-                track('mp_join_failed', { reason: error.value ?? connectFailReason ?? 'unknown' })
-                return null
+                track('mp_join_failed', { reason: error.value ?? connectFailReason ?? 'unknown', attempt: 1 })
+                // A transport failure with no server verdict (handshake drop,
+                // timeout) gets one retry; server refusals are final.
+                if (!error.value) {
+                    await new Promise(r => setTimeout(r, JOIN_RETRY_BACKOFF_MS))
+                    ok = await connect(target)
+                    if (!ok) {
+                        track('mp_join_failed', { reason: error.value ?? connectFailReason ?? 'unknown', attempt: 2 })
+                        // Transport failures carry no server message — leave the
+                        // user an actionable one instead of a silent reset.
+                        if (!error.value) error.value = 'Could not reach the game server'
+                    }
+                }
             }
+            if (!ok) return null
             trackJoined(via)
             return currentGame.value
         } finally {
