@@ -98,12 +98,14 @@ export const useAuthStore = defineStore('auth', () => {
             if (authError) throw authError
             if (!authData.user) throw new Error('No user returned')
 
-            user.value = authData.user
-
-            // The profile is created by the DB trigger after email confirmation.
-            // Only fetch once a session exists — a pre-confirmation fetch runs as
-            // the anon role and 403s (harmless, but noisy in the console).
-            if (authData.session) await fetchProfile()
+            // No session = email confirmation pending. Setting user here would
+            // fake a signed-in state with no token behind it: games silently
+            // stop recording and a refresh logs the user out. The session
+            // arrives via onAuthStateChange when the confirmation link lands.
+            if (authData.session) {
+                user.value = authData.user
+                await fetchProfile()
+            }
 
             return { success: true, needsConfirmation: !authData.session }
         } catch (err: any) {
