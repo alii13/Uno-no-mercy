@@ -115,6 +115,10 @@ export const useRetentionStore = defineStore('retention', () => {
         return currentStreak.value
     })
 
+    // Drives the lobby nudge: a live streak that hasn't been fed today is at
+    // risk, and saying so is the whole retention mechanic.
+    const playedToday = computed(() => lastPlayedDate.value === todayDate())
+
     // Persist on any change.
     watch(
         [gamesPlayed, gamesWon, totalCardsPlayed, totalUnos, biggestStackEver,
@@ -193,6 +197,7 @@ export const useRetentionStore = defineStore('retention', () => {
         lastPlayedDate,
         winRate,
         effectiveStreak,
+        playedToday,
         recordGameResult,
         reset,
     }
