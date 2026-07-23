@@ -43,7 +43,21 @@
     </header>
 
     <div class="lobby-content">
-      <div v-if="friendlyError" class="error-banner">
+      <!-- Dead invite/room code: rooms close when everyone leaves, so a stale
+           link can never succeed — offer escape hatches instead of a retry trap. -->
+      <div v-if="roomEnded" class="room-ended-card" role="alert">
+        <h2 class="room-ended-title">THIS ROOM HAS ENDED</h2>
+        <p class="room-ended-sub">Rooms close when everyone leaves. Start a fresh one or jump into a live match.</p>
+        <div class="room-ended-actions">
+          <Button variant="primary" size="md" block :disabled="mpStore.loading" @click="handleCreateGame">
+            {{ mpStore.loading ? 'CREATING...' : 'CREATE A NEW ROOM' }}
+          </Button>
+          <Button variant="secondary" size="md" block :disabled="mpStore.loading" @click="handleQuickMatch">
+            QUICK MATCH
+          </Button>
+        </div>
+      </div>
+      <div v-else-if="friendlyError" class="error-banner">
         {{ friendlyError }}
       </div>
 
@@ -369,6 +383,8 @@ const voiceStore = useVoiceStore()
 const gameStore = useGameStore()
 
 const showJoinModal = ref(false)
+// A join hit a room the server no longer knows — show the ended card, not a retry trap.
+const roomEnded = ref(false)
 const showLeaveConfirm = ref(false)
 const showRules = ref(false)
 const showUpgradeConfirm = ref(false)
@@ -403,7 +419,9 @@ onMounted(() => {
   if (!/^[A-Z0-9]{4,8}$/.test(code)) return
 
   joinCode.value = code
-  mpStore.joinGame(code, 'link')
+  void mpStore.joinGame(code, 'link').then((res) => {
+    if (!res && mpStore.error === 'Room not found') roomEnded.value = true
+  })
 })
 
 // Speaker button per seat: host cuts the mic room-wide, others mute locally.
@@ -469,20 +487,24 @@ const currentModeDesc = computed(
 )
 
 async function handleCreateGame() {
+  roomEnded.value = false
   await mpStore.createGame(selectedStackingMode.value)
 }
 
 async function handleQuickMatch() {
+  roomEnded.value = false
   await mpStore.quickMatch(selectedStackingMode.value)
 }
 
 async function joinGame() {
   if (mpStore.loading) return
+  roomEnded.value = false
   const result = await mpStore.joinGame(joinCode.value)
-  if (result) {
+  if (result || mpStore.error === 'Room not found') {
     showJoinModal.value = false
     joinCode.value = ''
   }
+  if (!result && mpStore.error === 'Room not found') roomEnded.value = true
 }
 
 async function startGame() {
@@ -713,6 +735,37 @@ function copyLink() {
   font-size: var(--text-sm);
   text-align: center;
   border-radius: var(--radius-sm);
+}
+
+.room-ended-card {
+  background: rgba(255, 42, 42, 0.08);
+  border: 1px solid var(--color-alert);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  text-align: center;
+}
+
+.room-ended-title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 0.12em;
+  color: var(--color-alert);
+  margin: 0;
+}
+
+.room-ended-sub {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.room-ended-actions {
+  display: flex;
+  gap: var(--spacing-2);
 }
 
 /* ENTRY */
