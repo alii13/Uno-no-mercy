@@ -18,6 +18,7 @@
  *   share              { method: whatsapp|x, content_type: sp_win|mp_win }
  *   play_clicked       { method: guest }
  *   signin_failed      { message }
+ *   signin_retry       {}
  */
 
 type Params = Record<string, string | number | boolean | undefined>

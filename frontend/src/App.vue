@@ -96,6 +96,21 @@
 
     <!-- Always-mounted global settings drawer (Teleport'd to body) -->
     <SettingsDrawer />
+
+    <!-- Guest sign-in failure toast. Top-center: the landing page owns the
+         bottom edge with its sticky mobile CTA. -->
+    <Transition name="signin-toast">
+      <div v-if="guestError" class="signin-toast" role="alert">
+        <div class="signin-toast__text">
+          <span class="signin-toast__title">SIGN-IN FAILED</span>
+          <span class="signin-toast__sub">{{ guestError }}</span>
+        </div>
+        <button class="signin-toast__retry" :disabled="guestLoading" @click="retryGuestSignin">
+          {{ guestLoading ? 'RETRYING...' : 'RETRY' }}
+        </button>
+        <button class="signin-toast__dismiss" aria-label="Dismiss" @click="guestError = null">&times;</button>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -213,19 +228,33 @@ function handleShowAuth(mode: 'login' | 'signup') {
 }
 
 const guestLoading = ref(false)
+const guestError = ref<string | null>(null)
+let lastGuestNickname: string | undefined
 
-async function playAsGuest(nickname?: string) {
+async function attemptGuestSignin(nickname?: string) {
   guestLoading.value = true
-  track('play_clicked', { method: 'guest' })
+  guestError.value = null
+  lastGuestNickname = nickname
   try {
     const result = await authStore.signInAnonymously(nickname)
     if (!result.success) {
       console.error('Guest sign-in failed:', result.error)
       track('signin_failed', { message: result.error ?? 'unknown' })
+      guestError.value = "Couldn't reach the server. Check your connection."
     }
   } finally {
     guestLoading.value = false
   }
+}
+
+async function playAsGuest(nickname?: string) {
+  track('play_clicked', { method: 'guest' })
+  await attemptGuestSignin(nickname)
+}
+
+function retryGuestSignin() {
+  track('signin_retry')
+  void attemptGuestSignin(lastGuestNickname)
 }
 
 function startLocalGame(mode?: 'official' | 'house' | 'casual') {
@@ -249,6 +278,94 @@ function startLocalGame(mode?: 'official' | 'house' | 'casual') {
   .app-container {
     -webkit-overflow-scrolling: touch;
   }
+}
+
+/* Guest sign-in failure toast — mirrors the in-game eliminated banner,
+   pinned top-center like the reconnect pill. */
+.signin-toast {
+  position: fixed;
+  top: max(1.25rem, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.7rem 0.85rem 0.7rem 1.25rem;
+  background: rgba(20, 0, 0, 0.92);
+  border: 1px solid rgba(255, 42, 42, 0.65);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(255, 42, 42, 0.35);
+  z-index: var(--z-toast);
+  max-width: calc(100vw - 2rem);
+}
+
+.signin-toast__text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.signin-toast__title {
+  font-family: 'Black Ops One', 'Impact', sans-serif;
+  font-size: 1.1rem;
+  letter-spacing: 0.14em;
+  color: #ff2a2a;
+  text-transform: uppercase;
+}
+
+.signin-toast__sub {
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.72);
+  text-transform: uppercase;
+}
+
+.signin-toast__retry {
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 0.8rem;
+  letter-spacing: 0.18em;
+  color: #fff;
+  background: rgba(255, 42, 42, 0.9);
+  border: none;
+  border-radius: 8px;
+  padding: 0.55rem 1.1rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.signin-toast__retry:hover {
+  background: #ff2a2a;
+}
+
+.signin-toast__retry:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.signin-toast__dismiss {
+  font-size: 1.1rem;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.55);
+  background: none;
+  border: none;
+  padding: 0.25rem;
+  cursor: pointer;
+}
+
+.signin-toast__dismiss:hover {
+  color: #fff;
+}
+
+.signin-toast-enter-active,
+.signin-toast-leave-active {
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.signin-toast-enter-from,
+.signin-toast-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -8px);
 }
 
 /* LOADING SCREEN — brand-led, single pulsing dot, no spinner */
