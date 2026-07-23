@@ -155,6 +155,24 @@
         </div>
       </section>
 
+      <!-- Badge case — earned lit, locked dimmed. Earning is pure history,
+           so the case can never disagree with the record above it. -->
+      <section class="record-section">
+        <h3 class="section-title">BADGE CASE <span class="badge-count">{{ earnedIds.size }}/{{ ACHIEVEMENTS.length }}</span></h3>
+        <div class="badge-grid">
+          <div
+            v-for="a in ACHIEVEMENTS"
+            :key="a.id"
+            class="badge-cell"
+            :class="{ earned: earnedIds.has(a.id) }"
+            :title="a.desc"
+          >
+            <span class="badge-title">{{ a.title.toUpperCase() }}</span>
+            <span class="badge-desc">{{ a.desc }}</span>
+          </div>
+        </div>
+      </section>
+
       <!-- Recent games -->
       <section class="record-section">
         <h3 class="section-title">RECENT GAMES</h3>
@@ -217,6 +235,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { usePlayerStats } from '../composables/usePlayerStats'
+import { ACHIEVEMENTS, earnedAchievements, type ResultRow } from '../utils/achievements'
 import { useAuthStore } from '../stores/authStore'
 import Button from './ui/Button.vue'
 
@@ -239,7 +258,10 @@ const {
   totalUnoCalls, biggestStackSurvived,
   peakCardsEver, ruthlessness,
   rank, nextRank, recentGames, avgGameDuration,
+  results,
 } = usePlayerStats()
+
+const earnedIds = computed(() => new Set(earnedAchievements(results.value as ResultRow[]).map(a => a.id)))
 
 function formatDuration(secs: number): string {
   if (secs < 60) return `${secs}s`
@@ -700,6 +722,55 @@ function copyShareLink() {
 }
 
 /* RECENT GAMES */
+.badge-count {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  margin-left: var(--spacing-2);
+}
+
+.badge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-3);
+}
+
+.badge-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--spacing-2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  opacity: 0.35;
+}
+
+.badge-cell.earned {
+  opacity: 1;
+  border-color: rgba(255, 204, 0, 0.4);
+  background: rgba(255, 204, 0, 0.05);
+}
+
+.badge-title {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  color: var(--text-primary);
+}
+
+.badge-cell.earned .badge-title {
+  color: var(--color-hazard);
+}
+
+.badge-desc {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
 .recent-list {
   list-style: none;
   margin: 0;
