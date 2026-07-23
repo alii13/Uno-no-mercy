@@ -390,6 +390,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { Copy, Check, Flame, Pencil, X } from 'lucide-vue-next'
 import { useRetentionStore } from '../stores/retentionStore'
+import { getDailyRecord } from '../utils/dailyChallenge'
 import { vFocusRing } from '../directives/focusRing'
 import { preloadCardImages } from '../utils/preloadCardImages'
 import { useAuthStore } from '../stores/authStore'
@@ -414,6 +415,13 @@ const emit = defineEmits<{
 const authStore = useAuthStore()
 const mpStore = useMultiplayerStore()
 const retention = useRetentionStore()
+
+// Re-read on every mount: the lobby unmounts while the daily game plays, so
+// returning from it always shows the fresh done state.
+const dailyRecord = ref(getDailyRecord())
+const dailyDateLabel = new Date()
+  .toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  .toUpperCase()
 const voiceStore = useVoiceStore()
 const gameStore = useGameStore()
 
@@ -770,6 +778,53 @@ function copyLink() {
   font-size: var(--text-sm);
   text-align: center;
   border-radius: var(--radius-sm);
+}
+
+.daily-card {
+  background: rgba(0, 229, 255, 0.04);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.daily-card.done {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.daily-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.daily-title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 0.12em;
+  color: var(--text-primary);
+}
+
+.daily-date {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.18em;
+  color: var(--text-muted);
+}
+
+.daily-desc {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.daily-result {
+  color: rgba(0, 229, 255, 0.85);
+  letter-spacing: 0.06em;
 }
 
 .streak-strip {
