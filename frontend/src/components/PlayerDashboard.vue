@@ -173,6 +173,33 @@
         </div>
       </section>
 
+      <!-- Card backs — earn-only skins. Ownership derives from the record;
+           only the equip choice is stored. -->
+      <section class="record-section">
+        <h3 class="section-title">CARD BACKS</h3>
+        <div class="skin-grid">
+          <div
+            v-for="skin in CARD_BACKS"
+            :key="skin.id"
+            class="skin-cell"
+            :class="{ owned: ownedSkinIds.has(skin.id), equipped: equippedId === skin.id }"
+          >
+            <span class="skin-swatch" :style="{ background: skin.accent, boxShadow: `0 0 12px ${skin.accent}55` }"></span>
+            <span class="skin-title">{{ skin.title.toUpperCase() }}</span>
+            <span class="skin-unlock">{{ skin.unlock }}</span>
+            <button
+              v-if="ownedSkinIds.has(skin.id)"
+              class="skin-equip"
+              :disabled="equippedId === skin.id"
+              @click="equipSkin(skin.id)"
+            >
+              {{ equippedId === skin.id ? 'EQUIPPED' : 'EQUIP' }}
+            </button>
+            <span v-else class="skin-locked">LOCKED</span>
+          </div>
+        </div>
+      </section>
+
       <!-- Recent games -->
       <section class="record-section">
         <h3 class="section-title">RECENT GAMES</h3>
@@ -236,6 +263,8 @@
 import { computed, ref } from 'vue'
 import { usePlayerStats } from '../composables/usePlayerStats'
 import { ACHIEVEMENTS, earnedAchievements, type ResultRow } from '../utils/achievements'
+import { CARD_BACKS, equip, getEquippedId } from '../utils/cosmetics'
+import { useRetentionStore } from '../stores/retentionStore'
 import { useAuthStore } from '../stores/authStore'
 import Button from './ui/Button.vue'
 
@@ -262,6 +291,18 @@ const {
 } = usePlayerStats()
 
 const earnedIds = computed(() => new Set(earnedAchievements(results.value as ResultRow[]).map(a => a.id)))
+
+const retention = useRetentionStore()
+const ownedSkinIds = computed(() => new Set(
+  CARD_BACKS
+    .filter(s => s.unlocked({ wins: gamesWon.value, longestStreak: retention.longestStreak, earned: earnedIds.value }))
+    .map(s => s.id),
+))
+const equippedId = ref(getEquippedId())
+function equipSkin(id: string) {
+  equip(id)
+  equippedId.value = getEquippedId()
+}
 
 function formatDuration(secs: number): string {
   if (secs < 60) return `${secs}s`
@@ -769,6 +810,82 @@ function copyShareLink() {
   font-size: 0.62rem;
   color: var(--text-muted);
   line-height: 1.3;
+}
+
+.skin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-3);
+}
+
+.skin-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-3) var(--spacing-2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  opacity: 0.4;
+  text-align: center;
+}
+
+.skin-cell.owned {
+  opacity: 1;
+}
+
+.skin-cell.equipped {
+  border-color: rgba(255, 204, 0, 0.5);
+  background: rgba(255, 204, 0, 0.04);
+}
+
+.skin-swatch {
+  width: 28px;
+  height: 40px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.skin-title {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  color: var(--text-primary);
+}
+
+.skin-unlock {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.skin-equip {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  color: #000;
+  background: var(--color-hazard);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 3px 10px;
+  cursor: pointer;
+  margin-top: 2px;
+}
+
+.skin-equip:disabled {
+  background: rgba(255, 204, 0, 0.25);
+  color: var(--text-primary);
+  cursor: default;
+}
+
+.skin-locked {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  color: var(--text-muted);
+  margin-top: 2px;
 }
 
 .recent-list {

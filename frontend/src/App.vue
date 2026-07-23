@@ -119,6 +119,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { track, trackScreen } from './utils/analytics'
 import { localDateString } from './utils/seededRng'
+import { applyEquipped } from './utils/cosmetics'
 import LandingPage from './components/LandingPage.vue'
 import AuthView from './components/AuthView.vue'
 import SettingsDrawer from './components/SettingsDrawer.vue'
@@ -171,6 +172,9 @@ watch(currentScreen, (screen) => {
 let authSubscription: { unsubscribe: () => void } | null = null
 
 onMounted(async () => {
+  // Equipped card back applies via root CSS vars before any card renders.
+  applyEquipped()
+
   const { data } = supabase.auth.onAuthStateChange((event) => {
     if (event === 'PASSWORD_RECOVERY') {
       showPasswordReset.value = true
