@@ -43,6 +43,20 @@
     </header>
 
     <div class="lobby-content">
+      <!-- Day streak: the reason to come back tomorrow. The at-risk state is
+           the mechanic — a live streak that hasn't been fed today says so. -->
+      <div
+        v-if="retention.effectiveStreak > 0 && !mpStore.currentGame"
+        class="streak-strip"
+        :class="{ 'at-risk': !retention.playedToday }"
+        role="status"
+      >
+        <Flame class="streak-flame" :stroke-width="2.5" aria-hidden="true" />
+        <span class="streak-count">{{ retention.effectiveStreak }}-DAY STREAK</span>
+        <span v-if="retention.playedToday" class="streak-state">SECURED FOR TODAY</span>
+        <span v-else class="streak-state streak-state--warn">PLAY TODAY TO KEEP IT</span>
+      </div>
+
       <!-- Dead invite/room code: rooms close when everyone leaves, so a stale
            link can never succeed — offer escape hatches instead of a retry trap. -->
       <div v-if="roomEnded" class="room-ended-card" role="alert">
@@ -356,7 +370,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { Copy, Check, Pencil, X } from 'lucide-vue-next'
+import { Copy, Check, Flame, Pencil, X } from 'lucide-vue-next'
+import { useRetentionStore } from '../stores/retentionStore'
 import { vFocusRing } from '../directives/focusRing'
 import { preloadCardImages } from '../utils/preloadCardImages'
 import { useAuthStore } from '../stores/authStore'
@@ -379,6 +394,7 @@ const emit = defineEmits<{
 
 const authStore = useAuthStore()
 const mpStore = useMultiplayerStore()
+const retention = useRetentionStore()
 const voiceStore = useVoiceStore()
 const gameStore = useGameStore()
 
@@ -735,6 +751,62 @@ function copyLink() {
   font-size: var(--text-sm);
   text-align: center;
   border-radius: var(--radius-sm);
+}
+
+.streak-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: rgba(255, 204, 0, 0.06);
+  border: 1px solid rgba(255, 204, 0, 0.35);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  letter-spacing: 0.08em;
+}
+
+.streak-flame {
+  width: 18px;
+  height: 18px;
+  color: #ffcc00;
+}
+
+.streak-count {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 0.12em;
+  color: var(--text-primary);
+}
+
+.streak-state {
+  font-size: var(--text-xs);
+  letter-spacing: 0.14em;
+  color: rgba(255, 204, 0, 0.75);
+}
+
+.streak-strip.at-risk {
+  background: rgba(255, 42, 42, 0.07);
+  border-color: var(--color-alert);
+}
+
+.streak-strip.at-risk .streak-flame {
+  color: var(--color-alert);
+  animation: streak-pulse 1.4s ease-in-out infinite;
+}
+
+.streak-state--warn {
+  color: var(--color-alert);
+}
+
+@keyframes streak-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.88); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .streak-strip.at-risk .streak-flame { animation: none; }
 }
 
 .room-ended-card {
