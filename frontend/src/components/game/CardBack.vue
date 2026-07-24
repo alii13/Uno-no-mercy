@@ -46,7 +46,7 @@
         cx="125" cy="175" 
         r="75" 
         fill="#000" 
-        stroke="#ff3333" 
+        style="stroke: var(--card-back-accent, #ff3333)" 
         stroke-width="4"
       />
 
@@ -55,7 +55,7 @@
         x="125" y="165" 
         font-family="Black Ops One, cursive" 
         font-size="42" 
-        fill="#ff3333"
+        style="fill: var(--card-back-accent, #ff3333)"
         text-anchor="middle"
         dominant-baseline="middle"
       >NO</text>
@@ -76,7 +76,7 @@
         </linearGradient>
 
         <pattern id="hazardStripe" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-          <rect x="0" y="0" width="10" height="20" fill="#ffcc00" />
+          <rect x="0" y="0" width="10" height="20" style="fill: var(--card-back-stripe, #ffcc00)" />
           <rect x="10" y="0" width="10" height="20" fill="#000" />
         </pattern>
       </defs>
