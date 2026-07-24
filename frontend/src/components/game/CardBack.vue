@@ -1,7 +1,14 @@
 <template>
-  <div 
-    class="card-back" 
-    :style="{ width: `${size.width}px`, height: `${size.height}px` }"
+  <div
+    class="card-back"
+    :style="{
+      width: `${size.width}px`,
+      height: `${size.height}px`,
+      // Per-instance skin override (someone else's seat). Undefined values
+      // are dropped by Vue, so the root-level equipped skin still applies.
+      '--card-back-accent': accent,
+      '--card-back-stripe': stripe,
+    }"
   >
     <svg 
       :width="size.width" 
@@ -90,10 +97,15 @@
 <script setup lang="ts">
 interface Props {
   size?: { width: number; height: number }
+  /** Skin override for rendering someone else's card back. */
+  accent?: string
+  stripe?: string
 }
 
 withDefaults(defineProps<Props>(), {
-  size: () => ({ width: 100, height: 140 })
+  size: () => ({ width: 100, height: 140 }),
+  accent: undefined,
+  stripe: undefined,
 })
 </script>
 

@@ -63,5 +63,8 @@ export interface GamePlayerRow {
 export interface UserProfile {
     id: string
     username: string
+    /** Account-synced card-back skin id. Optional: rows written before the
+     *  cosmetics migration ran won't have it. */
+    equipped_card_back?: string | null
     created_at: string
 }

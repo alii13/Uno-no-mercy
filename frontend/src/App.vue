@@ -119,7 +119,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { track, trackScreen } from './utils/analytics'
 import { localDateString } from './utils/seededRng'
-import { applyEquipped } from './utils/cosmetics'
+import { adoptProfileEquip, applyEquipped } from './utils/cosmetics'
 import LandingPage from './components/LandingPage.vue'
 import AuthView from './components/AuthView.vue'
 import SettingsDrawer from './components/SettingsDrawer.vue'
@@ -167,6 +167,11 @@ const currentScreen = computed(() => {
 })
 watch(currentScreen, (screen) => {
   if (screen) trackScreen(screen)
+})
+
+// The signed-in profile's equip wins over whatever this device had.
+watch(() => authStore.profile, (p) => {
+  if (p) adoptProfileEquip(p.equipped_card_back)
 })
 
 let authSubscription: { unsubscribe: () => void } | null = null
