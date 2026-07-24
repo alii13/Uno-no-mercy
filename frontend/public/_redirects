@@ -4,3 +4,8 @@ https://*.uno-no-mercy.pages.dev/* https://uno-no-mercy.com/:splat 301
 
 # Redirect www to apex
 https://www.uno-no-mercy.com/* https://uno-no-mercy.com/:splat 301
+
+# NOTE: no `/* /index.html 200` rule — Cloudflare Pages flags it as an
+# infinite loop and ignores it. Deep links (/leaderboard, /p/<code>) are
+# served by Pages' automatic SPA fallback (no 404.html in the build output),
+# verified via `wrangler pages dev`.
