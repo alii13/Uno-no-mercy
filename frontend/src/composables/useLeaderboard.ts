@@ -44,6 +44,15 @@ export interface BoardContext {
     total_players: number
 }
 
+/** One weekly spotlight: a skill archetype's holder this week. */
+export interface Spotlight {
+    kind: 'fastest_win' | 'biggest_stack' | 'most_wins'
+    username: string
+    share_code: string | null
+    country: string | null
+    value: number
+}
+
 export function useLeaderboard() {
     // Guilty until proven installed: the link renders only after a probe
     // succeeds, so there's no flash of a dead feature.
@@ -53,15 +62,17 @@ export function useLeaderboard() {
     const weekly = ref<WeeklyRow[]>([])
     const dailyContext = ref<BoardContext | null>(null)
     const weeklyContext = ref<BoardContext | null>(null)
+    const spotlights = ref<Spotlight[]>([])
 
     async function fetchBoards() {
         loading.value = true
         try {
-            const [d, w, dc, wc] = await Promise.all([
+            const [d, w, dc, wc, sp] = await Promise.all([
                 supabase.rpc('daily_leaderboard', { challenge_date: localDateString() }),
                 supabase.rpc('weekly_wins_leaderboard'),
                 supabase.rpc('daily_my_rank', { challenge_date: localDateString() }),
                 supabase.rpc('weekly_my_rank'),
+                supabase.rpc('weekly_spotlights'),
             ])
             if (d.error && w.error) {
                 // Functions not installed yet — hide the feature.
@@ -74,6 +85,7 @@ export function useLeaderboard() {
             // v2-only context functions: errors just mean v2 isn't installed.
             dailyContext.value = dc.error ? null : ((dc.data as BoardContext[] | null)?.[0] ?? null)
             weeklyContext.value = wc.error ? null : ((wc.data as BoardContext[] | null)?.[0] ?? null)
+            spotlights.value = sp.error ? [] : ((sp.data || []) as Spotlight[])
         } catch {
             available.value = false
         } finally {
@@ -81,5 +93,5 @@ export function useLeaderboard() {
         }
     }
 
-    return { available, loading, daily, weekly, dailyContext, weeklyContext, fetchBoards }
+    return { available, loading, daily, weekly, dailyContext, weeklyContext, spotlights, fetchBoards }
 }
