@@ -33,6 +33,12 @@ export interface Achievement {
 const wins = (rows: ResultRow[]) => rows.filter(r => r.result === 'won')
 const sum = (rows: ResultRow[], f: (r: ResultRow) => number) => rows.reduce((s, r) => s + f(r), 0)
 
+/** Speed/efficiency records require a real game: walkover wins (every
+ *  opponent left) record near-zero plays and seconds-long durations.
+ *  Mirrored by the filters in supabase/profile-pages.sql. */
+const MIN_PLAYS_FOR_RECORD = 5
+const realWin = (r: ResultRow) => r.result === 'won' && r.cards_played_total >= MIN_PLAYS_FOR_RECORD
+
 /** Longest run of consecutive wins; rows must be newest-first (the fetch order). */
 function bestWinStreak(rows: ResultRow[]): number {
     let best = 0
@@ -60,8 +66,8 @@ export const ACHIEVEMENTS: Achievement[] = [
     { id: 'sadist', title: 'No Mercy Indeed', desc: 'Play 100 draw cards lifetime', earned: r => sum(r, x => x.draw_cards_played) >= 100 },
     { id: 'wild_thing', title: 'Wild Thing', desc: 'Play 50 wild cards lifetime', earned: r => sum(r, x => x.wild_cards_played) >= 50 },
     { id: 'town_crier', title: 'Town Crier', desc: 'Call UNO 25 times lifetime', earned: r => sum(r, x => x.uno_calls) >= 25 },
-    { id: 'clean_win', title: 'Surgical', desc: 'Win playing 20 cards or fewer', earned: r => r.some(x => x.result === 'won' && x.cards_played_total <= 20) },
-    { id: 'speed_demon', title: 'Speed Demon', desc: 'Win in under 90 seconds', earned: r => r.some(x => x.result === 'won' && x.game_duration_secs > 0 && x.game_duration_secs < 90) },
+    { id: 'clean_win', title: 'Surgical', desc: 'Win playing 20 cards or fewer', earned: r => r.some(x => realWin(x) && x.cards_played_total <= 20) },
+    { id: 'speed_demon', title: 'Speed Demon', desc: 'Win in under 90 seconds', earned: r => r.some(x => realWin(x) && x.game_duration_secs > 0 && x.game_duration_secs < 90) },
     { id: 'marathon', title: 'War of Attrition', desc: 'Finish a 15+ minute game', earned: r => r.some(x => x.game_duration_secs >= 900) },
     { id: 'swap_meet', title: 'Swap Meet', desc: 'Swap hands 10 times lifetime', earned: r => sum(r, x => x.swaps_made) >= 10 },
     { id: 'daily_devotee', title: 'Daily Devotee', desc: 'Play 5 daily challenges', earned: r => r.filter(x => x.game_id.startsWith('daily-')).length >= 5 },

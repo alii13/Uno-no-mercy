@@ -34,6 +34,9 @@ function row(overrides: Partial<ResultRow>): ResultRow {
  *  rows → badges for every achievement. Rows must be newest-first. */
 function aggregate(rows: ResultRow[]): ProfileAggregates {
     const wonRows = rows.filter(r => r.result === 'won')
+    // SQL filters speed/efficiency records to wins with >= 5 cards played
+    // (walkover wins aren't records).
+    const realWins = wonRows.filter(r => r.cards_played_total >= 5)
     let best = 0
     let cur = 0
     for (const r of [...rows].reverse()) {
@@ -48,8 +51,8 @@ function aggregate(rows: ResultRow[]): ProfileAggregates {
         max_stack_survived: max(rows.map(r => r.biggest_stack_survived)),
         max_peak_cards: max(rows.map(r => r.peak_cards)),
         max_peak_cards_won: max(wonRows.map(r => r.peak_cards)),
-        min_cards_won: min(wonRows.map(r => r.cards_played_total)),
-        min_duration_won: min(wonRows.filter(r => r.game_duration_secs > 0).map(r => r.game_duration_secs)),
+        min_cards_won: min(realWins.map(r => r.cards_played_total)),
+        min_duration_won: min(realWins.filter(r => r.game_duration_secs > 0).map(r => r.game_duration_secs)),
         max_duration: max(rows.map(r => r.game_duration_secs)),
         sum_skips: rows.reduce((s, r) => s + r.skips_dealt, 0),
         sum_draw_cards: rows.reduce((s, r) => s + r.draw_cards_played, 0),
@@ -113,6 +116,17 @@ describe('earnedFromAggregates agrees with the row evaluator', () => {
         expectAgreement(rows)
         const ids = new Set(earnedFromAggregates(aggregate(rows)).map(a => a.id))
         expect(ids.has('speed_demon')).toBe(false)
+    })
+
+    it('walkover wins (near-zero cards played) earn no speed or efficiency records', () => {
+        // Every opponent left: 4-second "win" with 0 cards played.
+        const rows = [row({ result: 'won', cards_played_total: 0, game_duration_secs: 4 })]
+        expectAgreement(rows)
+        const ids = new Set(earnedFromAggregates(aggregate(rows)).map(a => a.id))
+        expect(ids.has('speed_demon')).toBe(false)
+        expect(ids.has('clean_win')).toBe(false)
+        // The win itself still counts — only the records are gated.
+        expect(ids.has('first_win')).toBe(true)
     })
 
     it('covers every achievement id with at least one earnable path', () => {
