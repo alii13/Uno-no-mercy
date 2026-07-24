@@ -70,3 +70,53 @@ export const ACHIEVEMENTS: Achievement[] = [
 export function earnedAchievements(rows: ResultRow[]): Achievement[] {
     return ACHIEVEMENTS.filter(a => a.earned(rows))
 }
+
+/** One row of profile aggregates — the shape public_profile() returns.
+ *  Every achievement is expressible from these, so a public badge case
+ *  never needs row-level access to someone else's history. */
+export interface ProfileAggregates {
+    games: number
+    wins: number
+    best_win_streak: number
+    max_stack_survived: number
+    max_peak_cards: number
+    max_peak_cards_won: number
+    min_cards_won: number | null
+    min_duration_won: number | null
+    max_duration: number
+    sum_skips: number
+    sum_draw_cards: number
+    sum_wild_cards: number
+    sum_uno_calls: number
+    sum_swaps: number
+    daily_played: number
+}
+
+const AGGREGATE_CHECKS: Record<string, (a: ProfileAggregates) => boolean> = {
+    first_blood: a => a.games >= 1,
+    first_win: a => a.wins >= 1,
+    hat_trick: a => a.best_win_streak >= 3,
+    pentakill: a => a.best_win_streak >= 5,
+    ten_wins: a => a.wins >= 10,
+    fifty_wins: a => a.wins >= 50,
+    hundred_wins: a => a.wins >= 100,
+    stack_16: a => a.max_stack_survived >= 16,
+    stack_24: a => a.max_stack_survived >= 24,
+    hoarder: a => a.max_peak_cards >= 20,
+    dragon: a => a.max_peak_cards >= 30,
+    comeback: a => a.max_peak_cards_won >= 15,
+    executioner: a => a.sum_skips >= 50,
+    sadist: a => a.sum_draw_cards >= 100,
+    wild_thing: a => a.sum_wild_cards >= 50,
+    town_crier: a => a.sum_uno_calls >= 25,
+    clean_win: a => a.min_cards_won !== null && a.min_cards_won <= 20,
+    speed_demon: a => a.min_duration_won !== null && a.min_duration_won > 0 && a.min_duration_won < 90,
+    marathon: a => a.max_duration >= 900,
+    swap_meet: a => a.sum_swaps >= 10,
+    daily_devotee: a => a.daily_played >= 5,
+}
+
+/** Aggregate twin of earnedAchievements — unit-tested to agree with it. */
+export function earnedFromAggregates(agg: ProfileAggregates): Achievement[] {
+    return ACHIEVEMENTS.filter(a => AGGREGATE_CHECKS[a.id]?.(agg))
+}

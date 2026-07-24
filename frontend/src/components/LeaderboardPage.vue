@@ -44,7 +44,14 @@
               :stripe="skinColors(row.skin ?? undefined).stripe"
               aria-hidden="true"
             />
-            <span class="lb-name">{{ row.is_me ? 'YOU' : row.username }}</span>
+            <button
+              v-if="row.share_code"
+              class="lb-name lb-name--link"
+              @click="navigate({ name: 'profile', code: row.share_code })"
+            >
+              {{ row.is_me ? 'YOU' : row.username }}
+            </button>
+            <span v-else class="lb-name">{{ row.is_me ? 'YOU' : row.username }}</span>
             <span v-if="flagEmoji(row.country)" class="lb-flag" :title="row.country ?? ''">{{ flagEmoji(row.country) }}</span>
             <span
               v-if="row.lifetime_wins !== undefined"
@@ -73,7 +80,14 @@
               :stripe="skinColors(row.skin ?? undefined).stripe"
               aria-hidden="true"
             />
-            <span class="lb-name">{{ row.is_me ? 'YOU' : row.username }}</span>
+            <button
+              v-if="row.share_code"
+              class="lb-name lb-name--link"
+              @click="navigate({ name: 'profile', code: row.share_code })"
+            >
+              {{ row.is_me ? 'YOU' : row.username }}
+            </button>
+            <span v-else class="lb-name">{{ row.is_me ? 'YOU' : row.username }}</span>
             <span v-if="flagEmoji(row.country)" class="lb-flag" :title="row.country ?? ''">{{ flagEmoji(row.country) }}</span>
             <span
               v-if="row.lifetime_wins !== undefined"
@@ -98,6 +112,7 @@ import { ref, onMounted, nextTick, watch } from 'vue'
 import gsap from 'gsap'
 import { useLeaderboard } from '../composables/useLeaderboard'
 import { useMotion } from '../composables/useMotion'
+import { navigate } from '../utils/routes'
 import { skinColors } from '../utils/cosmetics'
 import { flagEmoji } from '../utils/country'
 import { rankFor } from '../utils/ranks'
@@ -303,6 +318,24 @@ onMounted(() => { void lb.fetchBoards() })
 
 .lb-row.me .lb-name {
   color: var(--color-neon-blue);
+}
+
+.lb-name--link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.2);
+  text-underline-offset: 3px;
+}
+
+.lb-name--link:hover {
+  color: var(--color-neon-blue);
+  text-decoration-color: var(--color-neon-blue);
 }
 
 .lb-flag {
