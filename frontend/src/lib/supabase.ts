@@ -66,5 +66,9 @@ export interface UserProfile {
     /** Account-synced card-back skin id. Optional: rows written before the
      *  cosmetics migration ran won't have it. */
     equipped_card_back?: string | null
+    /** ISO-3166 alpha-2 from the CDN. Optional until leaderboards-v2.sql runs. */
+    country?: string | null
+    /** Shareable /p/<code> identity. Optional until leaderboards-v2.sql runs. */
+    share_code?: string | null
     created_at: string
 }

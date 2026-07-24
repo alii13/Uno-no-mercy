@@ -45,6 +45,7 @@
               aria-hidden="true"
             />
             <span class="lb-name">{{ row.is_me ? 'YOU' : row.username }}</span>
+            <span v-if="flagEmoji(row.country)" class="lb-flag" :title="row.country ?? ''">{{ flagEmoji(row.country) }}</span>
             <span
               v-if="row.lifetime_wins !== undefined"
               class="lb-chip"
@@ -73,6 +74,7 @@
               aria-hidden="true"
             />
             <span class="lb-name">{{ row.is_me ? 'YOU' : row.username }}</span>
+            <span v-if="flagEmoji(row.country)" class="lb-flag" :title="row.country ?? ''">{{ flagEmoji(row.country) }}</span>
             <span
               v-if="row.lifetime_wins !== undefined"
               class="lb-chip"
@@ -97,6 +99,7 @@ import gsap from 'gsap'
 import { useLeaderboard } from '../composables/useLeaderboard'
 import { useMotion } from '../composables/useMotion'
 import { skinColors } from '../utils/cosmetics'
+import { flagEmoji } from '../utils/country'
 import { rankFor } from '../utils/ranks'
 import CardBack from './game/CardBack.vue'
 import SiteFooter from './SiteFooter.vue'
@@ -300,6 +303,12 @@ onMounted(() => { void lb.fetchBoards() })
 
 .lb-row.me .lb-name {
   color: var(--color-neon-blue);
+}
+
+.lb-flag {
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+  line-height: 1;
 }
 
 .lb-chip {
