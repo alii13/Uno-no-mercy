@@ -1466,13 +1466,28 @@ function copyLink() {
 @media (max-width: 480px) {
   .entry-heading { font-size: 1.15rem; }
   .entry-head { justify-content: center; text-align: center; }
+  /* Everything is one full-width column here, so the desktop density
+     reads as clutter — open up the section rhythm and card interiors. */
+  .lobby-entry { gap: var(--spacing-6); }
+  .create-card {
+    padding: var(--spacing-4);
+    gap: var(--spacing-4);
+  }
+  .mode-desc { line-height: 1.8; }
+  .daily-card {
+    padding: var(--spacing-4);
+    gap: var(--spacing-3);
+  }
   /* One column; each tile becomes a row so three of them stay compact. */
-  .mode-tiles { grid-template-columns: 1fr; }
+  .mode-tiles {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-3);
+  }
   .mode-tile {
     flex-direction: row;
     justify-content: space-between;
-    min-height: 52px;
-    padding: var(--spacing-2) var(--spacing-3);
+    min-height: 56px;
+    padding: var(--spacing-3) var(--spacing-4);
   }
   .mode-tile .tile-title {
     flex: initial;
