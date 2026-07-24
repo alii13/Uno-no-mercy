@@ -43,20 +43,6 @@
     </header>
 
     <div class="lobby-content">
-      <!-- Day streak: the reason to come back tomorrow. The at-risk state is
-           the mechanic — a live streak that hasn't been fed today says so. -->
-      <div
-        v-if="retention.effectiveStreak > 0 && !mpStore.currentGame"
-        class="streak-strip"
-        :class="{ 'at-risk': !retention.playedToday }"
-        role="status"
-      >
-        <Flame class="streak-flame" :stroke-width="2.5" aria-hidden="true" />
-        <span class="streak-count">{{ retention.effectiveStreak }}-DAY STREAK</span>
-        <span v-if="retention.playedToday" class="streak-state">SECURED FOR TODAY</span>
-        <span v-else class="streak-state streak-state--warn">PLAY TODAY TO KEEP IT</span>
-      </div>
-
       <!-- Dead invite/room code: rooms close when everyone leaves, so a stale
            link can never succeed — offer escape hatches instead of a retry trap. -->
       <div v-if="roomEnded" class="room-ended-card" role="alert">
@@ -77,7 +63,66 @@
 
       <!-- No active game — focused entry view with one primary CTA -->
       <div v-if="!mpStore.currentGame" class="lobby-entry">
-        <h1 class="entry-heading">HOW DO YOU WANT TO PLAY?</h1>
+        <div class="entry-head">
+          <h1 class="entry-heading">HOW DO YOU WANT TO PLAY?</h1>
+          <!-- Day streak: the reason to come back tomorrow. The at-risk state is
+               the mechanic — a live streak that hasn't been fed today says so. -->
+          <div
+            v-if="retention.effectiveStreak > 0"
+            class="streak-chip"
+            :class="{ 'at-risk': !retention.playedToday }"
+            role="status"
+          >
+            <Flame class="streak-flame" :stroke-width="2.5" aria-hidden="true" />
+            <span class="streak-count">{{ retention.effectiveStreak }}-DAY STREAK</span>
+            <span v-if="!retention.playedToday" class="streak-state streak-state--warn">PLAY TODAY TO KEEP IT</span>
+          </div>
+        </div>
+
+        <!-- Primary action: create a room. The rules choice only applies to
+             created games, so it lives inside the same card. -->
+        <div class="create-card">
+          <Button
+            variant="primary"
+            size="lg"
+            block
+            :disabled="mpStore.loading"
+            @click="handleCreateGame"
+          >
+            {{ mpStore.loading ? 'CREATING...' : 'CREATE GAME' }}
+          </Button>
+          <div class="mode-row">
+            <span class="mode-label">RULES</span>
+            <div class="mode-pills">
+              <button
+                v-for="m in stackingModes"
+                :key="m.value"
+                class="mode-pill"
+                :class="{ active: selectedStackingMode === m.value }"
+                @click="selectedStackingMode = m.value"
+              >
+                {{ m.label }}
+              </button>
+            </div>
+          </div>
+          <p class="mode-desc">{{ currentModeDesc }} · Share the room code with friends.</p>
+        </div>
+
+        <!-- Other ways in: equal-weight tiles, each carrying its own microcopy -->
+        <div class="mode-tiles">
+          <button class="mode-tile" :disabled="mpStore.loading" @click="handleQuickMatch">
+            <span class="tile-title">{{ mpStore.loading ? 'MATCHING…' : 'QUICK MATCH' }}</span>
+            <span class="tile-sub">vs a stranger</span>
+          </button>
+          <button class="mode-tile" @click="showJoinModal = true">
+            <span class="tile-title">JOIN WITH CODE</span>
+            <span class="tile-sub">join a friend</span>
+          </button>
+          <button class="mode-tile mode-tile--ghost" @click="$emit('playLocal', selectedStackingMode)">
+            <span class="tile-title">PLAY VS BOT</span>
+            <span class="tile-sub">practice solo</span>
+          </button>
+        </div>
 
         <!-- Daily challenge: the same date-seeded deal for everyone, once a day. -->
         <div class="daily-card" :class="{ done: !!dailyRecord }">
@@ -111,74 +156,25 @@
           Your streak and scores live on this guest session - create an account to keep them
         </button>
 
-        <!-- Primary action: CREATE GAME -->
-        <div class="primary-action">
-          <Button
-            variant="primary"
-            size="lg"
-            block
-            :disabled="mpStore.loading"
-            @click="handleCreateGame"
-          >
-            {{ mpStore.loading ? 'CREATING...' : 'CREATE GAME' }}
-          </Button>
-
-          <div class="mode-card">
-            <div class="mode-row">
-              <span class="mode-label">RULES</span>
-              <div class="mode-pills">
-                <button
-                  v-for="m in stackingModes"
-                  :key="m.value"
-                  class="mode-pill"
-                  :class="{ active: selectedStackingMode === m.value }"
-                  @click="selectedStackingMode = m.value"
-                >
-                  {{ m.label }}
-                </button>
-              </div>
-            </div>
-            <p class="mode-desc">{{ currentModeDesc }}</p>
-          </div>
-          <p class="action-hint">Create a room and share the code with friends.</p>
+        <div class="entry-links">
+          <button class="howto-link" @click="showRules = true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="16" height="16" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            HOW TO PLAY
+          </button>
+          <button class="stats-link" @click="handleStatsClick">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16" aria-hidden="true">
+              <rect x="3" y="12" width="4" height="9" />
+              <rect x="10" y="7" width="4" height="14" />
+              <rect x="17" y="3" width="4" height="18" />
+            </svg>
+            <span v-if="authStore.isAnonymous">CREATE ACCOUNT TO TRACK STATS</span>
+            <span v-else>MY STATS &rarr;</span>
+          </button>
         </div>
-
-        <div class="entry-divider" aria-hidden="true">OR</div>
-
-        <!-- Secondary actions: equal weight, smaller -->
-        <div class="secondary-actions">
-          <Button variant="secondary" size="md" block :disabled="mpStore.loading" @click="handleQuickMatch">
-            {{ mpStore.loading ? 'MATCHING…' : 'QUICK MATCH' }}
-          </Button>
-          <Button variant="secondary" size="md" block @click="showJoinModal = true">
-            JOIN WITH CODE
-          </Button>
-          <Button variant="ghost" size="md" block @click="$emit('playLocal', selectedStackingMode)">
-            PLAY VS BOT
-          </Button>
-        </div>
-        <p class="action-hint">Quick Match drops you in with a stranger. Got a code? Join a friend. No one around? Practice vs the AI.</p>
-
-        <!-- How to play -->
-        <button class="howto-link" @click="showRules = true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="16" height="16" aria-hidden="true">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
-          HOW TO PLAY
-        </button>
-
-        <!-- Tertiary: stats link -->
-        <button class="stats-link" @click="handleStatsClick">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16" aria-hidden="true">
-            <rect x="3" y="12" width="4" height="9" />
-            <rect x="10" y="7" width="4" height="14" />
-            <rect x="17" y="3" width="4" height="18" />
-          </svg>
-          <span v-if="authStore.isAnonymous">CREATE ACCOUNT TO TRACK STATS</span>
-          <span v-else>MY STATS &rarr;</span>
-        </button>
 
         <LandingStatsBadge class="lobby-stats" />
       </div>
@@ -1064,48 +1060,43 @@ function copyLink() {
   letter-spacing: 0.06em;
 }
 
-.streak-strip {
-  display: flex;
+.streak-chip {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: var(--spacing-1) var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-3);
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-3);
   background: rgba(255, 204, 0, 0.06);
   border: 1px solid rgba(255, 204, 0, 0.35);
-  border-radius: var(--radius-sm);
+  border-radius: 999px;
   font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  letter-spacing: 0.08em;
+  white-space: nowrap;
 }
 
 .streak-flame {
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
   color: #ffcc00;
+  flex-shrink: 0;
 }
 
 .streak-count {
   font-family: var(--font-display);
-  font-size: 1rem;
+  font-size: var(--text-xs);
   letter-spacing: 0.12em;
   color: var(--text-primary);
-  white-space: nowrap;
 }
 
 .streak-state {
-  font-size: var(--text-xs);
+  font-size: 0.6rem;
   letter-spacing: 0.14em;
-  color: rgba(255, 204, 0, 0.75);
-  white-space: nowrap;
 }
 
-.streak-strip.at-risk {
+.streak-chip.at-risk {
   background: rgba(255, 42, 42, 0.07);
   border-color: var(--color-alert);
 }
 
-.streak-strip.at-risk .streak-flame {
+.streak-chip.at-risk .streak-flame {
   color: var(--color-alert);
   animation: streak-pulse 1.4s ease-in-out infinite;
 }
@@ -1120,7 +1111,7 @@ function copyLink() {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .streak-strip.at-risk .streak-flame { animation: none; }
+  .streak-chip.at-risk .streak-flame { animation: none; }
 }
 
 .room-ended-card {
@@ -1160,23 +1151,25 @@ function copyLink() {
 .lobby-entry {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-6);
+  gap: var(--spacing-4);
 }
 
-.primary-action {
+.entry-head {
   display: flex;
-  flex-direction: column;
-  gap: var(--spacing-3);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  flex-wrap: wrap;
 }
 
-.mode-card {
+.create-card {
   background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-sm);
   padding: var(--spacing-3);
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2);
+  gap: var(--spacing-3);
 }
 
 .mode-row {
@@ -1233,35 +1226,73 @@ function copyLink() {
   background: rgba(255, 204, 0, 0.06);
 }
 
-/* DIVIDER */
-.entry-divider {
+/* MODE TILES */
+.mode-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-2);
+}
+
+.mode-tile {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-3) var(--spacing-2);
+  min-height: 64px;
+  background: transparent;
+  border: 2px solid var(--color-neon-blue);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    background var(--duration-snap) var(--ease-snap),
+    color var(--duration-snap) var(--ease-snap),
+    transform var(--duration-snap) var(--ease-snap);
+}
+
+.mode-tile:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: rgba(0, 229, 255, 0.08);
+}
+
+.mode-tile:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.mode-tile--ghost {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.mode-tile--ghost .tile-title {
+  color: var(--text-secondary);
+}
+
+.tile-title {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  letter-spacing: 0.1em;
+  color: var(--color-neon-blue);
+  text-align: center;
+}
+
+.tile-sub {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--text-muted);
-  letter-spacing: 0.3em;
-  position: relative;
+  letter-spacing: 0.04em;
 }
 
-.entry-divider::before,
-.entry-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.08);
-  margin: 0 var(--spacing-4);
+/* TERTIARY LINKS ROW */
+.entry-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0 var(--spacing-2);
 }
 
-/* SECONDARY ACTIONS */
-.secondary-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--spacing-3);
-}
-
-/* TERTIARY STATS LINK */
 .stats-link,
 .howto-link {
   display: inline-flex;
@@ -1520,18 +1551,7 @@ function copyLink() {
   font-size: 1.4rem;
   letter-spacing: 0.1em;
   color: var(--text-primary);
-  text-align: center;
-  margin: 0 0 var(--spacing-4);
-}
-
-.action-hint {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  text-align: center;
-  letter-spacing: 0.04em;
-  line-height: 1.5;
-  margin: var(--spacing-2) 0 0;
+  margin: 0;
 }
 
 .room-mode-desc {
@@ -1566,6 +1586,15 @@ function copyLink() {
 
 @media (max-width: 480px) {
   .entry-heading { font-size: 1.15rem; }
+  .entry-head { justify-content: center; text-align: center; }
+  /* One column; each tile becomes a row so three of them stay compact. */
+  .mode-tiles { grid-template-columns: 1fr; }
+  .mode-tile {
+    flex-direction: row;
+    justify-content: space-between;
+    min-height: 52px;
+    padding: var(--spacing-2) var(--spacing-3);
+  }
 }
 
 .waiting-nudge {
@@ -1810,10 +1839,6 @@ function copyLink() {
 
   .mode-pill {
     flex: 1;
-  }
-
-  .secondary-actions {
-    grid-template-columns: 1fr;
   }
 }
 </style>
