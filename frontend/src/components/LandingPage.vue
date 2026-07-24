@@ -73,6 +73,9 @@
         <button type="button" class="rules-peek" @click="showRules = true">
           New to No Mercy? See how it works
         </button>
+        <button type="button" class="rules-peek" @click="navigate({ name: 'leaderboard' })">
+          Today's leaderboard &rarr;
+        </button>
       </div>
 
       <LandingStatsBadge class="hero-stats" />
@@ -116,6 +119,7 @@ import LandingStatsBadge from './LandingStatsBadge.vue'
 import Card from './game/Card.vue'
 import Button from './ui/Button.vue'
 import { useScreenSize } from '../composables/useScreenSize'
+import { navigate } from '../utils/routes'
 
 const props = defineProps<{ loading?: boolean }>()
 
