@@ -335,6 +335,7 @@ function startDailyGame() {
   letter-spacing: 0.14em;
   color: #ff2a2a;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .signin-toast__sub {
@@ -390,6 +391,27 @@ function startDailyGame() {
 .signin-toast-leave-to {
   opacity: 0;
   transform: translate(-50%, -8px);
+}
+
+/* Narrow screens: pin edge-to-edge and let the actions wrap below the text
+   instead of squeezing the message into a sliver. */
+@media (max-width: 480px) {
+  .signin-toast {
+    left: 1rem;
+    right: 1rem;
+    transform: none;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .signin-toast__text {
+    flex: 1 1 100%;
+  }
+
+  .signin-toast-enter-from,
+  .signin-toast-leave-to {
+    transform: translateY(-8px);
+  }
 }
 
 /* LOADING SCREEN — brand-led, single pulsing dot, no spinner */

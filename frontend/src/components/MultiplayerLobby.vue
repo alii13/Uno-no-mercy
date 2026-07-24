@@ -1068,7 +1068,8 @@ function copyLink() {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-2);
+  flex-wrap: wrap;
+  gap: var(--spacing-1) var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-3);
   background: rgba(255, 204, 0, 0.06);
   border: 1px solid rgba(255, 204, 0, 0.35);
@@ -1089,12 +1090,14 @@ function copyLink() {
   font-size: 1rem;
   letter-spacing: 0.12em;
   color: var(--text-primary);
+  white-space: nowrap;
 }
 
 .streak-state {
   font-size: var(--text-xs);
   letter-spacing: 0.14em;
   color: rgba(255, 204, 0, 0.75);
+  white-space: nowrap;
 }
 
 .streak-strip.at-risk {
@@ -1146,8 +1149,10 @@ function copyLink() {
   margin: 0;
 }
 
+/* Stacked full-width, matching every other entry-view CTA. */
 .room-ended-actions {
   display: flex;
+  flex-direction: column;
   gap: var(--spacing-2);
 }
 
