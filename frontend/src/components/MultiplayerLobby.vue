@@ -1237,7 +1237,6 @@ function copyLink() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: var(--spacing-1);
   padding: var(--spacing-3) var(--spacing-2);
   min-height: 64px;
@@ -1269,12 +1268,15 @@ function copyLink() {
   color: var(--text-secondary);
 }
 
+/* Titles share a top line, microcopy shares a bottom line — a wrapped
+   title grows the middle, never shifts its neighbors' baselines. */
 .tile-title {
   font-family: var(--font-display);
   font-size: var(--text-sm);
   letter-spacing: 0.1em;
   color: var(--color-neon-blue);
   text-align: center;
+  flex: 1;
 }
 
 .tile-sub {
@@ -1282,6 +1284,7 @@ function copyLink() {
   font-size: var(--text-xs);
   color: var(--text-muted);
   letter-spacing: 0.04em;
+  margin-top: auto;
 }
 
 /* TERTIARY LINKS ROW */
@@ -1594,6 +1597,13 @@ function copyLink() {
     justify-content: space-between;
     min-height: 52px;
     padding: var(--spacing-2) var(--spacing-3);
+  }
+  .mode-tile .tile-title {
+    flex: initial;
+    text-align: left;
+  }
+  .mode-tile .tile-sub {
+    margin-top: 0;
   }
 }
 
