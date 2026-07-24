@@ -53,6 +53,34 @@ export function equip(id: string): void {
         localStorage.setItem(KEY, JSON.stringify({ equipped: id }))
     } catch { /* localStorage disabled or quota */ }
     applyEquipped()
+    void pushEquipToProfile()
+}
+
+/** Mirror the equip choice to the signed-in profile — cosmetic, never blocks.
+ *  Silently a no-op until the equipped_card_back column exists. */
+export async function pushEquipToProfile(): Promise<void> {
+    try {
+        const { supabase } = await import('../lib/supabase')
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.user) return
+        await supabase.from('profiles').update({ equipped_card_back: getEquippedId() }).eq('id', session.user.id)
+    } catch { /* cosmetic — never breaks the game */ }
+}
+
+/** Adopt the profile's equip on sign-in (server wins over this device). */
+export function adoptProfileEquip(equipped: string | null | undefined): void {
+    if (!equipped || !CARD_BACKS.some(s => s.id === equipped)) return
+    if (equipped === getEquippedId()) return
+    try {
+        localStorage.setItem(KEY, JSON.stringify({ equipped }))
+    } catch { /* localStorage disabled or quota */ }
+    applyEquipped()
+}
+
+/** Colors for someone ELSE's seat: their skin, or the default — never the viewer's. */
+export function skinColors(skinId: string | undefined): { accent: string; stripe: string } {
+    const skin = CARD_BACKS.find(s => s.id === skinId) ?? CARD_BACKS[0]!
+    return { accent: skin.accent, stripe: skin.stripe }
 }
 
 /** Stamp the equipped skin's colors onto the root; CardBack picks them up. */

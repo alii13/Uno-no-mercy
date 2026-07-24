@@ -8,7 +8,7 @@ const fakeStorage = {
 }
 vi.stubGlobal('localStorage', fakeStorage)
 
-import { CARD_BACKS, equip, getEquippedId, type UnlockInputs } from '../cosmetics'
+import { CARD_BACKS, adoptProfileEquip, equip, getEquippedId, skinColors, type UnlockInputs } from '../cosmetics'
 
 const inputs = (over: Partial<UnlockInputs> = {}): UnlockInputs =>
     ({ wins: 0, longestStreak: 0, earned: new Set<string>(), ...over })
@@ -45,5 +45,23 @@ describe('equip persistence', () => {
         expect(getEquippedId()).toBe('toxic')
         equip('nonexistent')
         expect(getEquippedId()).toBe('toxic')
+    })
+})
+
+describe('account sync + seat colors', () => {
+    it('adopts a valid profile equip and ignores garbage', () => {
+        adoptProfileEquip('ice')
+        expect(getEquippedId()).toBe('ice')
+        adoptProfileEquip('nonexistent')
+        expect(getEquippedId()).toBe('ice')
+        adoptProfileEquip(null)
+        expect(getEquippedId()).toBe('ice')
+    })
+
+    it('maps unknown or missing seat skins to the default, never the viewer', () => {
+        equip('toxic')
+        expect(skinColors(undefined).accent).toBe('#ff3333')
+        expect(skinColors('nonexistent').accent).toBe('#ff3333')
+        expect(skinColors('ice').accent).toBe('#00e5ff')
     })
 })

@@ -5,6 +5,7 @@ import { DEFAULT_STACKING_MODE, type StackingMode } from '../utils/gameRules'
 import { getDrawValue } from '../utils/gameRules'
 import { supabase, type GameRow, type GamePlayerRow } from '../lib/supabase'
 import { track } from '../utils/analytics'
+import { getEquippedId } from '../utils/cosmetics'
 import { useAuthStore } from './authStore'
 import { useVoiceStore } from './voiceStore'
 import type { ClientMsg, IntentAction, PersonalView, PresencePlayer, ServerMsg } from '@protocol'
@@ -322,7 +323,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             const settle = (ok: boolean) => { if (!settled) { settled = true; clearTimeout(timer); resolve(ok) } }
 
             socket.onopen = () => {
-                socket.send(JSON.stringify({ t: 'auth', token, name: myNickname() } satisfies ClientMsg))
+                socket.send(JSON.stringify({ t: 'auth', token, name: myNickname(), skin: getEquippedId() } satisfies ClientMsg))
             }
             socket.onmessage = (e) => {
                 const msg = JSON.parse(e.data) as ServerMsg
@@ -643,6 +644,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         pendingDrawnWildCard,
         pendingDiscardAllCards,
         presentUserIds,
+        presence,
         disconnectedUserIds,
         lastAction,
         lastRemotePlay,

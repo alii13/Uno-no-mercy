@@ -99,7 +99,8 @@ async function joinRoom(mp: ReturnType<typeof useMultiplayerStore>) {
     for (let i = 0; i < 20 && FakeWebSocket.instances.length === 0; i++) await Promise.resolve()
     const ws = FakeWebSocket.instances[FakeWebSocket.instances.length - 1]!
     ws.open()
-    expect(JSON.parse(ws.sent[0]!)).toMatchObject({ t: 'auth', token: 'test-token', name: 'TESTER' })
+    // skin rides the auth frame so the room can echo it in presence
+    expect(JSON.parse(ws.sent[0]!)).toMatchObject({ t: 'auth', token: 'test-token', name: 'TESTER', skin: 'ember' })
     ws.receive({ t: 'hello', roomCode: 'AB12CD', userId: 'me', hostUserId: 'me' })
     ws.receive({ t: 'presence', players: [{ userId: 'me', name: 'TESTER', connected: true }] })
     // connect() resolves on the first snapshot (callers read currentGame off it).
@@ -281,6 +282,18 @@ describe('analytics events', () => {
         // Snapshot arrives with a game already running (refresh/reconnect) — no STARTED.
         ws.receive({ t: 'snapshot', seq: 5, game: playingView() })
         expect(track).not.toHaveBeenCalledWith('mp_game_started', expect.anything())
+    })
+})
+
+describe('presence skins', () => {
+    it('exposes each seat\'s reported skin from the presence frame', async () => {
+        const mp = useMultiplayerStore()
+        const ws = await joinRoom(mp)
+        ws.receive({ t: 'presence', players: [
+            { userId: 'me', name: 'TESTER', connected: true, skin: 'ember' },
+            { userId: 'opp', name: 'RIVAL', connected: true, skin: 'toxic' },
+        ] })
+        expect(mp.presence.find(p => p.userId === 'opp')?.skin).toBe('toxic')
     })
 })
 

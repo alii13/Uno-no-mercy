@@ -4,6 +4,8 @@ export interface PresencePlayer {
     userId: string
     name: string
     connected: boolean
+    /** Equipped card-back skin id — cosmetic, client-reported. */
+    skin?: string
 }
 
 // --- Intents: what a client may ask the authoritative room to do ---
@@ -20,7 +22,7 @@ export type IntentAction =
     | { kind: 'CATCH_UNO'; targetUserId: string }
 
 export type ClientMsg =
-    | { t: 'auth'; token: string; name: string }
+    | { t: 'auth'; token: string; name: string; skin?: string }
     | { t: 'ping'; now: number }
     | { t: 'leave' }
     | { t: 'rename'; name: string }

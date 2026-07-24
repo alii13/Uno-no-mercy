@@ -208,6 +208,8 @@ interface RoomRecord {
 interface RosterEntry {
     name: string
     joinedAt: number
+    /** Equipped card-back skin id — cosmetic, client-reported at auth. */
+    skin?: string
 }
 
 // One DO alarm serves three clocks; the earliest due time is armed.
@@ -459,8 +461,9 @@ export class GameRoomDO {
             const entry = roster[verified.userId]
             if (entry) {
                 entry.name = msg.name || entry.name
+                entry.skin = msg.skin || entry.skin
             } else {
-                roster[verified.userId] = { name: msg.name || 'PLAYER', joinedAt: Date.now() }
+                roster[verified.userId] = { name: msg.name || 'PLAYER', joinedAt: Date.now(), skin: msg.skin }
             }
             await this.ctx.storage.put('roster', roster)
             ws.serializeAttachment({ userId: verified.userId })
@@ -725,7 +728,7 @@ export class GameRoomDO {
         const connectedIds = new Set(sockets.map(s => s.userId))
         const players: PresencePlayer[] = Object.entries(roster)
             .sort((a, b) => a[1].joinedAt - b[1].joinedAt)
-            .map(([userId, entry]) => ({ userId, name: entry.name, connected: connectedIds.has(userId) }))
+            .map(([userId, entry]) => ({ userId, name: entry.name, connected: connectedIds.has(userId), skin: entry.skin }))
         const frame: ServerMsg = { t: 'presence', players }
         for (const { ws } of sockets) {
             this.send(ws, frame)

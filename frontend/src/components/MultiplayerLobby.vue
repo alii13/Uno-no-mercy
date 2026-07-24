@@ -219,6 +219,16 @@
                   :title="isPlayerConnected(player.user_id) ? 'Connected' : 'Connecting…'"
                 ></span>
               </div>
+              <!-- Their equipped card back — the show-off surface. Explicit
+                   colors so an unset skin reads as the default, never as
+                   the viewer's own. -->
+              <CardBack
+                class="seat-skin"
+                :size="{ width: 20, height: 28 }"
+                :accent="skinColors(seatSkins[player.user_id]).accent"
+                :stripe="skinColors(seatSkins[player.user_id]).stripe"
+                aria-hidden="true"
+              />
               <!-- My own seat is renamable (guests); others render plain. -->
               <input
                 v-if="player.user_id === authStore.user?.id && authStore.isAnonymous && editingName && editTarget === 'room'"
@@ -456,6 +466,8 @@ import { useRetentionStore } from '../stores/retentionStore'
 import { getDailyRecord } from '../utils/dailyChallenge'
 import { useLeaderboard } from '../composables/useLeaderboard'
 import { useRanks } from '../composables/useRanks'
+import { skinColors } from '../utils/cosmetics'
+import CardBack from './game/CardBack.vue'
 import { vFocusRing } from '../directives/focusRing'
 import { preloadCardImages } from '../utils/preloadCardImages'
 import { useAuthStore } from '../stores/authStore'
@@ -500,6 +512,12 @@ function openLeaderboard() {
 // Eager availability probe: until the SQL functions exist on the project the
 // rpc fails and the VIEW LEADERBOARD link never renders.
 onMounted(() => { void lb.fetchBoards() })
+
+// Equipped skins per seat, straight from live presence (server echoes what
+// each client reported at auth).
+const seatSkins = computed<Record<string, string | undefined>>(() =>
+  Object.fromEntries(mpStore.presence.map(p => [p.userId, p.skin])),
+)
 
 // Rank chips for waiting-room seats. Being seen by rank is the point of
 // having one — feature-detects until supabase/ranks.sql is installed.
@@ -912,6 +930,12 @@ function copyLink() {
 .daily-result {
   color: rgba(0, 229, 255, 0.85);
   letter-spacing: 0.06em;
+}
+
+.seat-skin {
+  flex-shrink: 0;
+  border-radius: 3px;
+  box-shadow: none;
 }
 
 .rank-chip {
