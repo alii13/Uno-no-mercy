@@ -236,3 +236,24 @@ describe('dealInitialCards generation guard', () => {
         expect(store.isDealing).toBe(true)
     })
 })
+
+describe('daily challenge seeding', () => {
+    function deckIds(seed?: string): string[] {
+        setActivePinia(createPinia())
+        const store = useGameStore()
+        store.initializeGame(['You', 'Terminator'], 'official', seed ? { dailySeed: seed } : undefined)
+        return store.deck.map(c => c.id)
+    }
+
+    it('deals the identical deck for the same daily seed', () => {
+        expect(deckIds('2026-07-24')).toEqual(deckIds('2026-07-24'))
+    })
+
+    it('deals a different deck on a different day', () => {
+        expect(deckIds('2026-07-24')).not.toEqual(deckIds('2026-07-25'))
+    })
+
+    it('unseeded games stay random', () => {
+        expect(deckIds()).not.toEqual(deckIds())
+    })
+})

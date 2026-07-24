@@ -90,6 +90,7 @@
     <MultiplayerLobby
       v-else
       @playLocal="startLocalGame"
+      @playDaily="startDailyGame"
       @showAuth="handleShowAuth('signup')"
       @showStats="showDashboard = true"
     />
@@ -117,6 +118,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { track, trackScreen } from './utils/analytics'
+import { localDateString } from './utils/seededRng'
 import LandingPage from './components/LandingPage.vue'
 import AuthView from './components/AuthView.vue'
 import SettingsDrawer from './components/SettingsDrawer.vue'
@@ -266,6 +268,12 @@ function retryGuestSignin() {
 
 function startLocalGame(mode?: 'official' | 'house' | 'casual') {
   localGameStore.initializeGame(['You', 'Terminator'], mode)
+}
+
+// The daily challenge: official rules, date-seeded so the whole world gets
+// the same deal today.
+function startDailyGame() {
+  localGameStore.initializeGame(['You', 'Terminator'], 'official', { dailySeed: localDateString() })
 }
 </script>
 
