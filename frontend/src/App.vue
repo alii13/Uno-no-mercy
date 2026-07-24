@@ -69,6 +69,13 @@
     <!-- Playing local game vs bot (works without auth for guest play) -->
     <GameView v-else-if="localGameStore.gameState !== 'LOBBY'" />
 
+    <!-- Shareable leaderboard page (/leaderboard) — works signed in or out.
+         An active multiplayer match always wins over the route. -->
+    <LeaderboardPage
+      v-else-if="currentRoute.name === 'leaderboard' && !inMpMatch"
+      @back="navigate({ name: 'home' })"
+    />
+
     <!-- Not authenticated -->
     <template v-else-if="!authStore.isAuthenticated">
       <AuthView v-if="showAuthView" @back="showAuthView = false" :initial-mode="authMode" />
@@ -120,6 +127,7 @@ import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } fr
 import { track, trackScreen } from './utils/analytics'
 import { localDateString } from './utils/seededRng'
 import { adoptProfileEquip, applyEquipped } from './utils/cosmetics'
+import { currentRoute, navigate } from './utils/routes'
 import LandingPage from './components/LandingPage.vue'
 import AuthView from './components/AuthView.vue'
 import SettingsDrawer from './components/SettingsDrawer.vue'
@@ -129,6 +137,7 @@ import Button from './components/ui/Button.vue'
 // on demand when the view is first shown.
 const MultiplayerLobby = defineAsyncComponent(() => import('./components/MultiplayerLobby.vue'))
 const PlayerDashboard = defineAsyncComponent(() => import('./components/PlayerDashboard.vue'))
+const LeaderboardPage = defineAsyncComponent(() => import('./components/LeaderboardPage.vue'))
 const GameView = defineAsyncComponent(() => import('./components/game/GameView.vue'))
 const MultiplayerGameView = defineAsyncComponent(() => import('./components/game/MultiplayerGameView.vue'))
 import { vFocusRing } from './directives/focusRing'
@@ -154,14 +163,19 @@ const resetLoading = ref(false)
 // Virtual page views: this SPA has no router, so GA otherwise sees one
 // eternal page. One page_view per screen gives time-per-screen for free
 // in GA's standard engagement reports. Mirrors the template's v-if chain.
+const inMpMatch = computed(() => {
+  const s = mpStore.currentGame?.status
+  return s === 'playing' || s === 'finished'
+})
+
 const currentScreen = computed(() => {
   if (authStore.loading) return null
   if (showPasswordReset.value) return 'password_reset'
   if (localGameStore.gameState !== 'LOBBY') return 'sp_game'
+  if (currentRoute.value.name === 'leaderboard' && !inMpMatch.value) return 'leaderboard'
   if (!authStore.isAuthenticated) return showAuthView.value ? 'auth' : 'landing'
-  const mpStatus = mpStore.currentGame?.status
-  if (mpStatus === 'playing' || mpStatus === 'finished') return 'mp_game'
-  if (mpStatus === 'waiting') return 'waiting_room'
+  if (inMpMatch.value) return 'mp_game'
+  if (mpStore.currentGame?.status === 'waiting') return 'waiting_room'
   if (showDashboard.value) return 'dashboard'
   return 'lobby'
 })

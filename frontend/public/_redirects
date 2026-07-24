@@ -4,3 +4,7 @@ https://*.uno-no-mercy.pages.dev/* https://uno-no-mercy.com/:splat 301
 
 # Redirect www to apex
 https://www.uno-no-mercy.com/* https://uno-no-mercy.com/:splat 301
+
+# SPA fallback: deep links (/leaderboard, /p/<code>) serve the app shell.
+# 200 rewrites only apply when no static asset matches, so files are safe.
+/* /index.html 200
