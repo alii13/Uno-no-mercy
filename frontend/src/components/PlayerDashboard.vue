@@ -50,6 +50,13 @@
           <div v-if="nextRank" class="identity-progress">
             {{ nextRank.winsNeeded }} wins to {{ nextRank.title }}
           </div>
+          <button
+            v-if="authStore.profile?.share_code"
+            class="public-profile-link"
+            @click="navigate({ name: 'profile', code: authStore.profile.share_code })"
+          >
+            VIEW PUBLIC PROFILE &rarr;
+          </button>
         </div>
       </section>
 
@@ -266,6 +273,7 @@ import { ACHIEVEMENTS, earnedAchievements, type ResultRow } from '../utils/achie
 import { CARD_BACKS, equip, getEquippedId } from '../utils/cosmetics'
 import { useRetentionStore } from '../stores/retentionStore'
 import { useAuthStore } from '../stores/authStore'
+import { navigate } from '../utils/routes'
 import Button from './ui/Button.vue'
 
 defineEmits<{
@@ -608,6 +616,22 @@ function copyShareLink() {
   font-size: var(--text-xs);
   color: var(--text-muted);
   letter-spacing: 0.1em;
+}
+
+.public-profile-link {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.12em;
+  color: rgba(0, 229, 255, 0.7);
+  cursor: pointer;
+}
+
+.public-profile-link:hover {
+  color: var(--color-neon-blue);
 }
 
 /* PRIMARY STATS — 4 cells */

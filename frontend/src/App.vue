@@ -76,6 +76,14 @@
       @back="navigate({ name: 'home' })"
     />
 
+    <!-- Shareable public profile (/p/<code>) — works signed in or out -->
+    <ProfilePage
+      v-else-if="currentRoute.name === 'profile' && !inMpMatch"
+      :code="currentRoute.code"
+      @back="navigate({ name: 'home' })"
+      @dashboard="showDashboard = true; navigate({ name: 'home' })"
+    />
+
     <!-- Not authenticated -->
     <template v-else-if="!authStore.isAuthenticated">
       <AuthView v-if="showAuthView" @back="showAuthView = false" :initial-mode="authMode" />
@@ -139,6 +147,7 @@ import Button from './components/ui/Button.vue'
 const MultiplayerLobby = defineAsyncComponent(() => import('./components/MultiplayerLobby.vue'))
 const PlayerDashboard = defineAsyncComponent(() => import('./components/PlayerDashboard.vue'))
 const LeaderboardPage = defineAsyncComponent(() => import('./components/LeaderboardPage.vue'))
+const ProfilePage = defineAsyncComponent(() => import('./components/ProfilePage.vue'))
 const GameView = defineAsyncComponent(() => import('./components/game/GameView.vue'))
 const MultiplayerGameView = defineAsyncComponent(() => import('./components/game/MultiplayerGameView.vue'))
 import { vFocusRing } from './directives/focusRing'
@@ -174,6 +183,7 @@ const currentScreen = computed(() => {
   if (showPasswordReset.value) return 'password_reset'
   if (localGameStore.gameState !== 'LOBBY') return 'sp_game'
   if (currentRoute.value.name === 'leaderboard' && !inMpMatch.value) return 'leaderboard'
+  if (currentRoute.value.name === 'profile' && !inMpMatch.value) return 'profile'
   if (!authStore.isAuthenticated) return showAuthView.value ? 'auth' : 'landing'
   if (inMpMatch.value) return 'mp_game'
   if (mpStore.currentGame?.status === 'waiting') return 'waiting_room'
