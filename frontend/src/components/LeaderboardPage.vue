@@ -7,6 +7,22 @@
     </header>
 
     <div class="lb-body">
+      <!-- Weekly spotlights: three skill archetypes get famous, not just
+           the win grinders. -->
+      <div v-if="lb.spotlights.value.length" class="lb-spotlights">
+        <button
+          v-for="s in lb.spotlights.value"
+          :key="s.kind"
+          class="lb-spot"
+          :disabled="!s.share_code"
+          @click="s.share_code && navigate({ name: 'profile', code: s.share_code })"
+        >
+          <span class="lb-spot-kind">{{ SPOT_META[s.kind].label }}</span>
+          <span class="lb-spot-value">{{ SPOT_META[s.kind].fmt(s.value) }}</span>
+          <span class="lb-spot-name">{{ s.username }} {{ flagEmoji(s.country) }}</span>
+        </button>
+      </div>
+
       <div class="lb-tabs" role="tablist">
         <button
           class="lb-tab"
@@ -140,6 +156,12 @@ function clock(secs: number): string {
   return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
 }
 
+const SPOT_META = {
+  fastest_win: { label: '⚡ FASTEST WIN', fmt: clock },
+  biggest_stack: { label: '🛡 STACK SURVIVOR', fmt: (v: number) => `+${v}` },
+  most_wins: { label: '👑 MOST WINS', fmt: (v: number) => `${v}W` },
+} as const
+
 function contextLine(which: 'daily' | 'weekly'): string {
   const ctx = which === 'daily' ? lb.dailyContext.value : lb.weeklyContext.value
   if (!ctx || !ctx.total_players) return ''
@@ -222,6 +244,60 @@ onMounted(() => { void lb.fetchBoards() })
   display: flex;
   flex-direction: column;
   gap: var(--spacing-4);
+}
+
+.lb-spotlights {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-2);
+}
+
+.lb-spot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--spacing-3) var(--spacing-2);
+  background: rgba(255, 204, 0, 0.04);
+  border: 1px solid rgba(255, 204, 0, 0.25);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  min-width: 0;
+}
+
+.lb-spot:disabled { cursor: default; }
+
+.lb-spot:hover:not(:disabled) {
+  border-color: rgba(255, 204, 0, 0.6);
+}
+
+.lb-spot-kind {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.lb-spot-value {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  color: var(--color-hazard, #ffcc00);
+}
+
+.lb-spot-name {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .lb-spotlights { grid-template-columns: 1fr; }
+  .lb-spot { flex-direction: row; justify-content: space-between; gap: var(--spacing-2); }
 }
 
 .lb-tabs {

@@ -6,7 +6,10 @@
         <span class="brand-mark-uno">UNO</span>
         <span class="brand-mark-nomercy">NO MERCY</span>
       </a>
-      <span class="pp-topbar-spacer" aria-hidden="true"></span>
+      <button v-if="p" class="share-btn" @click="onShare">
+        {{ shareState === 'copied' ? 'COPIED ✓' : 'SHARE' }}
+      </button>
+      <span v-else class="pp-topbar-spacer" aria-hidden="true"></span>
     </header>
 
     <div v-if="pp.loading.value" class="pp-state">
@@ -128,6 +131,8 @@ import { useAuthStore } from '../stores/authStore'
 import { ACHIEVEMENTS, earnedFromAggregates } from '../utils/achievements'
 import { skinColors } from '../utils/cosmetics'
 import { flagEmoji } from '../utils/country'
+import { shareProfile } from '../utils/share'
+import { track } from '../utils/analytics'
 import { RANKS, rankFor } from '../utils/ranks'
 import CardBack from './game/CardBack.vue'
 import SiteFooter from './SiteFooter.vue'
@@ -185,6 +190,24 @@ const records = computed<string[]>(() => {
 })
 
 const earned = computed(() => new Set(p.value ? earnedFromAggregates(p.value).map(a => a.id) : []))
+
+const shareState = ref<'idle' | 'copied'>('idle')
+
+async function onShare() {
+    if (!p.value) return
+    const outcome = await shareProfile({
+        username: p.value.username,
+        wins: p.value.wins,
+        max_stack_survived: p.value.max_stack_survived,
+        isOwn: isOwn.value,
+        url: `${window.location.origin}/p/${props.code}`,
+    })
+    track('profile_shared', { method: outcome, own: isOwn.value })
+    if (outcome === 'copied') {
+        shareState.value = 'copied'
+        setTimeout(() => { shareState.value = 'idle' }, 2000)
+    }
+}
 
 // Stat blocks rise in once — final state matches natural layout, inline
 // props cleared so GSAP never fights Vue.
@@ -248,6 +271,23 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
 .brand-mark-nomercy { color: var(--color-alert); margin-left: 0.4ch; }
 
 .pp-topbar-spacer { width: 72px; }
+
+.share-btn {
+  background: none;
+  border: 1px solid var(--color-neon-blue);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-2) var(--spacing-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.14em;
+  color: var(--color-neon-blue);
+  cursor: pointer;
+  min-height: 36px;
+}
+
+.share-btn:hover {
+  background: rgba(0, 229, 255, 0.08);
+}
 
 .pp-state {
   flex: 1;
