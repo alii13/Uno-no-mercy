@@ -128,6 +128,7 @@ import { track, trackScreen } from './utils/analytics'
 import { localDateString } from './utils/seededRng'
 import { adoptProfileEquip, applyEquipped } from './utils/cosmetics'
 import { currentRoute, navigate } from './utils/routes'
+import { syncCountryToProfile } from './utils/country'
 import LandingPage from './components/LandingPage.vue'
 import AuthView from './components/AuthView.vue'
 import SettingsDrawer from './components/SettingsDrawer.vue'
@@ -185,7 +186,11 @@ watch(currentScreen, (screen) => {
 
 // The signed-in profile's equip wins over whatever this device had.
 watch(() => authStore.profile, (p) => {
-  if (p) adoptProfileEquip(p.equipped_card_back)
+  if (p) {
+    adoptProfileEquip(p.equipped_card_back)
+    // Mirror the CDN-detected country onto the profile (once per session).
+    void syncCountryToProfile(p.country)
+  }
 })
 
 let authSubscription: { unsubscribe: () => void } | null = null
