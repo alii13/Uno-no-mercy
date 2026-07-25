@@ -30,6 +30,14 @@ Guidance for working in this repo. Hard-won - read before changing CSS, raising 
 - Verify function behavior locally with `npx wrangler pages dev frontend/dist` from the repo root; env can be overridden per-run with `--binding KEY=VALUE`.
 - A function that fails to deploy is indistinguishable from a working page at the HTTP level (200 + HTML via SPA fallback). When consuming a function from the client, check the response content-type, and after deploying a new function, curl its route on the deployment URL and confirm you get its actual output.
 
+## Game server (Cloudflare Worker + Durable Objects)
+
+- Multiplayer runs on the standalone `uno-game-server` Worker (`game-server/`), not the Pages frontend. One `GameRoomDO` per room holds the authoritative engine; the client (`frontend/src/stores/multiplayerStore.ts`) is a thin WebSocket mirror that sends intents and renders personalized snapshots. This supersedes the old Supabase-broadcast path - stale "broadcast" comments in the client describe the retired flow.
+- **It is NOT auto-deployed.** Merging to `main` deploys only the Pages frontend; the Worker goes live only when someone runs `cd game-server && npx wrangler deploy`. Use `npx` (wrangler is a project dep, not global) and run it from `game-server/`. Needs `npx wrangler login` first (interactive browser OAuth, persists to `~/.wrangler`); a headless run needs `CLOUDFLARE_API_TOKEN`.
+- After deploying, smoke-check: `curl https://uno-game-server.shekhaliul44.workers.dev/health` → `{"ok":true,...}`, and `/public-rooms`.
+- The game server has no Cloudflare test runner. Put pure, testable logic in its own module (e.g. `game-server/src/roomGc.ts`) and cover it via the frontend vitest runner - its `include` in `frontend/vite.config.ts` reaches `../game-server/src/**/*.test.ts`. Test files are excluded from the Worker's `tsc` build (`game-server/tsconfig.json`).
+- Room GC: an empty room is deleted after a per-visibility window (`game-server/src/roomGc.ts`) - public rooms 10 min (so quick-match never serves a dead room), private invite-link rooms 1 h (so a shared link survives a join-later gap). The DO also unregisters public rooms from the quick-match directory on GC, which is why the two windows differ.
+
 ## Supabase
 
 - `game_results` RLS is owner-select-only. Any public read (leaderboards, profiles, opponent stats) goes through a `SECURITY DEFINER` function granted to `anon, authenticated` - never widen RLS.
