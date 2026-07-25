@@ -24,9 +24,11 @@ Guidance for working in this repo. Hard-won - read before changing CSS, raising 
 ## Cloudflare Pages
 
 - **Do not add `/* /index.html 200` to `_redirects`** - Pages flags it as an infinite loop and ignores it. Deep links (`/leaderboard`, `/p/<code>`) work via Pages' automatic SPA fallback, which applies because the build output has no `404.html`.
-- Pages Functions live in `frontend/functions/` (the Pages project root is `frontend/`). They deploy with the normal Pages build - no separate wrangler deploy.
+- **The Pages project's root directory is the REPO ROOT**, not `frontend/` (the project config has `pages_build_output_dir = "frontend/dist"`). Pages Functions therefore live at repo-root `functions/` - a `frontend/functions/` directory is silently ignored (no build error; the routes just serve the SPA shell instead). Verify with `npx wrangler pages download config uno-no-mercy` if in doubt, and delete the downloaded `wrangler.toml` afterward - committing it would switch the project to file-managed config.
+- Functions deploy with the normal Pages build - no separate wrangler deploy.
 - `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are available to Pages Functions as env bindings.
-- Verify function behavior locally with `npx wrangler pages dev dist` from `frontend/`; env can be overridden per-run with `--binding KEY=VALUE`.
+- Verify function behavior locally with `npx wrangler pages dev frontend/dist` from the repo root; env can be overridden per-run with `--binding KEY=VALUE`.
+- A function that fails to deploy is indistinguishable from a working page at the HTTP level (200 + HTML via SPA fallback). When consuming a function from the client, check the response content-type, and after deploying a new function, curl its route on the deployment URL and confirm you get its actual output.
 
 ## Supabase
 
