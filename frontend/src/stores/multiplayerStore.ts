@@ -475,9 +475,18 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         }
     }
 
-    function trackJoined(method: 'created' | 'code' | 'link' | 'quick_match' | 'restore') {
+    type JoinMethod = 'created' | 'code' | 'link' | 'quick_match' | 'restore'
+
+    function trackJoined(method: JoinMethod) {
         roomJoinedAt = Date.now()
         track('mp_room_joined', { method })
+    }
+
+    // Every failed connect reports why and via which entry point, so the true
+    // join-failure surface is visible — not just the code/link join path.
+    // `method` reuses the mp_room_joined dimension so failures slice the same way.
+    function trackJoinFailed(method: JoinMethod, attempt: 1 | 2) {
+        track('mp_join_failed', { reason: error.value ?? connectFailReason ?? 'unknown', attempt, method })
     }
 
     async function createGame(mode: StackingMode = DEFAULT_STACKING_MODE) {
@@ -489,7 +498,12 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             if (!code) return null
             stackingMode.value = mode
             track('mp_room_created', { rules: mode, visibility: 'private' })
-            if (!(await connect(code))) return null
+            if (!(await connect(code))) {
+                // Room exists server-side but we couldn't reach it — a host-side
+                // failure that was previously invisible to analytics.
+                trackJoinFailed('created', 1)
+                return null
+            }
             trackJoined('created')
             return currentGame.value
         } finally {
@@ -505,14 +519,14 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             const target = code.trim().toUpperCase()
             let ok = await connect(target)
             if (!ok) {
-                track('mp_join_failed', { reason: error.value ?? connectFailReason ?? 'unknown', attempt: 1 })
+                trackJoinFailed(via, 1)
                 // A transport failure with no server verdict (handshake drop,
                 // timeout) gets one retry; server refusals are final.
                 if (!error.value) {
                     await new Promise(r => setTimeout(r, JOIN_RETRY_BACKOFF_MS))
                     ok = await connect(target)
                     if (!ok) {
-                        track('mp_join_failed', { reason: error.value ?? connectFailReason ?? 'unknown', attempt: 2 })
+                        trackJoinFailed(via, 2)
                         // Transport failures carry no server message — leave the
                         // user an actionable one instead of a silent reset.
                         if (!error.value) error.value = 'Could not reach the game server'
@@ -546,7 +560,10 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             if (!code) return null
             stackingMode.value = mode
             track('mp_room_created', { rules: mode, visibility: 'public' })
-            if (!(await connect(code))) return null
+            if (!(await connect(code))) {
+                trackJoinFailed('quick_match', 1)
+                return null
+            }
             trackJoined('quick_match')
             return currentGame.value
         } finally {
@@ -561,6 +578,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         if (!code) return
         const ok = await connect(code)
         if (!ok) {
+            // Refresh into a room that's since closed — track before resetState
+            // wipes the reason. Previously silent.
+            trackJoinFailed('restore', 1)
             try { localStorage.removeItem(STORED_ROOM_KEY) } catch { /* noop */ }
             resetState()
             return

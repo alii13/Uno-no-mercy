@@ -326,7 +326,7 @@ describe('join failure reasons and retry', () => {
             ws2.receive({ t: 'snapshot', seq: 0, game: playingView({ status: 'lobby', you: null, currentPlayerId: null, players: [] }) })
 
             expect(await joining).not.toBeNull()
-            expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'ws_closed_1006', attempt: 1 })
+            expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'ws_closed_1006', attempt: 1 , method: 'code' })
             expect(track).toHaveBeenCalledWith('mp_room_joined', { method: 'code' })
         } finally {
             vi.useRealTimers()
@@ -347,8 +347,8 @@ describe('join failure reasons and retry', () => {
             ws2.fail(1011)
 
             expect(await joining).toBeNull()
-            expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'ws_closed_1006', attempt: 1 })
-            expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'ws_closed_1011', attempt: 2 })
+            expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'ws_closed_1006', attempt: 1 , method: 'code' })
+            expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'ws_closed_1011', attempt: 2 , method: 'code' })
             // A transport failure has no server message — the user still needs one.
             expect(mp.error).toBe('Could not reach the game server')
         } finally {
@@ -365,7 +365,7 @@ describe('join failure reasons and retry', () => {
 
         expect(await joining).toBeNull()
         expect(FakeWebSocket.instances.length).toBe(1)
-        expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'Room not found', attempt: 1 })
+        expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'Room not found', attempt: 1 , method: 'code' })
     })
 
     it('reports a timeout on both attempts when the socket never answers', async () => {
@@ -380,11 +380,57 @@ describe('join failure reasons and retry', () => {
             await vi.advanceTimersByTimeAsync(10_000)
 
             expect(await joining).toBeNull()
-            expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'timeout', attempt: 1 })
-            expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'timeout', attempt: 2 })
+            expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'timeout', attempt: 1 , method: 'code' })
+            expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'timeout', attempt: 2 , method: 'code' })
         } finally {
             vi.useRealTimers()
         }
+    })
+})
+
+describe('join failures are tracked from every connect entry point', () => {
+    // Let createRoom's fetch + connect's getSession settle so the socket appears.
+    async function firstSocket() {
+        for (let i = 0; i < 60 && FakeWebSocket.instances.length === 0; i++) await Promise.resolve()
+        return FakeWebSocket.instances[FakeWebSocket.instances.length - 1]!
+    }
+
+    it('tracks a host who cannot reach the room they just created', async () => {
+        vi.stubGlobal('fetch', async () => ({ ok: true, json: async () => ({ code: 'NEWRM1' }) }))
+        const mp = useMultiplayerStore()
+        const creating = mp.createGame('official')
+        const ws = await firstSocket()
+        ws.fail(1006)
+
+        expect(await creating).toBeNull()
+        expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'ws_closed_1006', attempt: 1, method: 'created' })
+    })
+
+    it('tracks a quick-match that hosts a public room but cannot connect', async () => {
+        vi.stubGlobal('fetch', async (url: string) =>
+            String(url).includes('public-rooms')
+                ? { ok: true, json: async () => [] }
+                : { ok: true, json: async () => ({ code: 'QMRM01' }) })
+        const mp = useMultiplayerStore()
+        const matching = mp.quickMatch('official')
+        const ws = await firstSocket()
+        ws.fail(1006)
+
+        expect(await matching).toBeNull()
+        expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'ws_closed_1006', attempt: 1, method: 'quick_match' })
+    })
+
+    it('tracks a refresh into a room that has since closed', async () => {
+        fakeStorage.store['uno_mp_room'] = 'OLDRM1'
+        const mp = useMultiplayerStore()
+        const restoring = mp.restoreActiveGame()
+        const ws = await firstSocket()
+        ws.receive({ t: 'error', code: 'room-not-found' })
+
+        await restoring
+        expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'Room not found', attempt: 1, method: 'restore' })
+        // The dead room is forgotten so the next refresh doesn't retry it.
+        expect(fakeStorage.store['uno_mp_room']).toBeUndefined()
     })
 })
 
