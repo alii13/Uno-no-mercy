@@ -50,6 +50,16 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     const opponentLeft = ref(false)
     // Catch windows are a phase-5 server feature; until then nobody is catchable.
     const catchableUserId = ref<string | null>(null)
+    // --- Spectating: you're out, the round plays on ---
+    // Knock-out order this game, client-observed from ELIMINATED events.
+    const eliminationOrder = ref<string[]>([])
+    // Bumps once when WE get knocked out — the view keys the KO stinger off it.
+    const selfEliminated = ref<{ n: number } | null>(null)
+    // The clock times watch duration; the flag survives GAME_OVER so a
+    // rematch still knows this seat sat the round out.
+    let spectateStartedAt = 0
+    let spectatedThisGame = false
+    let koN = 0
     const lastAction = ref<{ text: string; n: number } | null>(null)
     const lastRemotePlay = ref<{ userId: string; card: Card; n: number } | null>(null)
     let actionN = 0
@@ -142,6 +152,14 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     const opponents = computed(() => gamePlayers.value.filter(p => p.user_id !== myUserId.value))
     const opponent = computed(() => opponents.value[0] ?? null)
     const eliminatedIds = computed(() => new Set((view.value?.players ?? []).filter(p => p.isEliminated).map(p => p.userId)))
+    const playersLeft = computed(() => (view.value?.players ?? []).filter(p => !p.isEliminated).length)
+    // First knocked out of N places Nth; only meaningful once I'm out.
+    const myPlacement = computed(() => {
+        const me = myUserId.value
+        const total = view.value?.players.length ?? 0
+        const idx = me ? eliminationOrder.value.indexOf(me) : -1
+        return idx === -1 || total === 0 ? null : total - idx
+    })
     const isHost = computed(() => !!myUserId.value && (view.value?.hostUserId ?? hostUserId.value) === myUserId.value)
     const isMyTurn = computed(() => view.value?.status === 'playing' && view.value.currentPlayerId === myUserId.value)
     const gameStatus = computed(() => currentGame.value?.status ?? null)
@@ -212,6 +230,12 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                             unoCalls: 0, unoPenalties: 0,
                         }
                         catchableUserId.value = null
+                        // Rematch re-seats spectating ex-players automatically.
+                        if (spectatedThisGame) track('mp_spectate_rematch_joined', { rules: stackingMode.value })
+                        eliminationOrder.value = []
+                        selfEliminated.value = null
+                        spectateStartedAt = 0
+                        spectatedThisGame = false
                         pendingStartTrack = true
                         break
 
@@ -222,6 +246,13 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                             duration_seconds: gameStartedAt ? Math.round((Date.now() - gameStartedAt) / 1000) : undefined,
                             rules: stackingMode.value,
                         })
+                        if (spectateStartedAt) {
+                            track('mp_spectate_end', {
+                                via: 'game_over',
+                                seconds: Math.round((Date.now() - spectateStartedAt) / 1000),
+                            })
+                            spectateStartedAt = 0
+                        }
                         break
                     case 'CARD_PLAYED':
                         if (ev.by !== myUserId.value) {
@@ -237,8 +268,16 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                         mpStats.value.drawsTaken++
                         break
                     case 'ELIMINATED':
+                        if (!eliminationOrder.value.includes(ev.playerId)) eliminationOrder.value.push(ev.playerId)
                         shout(`${playerName(ev.playerId)} is ELIMINATED`)
                         if (catchableUserId.value === ev.playerId) catchableUserId.value = null
+                        if (ev.playerId === myUserId.value && !selfEliminated.value) {
+                            selfEliminated.value = { n: ++koN }
+                            spectateStartedAt = Date.now()
+                            spectatedThisGame = true
+                            // The event outruns its snapshot, so the view still counts me as alive.
+                            track('mp_spectate_start', { players_left: Math.max(0, playersLeft.value - 1) })
+                        }
                         break
                     case 'UNO_CALLED':
                         if (ev.playerId === myUserId.value) mpStats.value.unoCalls++
@@ -403,6 +442,10 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         actionInProgress.value = false
         suppressDiscardSlam.value = false
         opponentLeft.value = false
+        eliminationOrder.value = []
+        selfEliminated.value = null
+        spectateStartedAt = 0
+        spectatedThisGame = false
         lastAction.value = null
         lastRemotePlay.value = null
         error.value = null
@@ -543,6 +586,13 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             phase: view.value?.status,
             seconds_in_room: roomJoinedAt ? Math.round((Date.now() - roomJoinedAt) / 1000) : undefined,
         })
+        if (spectateStartedAt) {
+            track('mp_spectate_end', {
+                via: 'leave',
+                seconds: Math.round((Date.now() - spectateStartedAt) / 1000),
+            })
+            spectateStartedAt = 0
+        }
         // Leaving the room leaves its voice channel; rematches keep it.
         void useVoiceStore().leaveVoice()
         closedByUs = true
@@ -630,6 +680,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         opponent,
         opponents,
         eliminatedIds,
+        playersLeft,
+        myPlacement,
+        selfEliminated,
         loading,
         error,
         isHost,

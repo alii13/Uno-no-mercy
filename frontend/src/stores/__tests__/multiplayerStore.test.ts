@@ -388,6 +388,86 @@ describe('join failure reasons and retry', () => {
     })
 })
 
+describe('elimination and spectating', () => {
+    const threePlayers = () => [
+        { userId: 'me', name: 'TESTER', seat: 0, handCount: 5, isEliminated: false, connected: true, calledUno: false },
+        { userId: 'opp', name: 'RIVAL', seat: 1, handCount: 7, isEliminated: false, connected: true, calledUno: false },
+        { userId: 'opp2', name: 'THIRD', seat: 2, handCount: 4, isEliminated: false, connected: true, calledUno: false },
+    ]
+
+    it('tracks elimination order and derives my placement', async () => {
+        const mp = useMultiplayerStore()
+        const ws = await joinRoom(mp)
+        ws.receive({ t: 'snapshot', seq: 1, game: playingView({ players: threePlayers() }) })
+
+        ws.receive({ t: 'event', seq: 9, ev: { t: 'ELIMINATED', playerId: 'opp2' } })
+        expect(mp.myPlacement).toBeNull() // I'm still alive
+
+        ws.receive({ t: 'event', seq: 9, ev: { t: 'ELIMINATED', playerId: 'me' } })
+        expect(mp.myPlacement).toBe(2) // second knocked out of three = 2nd place
+    })
+
+    it('fires the KO trigger and spectate analytics only for my own elimination', async () => {
+        const mp = useMultiplayerStore()
+        const ws = await joinRoom(mp)
+        ws.receive({ t: 'snapshot', seq: 1, game: playingView({ players: threePlayers() }) })
+
+        ws.receive({ t: 'event', seq: 9, ev: { t: 'ELIMINATED', playerId: 'opp' } })
+        expect(mp.selfEliminated).toBeNull()
+        expect(track).not.toHaveBeenCalledWith('mp_spectate_start', expect.anything())
+
+        ws.receive({ t: 'event', seq: 9, ev: { t: 'ELIMINATED', playerId: 'me' } })
+        expect(mp.selfEliminated).not.toBeNull()
+        expect(track).toHaveBeenCalledWith('mp_spectate_start', expect.objectContaining({
+            players_left: expect.any(Number),
+        }))
+    })
+
+    it('closes the spectate clock once at game over, and on leave', async () => {
+        const mp = useMultiplayerStore()
+        const ws = await joinRoom(mp)
+        ws.receive({ t: 'snapshot', seq: 1, game: playingView({ players: threePlayers() }) })
+        ws.receive({ t: 'event', seq: 9, ev: { t: 'ELIMINATED', playerId: 'me' } })
+
+        ws.receive({ t: 'event', seq: 9, ev: { t: 'GAME_OVER', winnerId: 'opp' } })
+        expect(track).toHaveBeenCalledWith('mp_spectate_end', expect.objectContaining({ via: 'game_over' }))
+
+        track.mockClear()
+        await mp.leaveGame()
+        expect(track).not.toHaveBeenCalledWith('mp_spectate_end', expect.anything())
+    })
+
+    it('closes the spectate clock when leaving mid-spectate', async () => {
+        const mp = useMultiplayerStore()
+        const ws = await joinRoom(mp)
+        ws.receive({ t: 'snapshot', seq: 1, game: playingView({ players: threePlayers() }) })
+        ws.receive({ t: 'event', seq: 9, ev: { t: 'ELIMINATED', playerId: 'me' } })
+
+        await mp.leaveGame()
+        expect(track).toHaveBeenCalledWith('mp_spectate_end', expect.objectContaining({ via: 'leave' }))
+    })
+
+    it('a rematch clears spectator state and counts the rejoin', async () => {
+        const mp = useMultiplayerStore()
+        const ws = await joinRoom(mp)
+        ws.receive({ t: 'snapshot', seq: 1, game: playingView({ players: threePlayers() }) })
+        ws.receive({ t: 'event', seq: 9, ev: { t: 'ELIMINATED', playerId: 'me' } })
+        ws.receive({ t: 'event', seq: 9, ev: { t: 'GAME_OVER', winnerId: 'opp' } })
+
+        ws.receive({ t: 'event', seq: 9, ev: { t: 'STARTED' } })
+        expect(mp.selfEliminated).toBeNull()
+        expect(mp.myPlacement).toBeNull()
+        expect(track).toHaveBeenCalledWith('mp_spectate_rematch_joined', expect.anything())
+    })
+
+    it('a fresh game never counts a spectate rejoin', async () => {
+        const mp = useMultiplayerStore()
+        const ws = await joinRoom(mp)
+        ws.receive({ t: 'event', seq: 9, ev: { t: 'STARTED' } })
+        expect(track).not.toHaveBeenCalledWith('mp_spectate_rematch_joined', expect.anything())
+    })
+})
+
 describe('leaving', () => {
     it('clears state and the stored room', async () => {
         const mp = useMultiplayerStore()
