@@ -4,6 +4,7 @@ import { verifySupabaseToken, type AuthEnv } from './auth'
 import type { ClientMsg, GameEvent, PresencePlayer, ServerMsg } from './protocol'
 import { applyIntent, applyUnoCatch, autoResolveAbsentTurn, forceEliminate, persistResults, personalView, startGame, updateStats, viewEventFor, type GameRecord } from './game'
 import { addParticipant, createMeeting, deactivateMeeting, voiceConfigured, type VoiceEnv } from './voice'
+import { gcWindowMs } from './roomGc'
 import type { StackingMode } from '../../shared/engine'
 
 interface Env extends AuthEnv, VoiceEnv {
@@ -27,9 +28,6 @@ const CONTINENT_HINTS: Record<string, string> = {
 // creator's edge colo — times a probe to each and activates the closest.
 // Joins ask all candidates in parallel who is active.
 const CANDIDATES = 3
-
-// A room with no connected players is garbage-collected after this long.
-const ROOM_GC_MS = 10 * 60 * 1000
 
 // A disconnected player holding the turn gets this long to come back before
 // the room resolves the turn for them (the server-side watchdog).
@@ -229,6 +227,9 @@ export class GameRoomDO {
     // and storage ops are input-gated, so intents never interleave mid-move.
     private game: GameRecord | null | undefined
     private seq = 0
+    // Cached room visibility so the GC clock picks its window without a storage
+    // read per activity; hydrated at activate and lazily on a fresh wake.
+    private roomIsPublic: boolean | undefined
 
     constructor(private ctx: DurableObjectState, private env: Env) {}
 
@@ -262,10 +263,21 @@ export class GameRoomDO {
         if (due.length) await this.ctx.storage.setAlarm(Math.min(...due))
     }
 
+    /** Public rooms back quick-match and must clear fast; private (invite-link)
+     *  rooms linger so a shared link survives a join-later gap. Cached so this
+     *  stays at most one storage read per DO wake. */
+    private async isRoomPublic(): Promise<boolean> {
+        if (this.roomIsPublic === undefined) {
+            const room = await this.ctx.storage.get<RoomRecord>('room')
+            this.roomIsPublic = !!room?.isPublic
+        }
+        return this.roomIsPublic
+    }
+
     /** Any room activity pushes garbage collection out. */
     private async touchGc(): Promise<void> {
         const t = await this.getTimers()
-        t.gcAt = Date.now() + ROOM_GC_MS
+        t.gcAt = Date.now() + gcWindowMs(await this.isRoomPublic())
         await this.putTimers(t)
     }
 
@@ -372,6 +384,7 @@ export class GameRoomDO {
                     stackingMode: body.stackingMode ?? 'official', isPublic: !!body.isPublic,
                 }
                 await this.ctx.storage.put('room', room)
+                this.roomIsPublic = !!body.isPublic
                 await this.touchGc()
                 return new Response('ok')
             }
@@ -671,7 +684,7 @@ export class GameRoomDO {
         if (graceDue) { delete t.graceAt; delete t.graceSeat }
 
         const gcDue = !!t.gcAt && t.gcAt <= now
-        if (gcDue) t.gcAt = now + ROOM_GC_MS
+        if (gcDue) t.gcAt = now + gcWindowMs(await this.isRoomPublic())
         await this.putTimers(t)
 
         if (catchDue && catchWho) {
@@ -703,6 +716,7 @@ export class GameRoomDO {
             if (roomRec?.voiceMeetingId) await deactivateMeeting(this.env, roomRec.voiceMeetingId)
             await this.ctx.storage.deleteAll()
             this.game = undefined
+            this.roomIsPublic = undefined
         }
     }
 
