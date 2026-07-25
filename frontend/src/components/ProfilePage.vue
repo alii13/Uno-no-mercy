@@ -116,11 +116,19 @@
           </div>
         </section>
 
-        <!-- Badge case -->
+        <!-- Badge case: earned medallions lit, locked ones grayed out -->
         <section class="pp-badges">
-          <h3 class="pp-section-title">
-            BADGE CASE <span class="pp-badge-count">{{ earned.size }}/{{ ACHIEVEMENTS.length }}</span>
-          </h3>
+          <div class="pp-badges-head">
+            <h3 class="pp-section-title pp-section-title--flush">BADGE CASE</h3>
+            <span class="pp-badge-count">{{ earned.size }}/{{ ACHIEVEMENTS.length }}</span>
+          </div>
+          <div
+            class="pp-badges-bar"
+            role="img"
+            :aria-label="`${earned.size} of ${ACHIEVEMENTS.length} badges earned`"
+          >
+            <div class="pp-badges-fill" :style="{ width: (earned.size / ACHIEVEMENTS.length) * 100 + '%' }"></div>
+          </div>
           <div class="pp-badge-grid">
             <div
               v-for="a in sortedBadges"
@@ -128,11 +136,13 @@
               class="pp-badge"
               :class="{ earned: earned.has(a.id) }"
             >
-              <span class="pp-badge-title">
-                <Lock v-if="!earned.has(a.id)" :size="10" aria-hidden="true" />
-                {{ a.title.toUpperCase() }}
+              <span class="pp-badge-disc">
+                <component :is="BADGE_ICONS[a.id] ?? Medal" :size="16" aria-hidden="true" />
               </span>
-              <span class="pp-badge-desc">{{ a.desc }}</span>
+              <span class="pp-badge-text">
+                <span class="pp-badge-title">{{ a.title.toUpperCase() }}</span>
+                <span class="pp-badge-desc">{{ a.desc }}</span>
+              </span>
             </div>
           </div>
         </section>
@@ -158,7 +168,11 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick, type FunctionalComponent } from 'vue'
-import { Star, Trophy, Swords, Target, Flame, Zap, Shield, Layers, SkipForward, Plus, Lock } from 'lucide-vue-next'
+import {
+    Star, Trophy, Swords, Target, Flame, Zap, Shield, Layers, SkipForward, Plus,
+    Droplet, Medal, Award, Crown, Gem, ShieldCheck, TrendingUp, Axe, Skull,
+    Sparkles, Megaphone, Crosshair, Hourglass, ArrowLeftRight, CalendarCheck,
+} from 'lucide-vue-next'
 import gsap from 'gsap'
 import { useProfile } from '../composables/useProfile'
 import { useMotion } from '../composables/useMotion'
@@ -234,6 +248,30 @@ const activityTotal = computed(() => pp.activity.value.reduce((n, d) => n + d.ga
 const sortedBadges = computed(() =>
     [...ACHIEVEMENTS].sort((a, b) => Number(earned.value.has(b.id)) - Number(earned.value.has(a.id))),
 )
+
+const BADGE_ICONS: Record<string, FunctionalComponent> = {
+    first_blood: Droplet,
+    first_win: Trophy,
+    hat_trick: Medal,
+    pentakill: Swords,
+    ten_wins: Award,
+    fifty_wins: Crown,
+    hundred_wins: Gem,
+    stack_16: Shield,
+    stack_24: ShieldCheck,
+    hoarder: Layers,
+    dragon: Flame,
+    comeback: TrendingUp,
+    executioner: Axe,
+    sadist: Skull,
+    wild_thing: Sparkles,
+    town_crier: Megaphone,
+    clean_win: Crosshair,
+    speed_demon: Zap,
+    marathon: Hourglass,
+    swap_meet: ArrowLeftRight,
+    daily_devotee: CalendarCheck,
+}
 
 const earned = computed(() => new Set(p.value ? earnedFromAggregates(p.value).map(a => a.id) : []))
 
@@ -370,7 +408,7 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
   padding: var(--spacing-6) var(--spacing-4) var(--spacing-8);
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-6);
+  gap: var(--spacing-8);
 }
 
 .pp-hero {
@@ -519,7 +557,7 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
   font-size: 0.95rem;
   letter-spacing: 0.14em;
   color: var(--text-secondary);
-  margin: 0 0 var(--spacing-3);
+  margin: 0 0 var(--spacing-4);
 }
 
 .pp-records {
@@ -599,39 +637,87 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
   color: var(--text-secondary);
 }
 
+.pp-badges-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-2);
+}
+
+.pp-section-title--flush { margin: 0; }
+
 .pp-badge-count {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
+  letter-spacing: 0.1em;
   color: var(--color-hazard);
-  margin-left: var(--spacing-2);
+}
+
+.pp-badges-bar {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: var(--spacing-4);
+}
+
+.pp-badges-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-hazard, #ffcc00);
 }
 
 .pp-badge-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: var(--spacing-2);
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: var(--spacing-3);
 }
 
 .pp-badge {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: var(--spacing-2) var(--spacing-3);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: var(--radius-sm);
-  opacity: 0.35;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.015);
+  opacity: 0.45;
 }
 
 .pp-badge.earned {
   opacity: 1;
-  border-color: rgba(255, 204, 0, 0.4);
-  background: rgba(255, 204, 0, 0.04);
+  border-color: rgba(255, 204, 0, 0.25);
+}
+
+.pp-badge-disc {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+}
+
+.pp-badge.earned .pp-badge-disc {
+  border-color: rgba(255, 204, 0, 0.45);
+  background: rgba(255, 204, 0, 0.08);
+  color: var(--color-hazard, #ffcc00);
+  box-shadow: 0 0 10px rgba(255, 204, 0, 0.15);
+}
+
+.pp-badge-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
 }
 
 .pp-badge-title {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-1);
   font-family: var(--font-mono);
   font-size: 0.62rem;
   letter-spacing: 0.1em;
@@ -644,7 +730,7 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
   font-family: var(--font-mono);
   font-size: 0.6rem;
   color: var(--text-muted);
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 .pp-cta {
