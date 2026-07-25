@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase, type UserProfile } from '../lib/supabase'
+import { track } from '../utils/analytics'
 import type { User } from '@supabase/supabase-js'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -27,6 +28,9 @@ export const useAuthStore = defineStore('auth', () => {
             if (session?.user) {
                 user.value = session.user
                 accessToken.value = session.access_token
+                // Resume a claim that was pending before a refresh, so its
+                // completion still gets counted when the confirmation lands.
+                if (session.user.is_anonymous && session.user.new_email) hadPendingClaim = true
                 await fetchProfile()
             }
 
@@ -39,8 +43,18 @@ export const useAuthStore = defineStore('auth', () => {
                 user.value = session?.user || null
                 accessToken.value = session?.access_token || null
 
-                // Handle specific events
-                if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+                // A pending claim completing = the confirmed session arriving
+                // with is_anonymous off. Analytics-only latch; UI state derives
+                // from the user object itself (claimPending).
+                if (hadPendingClaim && session?.user && session.user.is_anonymous === false) {
+                    hadPendingClaim = false
+                    track('guest_claim_completed', {})
+                }
+
+                // Handle specific events. USER_UPDATED fires on in-place
+                // updateUser calls (e.g. a guest claiming their account) —
+                // without it the profile would never refresh mid-session.
+                if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
                     // Defer profile fetch to avoid blocking
                     if (session?.user) {
                         setTimeout(async () => {
@@ -206,6 +220,53 @@ export const useAuthStore = defineStore('auth', () => {
 
     const isAnonymous = computed(() => user.value?.is_anonymous === true)
 
+    // A claim is pending while the guest's confirmation email is unclicked.
+    // Derived from the user object (survives refreshes), never latched.
+    const claimPending = computed(() => isAnonymous.value && !!user.value?.new_email)
+
+    // Analytics-only: lets the auth listener recognize the confirmed session
+    // that completes a claim started this visit (or resumed after a refresh).
+    let hadPendingClaim = false
+
+    /** Convert the guest to a permanent account IN PLACE — same user id, so
+     *  the profile row, share code, and every game_results row stay attached.
+     *  The email needs a confirmation click; the password applies immediately. */
+    async function claimAccount(email: string, password: string):
+        Promise<{ success: boolean; needsConfirmation?: boolean; error?: string; code?: 'email_exists' }> {
+        if (!user.value || !isAnonymous.value) {
+            return { success: false, error: 'Not a guest session' }
+        }
+        track('guest_claim_started', {})
+        try {
+            const { data, error: updateError } = await supabase.auth.updateUser(
+                { email, password },
+                { emailRedirectTo: window.location.origin },
+            )
+            if (updateError) throw updateError
+            if (data.user) user.value = data.user // carries new_email → claimPending
+            hadPendingClaim = true
+            track('guest_claim_email_sent', {})
+            return { success: true, needsConfirmation: true }
+        } catch (err: any) {
+            const exists = err?.code === 'email_exists' || /already.*registered/i.test(err?.message ?? '')
+            if (exists) track('guest_claim_email_exists', {})
+            return { success: false, error: err.message, ...(exists ? { code: 'email_exists' as const } : {}) }
+        }
+    }
+
+    /** Re-send the claim confirmation to the pending address. */
+    async function resendClaimEmail() {
+        const email = user.value?.new_email
+        if (!email) return { success: false, error: 'No claim pending' }
+        try {
+            const { error: resendError } = await supabase.auth.resend({ type: 'email_change', email })
+            if (resendError) throw resendError
+            return { success: true }
+        } catch (err: any) {
+            return { success: false, error: err.message }
+        }
+    }
+
     // Rename the current player (used by guests via the editable lobby chip).
     async function updateUsername(name: string) {
         const clean = sanitizeName(name)
@@ -270,11 +331,14 @@ export const useAuthStore = defineStore('auth', () => {
         error,
         isAuthenticated,
         isAnonymous,
+        claimPending,
         username,
         initialize,
         signUp,
         signIn,
         signInAnonymously,
+        claimAccount,
+        resendClaimEmail,
         updateUsername,
         signOut,
         sendPasswordReset,

@@ -19,12 +19,22 @@ const h = vi.hoisted(() => {
         anonResult: { data: { user: { id: 'anon-1', is_anonymous: true } }, error: null } as unknown,
         signUpResult: { data: { user: { id: 'reg-1' }, session: null }, error: null } as unknown,
         profileRow: null as unknown,
+        profileFetches: 0,
         upsertCalls: [] as { row: unknown; opts: unknown }[],
+        updateUserCalls: [] as { attrs: unknown; opts: unknown }[],
+        updateUserResult: { data: { user: null }, error: null } as unknown,
+        resendCalls: [] as unknown[],
+        authCallback: null as ((event: string, session: unknown) => void) | null,
         reset() {
             state.getSession = async () => ({ data: { session: null } })
             state.signInAnonymouslyCalls = 0
             state.profileRow = null
+            state.profileFetches = 0
             state.upsertCalls = []
+            state.updateUserCalls = []
+            state.updateUserResult = { data: { user: null }, error: null }
+            state.resendCalls = []
+            state.authCallback = null
         },
     }
     return { state }
@@ -34,27 +44,40 @@ vi.mock('../../lib/supabase', () => ({
     supabase: {
         auth: {
             getSession: () => h.state.getSession(),
-            onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+            onAuthStateChange: (cb: (event: string, session: unknown) => void) => {
+                h.state.authCallback = cb
+                return { data: { subscription: { unsubscribe() {} } } }
+            },
             signInAnonymously: async () => { h.state.signInAnonymouslyCalls++; return h.state.anonResult },
             signUp: async () => h.state.signUpResult,
-            updateUser: async () => ({ error: null }),
+            updateUser: async (attrs: unknown, opts: unknown) => {
+                h.state.updateUserCalls.push({ attrs, opts })
+                return h.state.updateUserResult
+            },
+            resend: async (opts: unknown) => { h.state.resendCalls.push(opts); return { error: null } },
         },
         from: () => {
             const b: Record<string, unknown> = {}
             b.select = () => b
             b.eq = () => b
-            b.maybeSingle = async () => ({ data: h.state.profileRow, error: null })
+            b.maybeSingle = async () => { h.state.profileFetches++; return { data: h.state.profileRow, error: null } }
             b.upsert = async (row: unknown, opts: unknown) => { h.state.upsertCalls.push({ row, opts }); return { error: null } }
             return b
         },
     },
 }))
 
+const { track } = vi.hoisted(() => ({ track: vi.fn() }))
+vi.mock('../../utils/analytics', () => ({ track }))
+
+vi.stubGlobal('window', { location: { origin: 'https://uno-no-mercy.com' } })
+
 import { useAuthStore } from '../authStore'
 
 beforeEach(() => {
     setActivePinia(createPinia())
     h.state.reset()
+    track.mockClear()
 })
 
 describe('authStore init + guest robustness', () => {
@@ -91,6 +114,112 @@ describe('authStore init + guest robustness', () => {
         expect(h.state.upsertCalls).toHaveLength(1)
         expect(h.state.upsertCalls[0]!.row).toMatchObject({ id: 'anon-1', username: 'Bob' })
         expect(h.state.upsertCalls[0]!.opts).toMatchObject({ onConflict: 'id', ignoreDuplicates: true })
+    })
+})
+
+describe('claiming a guest account (in-place anonymous conversion)', () => {
+    function seedGuest(auth: ReturnType<typeof useAuthStore>) {
+        auth.user = { id: 'anon-1', is_anonymous: true } as unknown as User
+        auth.profile = { id: 'anon-1', username: 'RecklessShark28', created_at: '' } as UserProfile
+    }
+
+    it('converts in place via updateUser, preserving the user id', async () => {
+        const auth = useAuthStore()
+        seedGuest(auth)
+        h.state.updateUserResult = {
+            data: { user: { id: 'anon-1', is_anonymous: true, new_email: 'a@b.com' } },
+            error: null,
+        }
+
+        const res = await auth.claimAccount('a@b.com', 'secret123')
+
+        expect(res).toMatchObject({ success: true, needsConfirmation: true })
+        expect(h.state.updateUserCalls).toHaveLength(1)
+        expect(h.state.updateUserCalls[0]!.attrs).toMatchObject({ email: 'a@b.com', password: 'secret123' })
+        expect(h.state.updateUserCalls[0]!.opts).toMatchObject({ emailRedirectTo: 'https://uno-no-mercy.com' })
+        expect(auth.user?.id).toBe('anon-1') // same identity — stats stay attached
+        expect(auth.claimPending).toBe(true)
+        expect(track).toHaveBeenCalledWith('guest_claim_email_sent', expect.anything())
+    })
+
+    it('refuses for non-guest sessions without calling the API', async () => {
+        const auth = useAuthStore()
+        auth.user = { id: 'reg-1', is_anonymous: false } as unknown as User
+
+        const res = await auth.claimAccount('a@b.com', 'secret123')
+
+        expect(res.success).toBe(false)
+        expect(h.state.updateUserCalls).toHaveLength(0)
+    })
+
+    it('maps the email-already-registered collision to a distinct code', async () => {
+        const auth = useAuthStore()
+        seedGuest(auth)
+        h.state.updateUserResult = {
+            data: { user: null },
+            error: { message: 'A user with this email address has already been registered', code: 'email_exists' },
+        }
+
+        const res = await auth.claimAccount('taken@b.com', 'secret123')
+
+        expect(res.success).toBe(false)
+        expect(res.code).toBe('email_exists')
+        expect(auth.claimPending).toBe(false)
+        expect(track).toHaveBeenCalledWith('guest_claim_email_exists', expect.anything())
+    })
+
+    it('claimPending derives from the pending email, and clears on conversion', async () => {
+        const auth = useAuthStore()
+        expect(auth.claimPending).toBe(false)
+        auth.user = { id: 'anon-1', is_anonymous: true, new_email: 'a@b.com' } as unknown as User
+        expect(auth.claimPending).toBe(true)
+        auth.user = { id: 'anon-1', is_anonymous: false, email: 'a@b.com' } as unknown as User
+        expect(auth.claimPending).toBe(false)
+    })
+
+    it('resends the pending confirmation email', async () => {
+        const auth = useAuthStore()
+        auth.user = { id: 'anon-1', is_anonymous: true, new_email: 'a@b.com' } as unknown as User
+
+        const res = await auth.resendClaimEmail()
+
+        expect(res.success).toBe(true)
+        expect(h.state.resendCalls[0]).toMatchObject({ type: 'email_change', email: 'a@b.com' })
+    })
+
+    it('USER_UPDATED refreshes the profile through the auth listener', async () => {
+        const auth = useAuthStore()
+        await auth.initialize()
+        const fetchesBefore = h.state.profileFetches
+
+        h.state.authCallback!('USER_UPDATED', {
+            user: { id: 'anon-1', is_anonymous: true, new_email: 'a@b.com' },
+            access_token: 't',
+        })
+        await new Promise(r => setTimeout(r, 1))
+
+        expect(h.state.profileFetches).toBe(fetchesBefore + 1)
+        expect(auth.claimPending).toBe(true)
+    })
+
+    it('tracks completion when the confirmed session lands', async () => {
+        const auth = useAuthStore()
+        await auth.initialize()
+        seedGuest(auth)
+        h.state.updateUserResult = {
+            data: { user: { id: 'anon-1', is_anonymous: true, new_email: 'a@b.com' } },
+            error: null,
+        }
+        await auth.claimAccount('a@b.com', 'secret123')
+
+        h.state.authCallback!('SIGNED_IN', {
+            user: { id: 'anon-1', is_anonymous: false, email: 'a@b.com' },
+            access_token: 't2',
+        })
+
+        expect(track).toHaveBeenCalledWith('guest_claim_completed', expect.anything())
+        expect(auth.isAnonymous).toBe(false)
+        expect(auth.user?.id).toBe('anon-1')
     })
 })
 

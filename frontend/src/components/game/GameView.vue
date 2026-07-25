@@ -208,6 +208,8 @@ import PlayerConsoleBar from './PlayerConsoleBar.vue'
 import GameOverModal from './GameOverModal.vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
 
+const emit = defineEmits<{ (e: 'claim-account'): void }>()
+
 const store = useGameStore()
 // Wire stack-chain escalation — vignette + shake when drawStack grows
 useStackEscalation(toRef(store, 'drawStack'))
@@ -570,9 +572,11 @@ function confirmLeave() {
   store.returnToLobby()
 }
 
+// In-place claim keeps the guest's user id — never sign out here, that
+// orphans their stats. App routes to the claim view.
 async function handleUpgrade() {
   store.returnToLobby()
-  await authStore.signOut()
+  emit('claim-account')
 }
 function onOpponentClick(playerId: string) {
   if (store.turnState === 'CHOOSING_PLAYER_TO_SWAP' && isMyTurn.value) {
