@@ -223,12 +223,16 @@
       @upgrade-account="handleUpgrade"
     />
 
+    <!-- Spectators have nothing to forfeit — the confirm only guards
+         against losing their seat in the host's next rematch. -->
     <ConfirmDialog
       :open="showLeaveConfirm"
-      title="Leave the game?"
-      message="You'll forfeit this round and return to the lobby. You can rejoin from the same device while the game is live."
+      :title="amEliminated ? 'Stop watching?' : 'Leave the game?'"
+      :message="amEliminated
+        ? 'You\'ll return to the lobby. Stick around instead and the host\'s rematch deals you back in.'
+        : 'You\'ll forfeit this round and return to the lobby. You can rejoin from the same device while the game is live.'"
       confirm-label="LEAVE"
-      cancel-label="STAY"
+      :cancel-label="amEliminated ? 'KEEP WATCHING' : 'STAY'"
       @confirm="confirmLeave"
       @cancel="showLeaveConfirm = false"
     />
@@ -1075,7 +1079,8 @@ async function handleUpgrade() {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 999px;
-  padding: 0.4rem 0.9rem;
+  padding: 0.4rem 1rem;
+  min-height: 44px;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
