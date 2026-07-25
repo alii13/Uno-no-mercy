@@ -7,91 +7,77 @@
     </header>
 
     <div class="lb-body">
-      <!-- Weekly spotlights: three skill archetypes get famous, not just
-           the win grinders. -->
-      <div v-if="lb.spotlights.value.length" class="lb-spotlights">
-        <button
-          v-for="s in lb.spotlights.value"
-          :key="s.kind"
-          class="lb-spot"
-          :disabled="!s.share_code"
-          @click="s.share_code && navigate({ name: 'profile', code: s.share_code })"
-        >
-          <span class="lb-spot-kind">
-            <component :is="SPOT_META[s.kind].icon" :size="11" aria-hidden="true" />
-            {{ SPOT_META[s.kind].label }}
-          </span>
-          <span class="lb-spot-value">{{ SPOT_META[s.kind].fmt(s.value) }}</span>
-          <span class="lb-spot-name">{{ s.username }} {{ flagEmoji(s.country) }}</span>
-        </button>
-      </div>
-
-      <div class="lb-tabs" role="tablist">
-        <button
-          class="lb-tab"
-          :class="{ active: tab === 'daily' }"
-          role="tab"
-          :aria-selected="tab === 'daily'"
-          @click="switchTab('daily')"
-        >
-          TODAY'S CHALLENGE
-        </button>
-        <button
-          class="lb-tab"
-          :class="{ active: tab === 'weekly' }"
-          role="tab"
-          :aria-selected="tab === 'weekly'"
-          @click="switchTab('weekly')"
-        >
-          THIS WEEK
-        </button>
+      <div class="lb-tabs-wrap">
+        <div class="lb-tabs" role="tablist">
+          <button
+            class="lb-tab"
+            :class="{ active: tab === 'daily' }"
+            role="tab"
+            :aria-selected="tab === 'daily'"
+            @click="switchTab('daily')"
+          >
+            TODAY'S CHALLENGE
+          </button>
+          <button
+            class="lb-tab"
+            :class="{ active: tab === 'weekly' }"
+            role="tab"
+            :aria-selected="tab === 'weekly'"
+            @click="switchTab('weekly')"
+          >
+            THIS WEEK
+          </button>
+        </div>
       </div>
 
       <p v-if="lb.loading.value" class="lb-empty">LOADING...</p>
 
-      <template v-else-if="tab === 'daily'">
-        <p v-if="lb.daily.value.length === 0" class="lb-empty">
-          No one has played today's deal yet. Be first.
-        </p>
-        <ol v-else ref="listEl" class="lb-list">
-          <li v-for="row in lb.daily.value" :key="row.rank" class="lb-row" :class="{ me: row.is_me }">
-            <span class="lb-rank" :class="medalClass(row.rank)">{{ row.rank }}</span>
-            <CardBack
-              class="lb-skin"
-              :size="{ width: 18, height: 25 }"
-              :accent="skinColors(row.skin ?? undefined).accent"
-              :stripe="skinColors(row.skin ?? undefined).stripe"
-              aria-hidden="true"
-            />
-            <button
-              v-if="row.share_code"
-              class="lb-name lb-name--link"
-              @click="navigate({ name: 'profile', code: row.share_code })"
-            >
-              {{ row.is_me ? 'YOU' : row.username }}
-            </button>
-            <span v-else class="lb-name">{{ row.is_me ? 'YOU' : row.username }}</span>
-            <span v-if="flagEmoji(row.country)" class="lb-flag" :title="row.country ?? ''">{{ flagEmoji(row.country) }}</span>
-            <span
-              v-if="row.lifetime_wins !== undefined"
-              class="lb-chip"
-              :style="{ color: rankFor(row.lifetime_wins).color, borderColor: rankFor(row.lifetime_wins).color }"
-            >
-              {{ rankFor(row.lifetime_wins).title }}
-            </span>
-            <span class="lb-score">
-              {{ row.result === 'won' ? `${row.effort} MOVES · ${clock(row.duration_secs)}` : row.result.toUpperCase() }}
-            </span>
-          </li>
-        </ol>
-        <p v-if="contextLine('daily')" class="lb-context">{{ contextLine('daily') }}</p>
-      </template>
+      <p v-else-if="rows.length === 0" class="lb-empty">
+        {{ tab === 'daily' ? "No one has played today's deal yet. Be first." : 'No wins recorded this week yet.' }}
+      </p>
 
       <template v-else>
-        <p v-if="lb.weekly.value.length === 0" class="lb-empty">No wins recorded this week yet.</p>
-        <ol v-else ref="listEl" class="lb-list">
-          <li v-for="row in lb.weekly.value" :key="row.rank" class="lb-row" :class="{ me: row.is_me }">
-            <span class="lb-rank" :class="medalClass(row.rank)">{{ row.rank }}</span>
+        <!-- Top three get the stage -->
+        <div ref="podiumEl" class="lb-podium">
+          <component
+            :is="row.share_code ? 'button' : 'div'"
+            v-for="row in podium"
+            :key="row.rank"
+            class="lb-pod"
+            :class="[`lb-pod--${row.rank}`, { me: row.is_me, clickable: !!row.share_code }]"
+            @click="openProfile(row)"
+          >
+            <Crown v-if="row.rank === 1" class="lb-pod-crown" :size="16" aria-hidden="true" />
+            <CardBack
+              class="lb-pod-skin"
+              :size="row.rank === 1 ? { width: 46, height: 65 } : { width: 36, height: 51 }"
+              :accent="skinColors(row.skin ?? undefined).accent"
+              :stripe="skinColors(row.skin ?? undefined).stripe"
+              aria-hidden="true"
+            />
+            <span class="lb-pod-badge" :class="medalClass(row.rank)">{{ row.rank }}</span>
+            <span class="lb-pod-name">
+              {{ row.is_me ? 'YOU' : row.username }}
+              <template v-if="flagEmoji(row.country)"> {{ flagEmoji(row.country) }}</template>
+            </span>
+            <span class="lb-pod-metric" :class="{ out: metric(row).out }">{{ metric(row).main }}</span>
+            <span class="lb-pod-sub">{{ metric(row).sub }}</span>
+          </component>
+        </div>
+
+        <!-- Everyone else -->
+        <ol v-if="rest.length" ref="listEl" class="lb-list">
+          <li
+            v-for="row in rest"
+            :key="row.rank"
+            class="lb-row"
+            :class="{ me: row.is_me, clickable: !!row.share_code }"
+            :role="row.share_code ? 'button' : undefined"
+            :tabindex="row.share_code ? 0 : undefined"
+            @click="openProfile(row)"
+            @keydown.enter="openProfile(row)"
+          >
+            <span class="lb-rank">{{ row.rank }}</span>
             <CardBack
               class="lb-skin"
               :size="{ width: 18, height: 25 }"
@@ -99,14 +85,7 @@
               :stripe="skinColors(row.skin ?? undefined).stripe"
               aria-hidden="true"
             />
-            <button
-              v-if="row.share_code"
-              class="lb-name lb-name--link"
-              @click="navigate({ name: 'profile', code: row.share_code })"
-            >
-              {{ row.is_me ? 'YOU' : row.username }}
-            </button>
-            <span v-else class="lb-name">{{ row.is_me ? 'YOU' : row.username }}</span>
+            <span class="lb-name">{{ row.is_me ? 'YOU' : row.username }}</span>
             <span v-if="flagEmoji(row.country)" class="lb-flag" :title="row.country ?? ''">{{ flagEmoji(row.country) }}</span>
             <span
               v-if="row.lifetime_wins !== undefined"
@@ -115,11 +94,36 @@
             >
               {{ rankFor(row.lifetime_wins).title }}
             </span>
-            <span class="lb-score">{{ row.wins }}W · {{ row.games }} GAMES</span>
+            <span class="lb-score" :class="{ out: metric(row).out }">
+              {{ metric(row).main }}<template v-if="metric(row).sub"> · {{ metric(row).sub }}</template>
+            </span>
           </li>
         </ol>
-        <p v-if="contextLine('weekly')" class="lb-context">{{ contextLine('weekly') }}</p>
+
+        <p v-if="footerLine" class="lb-context">{{ footerLine }}</p>
       </template>
+
+      <!-- Global weekly records: three skill archetypes get famous, not
+           just the win grinders. -->
+      <section v-if="lb.spotlights.value.length" class="lb-records">
+        <h3 class="lb-records-title">THIS WEEK'S RECORDS</h3>
+        <div class="lb-records-strip">
+          <button
+            v-for="s in lb.spotlights.value"
+            :key="s.kind"
+            class="lb-record"
+            :disabled="!s.share_code"
+            @click="s.share_code && navigate({ name: 'profile', code: s.share_code })"
+          >
+            <span class="lb-record-kind">
+              <component :is="SPOT_META[s.kind].icon" :size="11" aria-hidden="true" />
+              {{ SPOT_META[s.kind].label }}
+            </span>
+            <span class="lb-record-value">{{ SPOT_META[s.kind].fmt(s.value) }}</span>
+            <span class="lb-record-name">{{ s.username }} {{ flagEmoji(s.country) }}</span>
+          </button>
+        </div>
+      </section>
     </div>
 
     <SiteFooter />
@@ -127,10 +131,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { Zap, Shield, Crown } from 'lucide-vue-next'
 import gsap from 'gsap'
-import { useLeaderboard } from '../composables/useLeaderboard'
+import { useLeaderboard, type DailyRow, type WeeklyRow } from '../composables/useLeaderboard'
 import { useMotion } from '../composables/useMotion'
 import { navigate } from '../utils/routes'
 import { skinColors } from '../utils/cosmetics'
@@ -141,55 +145,109 @@ import SiteFooter from './SiteFooter.vue'
 
 defineEmits<{ (e: 'back'): void }>()
 
+type Row = DailyRow | WeeklyRow
+
 const lb = useLeaderboard()
 const tab = ref<'daily' | 'weekly'>('daily')
+const podiumEl = ref<HTMLElement | null>(null)
 const listEl = ref<HTMLElement | null>(null)
 const motion = useMotion()
 
+const rows = computed<Row[]>(() => (tab.value === 'daily' ? lb.daily.value : lb.weekly.value))
+// Podium renders 2nd · 1st · 3rd so the champion holds the center.
+const podium = computed(() => {
+    const top = rows.value.slice(0, 3)
+    return [top[1], top[0], top[2]].filter((r): r is Row => !!r)
+})
+const rest = computed(() => rows.value.slice(3))
+
 function switchTab(next: 'daily' | 'weekly') {
-  if (tab.value === next) return
-  tab.value = next
+    if (tab.value === next) return
+    tab.value = next
+}
+
+function openProfile(row: Row) {
+    if (row.share_code) navigate({ name: 'profile', code: row.share_code })
 }
 
 function medalClass(rank: number): string {
-  return rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : ''
+    return rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : ''
 }
 
 function clock(secs: number): string {
-  if (!secs || secs <= 0) return '—'
-  return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
+    if (!secs || secs <= 0) return '—'
+    return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
+}
+
+function metric(row: Row): { main: string; sub: string; out: boolean } {
+    if ('result' in row) {
+        return row.result === 'won'
+            ? { main: `${row.effort} MOVES`, sub: clock(row.duration_secs), out: false }
+            : { main: row.result.toUpperCase(), sub: '', out: true }
+    }
+    return { main: `${row.wins}W`, sub: `${row.games} GAMES`, out: false }
 }
 
 const SPOT_META = {
-  fastest_win: { label: 'FASTEST WIN', icon: Zap, fmt: clock },
-  biggest_stack: { label: 'STACK SURVIVOR', icon: Shield, fmt: (v: number) => `+${v}` },
-  most_wins: { label: 'MOST WINS', icon: Crown, fmt: (v: number) => `${v}W` },
+    fastest_win: { label: 'FASTEST WIN', icon: Zap, fmt: clock },
+    biggest_stack: { label: 'STACK SURVIVOR', icon: Shield, fmt: (v: number) => `+${v}` },
+    most_wins: { label: 'MOST WINS', icon: Crown, fmt: (v: number) => `${v}W` },
 } as const
 
-function contextLine(which: 'daily' | 'weekly'): string {
-  const ctx = which === 'daily' ? lb.dailyContext.value : lb.weeklyContext.value
-  if (!ctx || !ctx.total_players) return ''
-  const scope = which === 'daily' ? 'TODAY' : 'THIS WEEK'
-  if (!ctx.my_rank) return `${ctx.total_players} PLAYERS ${scope}`
-  const pct = Math.max(1, Math.ceil((ctx.my_rank / ctx.total_players) * 100))
-  return `YOU'RE #${ctx.my_rank} · TOP ${pct}% OF ${ctx.total_players} PLAYERS ${scope}`
-}
+// The daily board keys on the viewer's local date, so the deal flips at
+// their local midnight.
+const now = ref(Date.now())
+let ticker: number | undefined
+const dealCountdown = computed(() => {
+    const d = new Date(now.value)
+    const midnight = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)
+    const mins = Math.max(1, Math.round((midnight.getTime() - d.getTime()) / 60000))
+    const h = Math.floor(mins / 60)
+    return h > 0 ? `${h}H ${mins % 60}M` : `${mins % 60}M`
+})
 
-// Rows stagger in on load and tab switch. Final state matches the natural
-// layout and clears inline props, so GSAP never fights Vue's rendering.
-function animateRows() {
-  const rows = listEl.value?.querySelectorAll('.lb-row')
-  if (!rows?.length || motion.reduced) return
-  gsap.set(rows, { opacity: 0, y: 8 })
-  motion.soft(rows, { opacity: 1, y: 0, stagger: 0.025, clearProps: 'all' })
+const footerLine = computed(() => {
+    const ctx = tab.value === 'daily' ? lb.dailyContext.value : lb.weeklyContext.value
+    const parts: string[] = []
+    if (ctx?.total_players) {
+        const scope = tab.value === 'daily' ? 'TODAY' : 'THIS WEEK'
+        if (ctx.my_rank) {
+            const pct = Math.max(1, Math.ceil((ctx.my_rank / ctx.total_players) * 100))
+            parts.push(`YOU'RE #${ctx.my_rank} · TOP ${pct}% OF ${ctx.total_players} PLAYERS ${scope}`)
+        } else {
+            parts.push(`${ctx.total_players} PLAYERS ${scope}`)
+        }
+    }
+    if (tab.value === 'daily') parts.push(`NEW DEAL IN ${dealCountdown.value}`)
+    return parts.join(' · ')
+})
+
+// Pods pop and rows stagger in on load and tab switch. Final state matches
+// the natural layout and clears inline props, so GSAP never fights Vue.
+function animateIn() {
+    if (motion.reduced) return
+    const pods = podiumEl.value?.querySelectorAll('.lb-pod')
+    if (pods?.length) {
+        gsap.set(pods, { opacity: 0, y: 10, scale: 0.96 })
+        motion.soft(pods, { opacity: 1, y: 0, scale: 1, stagger: 0.05, clearProps: 'all' })
+    }
+    const rowEls = listEl.value?.querySelectorAll('.lb-row')
+    if (rowEls?.length) {
+        gsap.set(rowEls, { opacity: 0, y: 8 })
+        motion.soft(rowEls, { opacity: 1, y: 0, stagger: 0.025, clearProps: 'all' })
+    }
 }
 
 watch([tab, () => lb.loading.value], async () => {
-  await nextTick()
-  animateRows()
+    await nextTick()
+    animateIn()
 })
 
-onMounted(() => { void lb.fetchBoards() })
+onMounted(() => {
+    void lb.fetchBoards()
+    ticker = window.setInterval(() => { now.value = Date.now() }, 30_000)
+})
+onUnmounted(() => { if (ticker) clearInterval(ticker) })
 </script>
 
 <style scoped>
@@ -220,6 +278,7 @@ onMounted(() => { void lb.fetchBoards() })
   color: var(--text-secondary);
   cursor: pointer;
   min-height: 44px;
+  white-space: nowrap;
 }
 
 .back-link:hover {
@@ -244,72 +303,13 @@ onMounted(() => { void lb.fetchBoards() })
   width: 100%;
   max-width: 720px;
   margin: 0 auto;
-  padding: var(--spacing-6) var(--spacing-4) var(--spacing-8);
+  padding: var(--spacing-4) var(--spacing-4) var(--spacing-8);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-4);
 }
 
-.lb-spotlights {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--spacing-2);
-}
-
-.lb-spot {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: var(--spacing-3) var(--spacing-2);
-  background: rgba(255, 204, 0, 0.04);
-  border: 1px solid rgba(255, 204, 0, 0.25);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  min-width: 0;
-}
-
-.lb-spot:disabled { cursor: default; }
-
-.lb-spot:hover:not(:disabled) {
-  border-color: rgba(255, 204, 0, 0.6);
-}
-
-.lb-spot-kind {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  letter-spacing: 0.12em;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-.lb-spot-value {
-  font-family: var(--font-display);
-  font-size: 1.1rem;
-  color: var(--color-hazard, #ffcc00);
-}
-
-.lb-spot-name {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-@media (max-width: 480px) {
-  .lb-spotlights { grid-template-columns: 1fr; }
-  .lb-spot { flex-direction: row; justify-content: space-between; gap: var(--spacing-2); }
-}
-
-.lb-tabs {
-  display: flex;
-  gap: var(--spacing-2);
+.lb-tabs-wrap {
   position: sticky;
   top: 0;
   z-index: 1;
@@ -317,24 +317,31 @@ onMounted(() => { void lb.fetchBoards() })
   padding: var(--spacing-2) 0;
 }
 
+.lb-tabs {
+  display: flex;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
 .lb-tab {
   flex: 1;
   background: none;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: var(--radius-sm);
-  padding: var(--spacing-3);
+  border: none;
+  border-radius: 999px;
+  padding: var(--spacing-2) var(--spacing-3);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   letter-spacing: 0.12em;
   color: var(--text-muted);
   cursor: pointer;
-  min-height: 44px;
+  min-height: 38px;
 }
 
 .lb-tab.active {
-  border-color: rgba(0, 229, 255, 0.5);
+  background: rgba(0, 229, 255, 0.12);
   color: var(--color-neon-blue);
-  background: rgba(0, 229, 255, 0.05);
 }
 
 .lb-empty {
@@ -345,6 +352,110 @@ onMounted(() => { void lb.fetchBoards() })
   padding: var(--spacing-8) 0;
   margin: 0;
 }
+
+/* ---- Podium ---- */
+
+.lb-podium {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-4) 0 var(--spacing-2);
+}
+
+.lb-pod {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex: 1;
+  max-width: 180px;
+  min-width: 0;
+  padding: var(--spacing-3) var(--spacing-2);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  font: inherit;
+  color: inherit;
+}
+
+.lb-pod.clickable { cursor: pointer; }
+.lb-pod.clickable:hover { border-color: rgba(0, 229, 255, 0.4); }
+
+.lb-pod--1 {
+  padding-top: var(--spacing-4);
+  padding-bottom: var(--spacing-4);
+  border-color: rgba(255, 215, 0, 0.35);
+  background: rgba(255, 215, 0, 0.03);
+}
+
+.lb-pod.me { box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.5); }
+
+.lb-pod-crown {
+  color: #ffd700;
+  filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.5));
+}
+
+.lb-pod-skin {
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+/* Medal badge overlaps the skin's lower edge. */
+.lb-pod-badge {
+  width: 20px;
+  height: 20px;
+  margin-top: -12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #0a0a0a;
+  background: rgba(255, 255, 255, 0.3);
+  z-index: 1;
+}
+
+.lb-pod-badge.gold { background: #ffd700; box-shadow: 0 0 8px rgba(255, 215, 0, 0.45); }
+.lb-pod-badge.silver { background: #c9ced6; }
+.lb-pod-badge.bronze { background: #cd7f32; }
+
+.lb-pod-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  color: var(--text-primary);
+  margin-top: var(--spacing-1);
+}
+
+.lb-pod.me .lb-pod-name { color: var(--color-neon-blue); }
+
+.lb-pod-metric {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  color: var(--color-hazard, #ffcc00);
+}
+
+.lb-pod--1 .lb-pod-metric { font-size: 1.1rem; }
+
+.lb-pod-metric.out { color: var(--color-alert, #ff2a2a); font-size: 0.7rem; }
+
+.lb-pod-sub {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  min-height: 0.8em;
+}
+
+/* ---- List (rank 4+) ---- */
 
 .lb-list {
   list-style: none;
@@ -364,6 +475,14 @@ onMounted(() => { void lb.fetchBoards() })
   font-size: var(--text-sm);
 }
 
+.lb-row.clickable { cursor: pointer; }
+
+.lb-row.clickable:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.lb-row.clickable:hover .lb-name { color: var(--color-neon-blue); }
+
 .lb-row.me {
   background: rgba(0, 229, 255, 0.06);
   border: 1px solid rgba(0, 229, 255, 0.35);
@@ -378,10 +497,6 @@ onMounted(() => { void lb.fetchBoards() })
   font-size: var(--text-sm);
   letter-spacing: 0.04em;
 }
-
-.lb-rank.gold { color: #ffd700; text-shadow: 0 0 8px rgba(255, 215, 0, 0.45); }
-.lb-rank.silver { color: #c9ced6; text-shadow: 0 0 8px rgba(201, 206, 214, 0.35); }
-.lb-rank.bronze { color: #cd7f32; text-shadow: 0 0 8px rgba(205, 127, 50, 0.35); }
 
 .lb-skin {
   flex-shrink: 0;
@@ -401,24 +516,6 @@ onMounted(() => { void lb.fetchBoards() })
 
 .lb-row.me .lb-name {
   color: var(--color-neon-blue);
-}
-
-.lb-name--link {
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  letter-spacing: inherit;
-  text-align: left;
-  cursor: pointer;
-  text-decoration: underline;
-  text-decoration-color: rgba(255, 255, 255, 0.2);
-  text-underline-offset: 3px;
-}
-
-.lb-name--link:hover {
-  color: var(--color-neon-blue);
-  text-decoration-color: var(--color-neon-blue);
 }
 
 .lb-flag {
@@ -446,22 +543,90 @@ onMounted(() => { void lb.fetchBoards() })
   font-size: var(--text-xs);
 }
 
+.lb-score.out { color: rgba(255, 42, 42, 0.75); }
+
 .lb-context {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   letter-spacing: 0.1em;
   color: var(--color-hazard, #ffcc00);
   text-align: center;
-  border: 1px solid rgba(255, 204, 0, 0.3);
-  background: rgba(255, 204, 0, 0.05);
-  border-radius: var(--radius-sm);
-  padding: var(--spacing-3);
+  padding: var(--spacing-2) 0;
   margin: 0;
+}
+
+/* ---- Weekly records strip ---- */
+
+.lb-records {
+  margin-top: var(--spacing-2);
+}
+
+.lb-records-title {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+  margin: 0 0 var(--spacing-2);
+}
+
+.lb-records-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.lb-record {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--spacing-3) var(--spacing-2);
+  background: none;
+  border: none;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  min-width: 0;
+}
+
+.lb-record:first-child { border-left: none; }
+.lb-record:disabled { cursor: default; }
+.lb-record:hover:not(:disabled) { background: rgba(255, 204, 0, 0.04); }
+
+.lb-record-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.lb-record-value {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  color: var(--color-hazard, #ffcc00);
+}
+
+.lb-record-name {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--text-secondary);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (max-width: 480px) {
   .lb-chip { display: none; }
   .lb-score { font-size: 0.65rem; }
   .lb-row { gap: var(--spacing-2); padding: var(--spacing-3) var(--spacing-2); }
+  .lb-podium { gap: var(--spacing-2); }
+  .lb-pod { padding: var(--spacing-2) var(--spacing-1); }
+  .lb-pod-name { font-size: 0.62rem; }
 }
 </style>
