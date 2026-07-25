@@ -928,10 +928,11 @@ async function leaveFromGameOver() {
 }
 
 // In-place claim keeps the guest's user id — never sign out here, that
-// orphans their stats. App routes to the claim view.
+// orphans their stats. Emit BEFORE leaving: leaveGame unmounts this view,
+// and an emit from an unmounted component can vanish.
 async function handleUpgrade() {
-  await mpStore.leaveGame()
   emit('claim-account')
+  await mpStore.leaveGame()
 }
 </script>
 

@@ -573,10 +573,11 @@ function confirmLeave() {
 }
 
 // In-place claim keeps the guest's user id — never sign out here, that
-// orphans their stats. App routes to the claim view.
+// orphans their stats. Emit BEFORE leaving: returnToLobby unmounts this
+// view, and an emit from an unmounted component can vanish.
 async function handleUpgrade() {
-  store.returnToLobby()
   emit('claim-account')
+  store.returnToLobby()
 }
 function onOpponentClick(playerId: string) {
   if (store.turnState === 'CHOOSING_PLAYER_TO_SWAP' && isMyTurn.value) {
