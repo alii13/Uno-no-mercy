@@ -131,13 +131,13 @@
           </div>
           <div class="pp-badge-grid">
             <div
-              v-for="a in sortedBadges"
+              v-for="a in visibleBadges"
               :key="a.id"
               class="pp-badge"
               :class="{ earned: earned.has(a.id) }"
             >
               <span class="pp-badge-disc">
-                <component :is="BADGE_ICONS[a.id] ?? Medal" :size="16" aria-hidden="true" />
+                <component :is="badgeIcon(a.id)" :size="16" aria-hidden="true" />
               </span>
               <span class="pp-badge-text">
                 <span class="pp-badge-title">{{ a.title.toUpperCase() }}</span>
@@ -145,6 +145,13 @@
               </span>
             </div>
           </div>
+          <button
+            v-if="sortedBadges.length > visibleBadges.length || showAllBadges"
+            class="pp-badges-toggle"
+            @click="showAllBadges = !showAllBadges"
+          >
+            {{ showAllBadges ? 'SHOW FEWER' : `SHOW ALL ${ACHIEVEMENTS.length} BADGES` }}
+          </button>
         </section>
       </template>
 
@@ -248,6 +255,28 @@ const activityTotal = computed(() => pp.activity.value.reduce((n, d) => n + d.ga
 const sortedBadges = computed(() =>
     [...ACHIEVEMENTS].sort((a, b) => Number(earned.value.has(b.id)) - Number(earned.value.has(a.id))),
 )
+
+// Collapsed: everything earned plus the next locked goals — enough to
+// tease the ladder without a 100-cell wall.
+const showAllBadges = ref(false)
+const visibleBadges = computed(() => {
+    if (showAllBadges.value) return sortedBadges.value
+    return sortedBadges.value.slice(0, Math.max(earned.value.size + 6, 12))
+})
+
+/** Tier ladders share a family icon, resolved by id prefix. */
+const BADGE_FAMILY_ICONS: Array<[string, FunctionalComponent]> = [
+    ['wins_', Trophy], ['games_', Swords], ['streak_', Flame], ['stack_', Shield],
+    ['peak_', Layers], ['comeback_', TrendingUp], ['skips_', SkipForward], ['draw_', Plus],
+    ['wild_', Sparkles], ['uno_', Megaphone], ['swap_', ArrowLeftRight], ['daily_', CalendarCheck],
+    ['eff_', Crosshair], ['speed_', Zap], ['marathon_', Hourglass], ['rate_', Target],
+]
+
+function badgeIcon(id: string): FunctionalComponent {
+    return BADGE_ICONS[id]
+        ?? BADGE_FAMILY_ICONS.find(([prefix]) => id.startsWith(prefix))?.[1]
+        ?? Medal
+}
 
 const BADGE_ICONS: Record<string, FunctionalComponent> = {
     first_blood: Droplet,
@@ -575,7 +604,7 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
   display: flex;
   align-items: center;
   gap: var(--spacing-3);
-  padding: var(--spacing-2) 0;
+  padding: var(--spacing-3) 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
@@ -731,6 +760,26 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
   font-size: 0.6rem;
   color: var(--text-muted);
   line-height: 1.45;
+}
+
+.pp-badges-toggle {
+  width: 100%;
+  margin-top: var(--spacing-3);
+  padding: var(--spacing-3);
+  background: none;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.14em;
+  color: var(--text-secondary);
+  cursor: pointer;
+  min-height: 40px;
+}
+
+.pp-badges-toggle:hover {
+  border-color: rgba(255, 204, 0, 0.4);
+  color: var(--color-hazard, #ffcc00);
 }
 
 .pp-cta {

@@ -61,23 +61,19 @@ function tip(cell: ActivityCell): string {
 
 <style scoped>
 .ah {
-  --ah-cell: 12px;
   --ah-gap: 3px;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
 }
 
-.ah-scroll {
-  overflow-x: auto;
-}
-
+/* Week columns flex to fill the section, cells stay square — the grid
+   spans the same width as every other section instead of stranding
+   dead space on wide screens. */
 .ah-grid {
   display: flex;
   gap: var(--ah-gap);
-  width: max-content;
-  /* Room for the last month label to overhang its column. */
-  padding-right: var(--spacing-4);
+  width: 100%;
 }
 
 .ah-daycol,
@@ -85,6 +81,13 @@ function tip(cell: ActivityCell): string {
   display: flex;
   flex-direction: column;
   gap: var(--ah-gap);
+}
+
+.ah-daycol { flex: none; }
+
+.ah-week {
+  flex: 1;
+  min-width: 0;
 }
 
 .ah-monthslot {
@@ -99,19 +102,23 @@ function tip(cell: ActivityCell): string {
 }
 
 .ah-daylabel {
-  height: var(--ah-cell);
+  flex: 1;
+  display: flex;
+  align-items: center;
   font-family: var(--font-mono);
   font-size: 0.5rem;
   letter-spacing: 0.06em;
   color: var(--text-muted);
-  line-height: var(--ah-cell);
   padding-right: var(--spacing-1);
+}
+
+.ah-cell {
+  width: 100%;
+  aspect-ratio: 1 / 1;
 }
 
 .ah-cell,
 .ah-swatch {
-  width: var(--ah-cell);
-  height: var(--ah-cell);
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.06);
 }
