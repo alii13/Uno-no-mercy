@@ -189,18 +189,24 @@
       </div>
     </div>
 
+    <!-- KO stinger: one dramatic beat the moment WE get knocked out, then
+         the table settles into spectator chrome (or the game-over modal). -->
+    <div v-if="showKO" class="ko-overlay" aria-hidden="true">
+      <div class="ko-stamp">ELIMINATED</div>
+      <div class="ko-sub">{{ koCards }} CARDS — NO MERCY</div>
+    </div>
+
     <!-- You're out, but the round plays on — spectate or bail. Non-blocking
-         banner so the table stays visible behind it. -->
-    <div v-if="amEliminated && gameStatus === 'playing'" class="eliminated-banner" role="status">
-      <div class="eliminated-banner__text">
-        <span class="eliminated-banner__title">YOU'RE OUT</span>
-        <span class="eliminated-banner__sub">Knocked out by No Mercy — spectating</span>
-      </div>
-      <button class="eliminated-banner__leave" @click="leaveGame">LEAVE</button>
+         HUD so the table stays fully watchable. -->
+    <div v-if="amEliminated && gameStatus === 'playing' && !showKO" class="spectator-hud" role="status">
+      <span class="spectator-hud__dot" aria-hidden="true"></span>
+      <span class="spectator-hud__label">SPECTATING</span>
+      <span class="spectator-hud__meta">{{ mpStore.playersLeft }} STILL IN</span>
+      <button class="spectator-hud__leave" @click="leaveGame">LEAVE</button>
     </div>
 
     <GameOverModal
-      v-if="gameStatus === 'finished' && !opponentLeft"
+      v-if="gameStatus === 'finished' && !opponentLeft && !showKO"
       :is-winner="isMpWinner"
       :winner-name="winnerName"
       :opponent-name="opponentDisplayName"
@@ -209,6 +215,9 @@
       mode="mp"
       :can-rematch="mpStore.isHost"
       :notice="mpStore.error"
+      :is-spectator="amEliminated"
+      :placement="mpStore.myPlacement"
+      :total-players="mpStore.gamePlayers.length"
       @rematch="handleGameOverPrimary"
       @back-to-lobby="leaveFromGameOver"
       @upgrade-account="handleUpgrade"
@@ -564,6 +573,25 @@ watch([gameStatus, opponentLeft], () => {
   }
 })
 
+// KO stinger: fires once per own elimination, holds the game-over modal
+// back for its beat (2-player knockouts end the game in the same batch).
+const showKO = ref(false)
+const koCards = ref(0)
+let koTimer: ReturnType<typeof setTimeout> | null = null
+watch(() => mpStore.selfEliminated, (ko) => {
+  if (!ko) { showKO.value = false; return }
+  // Peak hand at this instant IS the hand that broke the mercy rule.
+  koCards.value = mpStore.mpStats.peakCards
+  showKO.value = true
+  showColorPicker.value = false
+  pendingCard.value = null
+  isShakeActive.value = true
+  setTimeout(() => { isShakeActive.value = false }, 500)
+  soundEffects.playSpecialCard()
+  if (koTimer) clearTimeout(koTimer)
+  koTimer = setTimeout(() => { showKO.value = false }, 1600)
+})
+
 // Bumped on every new draw reveal. An in-flight loop bails the moment a newer
 // draw starts, so two overlapping reveals (rapid forced draws / a realtime
 // resync mid-draw) can't interleave writes to visibleCardCount and pop cards
@@ -715,6 +743,7 @@ function triggerOpponentDrawAnimation(targetEl: HTMLElement, count: number) {
 onUnmounted(() => {
   music.stop()
   killAllFlyingCards()
+  if (koTimer) clearTimeout(koTimer)
 })
 
 // Music starts when game enters 'playing'; ducks on 'finished'.
@@ -950,60 +979,114 @@ async function handleUpgrade() {
   .rt-dot { animation: none; }
 }
 
-/* Spectator banner shown to a player after they're knocked out. Pinned near
-   the bottom (their hand is empty) so the table stays fully visible. */
-.eliminated-banner {
+/* KO stinger — one full-screen beat when the local player is knocked out. */
+.ko-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background: radial-gradient(ellipse at center, rgba(255, 42, 42, 0.28) 0%, rgba(0, 0, 0, 0.9) 65%);
+  animation: ko-flash 1.6s ease-out both;
+  pointer-events: none;
+}
+
+.ko-stamp {
+  font-family: 'Black Ops One', 'Impact', sans-serif;
+  font-size: clamp(3rem, 12vw, 5.5rem);
+  letter-spacing: 0.08em;
+  color: #ff2a2a;
+  text-shadow: 0 0 35px rgba(255, 42, 42, 0.7), 0 0 6px rgba(255, 42, 42, 0.9);
+  transform: rotate(-4deg);
+  animation: ko-stamp-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.ko-sub {
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+@keyframes ko-flash {
+  0% { opacity: 0; }
+  8% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes ko-stamp-in {
+  0%   { opacity: 0; transform: scale(2.6) rotate(-10deg); }
+  60%  { opacity: 1; transform: scale(0.92) rotate(-2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(-4deg); }
+}
+
+/* Spectator HUD after the KO beat: a calm state pill, not an alarm. Pinned
+   near the bottom (the hand is empty) so the table stays fully visible. */
+.spectator-hud {
   position: fixed;
   bottom: max(1.5rem, env(safe-area-inset-bottom));
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 0.7rem 0.85rem 0.7rem 1.25rem;
-  background: rgba(20, 0, 0, 0.92);
-  border: 1px solid rgba(255, 42, 42, 0.65);
-  border-radius: 12px;
-  box-shadow: 0 8px 28px rgba(255, 42, 42, 0.35);
+  gap: 0.75rem;
+  padding: 0.55rem 0.65rem 0.55rem 1.1rem;
+  background: rgba(8, 12, 14, 0.92);
+  border: 1px solid rgba(0, 229, 255, 0.35);
+  border-radius: 999px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
   z-index: var(--z-toast);
   max-width: calc(100vw - 2rem);
-}
-
-.eliminated-banner__text {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.15;
-}
-
-.eliminated-banner__title {
-  font-family: 'Black Ops One', 'Impact', sans-serif;
-  font-size: 1.1rem;
-  letter-spacing: 0.14em;
-  color: #ff2a2a;
+  font-family: 'Chakra Petch', sans-serif;
   text-transform: uppercase;
 }
 
-.eliminated-banner__sub {
-  font-family: 'Chakra Petch', sans-serif;
-  font-size: 0.7rem;
-  letter-spacing: 0.1em;
-  color: rgba(255, 255, 255, 0.72);
-  text-transform: uppercase;
+.spectator-hud__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #00e5ff;
+  animation: rt-pulse 1.6s ease-in-out infinite;
 }
 
-.eliminated-banner__leave {
+.spectator-hud__label {
+  font-size: 0.78rem;
+  letter-spacing: 0.22em;
+  color: #00e5ff;
+}
+
+.spectator-hud__meta {
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.55);
+  white-space: nowrap;
+}
+
+.spectator-hud__leave {
   font-family: 'Chakra Petch', sans-serif;
-  font-size: 0.8rem;
-  letter-spacing: 0.18em;
-  color: #fff;
-  background: rgba(255, 42, 42, 0.9);
-  border: none;
-  border-radius: 8px;
-  padding: 0.55rem 1.1rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, border-color 0.15s;
 }
-.eliminated-banner__leave:hover {
-  background: #ff2a2a;
+.spectator-hud__leave:hover {
+  background: rgba(255, 42, 42, 0.25);
+  border-color: rgba(255, 42, 42, 0.6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ko-overlay { animation: none; }
+  .ko-stamp { animation: none; }
+  .spectator-hud__dot { animation: none; }
 }
 </style>

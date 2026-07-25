@@ -9,12 +9,13 @@
       <div class="modal-card" ref="modalRef">
         <!-- Stamp title -->
         <div class="stamp" :class="{ 'stamp-win': isWinner, 'stamp-loss': !isWinner }">
-          <h1>{{ isWinner ? 'VICTORY' : 'DEFEATED' }}</h1>
-          <div class="stamp-sub">{{ isWinner ? 'NO MERCY DEALT' : 'NO MERCY SHOWN' }}</div>
+          <h1>{{ isWinner ? 'VICTORY' : isSpectator ? 'ELIMINATED' : 'DEFEATED' }}</h1>
+          <div class="stamp-sub">{{ stampSub }}</div>
         </div>
 
         <p class="tagline">
           <template v-if="isWinner">You showed no mercy.</template>
+          <template v-else-if="isSpectator">{{ winnerName }} took the table.</template>
           <template v-else>{{ villainQuote }}</template>
         </p>
 
@@ -117,6 +118,11 @@ const props = defineProps<{
   canRematch?: boolean
   /** One-line status under the CTA (e.g. "need 2 players"). */
   notice?: string | null
+  /** The viewer was knocked out and watched the round end. */
+  isSpectator?: boolean
+  /** Knock-out placement, e.g. 3 of totalPlayers = "OUT 3RD OF 5". */
+  placement?: number | null
+  totalPlayers?: number
 }>()
 
 defineEmits<{
@@ -146,6 +152,21 @@ const LOSS_QUOTES = [
 ] as const
 
 const villainQuote = LOSS_QUOTES[Math.floor(Math.random() * LOSS_QUOTES.length)]
+
+function ordinal(n: number): string {
+  const rem100 = n % 100
+  if (rem100 >= 11 && rem100 <= 13) return `${n}TH`
+  const suffix = { 1: 'ST', 2: 'ND', 3: 'RD' }[n % 10] ?? 'TH'
+  return `${n}${suffix}`
+}
+
+const stampSub = computed(() => {
+  if (props.isWinner) return 'NO MERCY DEALT'
+  if (props.isSpectator && props.placement && props.totalPlayers) {
+    return `OUT ${ordinal(props.placement)} OF ${props.totalPlayers}`
+  }
+  return 'NO MERCY SHOWN'
+})
 
 function sharePayload() {
   return {
