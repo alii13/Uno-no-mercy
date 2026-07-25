@@ -822,7 +822,7 @@ function copyLink() {
   flex-direction: column;
   justify-content: center;
   padding: var(--spacing-8) var(--spacing-4);
-  max-width: 480px;
+  max-width: 600px;
   width: 100%;
   margin: 0 auto;
   gap: var(--spacing-6);
@@ -843,10 +843,10 @@ function copyLink() {
   background: rgba(0, 229, 255, 0.04);
   border: 1px solid rgba(0, 229, 255, 0.3);
   border-radius: var(--radius-sm);
-  padding: var(--spacing-3);
+  padding: var(--spacing-4);
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2);
+  gap: var(--spacing-3);
 }
 
 .daily-card.done {
@@ -1027,22 +1027,24 @@ function copyLink() {
 .lobby-entry {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-4);
+  gap: var(--spacing-6);
 }
 
+/* Heading + streak chip as a deliberate centered stack — the two never fit
+   one row anyway, and a wrapped space-between reads as an accident. */
 .entry-head {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-2);
-  flex-wrap: wrap;
+  gap: var(--spacing-3);
+  text-align: center;
 }
 
 .create-card {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-sm);
-  padding: var(--spacing-3);
+  padding: var(--spacing-4);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
@@ -1109,26 +1111,29 @@ function copyLink() {
   gap: var(--spacing-2);
 }
 
+/* Quiet 1px borders: the tiles are secondary — three full-neon boxes were
+   shouting over the primary CREATE GAME button. */
 .mode-tile {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-1);
-  padding: var(--spacing-3) var(--spacing-2);
-  min-height: 64px;
+  padding: var(--spacing-3);
+  min-height: 72px;
   background: transparent;
-  border: 2px solid var(--color-neon-blue);
+  border: 1px solid rgba(0, 229, 255, 0.35);
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition:
     background var(--duration-snap) var(--ease-snap),
-    color var(--duration-snap) var(--ease-snap),
+    border-color var(--duration-snap) var(--ease-snap),
     transform var(--duration-snap) var(--ease-snap);
 }
 
 .mode-tile:hover:not(:disabled) {
   transform: translateY(-2px);
-  background: rgba(0, 229, 255, 0.08);
+  border-color: var(--color-neon-blue);
+  background: rgba(0, 229, 255, 0.06);
 }
 
 .mode-tile:disabled {
@@ -1137,7 +1142,7 @@ function copyLink() {
 }
 
 .mode-tile--ghost {
-  border-color: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .mode-tile--ghost .tile-title {
@@ -1463,22 +1468,11 @@ function copyLink() {
   background: #00ff66;
 }
 
-@media (max-width: 480px) {
+/* Below 560px the 600px column has shrunk enough that 3-across tiles cramp
+   and titles wrap — stack them as compact rows and open the rhythm up. */
+@media (max-width: 560px) {
   .entry-heading { font-size: 1.15rem; }
-  .entry-head { justify-content: center; text-align: center; }
-  /* Everything is one full-width column here, so the desktop density
-     reads as clutter — open up the section rhythm and card interiors. */
-  .lobby-entry { gap: var(--spacing-6); }
-  .create-card {
-    padding: var(--spacing-4);
-    gap: var(--spacing-4);
-  }
   .mode-desc { line-height: 1.8; }
-  .daily-card {
-    padding: var(--spacing-4);
-    gap: var(--spacing-3);
-  }
-  /* One column; each tile becomes a row so three of them stay compact. */
   .mode-tiles {
     grid-template-columns: 1fr;
     gap: var(--spacing-3);
@@ -1721,6 +1715,21 @@ function copyLink() {
 
   .username-chip {
     display: none;
+  }
+
+  /* Brand + account links share one row; compact the links so they fit,
+     and right-anchor the cluster so a worst-case wrap still looks placed. */
+  .top-bar-cta {
+    gap: var(--spacing-1);
+    margin-left: auto;
+  }
+
+  .lobby-top-bar .text-link {
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    padding: var(--spacing-1) var(--spacing-2);
+    min-height: 36px;
+    white-space: nowrap;
   }
 
   .lobby-content {

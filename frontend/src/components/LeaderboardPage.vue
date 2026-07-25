@@ -202,7 +202,7 @@ onMounted(() => { void lb.fetchBoards() })
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-3);
-  padding: var(--spacing-4) var(--spacing-5);
+  padding: var(--spacing-4) var(--spacing-6);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 

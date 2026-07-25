@@ -243,7 +243,7 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-3);
-  padding: var(--spacing-4) var(--spacing-5);
+  padding: var(--spacing-4) var(--spacing-6);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
@@ -324,13 +324,13 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
   padding: var(--spacing-6) var(--spacing-4) var(--spacing-8);
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-5);
+  gap: var(--spacing-6);
 }
 
 .pp-hero {
   display: flex;
   align-items: center;
-  gap: var(--spacing-5);
+  gap: var(--spacing-6);
   padding: var(--spacing-4);
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -545,7 +545,7 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
-  padding: var(--spacing-5);
+  padding: var(--spacing-6);
   text-align: center;
   background: rgba(0, 229, 255, 0.04);
   border: 1px solid rgba(0, 229, 255, 0.3);
