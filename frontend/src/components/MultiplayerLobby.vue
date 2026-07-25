@@ -34,9 +34,9 @@
           class="text-link upgrade-link"
           @click="upgradeAccount"
         >
-          CREATE ACCOUNT
+          {{ authStore.claimPending ? 'CONFIRM YOUR EMAIL' : 'CREATE ACCOUNT' }}
         </button>
-        <button class="text-link" @click="authStore.signOut()">
+        <button class="text-link" @click="requestSignOut">
           SIGN OUT
         </button>
       </div>
@@ -344,14 +344,16 @@
 
     <RulesModal v-if="showRules" @close="showRules = false" />
 
+    <!-- Guests only: plain sign-out abandons the guest profile and its
+         server-side stats. Claiming (CREATE ACCOUNT) is the safe exit. -->
     <ConfirmDialog
-      :open="showUpgradeConfirm"
-      title="Create an account?"
-      message="You'll sign up fresh and your current guest session will end. Stats earned as a guest stay on this device."
-      confirm-label="CONTINUE"
-      cancel-label="CANCEL"
-      @confirm="confirmUpgrade"
-      @cancel="showUpgradeConfirm = false"
+      :open="showSignOutConfirm"
+      title="Sign out of this guest profile?"
+      message="Signing out abandons this guest profile and its stats. CREATE ACCOUNT claims it first — free, and everything you've earned stays."
+      confirm-label="SIGN OUT ANYWAY"
+      cancel-label="GO BACK"
+      @confirm="confirmSignOut"
+      @cancel="showSignOutConfirm = false"
     />
 
     <ConfirmDialog
@@ -494,7 +496,7 @@ const showJoinModal = ref(false)
 const roomEnded = ref(false)
 const showLeaveConfirm = ref(false)
 const showRules = ref(false)
-const showUpgradeConfirm = ref(false)
+const showSignOutConfirm = ref(false)
 const editingName = ref(false)
 const editTarget = ref<'bar' | 'room' | null>(null)
 const nameInput = ref('')
@@ -654,15 +656,22 @@ async function saveName() {
 }
 
 function upgradeAccount() {
-  // Don't silently nuke the guest session — warn first. (A proper anon→permanent
-  // link that preserves stats is a larger auth change, tracked separately.)
-  showUpgradeConfirm.value = true
+  // In-place claim: the guest keeps their user id, so stats, badges and the
+  // profile link survive. Nothing destructive — no confirm needed.
+  emit('showAuth')
 }
 
-async function confirmUpgrade() {
-  showUpgradeConfirm.value = false
+function requestSignOut() {
+  if (authStore.isAnonymous) {
+    showSignOutConfirm.value = true
+    return
+  }
+  void authStore.signOut()
+}
+
+async function confirmSignOut() {
+  showSignOutConfirm.value = false
   await authStore.signOut()
-  emit('showAuth')
 }
 
 function handleStatsClick() {

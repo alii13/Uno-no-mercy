@@ -161,7 +161,7 @@
         <Button variant="primary" size="lg" block @click="$emit('back')">PLAY UNO NO MERCY — FREE</Button>
       </section>
       <section v-else-if="authStore.isAnonymous" class="pp-cta pp-cta--own">
-        <p class="pp-cta-line">This is your guest profile — create an account from the lobby to keep your name on it.</p>
+        <p class="pp-cta-line">This is your guest profile — claim it from the lobby (CREATE ACCOUNT) and everything here is yours forever.</p>
         <Button variant="secondary" size="md" block @click="$emit('back')">GO TO LOBBY</Button>
       </section>
       <section v-else class="pp-cta pp-cta--own">

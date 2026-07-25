@@ -67,7 +67,7 @@
     </template>
 
     <!-- Playing local game vs bot (works without auth for guest play) -->
-    <GameView v-else-if="localGameStore.gameState !== 'LOBBY'" />
+    <GameView v-else-if="localGameStore.gameState !== 'LOBBY'" @claim-account="handleShowAuth('claim')" />
 
     <!-- Shareable leaderboard page (/leaderboard) — works signed in or out.
          An active multiplayer match always wins over the route. -->
@@ -93,6 +93,15 @@
     <!-- Playing multiplayer game -->
     <MultiplayerGameView
       v-else-if="mpStore.currentGame && (mpStore.currentGame.status === 'playing' || mpStore.currentGame.status === 'finished')"
+      @claim-account="handleShowAuth('claim')"
+    />
+
+    <!-- A signed-in guest claiming their account in place: same user id,
+         so their stats, badges and profile link stay attached. -->
+    <AuthView
+      v-else-if="showAuthView"
+      initial-mode="claim"
+      @back="showAuthView = false"
     />
 
     <!-- Player Dashboard -->
@@ -106,7 +115,7 @@
       v-else
       @playLocal="startLocalGame"
       @playDaily="startDailyGame"
-      @showAuth="handleShowAuth('signup')"
+      @showAuth="handleShowAuth('claim')"
       @showStats="showDashboard = true"
     />
 
@@ -161,7 +170,7 @@ const mpStore = useMultiplayerStore()
 const localGameStore = useGameStore()
 
 const showAuthView = ref(false)
-const authMode = ref<'login' | 'signup'>('signup')
+const authMode = ref<'login' | 'signup' | 'claim'>('signup')
 const showDashboard = ref(false)
 const showPasswordReset = ref(false)
 const newPassword = ref('')
@@ -186,6 +195,7 @@ const currentScreen = computed(() => {
   if (currentRoute.value.name === 'profile' && !inMpMatch.value) return 'profile'
   if (!authStore.isAuthenticated) return showAuthView.value ? 'auth' : 'landing'
   if (inMpMatch.value) return 'mp_game'
+  if (showAuthView.value) return 'claim_account'
   if (mpStore.currentGame?.status === 'waiting') return 'waiting_room'
   if (showDashboard.value) return 'dashboard'
   return 'lobby'
@@ -269,7 +279,7 @@ async function handlePasswordUpdate() {
   }
 }
 
-function handleShowAuth(mode: 'login' | 'signup') {
+function handleShowAuth(mode: 'login' | 'signup' | 'claim') {
   authMode.value = mode
   showAuthView.value = true
 }

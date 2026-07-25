@@ -14,12 +14,87 @@
           <span class="auth-brand-nomercy">NO MERCY</span>
         </h1>
         <p class="auth-tagline">
-          {{ mode === 'forgot' ? 'Reset your password' : mode === 'signup' ? 'Track every brutal stat' : 'Pick up where you left off' }}
+          {{ mode === 'claim' ? 'Keep your stats forever'
+            : mode === 'forgot' ? 'Reset your password'
+            : mode === 'signup' ? 'Track every brutal stat'
+            : 'Pick up where you left off' }}
         </p>
       </header>
 
-      <!-- Login / Signup tabs (hidden in forgot mode) -->
-      <div v-if="mode !== 'forgot'" class="tab-row" role="tablist">
+      <!-- Claim mode: convert the guest in place. No tabs — the signup tab
+           would mint a fresh user and orphan this guest's stats. -->
+      <template v-if="mode === 'claim'">
+        <!-- Already converted (confirmation clicked, possibly in another tab) -->
+        <div v-if="!authStore.isAnonymous" class="claim-panel">
+          <h2 class="claim-title">ACCOUNT CLAIMED</h2>
+          <p class="claim-copy">Your stats, badges and profile link are safe. Go deal some damage.</p>
+          <Button variant="primary" size="lg" block @click="$emit('back')">BACK TO THE GAME</Button>
+        </div>
+
+        <!-- Confirmation email sent, waiting on the click -->
+        <div v-else-if="authStore.claimPending && !editingClaimEmail" class="claim-panel">
+          <h2 class="claim-title">CHECK YOUR INBOX</h2>
+          <p class="claim-copy">
+            We sent a confirmation link to <strong>{{ authStore.user?.new_email }}</strong>.
+            Click it and this guest account becomes permanent — stats, badges and profile link included.
+          </p>
+          <p v-if="successMsg" class="msg msg-success">{{ successMsg }}</p>
+          <p v-if="error" class="msg msg-error">{{ error }}</p>
+          <Button variant="secondary" size="md" block :disabled="loading" @click="handleResend">
+            {{ loading ? 'SENDING…' : 'RESEND EMAIL' }}
+          </Button>
+          <button class="link" type="button" @click="editingClaimEmail = true; error = ''; successMsg = ''">
+            Use a different email
+          </button>
+        </div>
+
+        <!-- The claim form -->
+        <form v-else class="auth-form" @submit.prevent="handleClaim">
+          <p class="claim-copy">
+            Playing as <strong>{{ authStore.username }}</strong>. Add an email and password —
+            your stats, badges and profile link stay exactly where they are.
+          </p>
+
+          <label class="field">
+            <span class="field-label">EMAIL</span>
+            <input
+              v-model="email"
+              v-focus-ring
+              type="email"
+              placeholder="you@example.com"
+              required
+              autocomplete="email"
+              class="field-input"
+            />
+          </label>
+
+          <label class="field">
+            <span class="field-label">PASSWORD</span>
+            <input
+              v-model="password"
+              v-focus-ring
+              type="password"
+              placeholder="At least 6 characters"
+              required
+              minlength="6"
+              autocomplete="new-password"
+              class="field-input"
+            />
+          </label>
+
+          <p v-if="error" class="msg msg-error">{{ error }}</p>
+          <button v-if="emailTaken" class="link" type="button" @click="switchToLoginFromCollision">
+            SIGN IN TO THAT ACCOUNT INSTEAD →
+          </button>
+
+          <Button type="submit" variant="primary" size="lg" block :disabled="loading">
+            {{ loading ? 'PROCESSING…' : 'CLAIM MY ACCOUNT' }}
+          </Button>
+        </form>
+      </template>
+
+      <!-- Login / Signup tabs (hidden in forgot + claim modes) -->
+      <div v-if="mode !== 'forgot' && mode !== 'claim'" class="tab-row" role="tablist">
         <button
           class="tab"
           :class="{ active: mode === 'login' }"
@@ -74,7 +149,7 @@
       </form>
 
       <!-- Login / Signup forms -->
-      <form v-else class="auth-form" @submit.prevent="handleSubmit">
+      <form v-else-if="mode !== 'claim'" class="auth-form" @submit.prevent="handleSubmit">
         <label v-if="mode === 'signup'" class="field">
           <span class="field-label">USERNAME</span>
           <input
@@ -158,7 +233,7 @@ import { vFocusRing } from '../directives/focusRing'
 import Button from './ui/Button.vue'
 
 const props = defineProps<{
-  initialMode?: 'login' | 'signup'
+  initialMode?: 'login' | 'signup' | 'claim'
 }>()
 
 defineEmits<{
@@ -167,13 +242,15 @@ defineEmits<{
 
 const authStore = useAuthStore()
 
-const mode = ref<'login' | 'signup' | 'forgot'>('login')
+const mode = ref<'login' | 'signup' | 'forgot' | 'claim'>('login')
 const email = ref('')
 const password = ref('')
 const username = ref('')
 const loading = ref(false)
 const error = ref('')
 const successMsg = ref('')
+const emailTaken = ref(false)
+const editingClaimEmail = ref(false)
 
 onMounted(() => {
   if (props.initialMode) {
@@ -181,10 +258,53 @@ onMounted(() => {
   }
 })
 
-function setMode(next: 'login' | 'signup' | 'forgot') {
+function setMode(next: 'login' | 'signup' | 'forgot' | 'claim') {
   mode.value = next
   error.value = ''
   successMsg.value = ''
+  emailTaken.value = false
+}
+
+async function handleClaim() {
+  loading.value = true
+  error.value = ''
+  emailTaken.value = false
+
+  try {
+    const result = await authStore.claimAccount(email.value, password.value)
+    if (result.success) {
+      // claimPending flips via the store — the pending panel takes over.
+      editingClaimEmail.value = false
+      successMsg.value = ''
+    } else if (result.code === 'email_exists') {
+      emailTaken.value = true
+      error.value = 'That email already has an account.'
+    } else {
+      error.value = result.error || 'Could not claim the account'
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+async function handleResend() {
+  loading.value = true
+  error.value = ''
+  successMsg.value = ''
+  try {
+    const result = await authStore.resendClaimEmail()
+    if (result.success) successMsg.value = 'Sent. Give it a minute and check spam.'
+    else error.value = result.error || 'Could not resend'
+  } finally {
+    loading.value = false
+  }
+}
+
+// Collision path: they own that email already. Signing in is the right move,
+// but it abandons this guest profile — say so before they do it.
+function switchToLoginFromCollision() {
+  setMode('login')
+  error.value = "Heads up: signing in to a different account won't carry this guest profile's stats."
 }
 
 async function handleSubmit() {
@@ -422,6 +542,33 @@ async function handleForgotPassword() {
 
 .link:hover {
   color: var(--color-neon-blue);
+}
+
+.claim-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  text-align: center;
+}
+
+.claim-title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 0.14em;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.claim-copy {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.claim-copy strong {
+  color: var(--text-primary);
 }
 
 .trust-list {

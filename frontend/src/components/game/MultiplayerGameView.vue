@@ -281,6 +281,8 @@ import { playDealerIntro } from '../../composables/useDealerIntro'
 import { useRetentionStore } from '../../stores/retentionStore'
 import { animateOpponentThrow, burstImpactParticles, skipEveryoneShockwave, showTurnBanner, pulseSeat } from '../../composables/useGameFeel'
 
+const emit = defineEmits<{ (e: 'claim-account'): void }>()
+
 const mpStore = useMultiplayerStore()
 const authStore = useAuthStore()
 const voiceStore = useVoiceStore()
@@ -925,9 +927,12 @@ async function leaveFromGameOver() {
   await mpStore.leaveGame()
 }
 
+// In-place claim keeps the guest's user id — never sign out here, that
+// orphans their stats. Emit BEFORE leaving: leaveGame unmounts this view,
+// and an emit from an unmounted component can vanish.
 async function handleUpgrade() {
+  emit('claim-account')
   await mpStore.leaveGame()
-  await authStore.signOut()
 }
 </script>
 
