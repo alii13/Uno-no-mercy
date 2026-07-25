@@ -41,7 +41,9 @@
             <h1 class="pp-name">{{ p.username }}</h1>
             <span v-if="flagEmoji(p.country)" class="pp-flag" :title="p.country ?? ''">{{ flagEmoji(p.country) }}</span>
           </div>
-          <div class="pp-rank" :style="{ color: rank.color }">⭐ {{ rank.title.toUpperCase() }}</div>
+          <div class="pp-rank" :style="{ color: rank.color }">
+            <Star :size="13" aria-hidden="true" /> {{ rank.title.toUpperCase() }}
+          </div>
           <div v-if="nextRank" class="pp-progress">
             <div class="pp-progress-bar" role="img" :aria-label="`${nextRank.winsNeeded} wins to ${nextRank.title}`">
               <div class="pp-progress-fill" :style="{ width: progressPct + '%', background: rank.color }"></div>
@@ -124,6 +126,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { Star } from 'lucide-vue-next'
 import gsap from 'gsap'
 import { useProfile } from '../composables/useProfile'
 import { useMotion } from '../composables/useMotion'
@@ -367,6 +370,9 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
 .pp-flag { font-size: 1.1rem; line-height: 1; flex-shrink: 0; }
 
 .pp-rank {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   letter-spacing: 0.16em;

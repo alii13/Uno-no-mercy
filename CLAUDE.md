@@ -2,6 +2,11 @@
 
 Guidance for working in this repo. Hard-won - read before changing CSS, raising PRs, or touching Supabase.
 
+## UI conventions
+
+- Icons come from `lucide-vue-next` (already a dependency) - never emoji glyphs in UI chrome. Country flag emoji on leaderboards/profiles are the one exception.
+- Concerns are color-zoned with the UNO palette: hazard yellow = daily/streak loop, alert red = primary create action, neon cyan = multiplayer, neutral = practice/meta.
+
 ## CSS tokens
 
 - The spacing scale in `frontend/src/style.css` is `--spacing-0..4`, then jumps to `6, 8, 12, 16, 24`. **There is no `--spacing-5`** (or 7, 9-11, etc.).
