@@ -129,19 +129,27 @@ describe('earnedFromAggregates agrees with the row evaluator', () => {
         expect(ids.has('first_win')).toBe(true)
     })
 
+    it('defines exactly 100 achievements with unique ids', () => {
+        expect(ACHIEVEMENTS.length).toBe(100)
+        expect(new Set(ACHIEVEMENTS.map(a => a.id)).size).toBe(100)
+    })
+
     it('covers every achievement id with at least one earnable path', () => {
         // A maximal history: every badge must be earnable from aggregates.
-        const wins = Array.from({ length: 100 }, (_, i) =>
+        // 1000 straight wins with cranked stats clear the highest tier of
+        // every ladder (500 wins, 25 streak, +48 stack, 50 cards held,
+        // 365 dailies, 60-minute marathon, sub-30s six-card win, 70%+ rate).
+        const wins = Array.from({ length: 1000 }, (_, i) =>
             row({
                 result: 'won',
-                game_id: i < 5 ? `daily-2026-06-${String(i + 1).padStart(2, '0')}` : `bot-${i}`,
-                peak_cards: 31,
-                biggest_stack_survived: 24,
-                cards_played_total: 18,
-                game_duration_secs: i === 0 ? 80 : 1000,
-                skips_dealt: 1,
-                draw_cards_played: 1,
-                wild_cards_played: 1,
+                game_id: i < 365 ? `daily-2026-${String(i)}` : `bot-${i}`,
+                peak_cards: 50,
+                biggest_stack_survived: 48,
+                cards_played_total: i === 0 ? 5 : 18,
+                game_duration_secs: i === 0 ? 29 : i === 1 ? 3600 : 1000,
+                skips_dealt: 3,
+                draw_cards_played: 5,
+                wild_cards_played: 3,
                 uno_calls: 1,
                 swaps_made: 1,
             }))

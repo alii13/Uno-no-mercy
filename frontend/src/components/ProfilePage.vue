@@ -41,8 +41,12 @@
             <h1 class="pp-name">{{ p.username }}</h1>
             <span v-if="flagEmoji(p.country)" class="pp-flag" :title="p.country ?? ''">{{ flagEmoji(p.country) }}</span>
           </div>
-          <div class="pp-rank" :style="{ color: rank.color }">
-            <Star :size="13" aria-hidden="true" /> {{ rank.title.toUpperCase() }}
+          <div class="pp-chips">
+            <span class="pp-chip pp-chip--rank" :style="{ color: rank.color, borderColor: rank.color }">
+              <Star :size="11" aria-hidden="true" /> {{ rank.title.toUpperCase() }}
+            </span>
+            <span class="pp-chip">{{ p.wins }} WINS</span>
+            <span class="pp-chip">SINCE {{ memberSince }}</span>
           </div>
           <div v-if="nextRank" class="pp-progress">
             <div class="pp-progress-bar" role="img" :aria-label="`${nextRank.winsNeeded} wins to ${nextRank.title}`">
@@ -50,7 +54,6 @@
             </div>
             <span class="pp-progress-label">{{ nextRank.winsNeeded }} WINS TO {{ nextRank.title.toUpperCase() }}</span>
           </div>
-          <div class="pp-since">PLAYING SINCE {{ memberSince }}</div>
         </div>
       </section>
 
@@ -59,50 +62,96 @@
       <template v-else>
         <!-- Headline numbers -->
         <section class="pp-stats">
-          <div class="pp-stat"><span class="pp-stat-value">{{ p.wins }}</span><span class="pp-stat-label">WINS</span></div>
-          <div class="pp-stat"><span class="pp-stat-value">{{ p.games }}</span><span class="pp-stat-label">GAMES</span></div>
-          <div class="pp-stat"><span class="pp-stat-value">{{ winRate }}%</span><span class="pp-stat-label">WIN RATE</span></div>
-          <div class="pp-stat"><span class="pp-stat-value pp-fire">{{ p.best_win_streak }}</span><span class="pp-stat-label">BEST STREAK</span></div>
+          <div class="pp-stat">
+            <Trophy class="pp-stat-icon" :size="14" aria-hidden="true" />
+            <span class="pp-stat-value">{{ p.wins }}</span><span class="pp-stat-label">WINS</span>
+          </div>
+          <div class="pp-stat">
+            <Swords class="pp-stat-icon" :size="14" aria-hidden="true" />
+            <span class="pp-stat-value">{{ p.games }}</span><span class="pp-stat-label">GAMES</span>
+          </div>
+          <div class="pp-stat">
+            <Target class="pp-stat-icon" :size="14" aria-hidden="true" />
+            <span class="pp-stat-value">{{ winRate }}%</span><span class="pp-stat-label">WIN RATE</span>
+          </div>
+          <div class="pp-stat">
+            <Flame class="pp-stat-icon pp-stat-icon--fire" :size="14" aria-hidden="true" />
+            <span class="pp-stat-value pp-fire">{{ p.best_win_streak }}</span><span class="pp-stat-label">BEST STREAK</span>
+          </div>
+        </section>
+
+        <!-- Play-day calendar: green = win day, red = loss day -->
+        <section v-if="pp.activity.value.length" class="pp-activity">
+          <h3 class="pp-section-title">
+            ACTIVITY <span class="pp-title-note">{{ activityTotal }} GAMES · LAST 6 MONTHS</span>
+          </h3>
+          <ActivityHeatmap :activity="pp.activity.value" />
         </section>
 
         <!-- The brag stats unique to No Mercy -->
         <section v-if="records.length" class="pp-records">
           <h3 class="pp-section-title">NO MERCY RECORD</h3>
-          <ul class="pp-record-list">
-            <li v-for="r in records" :key="r" class="pp-record">{{ r }}</li>
+          <ul class="pp-record-rows">
+            <li v-for="r in records" :key="r.label" class="pp-record-row">
+              <component :is="r.icon" class="pp-record-icon" :size="13" aria-hidden="true" />
+              <span class="pp-record-label">{{ r.label }}</span>
+              <span class="pp-record-value">{{ r.value }}</span>
+            </li>
           </ul>
         </section>
 
-        <!-- Last 10 games -->
+        <!-- Last 10 games, most recent first -->
         <section v-if="p.recent_form.length" class="pp-form">
-          <h3 class="pp-section-title">RECENT FORM</h3>
-          <div class="pp-form-dots">
+          <h3 class="pp-section-title">
+            RECENT FORM <span class="pp-title-note">LATEST FIRST</span>
+          </h3>
+          <div class="pp-form-strip">
             <span
               v-for="(f, i) in p.recent_form"
               :key="i"
-              class="pp-dot"
-              :class="'pp-dot--' + f"
+              class="pp-form-chip"
+              :class="'pp-form-chip--' + f"
               :title="f"
-            ></span>
+            >{{ FORM_LETTER[f] ?? '·' }}</span>
           </div>
         </section>
 
-        <!-- Badge case -->
+        <!-- Badge case: earned medallions lit, locked ones grayed out -->
         <section class="pp-badges">
-          <h3 class="pp-section-title">
-            BADGE CASE <span class="pp-badge-count">{{ earned.size }}/{{ ACHIEVEMENTS.length }}</span>
-          </h3>
+          <div class="pp-badges-head">
+            <h3 class="pp-section-title pp-section-title--flush">BADGE CASE</h3>
+            <span class="pp-badge-count">{{ earned.size }}/{{ ACHIEVEMENTS.length }}</span>
+          </div>
+          <div
+            class="pp-badges-bar"
+            role="img"
+            :aria-label="`${earned.size} of ${ACHIEVEMENTS.length} badges earned`"
+          >
+            <div class="pp-badges-fill" :style="{ width: (earned.size / ACHIEVEMENTS.length) * 100 + '%' }"></div>
+          </div>
           <div class="pp-badge-grid">
             <div
-              v-for="a in ACHIEVEMENTS"
+              v-for="a in visibleBadges"
               :key="a.id"
               class="pp-badge"
               :class="{ earned: earned.has(a.id) }"
             >
-              <span class="pp-badge-title">{{ a.title.toUpperCase() }}</span>
-              <span class="pp-badge-desc">{{ a.desc }}</span>
+              <span class="pp-badge-disc">
+                <component :is="badgeIcon(a.id)" :size="16" aria-hidden="true" />
+              </span>
+              <span class="pp-badge-text">
+                <span class="pp-badge-title">{{ a.title.toUpperCase() }}</span>
+                <span class="pp-badge-desc">{{ a.desc }}</span>
+              </span>
             </div>
           </div>
+          <button
+            v-if="sortedBadges.length > visibleBadges.length || showAllBadges"
+            class="pp-badges-toggle"
+            @click="showAllBadges = !showAllBadges"
+          >
+            {{ showAllBadges ? 'SHOW FEWER' : `SHOW ALL ${ACHIEVEMENTS.length} BADGES` }}
+          </button>
         </section>
       </template>
 
@@ -125,8 +174,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
-import { Star } from 'lucide-vue-next'
+import { ref, computed, onMounted, watch, nextTick, type FunctionalComponent } from 'vue'
+import {
+    Star, Trophy, Swords, Target, Flame, Zap, Shield, Layers, SkipForward, Plus,
+    Droplet, Medal, Award, Crown, Gem, ShieldCheck, TrendingUp, Axe, Skull,
+    Sparkles, Megaphone, Crosshair, Hourglass, ArrowLeftRight, CalendarCheck,
+} from 'lucide-vue-next'
 import gsap from 'gsap'
 import { useProfile } from '../composables/useProfile'
 import { useMotion } from '../composables/useMotion'
@@ -137,6 +190,7 @@ import { flagEmoji } from '../utils/country'
 import { shareProfile } from '../utils/share'
 import { track } from '../utils/analytics'
 import { RANKS, rankFor } from '../utils/ranks'
+import ActivityHeatmap from './ActivityHeatmap.vue'
 import CardBack from './game/CardBack.vue'
 import SiteFooter from './SiteFooter.vue'
 import Button from './ui/Button.vue'
@@ -181,16 +235,72 @@ function clock(secs: number): string {
     return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
 }
 
-const records = computed<string[]>(() => {
+interface RecordRow { icon: FunctionalComponent; label: string; value: string }
+
+const records = computed<RecordRow[]>(() => {
     if (!p.value) return []
-    const out: string[] = []
-    if (p.value.max_stack_survived > 0) out.push(`Survived a +${p.value.max_stack_survived} stack`)
-    if (p.value.min_duration_won) out.push(`Fastest win ${clock(p.value.min_duration_won)}`)
-    if (p.value.max_peak_cards > 0) out.push(`Held ${p.value.max_peak_cards} cards and lived`)
-    if (p.value.sum_skips > 0) out.push(`${p.value.sum_skips} skips dealt`)
-    if (p.value.sum_draw_cards > 0) out.push(`${p.value.sum_draw_cards} draw cards inflicted`)
+    const out: RecordRow[] = []
+    if (p.value.min_duration_won) out.push({ icon: Zap, label: 'FASTEST WIN', value: clock(p.value.min_duration_won) })
+    if (p.value.max_stack_survived > 0) out.push({ icon: Shield, label: 'BIGGEST STACK SURVIVED', value: `+${p.value.max_stack_survived}` })
+    if (p.value.max_peak_cards > 0) out.push({ icon: Layers, label: 'MOST CARDS HELD & LIVED', value: `${p.value.max_peak_cards}` })
+    if (p.value.sum_skips > 0) out.push({ icon: SkipForward, label: 'SKIPS DEALT', value: `${p.value.sum_skips}` })
+    if (p.value.sum_draw_cards > 0) out.push({ icon: Plus, label: 'DRAW CARDS INFLICTED', value: `${p.value.sum_draw_cards}` })
     return out
 })
+
+const FORM_LETTER: Record<string, string> = { won: 'W', lost: 'L', eliminated: 'E', abandoned: '–' }
+
+const activityTotal = computed(() => pp.activity.value.reduce((n, d) => n + d.games, 0))
+
+const sortedBadges = computed(() =>
+    [...ACHIEVEMENTS].sort((a, b) => Number(earned.value.has(b.id)) - Number(earned.value.has(a.id))),
+)
+
+// Collapsed: everything earned plus the next locked goals — enough to
+// tease the ladder without a 100-cell wall.
+const showAllBadges = ref(false)
+const visibleBadges = computed(() => {
+    if (showAllBadges.value) return sortedBadges.value
+    return sortedBadges.value.slice(0, Math.max(earned.value.size + 6, 12))
+})
+
+/** Tier ladders share a family icon, resolved by id prefix. */
+const BADGE_FAMILY_ICONS: Array<[string, FunctionalComponent]> = [
+    ['wins_', Trophy], ['games_', Swords], ['streak_', Flame], ['stack_', Shield],
+    ['peak_', Layers], ['comeback_', TrendingUp], ['skips_', SkipForward], ['draw_', Plus],
+    ['wild_', Sparkles], ['uno_', Megaphone], ['swap_', ArrowLeftRight], ['daily_', CalendarCheck],
+    ['eff_', Crosshair], ['speed_', Zap], ['marathon_', Hourglass], ['rate_', Target],
+]
+
+function badgeIcon(id: string): FunctionalComponent {
+    return BADGE_ICONS[id]
+        ?? BADGE_FAMILY_ICONS.find(([prefix]) => id.startsWith(prefix))?.[1]
+        ?? Medal
+}
+
+const BADGE_ICONS: Record<string, FunctionalComponent> = {
+    first_blood: Droplet,
+    first_win: Trophy,
+    hat_trick: Medal,
+    pentakill: Swords,
+    ten_wins: Award,
+    fifty_wins: Crown,
+    hundred_wins: Gem,
+    stack_16: Shield,
+    stack_24: ShieldCheck,
+    hoarder: Layers,
+    dragon: Flame,
+    comeback: TrendingUp,
+    executioner: Axe,
+    sadist: Skull,
+    wild_thing: Sparkles,
+    town_crier: Megaphone,
+    clean_win: Crosshair,
+    speed_demon: Zap,
+    marathon: Hourglass,
+    swap_meet: ArrowLeftRight,
+    daily_devotee: CalendarCheck,
+}
 
 const earned = computed(() => new Set(p.value ? earnedFromAggregates(p.value).map(a => a.id) : []))
 
@@ -327,7 +437,7 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
   padding: var(--spacing-6) var(--spacing-4) var(--spacing-8);
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-6);
+  gap: var(--spacing-8);
 }
 
 .pp-hero {
@@ -369,13 +479,25 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
 
 .pp-flag { font-size: 1.1rem; line-height: 1; flex-shrink: 0; }
 
-.pp-rank {
+.pp-chips {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+}
+
+.pp-chip {
+  display: inline-flex;
   align-items: center;
   gap: var(--spacing-1);
   font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  letter-spacing: 0.16em;
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 2px 10px;
+  white-space: nowrap;
 }
 
 .pp-progress {
@@ -403,11 +525,12 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
   color: var(--text-muted);
 }
 
-.pp-since {
+.pp-title-note {
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  font-size: 0.6rem;
   letter-spacing: 0.12em;
   color: var(--text-muted);
+  margin-left: var(--spacing-2);
 }
 
 .pp-empty {
@@ -435,6 +558,14 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
   border-radius: var(--radius-sm);
 }
 
+.pp-stat-icon {
+  color: var(--text-muted);
+}
+
+.pp-stat-icon--fire {
+  color: var(--color-hazard, #ffcc00);
+}
+
 .pp-stat-value {
   font-family: var(--font-display);
   font-size: 1.4rem;
@@ -455,80 +586,164 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
   font-size: 0.95rem;
   letter-spacing: 0.14em;
   color: var(--text-secondary);
-  margin: 0 0 var(--spacing-3);
+  margin: 0 0 var(--spacing-4);
 }
 
 .pp-records {
-  padding: var(--spacing-4);
-  background: rgba(255, 42, 42, 0.04);
-  border: 1px solid rgba(255, 42, 42, 0.25);
-  border-radius: var(--radius-sm);
+  border-left: 2px solid var(--color-alert, #ff2a2a);
+  padding-left: var(--spacing-4);
 }
 
-.pp-record-list {
+.pp-record-rows {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-2) var(--spacing-4);
 }
 
-.pp-record {
+.pp-record-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.pp-record-row:last-child { border-bottom: none; }
+
+.pp-record-icon {
+  flex-shrink: 0;
+  color: var(--color-alert, #ff2a2a);
+}
+
+.pp-record-label {
+  flex: 1;
   font-family: var(--font-mono);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
   color: var(--text-secondary);
 }
 
-.pp-record::before {
-  content: '▸ ';
-  color: var(--color-alert);
+.pp-record-value {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  letter-spacing: 0.06em;
+  color: var(--text-primary);
 }
 
-.pp-form-dots {
+.pp-form-strip {
   display: flex;
   gap: var(--spacing-2);
 }
 
-.pp-dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
+.pp-form-chip {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
 }
 
-.pp-dot--won { background: #00ff66; box-shadow: 0 0 6px rgba(0, 255, 102, 0.5); }
-.pp-dot--lost { background: rgba(255, 255, 255, 0.25); }
-.pp-dot--eliminated { background: var(--color-alert); }
-.pp-dot--abandoned { background: rgba(255, 255, 255, 0.12); }
+.pp-form-chip--won {
+  background: rgba(0, 255, 102, 0.18);
+  color: #00ff66;
+  box-shadow: inset 0 0 0 1px rgba(0, 255, 102, 0.4);
+}
+
+.pp-form-chip--eliminated {
+  background: rgba(255, 42, 42, 0.15);
+  color: var(--color-alert, #ff2a2a);
+  box-shadow: inset 0 0 0 1px rgba(255, 42, 42, 0.35);
+}
+
+.pp-form-chip--lost {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+}
+
+.pp-badges-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-2);
+}
+
+.pp-section-title--flush { margin: 0; }
 
 .pp-badge-count {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
+  letter-spacing: 0.1em;
   color: var(--color-hazard);
-  margin-left: var(--spacing-2);
+}
+
+.pp-badges-bar {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: var(--spacing-4);
+}
+
+.pp-badges-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-hazard, #ffcc00);
 }
 
 .pp-badge-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: var(--spacing-2);
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: var(--spacing-3);
 }
 
 .pp-badge {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: var(--spacing-2) var(--spacing-3);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: var(--radius-sm);
-  opacity: 0.35;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.015);
+  opacity: 0.45;
 }
 
 .pp-badge.earned {
   opacity: 1;
-  border-color: rgba(255, 204, 0, 0.4);
-  background: rgba(255, 204, 0, 0.04);
+  border-color: rgba(255, 204, 0, 0.25);
+}
+
+.pp-badge-disc {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+}
+
+.pp-badge.earned .pp-badge-disc {
+  border-color: rgba(255, 204, 0, 0.45);
+  background: rgba(255, 204, 0, 0.08);
+  color: var(--color-hazard, #ffcc00);
+  box-shadow: 0 0 10px rgba(255, 204, 0, 0.15);
+}
+
+.pp-badge-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
 }
 
 .pp-badge-title {
@@ -544,7 +759,27 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
   font-family: var(--font-mono);
   font-size: 0.6rem;
   color: var(--text-muted);
-  line-height: 1.4;
+  line-height: 1.45;
+}
+
+.pp-badges-toggle {
+  width: 100%;
+  margin-top: var(--spacing-3);
+  padding: var(--spacing-3);
+  background: none;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.14em;
+  color: var(--text-secondary);
+  cursor: pointer;
+  min-height: 40px;
+}
+
+.pp-badges-toggle:hover {
+  border-color: rgba(255, 204, 0, 0.4);
+  color: var(--color-hazard, #ffcc00);
 }
 
 .pp-cta {

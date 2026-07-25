@@ -9,6 +9,7 @@
 import { ref } from 'vue'
 import { supabase } from '../lib/supabase'
 import type { ProfileAggregates } from '../utils/achievements'
+import type { ActivityDay } from '../utils/activity'
 
 export interface PublicProfile extends ProfileAggregates {
     username: string
@@ -23,17 +24,27 @@ export function useProfile() {
     const notFound = ref(false)
     const unavailable = ref(false)
     const profile = ref<PublicProfile | null>(null)
+    // Empty until profile-activity.sql is run — the heatmap hides itself.
+    const activity = ref<ActivityDay[]>([])
 
     async function fetchProfile(code: string) {
         loading.value = true
         notFound.value = false
         unavailable.value = false
+        activity.value = []
         try {
-            const { data, error } = await supabase.rpc('public_profile', { p_share_code: code })
+            const [{ data, error }, act] = await Promise.all([
+                supabase.rpc('public_profile', { p_share_code: code }),
+                supabase.rpc('profile_activity', {
+                    p_share_code: code,
+                    p_tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                }),
+            ])
             if (error) {
                 unavailable.value = true
                 return
             }
+            activity.value = act.error ? [] : ((act.data || []) as ActivityDay[])
             const row = (data as PublicProfile[] | null)?.[0]
             if (!row) {
                 notFound.value = true
@@ -47,5 +58,5 @@ export function useProfile() {
         }
     }
 
-    return { loading, notFound, unavailable, profile, fetchProfile }
+    return { loading, notFound, unavailable, profile, activity, fetchProfile }
 }
