@@ -41,7 +41,9 @@
             <h1 class="pp-name">{{ p.username }}</h1>
             <span v-if="flagEmoji(p.country)" class="pp-flag" :title="p.country ?? ''">{{ flagEmoji(p.country) }}</span>
           </div>
-          <div class="pp-rank" :style="{ color: rank.color }">⭐ {{ rank.title.toUpperCase() }}</div>
+          <div class="pp-rank" :style="{ color: rank.color }">
+            <Star :size="13" aria-hidden="true" /> {{ rank.title.toUpperCase() }}
+          </div>
           <div v-if="nextRank" class="pp-progress">
             <div class="pp-progress-bar" role="img" :aria-label="`${nextRank.winsNeeded} wins to ${nextRank.title}`">
               <div class="pp-progress-fill" :style="{ width: progressPct + '%', background: rank.color }"></div>
@@ -124,6 +126,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { Star } from 'lucide-vue-next'
 import gsap from 'gsap'
 import { useProfile } from '../composables/useProfile'
 import { useMotion } from '../composables/useMotion'
@@ -243,7 +246,7 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-3);
-  padding: var(--spacing-4) var(--spacing-5);
+  padding: var(--spacing-4) var(--spacing-6);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
@@ -324,13 +327,13 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
   padding: var(--spacing-6) var(--spacing-4) var(--spacing-8);
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-5);
+  gap: var(--spacing-6);
 }
 
 .pp-hero {
   display: flex;
   align-items: center;
-  gap: var(--spacing-5);
+  gap: var(--spacing-6);
   padding: var(--spacing-4);
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -367,6 +370,9 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
 .pp-flag { font-size: 1.1rem; line-height: 1; flex-shrink: 0; }
 
 .pp-rank {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   letter-spacing: 0.16em;
@@ -545,7 +551,7 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
-  padding: var(--spacing-5);
+  padding: var(--spacing-6);
   text-align: center;
   background: rgba(0, 229, 255, 0.04);
   border: 1px solid rgba(0, 229, 255, 0.3);

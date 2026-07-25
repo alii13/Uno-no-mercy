@@ -63,20 +63,39 @@
 
       <!-- No active game — focused entry view with one primary CTA -->
       <div v-if="!mpStore.currentGame" class="lobby-entry">
-        <div class="entry-head">
-          <h1 class="entry-heading">HOW DO YOU WANT TO PLAY?</h1>
-          <!-- Day streak: the reason to come back tomorrow. The at-risk state is
-               the mechanic — a live streak that hasn't been fed today says so. -->
-          <div
-            v-if="retention.effectiveStreak > 0"
-            class="streak-chip"
-            :class="{ 'at-risk': !retention.playedToday }"
-            role="status"
-          >
-            <Flame class="streak-flame" :stroke-width="2.5" aria-hidden="true" />
-            <span class="streak-count">{{ retention.effectiveStreak }}-DAY STREAK</span>
-            <span v-if="!retention.playedToday" class="streak-state streak-state--warn">PLAY TODAY TO KEEP IT</span>
+        <h1 class="entry-heading">HOW DO YOU WANT TO PLAY?</h1>
+
+        <!-- Daily ritual first: the same date-seeded deal for everyone, once
+             a day. The streak feeds on it, so the chip lives in its header —
+             at-risk state is the comeback mechanic. -->
+        <div class="daily-card" :class="{ done: !!dailyRecord }">
+          <div class="daily-head">
+            <span class="daily-title">TODAY'S DEAL</span>
+            <span class="daily-date">{{ dailyDateLabel }}</span>
+            <div
+              v-if="retention.effectiveStreak > 0"
+              class="streak-chip"
+              :class="{ 'at-risk': !retention.playedToday }"
+              role="status"
+            >
+              <Flame class="streak-flame" :stroke-width="2.5" aria-hidden="true" />
+              <span class="streak-count">{{ retention.effectiveStreak }}-DAY STREAK</span>
+              <span v-if="!retention.playedToday" class="streak-state streak-state--warn">PLAY TODAY TO KEEP IT</span>
+            </div>
           </div>
+          <template v-if="!dailyRecord">
+            <p class="daily-desc">The same shuffle for every player in the world. One scored attempt.</p>
+            <Button variant="secondary" size="md" block @click="$emit('playDaily')">
+              PLAY TODAY'S DEAL
+            </Button>
+          </template>
+          <p v-else class="daily-desc daily-result">
+            {{ dailyRecord.result === 'won' ? `CLEARED IN ${dailyRecord.turns} TURNS` : dailyRecord.result === 'eliminated' ? 'MERCY GOT YOU TODAY' : 'LOST TODAY' }}
+            — new deal tomorrow.
+          </p>
+          <button v-if="lb.available.value" class="lb-link" @click="openLeaderboard">
+            VIEW LEADERBOARD &rarr;
+          </button>
         </div>
 
         <!-- Primary action: create a room. The rules choice only applies to
@@ -108,40 +127,26 @@
           <p class="mode-desc">{{ currentModeDesc }} · Share the room code with friends.</p>
         </div>
 
-        <!-- Other ways in: equal-weight tiles, each carrying its own microcopy -->
-        <div class="mode-tiles">
-          <button class="mode-tile" :disabled="mpStore.loading" @click="handleQuickMatch">
-            <span class="tile-title">{{ mpStore.loading ? 'MATCHING…' : 'QUICK MATCH' }}</span>
-            <span class="tile-sub">vs a stranger</span>
+        <!-- Other ways in: icon-led list rows, one identity color per mode -->
+        <div class="mode-list" role="group" aria-label="Other ways to play">
+          <span class="mode-overline">OR JUMP IN</span>
+          <button class="mode-item" :disabled="mpStore.loading" @click="handleQuickMatch">
+            <span class="mode-glyph mode-glyph--green"><Zap :size="15" :stroke-width="2.5" aria-hidden="true" /></span>
+            <span class="mode-name">{{ mpStore.loading ? 'MATCHING…' : 'QUICK MATCH' }}</span>
+            <span class="mode-hint">vs a stranger</span>
+            <ChevronRight class="mode-chev" :size="16" aria-hidden="true" />
           </button>
-          <button class="mode-tile" @click="showJoinModal = true">
-            <span class="tile-title">JOIN WITH CODE</span>
-            <span class="tile-sub">join a friend</span>
+          <button class="mode-item" @click="showJoinModal = true">
+            <span class="mode-glyph mode-glyph--cyan"><Hash :size="15" :stroke-width="2.5" aria-hidden="true" /></span>
+            <span class="mode-name">JOIN WITH CODE</span>
+            <span class="mode-hint">join a friend</span>
+            <ChevronRight class="mode-chev" :size="16" aria-hidden="true" />
           </button>
-          <button class="mode-tile mode-tile--ghost" @click="$emit('playLocal', selectedStackingMode)">
-            <span class="tile-title">PLAY VS BOT</span>
-            <span class="tile-sub">practice solo</span>
-          </button>
-        </div>
-
-        <!-- Daily challenge: the same date-seeded deal for everyone, once a day. -->
-        <div class="daily-card" :class="{ done: !!dailyRecord }">
-          <div class="daily-head">
-            <span class="daily-title">TODAY'S DEAL</span>
-            <span class="daily-date">{{ dailyDateLabel }}</span>
-          </div>
-          <template v-if="!dailyRecord">
-            <p class="daily-desc">The same shuffle for every player in the world. One scored attempt.</p>
-            <Button variant="secondary" size="md" block @click="$emit('playDaily')">
-              PLAY TODAY'S DEAL
-            </Button>
-          </template>
-          <p v-else class="daily-desc daily-result">
-            {{ dailyRecord.result === 'won' ? `CLEARED IN ${dailyRecord.turns} TURNS` : dailyRecord.result === 'eliminated' ? 'MERCY GOT YOU TODAY' : 'LOST TODAY' }}
-            — new deal tomorrow.
-          </p>
-          <button v-if="lb.available.value" class="lb-link" @click="openLeaderboard">
-            VIEW LEADERBOARD &rarr;
+          <button class="mode-item" @click="$emit('playLocal', selectedStackingMode)">
+            <span class="mode-glyph mode-glyph--dim"><Bot :size="15" :stroke-width="2.5" aria-hidden="true" /></span>
+            <span class="mode-name">PLAY VS BOT</span>
+            <span class="mode-hint">practice solo</span>
+            <ChevronRight class="mode-chev" :size="16" aria-hidden="true" />
           </button>
         </div>
 
@@ -417,7 +422,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { Copy, Check, Flame, Pencil, X } from 'lucide-vue-next'
+import { Copy, Check, Flame, Pencil, X, Zap, Hash, Bot, ChevronRight } from 'lucide-vue-next'
 import { useRetentionStore } from '../stores/retentionStore'
 import { getDailyRecord } from '../utils/dailyChallenge'
 import { useLeaderboard } from '../composables/useLeaderboard'
@@ -822,7 +827,7 @@ function copyLink() {
   flex-direction: column;
   justify-content: center;
   padding: var(--spacing-8) var(--spacing-4);
-  max-width: 480px;
+  max-width: 600px;
   width: 100%;
   margin: 0 auto;
   gap: var(--spacing-6);
@@ -839,14 +844,27 @@ function copyLink() {
   border-radius: var(--radius-sm);
 }
 
+/* The daily ritual wears the streak's hazard yellow — one retention loop,
+   one color family, visually distinct from the red create zone and the
+   cyan multiplayer world. */
 .daily-card {
-  background: rgba(0, 229, 255, 0.04);
-  border: 1px solid rgba(0, 229, 255, 0.3);
+  background: rgba(255, 204, 0, 0.04);
+  border: 1px solid rgba(255, 204, 0, 0.3);
   border-radius: var(--radius-sm);
-  padding: var(--spacing-3);
+  padding: var(--spacing-4);
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2);
+  gap: var(--spacing-3);
+}
+
+.daily-card :deep(.btn--secondary) {
+  border-color: var(--color-hazard);
+  color: var(--color-hazard);
+}
+
+.daily-card :deep(.btn--secondary:hover:not(:disabled)) {
+  background: var(--color-hazard);
+  color: #000;
 }
 
 .daily-card.done {
@@ -856,8 +874,13 @@ function copyLink() {
 
 .daily-head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-wrap: wrap;
+}
+
+.daily-head .streak-chip {
+  margin-left: auto;
 }
 
 .daily-title {
@@ -882,7 +905,7 @@ function copyLink() {
 }
 
 .daily-result {
-  color: rgba(0, 229, 255, 0.85);
+  color: rgba(255, 204, 0, 0.85);
   letter-spacing: 0.06em;
 }
 
@@ -911,12 +934,12 @@ function copyLink() {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   letter-spacing: 0.14em;
-  color: rgba(0, 229, 255, 0.7);
+  color: rgba(255, 204, 0, 0.7);
   cursor: pointer;
 }
 
 .lb-link:hover {
-  color: rgba(0, 229, 255, 1);
+  color: var(--color-hazard);
 }
 
 .streak-keep-link {
@@ -1027,22 +1050,17 @@ function copyLink() {
 .lobby-entry {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-4);
+  gap: var(--spacing-6);
 }
 
-.entry-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-2);
-  flex-wrap: wrap;
-}
 
+/* The create zone wears the primary red, faintly — it frames the hero
+   button without competing with it. */
 .create-card {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 42, 42, 0.03);
+  border: 1px solid rgba(255, 42, 42, 0.22);
   border-radius: var(--radius-sm);
-  padding: var(--spacing-3);
+  padding: var(--spacing-4);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
@@ -1102,65 +1120,104 @@ function copyLink() {
   background: rgba(255, 204, 0, 0.06);
 }
 
-/* MODE TILES */
-.mode-tiles {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--spacing-2);
-}
-
-.mode-tile {
+/* MODE LIST — secondary ways in are borderless rows with an identity-color
+   glyph each, not boxes; the eye separates them from the daily/create zones
+   by shape, not just spacing. */
+.mode-list {
   display: flex;
   flex-direction: column;
+}
+
+.mode-overline {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.3em;
+  color: var(--text-muted);
+  padding: 0 var(--spacing-2) var(--spacing-2);
+}
+
+.mode-item {
+  display: flex;
   align-items: center;
-  gap: var(--spacing-1);
+  gap: var(--spacing-3);
+  min-height: 56px;
   padding: var(--spacing-3) var(--spacing-2);
-  min-height: 64px;
-  background: transparent;
-  border: 2px solid var(--color-neon-blue);
-  border-radius: var(--radius-sm);
+  background: none;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  text-align: left;
   cursor: pointer;
-  transition:
-    background var(--duration-snap) var(--ease-snap),
-    color var(--duration-snap) var(--ease-snap),
-    transform var(--duration-snap) var(--ease-snap);
+  transition: background var(--duration-snap) var(--ease-snap);
 }
 
-.mode-tile:hover:not(:disabled) {
-  transform: translateY(-2px);
-  background: rgba(0, 229, 255, 0.08);
+.mode-item:first-of-type {
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
 }
 
-.mode-tile:disabled {
+.mode-item:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.mode-item:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
-.mode-tile--ghost {
-  border-color: rgba(255, 255, 255, 0.18);
+.mode-glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
 }
 
-.mode-tile--ghost .tile-title {
-  color: var(--text-secondary);
+.mode-glyph--green {
+  color: #00ff66;
+  background: rgba(0, 255, 102, 0.08);
+  border: 1px solid rgba(0, 255, 102, 0.25);
 }
 
-/* Titles share a top line, microcopy shares a bottom line — a wrapped
-   title grows the middle, never shifts its neighbors' baselines. */
-.tile-title {
+.mode-glyph--cyan {
+  color: var(--color-neon-blue);
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.25);
+}
+
+.mode-glyph--dim {
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mode-name {
   font-family: var(--font-display);
   font-size: var(--text-sm);
   letter-spacing: 0.1em;
-  color: var(--color-neon-blue);
-  text-align: center;
-  flex: 1;
+  color: var(--text-primary);
 }
 
-.tile-sub {
+.mode-hint {
+  margin-left: auto;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--text-muted);
   letter-spacing: 0.04em;
-  margin-top: auto;
+  flex-shrink: 0;
+}
+
+.mode-chev {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition:
+    transform var(--duration-snap) var(--ease-snap),
+    color var(--duration-snap) var(--ease-snap);
+}
+
+.mode-item:hover:not(:disabled) .mode-chev {
+  transform: translateX(3px);
+  color: var(--text-secondary);
 }
 
 /* TERTIARY LINKS ROW */
@@ -1430,6 +1487,7 @@ function copyLink() {
   font-size: 1.4rem;
   letter-spacing: 0.1em;
   color: var(--text-primary);
+  text-align: center;
   margin: 0;
 }
 
@@ -1463,24 +1521,9 @@ function copyLink() {
   background: #00ff66;
 }
 
-@media (max-width: 480px) {
+@media (max-width: 560px) {
   .entry-heading { font-size: 1.15rem; }
-  .entry-head { justify-content: center; text-align: center; }
-  /* One column; each tile becomes a row so three of them stay compact. */
-  .mode-tiles { grid-template-columns: 1fr; }
-  .mode-tile {
-    flex-direction: row;
-    justify-content: space-between;
-    min-height: 52px;
-    padding: var(--spacing-2) var(--spacing-3);
-  }
-  .mode-tile .tile-title {
-    flex: initial;
-    text-align: left;
-  }
-  .mode-tile .tile-sub {
-    margin-top: 0;
-  }
+  .mode-desc { line-height: 1.8; }
 }
 
 .waiting-nudge {
@@ -1706,6 +1749,21 @@ function copyLink() {
 
   .username-chip {
     display: none;
+  }
+
+  /* Brand + account links share one row; compact the links so they fit,
+     and right-anchor the cluster so a worst-case wrap still looks placed. */
+  .top-bar-cta {
+    gap: var(--spacing-1);
+    margin-left: auto;
+  }
+
+  .lobby-top-bar .text-link {
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    padding: var(--spacing-1) var(--spacing-2);
+    min-height: 36px;
+    white-space: nowrap;
   }
 
   .lobby-content {

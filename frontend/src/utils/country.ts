@@ -32,7 +32,8 @@ export async function syncCountryToProfile(current: string | null | undefined): 
     attempted = true
     try {
         const res = await fetch('/api/geo')
-        if (!res.ok) return
+        // A misrouted function serves the SPA shell with a 200 — only JSON counts.
+        if (!res.ok || !res.headers.get('content-type')?.includes('json')) return
         const body = await res.json() as { country?: string | null }
         const country = usableCountry(body.country)
         if (!country || country === current) return

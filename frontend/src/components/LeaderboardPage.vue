@@ -17,7 +17,10 @@
           :disabled="!s.share_code"
           @click="s.share_code && navigate({ name: 'profile', code: s.share_code })"
         >
-          <span class="lb-spot-kind">{{ SPOT_META[s.kind].label }}</span>
+          <span class="lb-spot-kind">
+            <component :is="SPOT_META[s.kind].icon" :size="11" aria-hidden="true" />
+            {{ SPOT_META[s.kind].label }}
+          </span>
           <span class="lb-spot-value">{{ SPOT_META[s.kind].fmt(s.value) }}</span>
           <span class="lb-spot-name">{{ s.username }} {{ flagEmoji(s.country) }}</span>
         </button>
@@ -125,6 +128,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, nextTick, watch } from 'vue'
+import { Zap, Shield, Crown } from 'lucide-vue-next'
 import gsap from 'gsap'
 import { useLeaderboard } from '../composables/useLeaderboard'
 import { useMotion } from '../composables/useMotion'
@@ -157,9 +161,9 @@ function clock(secs: number): string {
 }
 
 const SPOT_META = {
-  fastest_win: { label: '⚡ FASTEST WIN', fmt: clock },
-  biggest_stack: { label: '🛡 STACK SURVIVOR', fmt: (v: number) => `+${v}` },
-  most_wins: { label: '👑 MOST WINS', fmt: (v: number) => `${v}W` },
+  fastest_win: { label: 'FASTEST WIN', icon: Zap, fmt: clock },
+  biggest_stack: { label: 'STACK SURVIVOR', icon: Shield, fmt: (v: number) => `+${v}` },
+  most_wins: { label: 'MOST WINS', icon: Crown, fmt: (v: number) => `${v}W` },
 } as const
 
 function contextLine(which: 'daily' | 'weekly'): string {
@@ -202,7 +206,7 @@ onMounted(() => { void lb.fetchBoards() })
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-3);
-  padding: var(--spacing-4) var(--spacing-5);
+  padding: var(--spacing-4) var(--spacing-6);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
@@ -272,6 +276,9 @@ onMounted(() => { void lb.fetchBoards() })
 }
 
 .lb-spot-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
   font-family: var(--font-mono);
   font-size: 0.6rem;
   letter-spacing: 0.12em;
