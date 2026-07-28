@@ -125,15 +125,6 @@
         <!-- Primary action: create a room. The rules choice only applies to
              created games, so it lives inside the same card. -->
         <div class="create-card">
-          <Button
-            variant="primary"
-            size="lg"
-            block
-            :disabled="mpStore.loading"
-            @click="handleCreateGame"
-          >
-            {{ mpStore.loading ? 'CREATING...' : 'CREATE GAME' }}
-          </Button>
           <div class="mode-row">
             <span class="mode-label">Rules</span>
             <div class="mode-pills">
@@ -149,6 +140,15 @@
             </div>
           </div>
           <p class="mode-desc">{{ currentModeDesc }}</p>
+          <Button
+            variant="primary"
+            size="lg"
+            block
+            :disabled="mpStore.loading"
+            @click="handleCreateGame"
+          >
+            {{ mpStore.loading ? 'CREATING...' : 'CREATE GAME' }}
+          </Button>
         </div>
 
         <!-- Other ways in: icon-led list rows, one identity color per mode -->
@@ -1217,16 +1217,25 @@ function copyLink() {
       'heading heading'
       'rail    main';
     column-gap: var(--spacing-8);
-    align-items: start;
+    /* stretch, not start: the rail runs to the same height as the main
+       column so the two sides bottom out together. */
+    align-items: stretch;
   }
 
   .entry-heading {
     grid-area: heading;
-    text-align: left;
   }
 
   .lobby-rail { grid-area: rail; }
   .lobby-main { grid-area: main; }
+
+  /* The deal keeps its natural height and the board takes up the slack, so
+     the extra height lands in the list rather than as a gap between cards.
+     When the board is absent (SQL not installed) the deal simply sits at the
+     top of a full-height rail, which is how it already looked. */
+  .lobby-rail .daily-card { flex: 0 0 auto; }
+  .lobby-rail .board-card { flex: 1 1 auto; }
+  .lobby-rail .board-card .lb-link { margin-top: auto; }
 }
 
 
@@ -1669,7 +1678,7 @@ function copyLink() {
   font-size: 1.4rem;
   letter-spacing: 0.1em;
   color: var(--text-primary);
-  text-align: left;
+  text-align: center;
   margin: 0;
 }
 
