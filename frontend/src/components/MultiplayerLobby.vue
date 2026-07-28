@@ -124,14 +124,14 @@
               </button>
             </div>
           </div>
-          <p class="mode-desc">{{ currentModeDesc }} · Share the room code with friends.</p>
+          <p class="mode-desc">{{ currentModeDesc }}</p>
         </div>
 
         <!-- Other ways in: icon-led list rows, one identity color per mode -->
         <div class="mode-list" role="group" aria-label="Other ways to play">
           <span class="mode-overline">OR JUMP IN</span>
           <button class="mode-item" :disabled="mpStore.loading" @click="handleQuickMatch">
-            <span class="mode-glyph mode-glyph--green"><Zap :size="15" :stroke-width="2.5" aria-hidden="true" /></span>
+            <span class="mode-glyph mode-glyph--cyan"><Zap :size="15" :stroke-width="2.5" aria-hidden="true" /></span>
             <span class="mode-name">{{ mpStore.loading ? 'MATCHING…' : 'QUICK MATCH' }}</span>
             <span class="mode-hint">vs a stranger</span>
             <ChevronRight class="mode-chev" :size="16" aria-hidden="true" />
@@ -180,8 +180,6 @@
             <span v-else>MY STATS &rarr;</span>
           </button>
         </div>
-
-        <LandingStatsBadge class="lobby-stats" />
       </div>
 
       <!-- Waiting room — after creating, before starting -->
@@ -439,7 +437,6 @@ import { useMultiplayerStore } from '../stores/multiplayerStore'
 import { useVoiceStore } from '../stores/voiceStore'
 import { useGameStore } from '../stores/gameStore'
 import SiteFooter from './SiteFooter.vue'
-import LandingStatsBadge from './LandingStatsBadge.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import RulesModal from './RulesModal.vue'
 import Button from './ui/Button.vue'
@@ -857,8 +854,8 @@ function copyLink() {
    one color family, visually distinct from the red create zone and the
    cyan multiplayer world. */
 .daily-card {
-  background: rgba(255, 204, 0, 0.04);
-  border: 1px solid rgba(255, 204, 0, 0.3);
+  background: rgba(255, 204, 0, 0.02);
+  border: 1px solid rgba(255, 204, 0, 0.16);
   border-radius: var(--radius-sm);
   padding: var(--spacing-4);
   display: flex;
@@ -1083,13 +1080,12 @@ function copyLink() {
 }
 
 
-/* The create zone wears the primary red, faintly — it frames the hero
-   button without competing with it. */
+/* The create zone is unboxed on purpose: the button is the only saturated
+   element on the screen, so a red-tinted frame around it only competed with
+   it. Everything else here stays quiet. The button runs full-bleed while the
+   controls under it share the mode-list inset, so the column has one text
+   edge and exactly one element that breaks it. */
 .create-card {
-  background: rgba(255, 42, 42, 0.03);
-  border: 1px solid rgba(255, 42, 42, 0.22);
-  border-radius: var(--radius-sm);
-  padding: var(--spacing-4);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
@@ -1099,10 +1095,12 @@ function copyLink() {
   display: flex;
   align-items: center;
   gap: var(--spacing-3);
+  padding: 0 var(--spacing-2);
 }
 
 .mode-desc {
   margin: 0;
+  padding: 0 var(--spacing-2);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--text-secondary);
@@ -1118,17 +1116,25 @@ function copyLink() {
   flex-shrink: 0;
 }
 
+/* One hairline container holds all three options, so the group reads as a
+   single control instead of three chips floating in a row — and the mobile
+   full-width stretch below lands inside a frame rather than as loose text. */
 .mode-pills {
   display: flex;
-  gap: var(--spacing-1);
-  flex: 1;
-  justify-content: flex-end;
+  gap: 2px;
+  margin-left: auto;
+  padding: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
 }
 
+/* Reads as one segmented control, not three outlined chips: only the
+   selected rule set is drawn, the alternatives are plain text until
+   hovered. */
 .mode-pill {
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--text-secondary);
+  border: none;
+  color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   letter-spacing: 0.12em;
@@ -1139,14 +1145,12 @@ function copyLink() {
 }
 
 .mode-pill:hover {
-  border-color: var(--color-hazard-dim);
   color: var(--text-primary);
 }
 
 .mode-pill.active {
-  border-color: var(--color-hazard);
   color: var(--color-hazard);
-  background: rgba(255, 204, 0, 0.06);
+  background: rgba(255, 204, 0, 0.1);
 }
 
 /* MODE LIST — secondary ways in are borderless rows with an identity-color
@@ -1155,6 +1159,9 @@ function copyLink() {
 .mode-list {
   display: flex;
   flex-direction: column;
+  /* Extra air above the secondary group. With every block on the same
+     lobby-entry gap the stack read as one flat list with no primary. */
+  margin-top: var(--spacing-4);
 }
 
 .mode-overline {
@@ -1198,26 +1205,19 @@ function copyLink() {
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: var(--radius-sm);
   flex-shrink: 0;
 }
 
-.mode-glyph--green {
-  color: #00ff66;
-  background: rgba(0, 255, 102, 0.08);
-  border: 1px solid rgba(0, 255, 102, 0.25);
-}
-
+/* Bare glyphs, no chip. The icon's own shape already separates the rows;
+   a tinted box and border around each one added three more containers to a
+   column that had too many. Colour still carries the zone (cyan =
+   multiplayer, neutral = practice) per the palette convention. */
 .mode-glyph--cyan {
   color: var(--color-neon-blue);
-  background: rgba(0, 229, 255, 0.08);
-  border: 1px solid rgba(0, 229, 255, 0.25);
 }
 
 .mode-glyph--dim {
   color: var(--text-muted);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .mode-name {
@@ -1282,10 +1282,6 @@ function copyLink() {
 
 .stats-link:hover {
   color: var(--color-neon-blue);
-}
-
-.lobby-stats {
-  align-self: center;
 }
 
 /* WAITING ROOM */
@@ -1806,8 +1802,11 @@ function copyLink() {
     gap: var(--spacing-2);
   }
 
+  /* Label stacks above the control here, so the control spans the column
+     rather than right-anchoring away from its own label. */
   .mode-pills {
-    justify-content: stretch;
+    width: 100%;
+    margin-left: 0;
   }
 
   .mode-pill {
