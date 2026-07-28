@@ -1062,6 +1062,26 @@ function copyLink() {
   gap: var(--spacing-6);
 }
 
+/* Wide screens only: the gutter beside the 600px column is dead space, and
+   the daily card is the one block that doesn't need to sit in the create
+   flow. Moving it there lifts create + jump-in above the fold.
+   Absolutely positioned rather than gridded so the centred column keeps its
+   exact position. Below 1200px the gutter can't fit the card, so none of
+   this applies and the stacked order stands. DOM order is unchanged either
+   way, so reading and tab order still reach the daily card first. */
+@media (min-width: 1200px) {
+  .lobby-entry {
+    position: relative;
+  }
+
+  .daily-card {
+    position: absolute;
+    top: 0;
+    right: calc(100% + var(--spacing-6));
+    width: 260px;
+  }
+}
+
 
 /* The create zone wears the primary red, faintly — it frames the hero
    button without competing with it. */
