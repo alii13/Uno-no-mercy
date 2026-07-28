@@ -1759,6 +1759,13 @@ function copyLink() {
   left: 0;
 }
 
+/* The nudge is an overlay hung below the mic button. Over the game board
+   that's free space; in this column it lands exactly on the nudge text and
+   button below, so reserve its footprint for the one render it's visible. */
+.waiting-voice:has(.voice-nudge) {
+  margin-bottom: 64px;
+}
+
 .waiting-voice-hint {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
