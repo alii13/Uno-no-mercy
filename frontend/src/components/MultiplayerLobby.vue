@@ -228,8 +228,13 @@
               {{ copied ? 'LINK COPIED' : 'COPY LINK' }}
             </button>
           </div>
-          <span class="room-mode-tag">{{ modeLabel(mpStore.stackingMode) }} RULES</span>
-          <p class="room-mode-desc">{{ modeDesc(mpStore.stackingMode) }}</p>
+          <!-- Same content, structured: the rule set is card metadata, so it
+               reads as a hairline-separated footer instead of floating in the
+               same stack as the code and its action. -->
+          <div class="room-mode-footer">
+            <span class="room-mode-tag">{{ modeLabel(mpStore.stackingMode) }} RULES</span>
+            <p class="room-mode-desc">{{ modeDesc(mpStore.stackingMode) }}</p>
+          </div>
         </div>
 
         <div class="players-section">
@@ -1237,8 +1242,11 @@ function copyLink() {
    list) — which is what makes the card borders line up across the two
    columns. The pair is centred as a unit, so there's no lone void. */
 @media (min-width: 1180px) {
-  /* Widened to hold rail + gap + the original 600px column, still centred. */
-  .lobby-content {
+  /* Widened to hold rail + gap + the original 600px column, still centred.
+     Scoped to the entry state (--top) — the waiting room and every other
+     lobby view are single 600px columns and stretch into hollow slabs at
+     this width. */
+  .lobby-content--top {
     max-width: 964px;
   }
 
@@ -1461,8 +1469,8 @@ function copyLink() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-6);
+  gap: var(--spacing-3);
+  padding: var(--spacing-6) var(--spacing-4) var(--spacing-4);
   background: rgba(255, 204, 0, 0.04);
   border: 1px solid var(--color-hazard-dim);
   border-radius: var(--radius-md);
@@ -1480,6 +1488,7 @@ function copyLink() {
   font-family: var(--font-display);
   font-size: clamp(2.5rem, 9vw, 3.5rem);
   letter-spacing: 0.4rem;
+  line-height: 1.1;
   color: var(--color-hazard);
   text-shadow: 0 0 20px rgba(255, 204, 0, 0.4);
 }
@@ -1530,12 +1539,24 @@ function copyLink() {
   height: 14px;
 }
 
+/* Rule-set metadata as the card's footer: one hairline in the card's own
+   hazard family separates it from the code + action above. */
+.room-mode-footer {
+  width: 100%;
+  margin-top: var(--spacing-2);
+  padding-top: var(--spacing-3);
+  border-top: 1px solid rgba(255, 204, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
 .room-mode-tag {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--text-muted);
   letter-spacing: 0.2em;
-  margin-top: var(--spacing-2);
 }
 
 .players-section {
@@ -1687,8 +1708,8 @@ function copyLink() {
   color: var(--text-muted);
   text-align: center;
   line-height: 1.5;
-  margin: var(--spacing-2) 0 0;
-  max-width: 32ch;
+  margin: 0;
+  max-width: 60ch;
 }
 
 .player-avatar {
