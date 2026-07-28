@@ -91,6 +91,7 @@
         --border: #2a2a2a;
         --display-font: 'Black Ops One', cursive;
         --body-font: 'Chakra Petch', sans-serif;
+        --mono-font: 'Helvetica Neue', 'Segoe UI', Roboto, sans-serif;
       }
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
@@ -158,7 +159,7 @@
         color: var(--text-muted);
         letter-spacing: 2px;
         text-transform: uppercase;
-        font-family: 'Courier New', monospace;
+        font-family: var(--mono-font);
       }
       .breadcrumb a { color: var(--text-dim); text-decoration: none; }
       .breadcrumb a:hover { color: var(--blue); }
@@ -317,7 +318,7 @@
         border-top: 1px solid var(--border);
         padding: 1rem 1.5rem;
         text-align: center;
-        font-family: 'Courier New', monospace;
+        font-family: var(--mono-font);
         font-size: 0.75rem;
         color: var(--text-muted);
         margin-top: 3rem;

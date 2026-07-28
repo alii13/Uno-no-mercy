@@ -25,7 +25,7 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   color: var(--text-muted);
   letter-spacing: 1px;
