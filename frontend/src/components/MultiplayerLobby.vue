@@ -65,13 +65,15 @@
       <div v-if="!mpStore.currentGame" class="lobby-entry">
         <h1 class="entry-heading">HOW DO YOU WANT TO PLAY?</h1>
 
-        <!-- Daily ritual first: the same date-seeded deal for everyone, once
-             a day. The streak feeds on it, so the chip lives in its header —
-             at-risk state is the comeback mechanic. -->
-        <div class="daily-card" :class="{ done: !!dailyRecord }">
-          <div class="daily-head">
-            <span class="daily-title">TODAY'S DEAL</span>
-            <span class="daily-date">{{ dailyDateLabel }}</span>
+        <!-- The daily loop, kept together: the deal is the reason to play
+             today, the board is the reason to come back tomorrow. Sits in the
+             left rail on wide screens, first in the stack on narrow. -->
+        <aside class="lobby-rail">
+          <div class="daily-card" :class="{ done: !!dailyRecord }">
+            <div class="daily-head">
+              <span class="daily-title">TODAY'S DEAL</span>
+              <span class="daily-date">{{ dailyDateLabel }}</span>
+            </div>
             <div
               v-if="retention.effectiveStreak > 0"
               class="streak-chip"
@@ -79,25 +81,47 @@
               role="status"
             >
               <Flame class="streak-flame" :stroke-width="2.5" aria-hidden="true" />
-              <span class="streak-count">{{ retention.effectiveStreak }}-DAY STREAK</span>
-              <span v-if="!retention.playedToday" class="streak-state streak-state--warn">PLAY TODAY TO KEEP IT</span>
+              <span class="streak-count">{{ retention.effectiveStreak }}-day streak</span>
+              <span v-if="!retention.playedToday" class="streak-state streak-state--warn">Play today to keep it</span>
             </div>
+            <template v-if="!dailyRecord">
+              <p class="daily-desc">The same shuffle for every player in the world. One scored attempt.</p>
+              <Button variant="secondary" size="md" block @click="$emit('playDaily')">
+                PLAY TODAY'S DEAL
+              </Button>
+            </template>
+            <p v-else class="daily-desc daily-result">
+              {{ dailyRecord.result === 'won' ? `Cleared in ${dailyRecord.turns} turns` : dailyRecord.result === 'eliminated' ? 'Mercy got you today' : 'Lost today' }}
+              — new deal tomorrow.
+            </p>
           </div>
-          <template v-if="!dailyRecord">
-            <p class="daily-desc">The same shuffle for every player in the world. One scored attempt.</p>
-            <Button variant="secondary" size="md" block @click="$emit('playDaily')">
-              PLAY TODAY'S DEAL
-            </Button>
-          </template>
-          <p v-else class="daily-desc daily-result">
-            {{ dailyRecord.result === 'won' ? `CLEARED IN ${dailyRecord.turns} TURNS` : dailyRecord.result === 'eliminated' ? 'MERCY GOT YOU TODAY' : 'LOST TODAY' }}
-            — new deal tomorrow.
-          </p>
-          <button v-if="lb.available.value" class="lb-link" @click="openLeaderboard">
-            VIEW LEADERBOARD &rarr;
-          </button>
-        </div>
 
+          <!-- Feature-detected the same way the leaderboard link always was:
+               absent until the definer SQL is installed. -->
+          <div v-if="lb.available.value" class="board-card">
+            <div class="board-head">
+              <span class="board-title">Today's top</span>
+              <span v-if="dailyPlayerCount" class="board-count">{{ dailyPlayerCount }} played</span>
+            </div>
+            <ol v-if="lb.daily.value.length" class="board-list">
+              <li
+                v-for="row in lb.daily.value.slice(0, 5)"
+                :key="row.rank"
+                class="board-row"
+                :class="{ mine: row.is_me }"
+              >
+                <span class="board-rank">{{ row.rank }}</span>
+                <span class="board-name">{{ row.username }}</span>
+                <span class="board-metric">{{ row.result === 'won' ? `${row.effort} moves` : 'out' }}</span>
+              </li>
+            </ol>
+            <p v-else class="board-empty">No scores yet today. Be the first on the board.</p>
+            <p v-if="myDailyRank" class="board-mine">{{ myDailyRank }}</p>
+            <button class="lb-link" @click="openLeaderboard">Full leaderboard &rarr;</button>
+          </div>
+        </aside>
+
+        <div class="lobby-main">
         <!-- Primary action: create a room. The rules choice only applies to
              created games, so it lives inside the same card. -->
         <div class="create-card">
@@ -111,7 +135,7 @@
             {{ mpStore.loading ? 'CREATING...' : 'CREATE GAME' }}
           </Button>
           <div class="mode-row">
-            <span class="mode-label">RULES</span>
+            <span class="mode-label">Rules</span>
             <div class="mode-pills">
               <button
                 v-for="m in stackingModes"
@@ -129,23 +153,29 @@
 
         <!-- Other ways in: icon-led list rows, one identity color per mode -->
         <div class="mode-list" role="group" aria-label="Other ways to play">
-          <span class="mode-overline">OR JUMP IN</span>
+          <span class="mode-overline">Or jump in</span>
           <button class="mode-item" :disabled="mpStore.loading" @click="handleQuickMatch">
-            <span class="mode-glyph mode-glyph--cyan"><Zap :size="15" :stroke-width="2.5" aria-hidden="true" /></span>
-            <span class="mode-name">{{ mpStore.loading ? 'MATCHING…' : 'QUICK MATCH' }}</span>
-            <span class="mode-hint">vs a stranger</span>
+            <span class="mode-glyph mode-glyph--cyan"><Zap :size="17" :stroke-width="2.25" aria-hidden="true" /></span>
+            <span class="mode-text">
+              <span class="mode-name">{{ mpStore.loading ? 'Matching…' : 'Quick match' }}</span>
+              <span class="mode-hint">Dropped into a room with a stranger</span>
+            </span>
             <ChevronRight class="mode-chev" :size="16" aria-hidden="true" />
           </button>
           <button class="mode-item" @click="showJoinModal = true">
-            <span class="mode-glyph mode-glyph--cyan"><Hash :size="15" :stroke-width="2.5" aria-hidden="true" /></span>
-            <span class="mode-name">JOIN WITH CODE</span>
-            <span class="mode-hint">join a friend</span>
+            <span class="mode-glyph mode-glyph--cyan"><Hash :size="17" :stroke-width="2.25" aria-hidden="true" /></span>
+            <span class="mode-text">
+              <span class="mode-name">Join with code</span>
+              <span class="mode-hint">Enter a friend's six-character room code</span>
+            </span>
             <ChevronRight class="mode-chev" :size="16" aria-hidden="true" />
           </button>
           <button class="mode-item" @click="$emit('playLocal', selectedStackingMode)">
-            <span class="mode-glyph mode-glyph--dim"><Bot :size="15" :stroke-width="2.5" aria-hidden="true" /></span>
-            <span class="mode-name">PLAY VS BOT</span>
-            <span class="mode-hint">practice solo</span>
+            <span class="mode-glyph mode-glyph--dim"><Bot :size="17" :stroke-width="2.25" aria-hidden="true" /></span>
+            <span class="mode-text">
+              <span class="mode-name">Play vs bot</span>
+              <span class="mode-hint">Practise solo, nothing on the line</span>
+            </span>
             <ChevronRight class="mode-chev" :size="16" aria-hidden="true" />
           </button>
         </div>
@@ -168,7 +198,7 @@
               <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
               <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
-            HOW TO PLAY
+            How to play
           </button>
           <button class="stats-link" @click="handleStatsClick">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16" aria-hidden="true">
@@ -176,9 +206,10 @@
               <rect x="10" y="7" width="4" height="14" />
               <rect x="17" y="3" width="4" height="18" />
             </svg>
-            <span v-if="authStore.isAnonymous">CREATE ACCOUNT TO TRACK STATS</span>
-            <span v-else>MY STATS &rarr;</span>
+            <span v-if="authStore.isAnonymous">Create account to track stats</span>
+            <span v-else>My stats &rarr;</span>
           </button>
+        </div>
         </div>
       </div>
 
@@ -462,6 +493,16 @@ const dailyDateLabel = new Date()
   .toUpperCase()
 
 const lb = useLeaderboard()
+
+const dailyPlayerCount = computed(() => lb.dailyContext.value?.total_players ?? 0)
+
+// Only worth saying once the viewer is actually on the board — a rank of null
+// means they haven't played today, which the deal card above already says.
+const myDailyRank = computed(() => {
+  const ctx = lb.dailyContext.value
+  if (!ctx?.my_rank) return ''
+  return `You're #${ctx.my_rank} of ${ctx.total_players} today`
+})
 
 function openLeaderboard() {
   navigate({ name: 'leaderboard' })
@@ -853,14 +894,107 @@ function copyLink() {
 /* The daily ritual wears the streak's hazard yellow — one retention loop,
    one color family, visually distinct from the red create zone and the
    cyan multiplayer world. */
+/* Raised surface, not an outline on black. Elevation does the grouping in
+   every dark UI worth copying; a bright border on pure black reads as a
+   wireframe. The hazard tint is what keeps this the daily zone. */
 .daily-card {
-  background: rgba(255, 204, 0, 0.02);
-  border: 1px solid rgba(255, 204, 0, 0.16);
-  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, rgba(255, 204, 0, 0.05), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 204, 0, 0.14);
+  border-radius: var(--radius-md);
   padding: var(--spacing-4);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
+}
+
+/* Today's board — the reason to come back tomorrow, next to the reason to
+   play today. */
+.board-card {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.board-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+}
+
+.board-title {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.board-count {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.board-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.board-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) 0;
+  font-size: var(--text-sm);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.board-row:last-child {
+  border-bottom: none;
+}
+
+.board-rank {
+  width: 1.25rem;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.board-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.board-metric {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.board-row.mine .board-name,
+.board-row.mine .board-rank {
+  color: var(--color-hazard);
+}
+
+.board-empty,
+.board-mine {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.board-mine {
+  color: var(--text-secondary);
 }
 
 .daily-card :deep(.btn--secondary) {
@@ -885,8 +1019,8 @@ function copyLink() {
   flex-wrap: wrap;
 }
 
-.daily-head .streak-chip {
-  margin-left: auto;
+.daily-card .streak-chip {
+  align-self: flex-start;
 }
 
 .daily-title {
@@ -933,14 +1067,13 @@ function copyLink() {
 }
 
 .lb-link {
-  align-self: flex-end;
+  align-self: flex-start;
   background: none;
   border: none;
   padding: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: var(--text-xs);
-  letter-spacing: 0.14em;
-  color: rgba(255, 204, 0, 0.7);
+  color: rgba(255, 204, 0, 0.75);
   cursor: pointer;
 }
 
@@ -970,10 +1103,10 @@ function copyLink() {
   align-items: center;
   gap: var(--spacing-2);
   padding: var(--spacing-1) var(--spacing-3);
-  background: rgba(255, 204, 0, 0.06);
-  border: 1px solid rgba(255, 204, 0, 0.35);
+  background: rgba(255, 204, 0, 0.08);
+  border: 1px solid rgba(255, 204, 0, 0.3);
   border-radius: 999px;
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   white-space: nowrap;
 }
 
@@ -1059,60 +1192,76 @@ function copyLink() {
   gap: var(--spacing-6);
 }
 
-/* Wide screens only: the gutter beside the 600px column is dead space, and
-   the daily card is the one block that doesn't need to sit in the create
-   flow. Moving it there lifts create + jump-in above the fold.
-   Absolutely positioned rather than gridded so the centred column keeps its
-   exact position. Below 1200px the gutter can't fit the card, so none of
-   this applies and the stacked order stands. DOM order is unchanged either
-   way, so reading and tab order still reach the daily card first. */
-@media (min-width: 1200px) {
-  .lobby-entry {
-    position: relative;
+.lobby-rail,
+.lobby-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+/* Two real columns on wide screens rather than a card floated into the
+   gutter: the rail and the main stack share a grid row, so they start on the
+   same baseline instead of one hovering next to the other, and the pair is
+   centred as a unit so there's no lone void on the right. Heading spans both
+   so it reads as the page title, not the column's. */
+@media (min-width: 1180px) {
+  /* Widened to hold rail + gap + the original 600px column, still centred. */
+  .lobby-content {
+    max-width: 964px;
   }
 
-  .daily-card {
-    position: absolute;
-    top: 0;
-    right: calc(100% + var(--spacing-6));
-    width: 260px;
+  .lobby-entry {
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+    grid-template-areas:
+      'heading heading'
+      'rail    main';
+    column-gap: var(--spacing-8);
+    align-items: start;
   }
+
+  .entry-heading {
+    grid-area: heading;
+    text-align: left;
+  }
+
+  .lobby-rail { grid-area: rail; }
+  .lobby-main { grid-area: main; }
 }
 
 
-/* The create zone is unboxed on purpose: the button is the only saturated
-   element on the screen, so a red-tinted frame around it only competed with
-   it. Everything else here stays quiet. The button runs full-bleed while the
-   controls under it share the mode-list inset, so the column has one text
-   edge and exactly one element that breaks it. */
+/* Grouped on a neutral surface. Unboxing this left the rules control and its
+   caption floating as loose fragments under a bare slab — the container was
+   doing real grouping work. Neutral rather than red-tinted so the button is
+   still the only saturated thing here. */
 .create-card {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-4);
 }
 
 .mode-row {
   display: flex;
   align-items: center;
   gap: var(--spacing-3);
-  padding: 0 var(--spacing-2);
 }
 
 .mode-desc {
   margin: 0;
-  padding: 0 var(--spacing-2);
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: var(--text-xs);
-  color: var(--text-secondary);
+  color: var(--text-muted);
   line-height: 1.5;
-  letter-spacing: 0.04em;
 }
 
 .mode-label {
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: var(--text-xs);
   color: var(--text-muted);
-  letter-spacing: 0.2em;
   flex-shrink: 0;
 }
 
@@ -1153,45 +1302,45 @@ function copyLink() {
   background: rgba(255, 204, 0, 0.1);
 }
 
-/* MODE LIST — secondary ways in are borderless rows with an identity-color
-   glyph each, not boxes; the eye separates them from the daily/create zones
-   by shape, not just spacing. */
+/* MODE LIST — the secondary ways in, on their own surface with internal
+   hairlines. Rows carry a name and a description stacked, so there's no dead
+   middle between a left-aligned label and a right-aligned hint. */
 .mode-list {
   display: flex;
   flex-direction: column;
-  /* Extra air above the secondary group. With every block on the same
-     lobby-entry gap the stack read as one flat list with no primary. */
-  margin-top: var(--spacing-4);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-2);
 }
 
 .mode-overline {
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  letter-spacing: 0.3em;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
   color: var(--text-muted);
-  padding: 0 var(--spacing-2) var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-2) var(--spacing-2);
 }
 
 .mode-item {
   display: flex;
   align-items: center;
   gap: var(--spacing-3);
-  min-height: 56px;
-  padding: var(--spacing-3) var(--spacing-2);
+  min-height: 60px;
+  padding: var(--spacing-3);
   background: none;
   border: none;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-sm);
   text-align: left;
   cursor: pointer;
   transition: background var(--duration-snap) var(--ease-snap);
 }
 
-.mode-item:first-of-type {
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
+.mode-item + .mode-item {
+  box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.055);
 }
 
 .mode-item:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.045);
 }
 
 .mode-item:disabled {
@@ -1220,20 +1369,29 @@ function copyLink() {
   color: var(--text-muted);
 }
 
+/* Weight and colour carry the hierarchy here, not caps and tracking. The
+   screen had fifteen wide-tracked uppercase labels competing at once; display
+   caps now belong to the brand and the primary button only. */
+.mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
 .mode-name {
-  font-family: var(--font-display);
-  font-size: var(--text-sm);
-  letter-spacing: 0.1em;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 700;
   color: var(--text-primary);
 }
 
 .mode-hint {
-  margin-left: auto;
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: var(--text-xs);
   color: var(--text-muted);
-  letter-spacing: 0.04em;
-  flex-shrink: 0;
+  line-height: 1.4;
 }
 
 .mode-chev {
@@ -1267,9 +1425,8 @@ function copyLink() {
   background: none;
   border: none;
   color: var(--text-muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: var(--text-xs);
-  letter-spacing: 0.15em;
   cursor: pointer;
   padding: var(--spacing-3);
   min-height: 44px;
@@ -1512,7 +1669,7 @@ function copyLink() {
   font-size: 1.4rem;
   letter-spacing: 0.1em;
   color: var(--text-primary);
-  text-align: center;
+  text-align: left;
   margin: 0;
 }
 
