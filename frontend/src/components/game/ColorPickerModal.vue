@@ -138,7 +138,7 @@ onUnmounted(() => {
   justify-content: center;
   gap: 0.5rem;
   color: var(--color-hazard);
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-weight: bold;
   font-size: 0.75rem;
   letter-spacing: 2px;
@@ -199,7 +199,7 @@ onUnmounted(() => {
 }
 
 .color-count {
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 0.8rem;
   font-weight: bold;
   opacity: 0.9;

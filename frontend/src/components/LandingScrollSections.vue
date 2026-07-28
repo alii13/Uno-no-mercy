@@ -613,7 +613,7 @@ function init() {
 }
 
 .chap-label {
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 0.7rem;
   color: #444;
   letter-spacing: 6px;
@@ -740,7 +740,7 @@ function init() {
 }
 
 .victim-name {
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 0.65rem;
   color: var(--text-muted);
   letter-spacing: 1px;
@@ -802,7 +802,7 @@ function init() {
   top: 0;
   translate: -50% 0;
   z-index: 20;
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 1.05rem;
   color: var(--text-muted);
   letter-spacing: 4px;
@@ -866,7 +866,7 @@ function init() {
 
 .hud-title {
   margin-left: auto;
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 0.62rem;
   letter-spacing: 2px;
   color: var(--color-neon-green);
@@ -875,7 +875,7 @@ function init() {
 
 .hud-body {
   padding: 1.1rem 1.1rem 1.3rem;
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 0.92rem;
   line-height: 1.85;
   color: var(--text-secondary);
@@ -898,7 +898,7 @@ function init() {
 }
 
 .move-chip {
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   padding: 0.18rem 0.6rem;
   border: 1px solid #3a3a3a;
@@ -1014,7 +1014,7 @@ function init() {
   background: rgba(0, 0, 0, 0.6);
   border: 1px solid #333;
   color: var(--text-secondary);
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 0.95rem;
   border-radius: 999px;
   white-space: nowrap;

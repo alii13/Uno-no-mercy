@@ -180,7 +180,7 @@ function initFaq() {
 }
 
 .section-label {
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 0.7rem;
   color: #333;
   letter-spacing: 6px;
@@ -251,7 +251,7 @@ function initFaq() {
 
 .faq-num {
   flex: 0 0 auto;
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   letter-spacing: 2px;
   color: var(--text-muted);

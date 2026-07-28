@@ -32,7 +32,7 @@
   /* Typography */
   --font-display: 'Black Ops One', cursive;
   --font-body: 'Chakra Petch', sans-serif;
-  --font-mono: 'Courier New', monospace;
+  --font-mono: 'Netflix Sans', 'Helvetica Neue', 'Segoe UI', Roboto, sans-serif;
 
   /* Type scale */
   --text-xs: 0.75rem;

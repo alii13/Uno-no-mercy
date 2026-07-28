@@ -295,7 +295,7 @@ watch(() => props.cards.length, (newLen, oldLen) => {
   position: absolute;
   bottom: -25px;
   color: var(--text-muted);
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 0.8rem;
   background: #111;
   padding: 2px 6px;
