@@ -28,7 +28,17 @@
           {{ authStore.username }}
           <Pencil class="chip-edit-icon" :stroke-width="2" aria-hidden="true" />
         </button>
-        <span v-else class="username-chip">{{ authStore.username }}</span>
+        <!-- Signed in, so the nickname isn't editable here — the chip becomes
+             the way into your own stats instead. -->
+        <button
+          v-else
+          class="username-chip username-chip-action"
+          title="View your stats"
+          @click="$emit('showStats')"
+        >
+          {{ authStore.username }}
+          <ChevronRight class="chip-edit-icon" :stroke-width="2" aria-hidden="true" />
+        </button>
         <button
           v-if="authStore.isAnonymous"
           class="text-link upgrade-link"
@@ -42,7 +52,7 @@
       </div>
     </header>
 
-    <div class="lobby-content">
+    <div class="lobby-content" :class="{ 'lobby-content--top': !mpStore.currentGame }">
       <!-- Dead invite/room code: rooms close when everyone leaves, so a stale
            link can never succeed — offer escape hatches instead of a retry trap. -->
       <div v-if="roomEnded" class="room-ended-card" role="alert">
@@ -65,65 +75,70 @@
       <div v-if="!mpStore.currentGame" class="lobby-entry">
         <h1 class="entry-heading">HOW DO YOU WANT TO PLAY?</h1>
 
-        <!-- The daily loop, kept together: the deal is the reason to play
-             today, the board is the reason to come back tomorrow. Sits in the
-             left rail on wide screens, first in the stack on narrow. -->
-        <aside class="lobby-rail">
-          <div class="daily-card" :class="{ done: !!dailyRecord }">
-            <div class="daily-head">
-              <span class="daily-title">TODAY'S DEAL</span>
-              <span class="daily-date">{{ dailyDateLabel }}</span>
-            </div>
-            <div
-              v-if="retention.effectiveStreak > 0"
-              class="streak-chip"
-              :class="{ 'at-risk': !retention.playedToday }"
-              role="status"
+        <!-- The daily loop: the deal is the reason to play today, the board is
+             the reason to come back tomorrow. Deliberately flat siblings
+             rather than per-column wrappers — the desktop grid places each
+             card into a shared row, and that shared row is what lines the card
+             borders up across both columns. -->
+        <div class="daily-card" :class="{ done: !!dailyRecord }">
+          <div class="daily-head">
+            <span class="daily-title">TODAY'S DEAL</span>
+            <span class="daily-date">{{ dailyDateLabel }}</span>
+          </div>
+          <div
+            v-if="retention.effectiveStreak > 0"
+            class="streak-chip"
+            :class="{ 'at-risk': !retention.playedToday }"
+            role="status"
+          >
+            <Flame class="streak-flame" :stroke-width="2.5" aria-hidden="true" />
+            <span class="streak-count">{{ retention.effectiveStreak }}-day streak</span>
+            <span v-if="!retention.playedToday" class="streak-state streak-state--warn">Play today to keep it</span>
+          </div>
+          <template v-if="!dailyRecord">
+            <p class="daily-desc">The same shuffle for every player in the world. One scored attempt.</p>
+            <Button variant="secondary" size="md" block @click="$emit('playDaily')">
+              PLAY
+            </Button>
+          </template>
+          <p v-else class="daily-desc daily-result">
+            {{ dailyRecord.result === 'won' ? `Cleared in ${dailyRecord.turns} turns` : dailyRecord.result === 'eliminated' ? 'Mercy got you today' : 'Lost today' }}
+            — new deal tomorrow.
+          </p>
+        </div>
+
+        <!-- Feature-detected the same way the leaderboard link always was:
+             absent until the definer SQL is installed. -->
+        <div v-if="lb.available.value" class="board-card">
+          <div class="board-head">
+            <span class="board-title">Today's top</span>
+            <span v-if="dailyPlayerCount" class="board-count">{{ dailyPlayerCount }} played</span>
+          </div>
+          <ol v-if="lb.daily.value.length" class="board-list">
+            <li
+              v-for="row in lb.daily.value.slice(0, 5)"
+              :key="row.rank"
+              class="board-row"
+              :class="{ mine: row.is_me }"
             >
-              <Flame class="streak-flame" :stroke-width="2.5" aria-hidden="true" />
-              <span class="streak-count">{{ retention.effectiveStreak }}-day streak</span>
-              <span v-if="!retention.playedToday" class="streak-state streak-state--warn">Play today to keep it</span>
-            </div>
-            <template v-if="!dailyRecord">
-              <p class="daily-desc">The same shuffle for every player in the world. One scored attempt.</p>
-              <Button variant="secondary" size="md" block @click="$emit('playDaily')">
-                PLAY TODAY'S DEAL
-              </Button>
-            </template>
-            <p v-else class="daily-desc daily-result">
-              {{ dailyRecord.result === 'won' ? `Cleared in ${dailyRecord.turns} turns` : dailyRecord.result === 'eliminated' ? 'Mercy got you today' : 'Lost today' }}
-              — new deal tomorrow.
-            </p>
-          </div>
-
-          <!-- Feature-detected the same way the leaderboard link always was:
-               absent until the definer SQL is installed. -->
-          <div v-if="lb.available.value" class="board-card">
-            <div class="board-head">
-              <span class="board-title">Today's top</span>
-              <span v-if="dailyPlayerCount" class="board-count">{{ dailyPlayerCount }} played</span>
-            </div>
-            <ol v-if="lb.daily.value.length" class="board-list">
-              <li
-                v-for="row in lb.daily.value.slice(0, 5)"
-                :key="row.rank"
-                class="board-row"
-                :class="{ mine: row.is_me }"
+              <span class="board-rank">{{ row.rank }}</span>
+              <span class="board-name">{{ row.username }}</span>
+              <span
+                class="board-metric"
+                :class="row.result === 'won' ? 'board-metric--won' : 'board-metric--out'"
               >
-                <span class="board-rank">{{ row.rank }}</span>
-                <span class="board-name">{{ row.username }}</span>
-                <span class="board-metric">{{ row.result === 'won' ? `${row.effort} moves` : 'out' }}</span>
-              </li>
-            </ol>
-            <p v-else class="board-empty">No scores yet today. Be the first on the board.</p>
-            <p v-if="myDailyRank" class="board-mine">{{ myDailyRank }}</p>
-            <button class="lb-link" @click="openLeaderboard">Full leaderboard &rarr;</button>
-          </div>
-        </aside>
+                {{ row.result === 'won' ? `${row.effort} moves` : row.result === 'eliminated' ? 'Eliminated' : 'Lost' }}
+              </span>
+            </li>
+          </ol>
+          <p v-else class="board-empty">No scores yet today. Be the first on the board.</p>
+          <p v-if="myDailyRank" class="board-mine">{{ myDailyRank }}</p>
+          <button class="lb-link" @click="openLeaderboard">Full leaderboard &rarr;</button>
+        </div>
 
-        <div class="lobby-main">
         <!-- Primary action: create a room. The rules choice only applies to
-             created games, so it lives inside the same card. -->
+             created games, so it lives inside the same card, above the button
+             that consumes it. -->
         <div class="create-card">
           <div class="mode-row">
             <span class="mode-label">Rules</span>
@@ -190,27 +205,6 @@
         >
           Your streak and scores live on this guest session - create an account to keep them
         </button>
-
-        <div class="entry-links">
-          <button class="howto-link" @click="showRules = true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="16" height="16" aria-hidden="true">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
-            How to play
-          </button>
-          <button class="stats-link" @click="handleStatsClick">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16" aria-hidden="true">
-              <rect x="3" y="12" width="4" height="9" />
-              <rect x="10" y="7" width="4" height="14" />
-              <rect x="17" y="3" width="4" height="18" />
-            </svg>
-            <span v-if="authStore.isAnonymous">Create account to track stats</span>
-            <span v-else>My stats &rarr;</span>
-          </button>
-        </div>
-        </div>
       </div>
 
       <!-- Waiting room — after creating, before starting -->
@@ -371,7 +365,6 @@
       </div>
     </div>
 
-    <RulesModal v-if="showRules" @close="showRules = false" />
 
     <!-- Guests only: plain sign-out abandons the guest profile and its
          server-side stats. Claiming (CREATE ACCOUNT) is the safe exit. -->
@@ -469,7 +462,6 @@ import { useVoiceStore } from '../stores/voiceStore'
 import { useGameStore } from '../stores/gameStore'
 import SiteFooter from './SiteFooter.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
-import RulesModal from './RulesModal.vue'
 import Button from './ui/Button.vue'
 import VoiceMicCluster from './game/VoiceMicCluster.vue'
 import type { StackingMode } from '../utils/gameRules'
@@ -533,7 +525,6 @@ const showJoinModal = ref(false)
 // A join hit a room the server no longer knows — show the ended card, not a retry trap.
 const roomEnded = ref(false)
 const showLeaveConfirm = ref(false)
-const showRules = ref(false)
 const showSignOutConfirm = ref(false)
 const editingName = ref(false)
 const editTarget = ref<'bar' | 'room' | null>(null)
@@ -712,14 +703,6 @@ async function confirmSignOut() {
   await authStore.signOut()
 }
 
-function handleStatsClick() {
-  if (authStore.isAnonymous) {
-    upgradeAccount()
-  } else {
-    emit('showStats')
-  }
-}
-
 // Auto-join URL friends tap to drop straight into the room.
 function inviteUrl() {
   const u = new URL(window.location.href)
@@ -805,7 +788,8 @@ function copyLink() {
   border-radius: var(--radius-sm);
 }
 
-.username-chip-editable {
+.username-chip-editable,
+.username-chip-action {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -814,7 +798,8 @@ function copyLink() {
   transition: border-color 0.2s, color 0.2s;
 }
 
-.username-chip-editable:hover {
+.username-chip-editable:hover,
+.username-chip-action:hover {
   color: var(--text-primary);
   border-color: rgba(255, 255, 255, 0.25);
 }
@@ -878,6 +863,14 @@ function copyLink() {
   width: 100%;
   margin: 0 auto;
   gap: var(--spacing-6);
+}
+
+/* The entry view starts from the top. Centring it vertically left a void above
+   and below on a tall screen and made the whole page read as floating. Declared
+   after the base rule on purpose — same specificity, so source order decides.
+   The waiting room and dead-room card stay centred; they're short. */
+.lobby-content--top {
+  justify-content: flex-start;
 }
 
 .error-banner {
@@ -973,11 +966,21 @@ function copyLink() {
   color: var(--text-secondary);
 }
 
+/* The outcome is the interesting part of each row, so it carries colour:
+   cleared in N moves reads as a score, elimination reads as a casualty. */
 .board-metric {
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
   font-size: var(--text-xs);
   color: var(--text-muted);
+}
+
+.board-metric--won {
+  color: var(--color-neon-green);
+}
+
+.board-metric--out {
+  color: var(--color-alert);
 }
 
 .board-row.mine .board-name,
@@ -1192,18 +1195,17 @@ function copyLink() {
   gap: var(--spacing-6);
 }
 
-.lobby-rail,
-.lobby-main {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-4);
-}
+/* Today's board reads as a footnote on a phone, not a headline: on narrow
+   screens it drops below the ways to play. Inert on the desktop grid, where
+   every card is placed explicitly. */
+.board-card { order: 2; }
+.streak-keep-link { order: 3; }
 
-/* Two real columns on wide screens rather than a card floated into the
-   gutter: the rail and the main stack share a grid row, so they start on the
-   same baseline instead of one hovering next to the other, and the pair is
-   centred as a unit so there's no lone void on the right. Heading spans both
-   so it reads as the page title, not the column's. */
+/* Two real columns on wide screens. Each card is placed into an explicit grid
+   row rather than stacked inside a per-column wrapper, so row 1 is as tall as
+   the taller of (deal, create) and row 2 as tall as the taller of (board,
+   list) — which is what makes the card borders line up across the two
+   columns. The pair is centred as a unit, so there's no lone void. */
 @media (min-width: 1180px) {
   /* Widened to hold rail + gap + the original 600px column, still centred. */
   .lobby-content {
@@ -1213,29 +1215,30 @@ function copyLink() {
   .lobby-entry {
     display: grid;
     grid-template-columns: 300px minmax(0, 1fr);
-    grid-template-areas:
-      'heading heading'
-      'rail    main';
     column-gap: var(--spacing-8);
-    /* stretch, not start: the rail runs to the same height as the main
-       column so the two sides bottom out together. */
+    row-gap: var(--spacing-4);
     align-items: stretch;
   }
 
-  .entry-heading {
-    grid-area: heading;
+  /* Extra air under the title — the row-gap that separates the two card rows
+     is too tight to also serve as the space below a heading. Compound
+     selector because the base `.entry-heading { margin: 0 }` is declared
+     later in this file and would otherwise win on source order. */
+  .lobby-entry .entry-heading {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    margin-bottom: var(--spacing-6);
   }
+  .daily-card       { grid-column: 1; grid-row: 2; }
+  .create-card      { grid-column: 2; grid-row: 2; }
+  .board-card       { grid-column: 1; grid-row: 3; }
+  .mode-list        { grid-column: 2; grid-row: 3; }
+  .streak-keep-link { grid-column: 1 / -1; grid-row: 4; }
 
-  .lobby-rail { grid-area: rail; }
-  .lobby-main { grid-area: main; }
-
-  /* The deal keeps its natural height and the board takes up the slack, so
-     the extra height lands in the list rather than as a gap between cards.
-     When the board is absent (SQL not installed) the deal simply sits at the
-     top of a full-height rail, which is how it already looked. */
-  .lobby-rail .daily-card { flex: 0 0 auto; }
-  .lobby-rail .board-card { flex: 1 1 auto; }
-  .lobby-rail .board-card .lb-link { margin-top: auto; }
+  /* Whichever card is shorter gets stretched to its row, so pin the board's
+     link to the bottom — the slack then lands in the list, where more entries
+     would go, instead of above a floating footer. */
+  .board-card .lb-link { margin-top: auto; }
 }
 
 
@@ -1414,40 +1417,6 @@ function copyLink() {
 .mode-item:hover:not(:disabled) .mode-chev {
   transform: translateX(3px);
   color: var(--text-secondary);
-}
-
-/* TERTIARY LINKS ROW */
-.entry-links {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 0 var(--spacing-2);
-}
-
-.stats-link,
-.howto-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-2);
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  cursor: pointer;
-  padding: var(--spacing-3);
-  min-height: 44px;
-  transition: color var(--duration-snap) var(--ease-snap);
-}
-
-.howto-link:hover {
-  color: var(--color-neon-blue, #2ad4ff);
-}
-
-.stats-link:hover {
-  color: var(--color-neon-blue);
 }
 
 /* WAITING ROOM */
@@ -1675,8 +1644,8 @@ function copyLink() {
 
 .entry-heading {
   font-family: var(--font-display);
-  font-size: 1.4rem;
-  letter-spacing: 0.1em;
+  font-size: 1.9rem;
+  letter-spacing: 0.08em;
   color: var(--text-primary);
   text-align: center;
   margin: 0;
@@ -1713,7 +1682,7 @@ function copyLink() {
 }
 
 @media (max-width: 560px) {
-  .entry-heading { font-size: 1.15rem; }
+  .entry-heading { font-size: 1.4rem; }
   .mode-desc { line-height: 1.8; }
 }
 
