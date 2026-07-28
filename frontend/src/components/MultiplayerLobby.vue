@@ -122,7 +122,16 @@
               :class="{ mine: row.is_me }"
             >
               <span class="board-rank">{{ row.rank }}</span>
-              <span class="board-name">{{ row.username }}</span>
+              <!-- share_code only exists once the v2 SQL is installed, so the
+                   name falls back to plain text rather than a dead button. -->
+              <component
+                :is="row.share_code ? 'button' : 'span'"
+                class="board-name"
+                :class="{ clickable: !!row.share_code }"
+                @click="openProfile(row)"
+              >
+                {{ row.username }}
+              </component>
               <span
                 class="board-metric"
                 :class="row.result === 'won' ? 'board-metric--won' : 'board-metric--out'"
@@ -498,6 +507,10 @@ const myDailyRank = computed(() => {
 
 function openLeaderboard() {
   navigate({ name: 'leaderboard' })
+}
+
+function openProfile(row: { share_code?: string | null }) {
+  if (row.share_code) navigate({ name: 'profile', code: row.share_code })
 }
 
 // Eager availability probe: until the SQL functions exist on the project the
@@ -964,6 +977,23 @@ function copyLink() {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-secondary);
+  /* Renders as a <button> when the player has a shareable profile, so it
+     needs the button chrome stripped back to plain text. */
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+}
+
+.board-name.clickable {
+  cursor: pointer;
+}
+
+.board-name.clickable:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* The outcome is the interesting part of each row, so it carries colour:
