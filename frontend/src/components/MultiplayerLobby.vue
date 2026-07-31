@@ -52,7 +52,7 @@
       </div>
     </header>
 
-    <div class="lobby-content" :class="{ 'lobby-content--top': !mpStore.currentGame }">
+    <div class="lobby-content" :class="{ 'lobby-content--top': !mpStore.currentGame, 'lobby-content--table': mpStore.gameStatus === 'waiting' }">
       <!-- Dead invite/room code: rooms close when everyone leaves, so a stale
            link can never succeed — offer escape hatches instead of a retry trap. -->
       <div v-if="roomEnded" class="room-ended-card" role="alert">
@@ -216,8 +216,11 @@
         </button>
       </div>
 
-      <!-- Waiting room — after creating, before starting -->
+      <!-- Waiting room — after creating, before starting. On desktop the
+           stage lays the seats out around an oval table with the room code
+           at its centre; on phones the same DOM stacks into a column. -->
       <div v-else-if="mpStore.gameStatus === 'waiting'" ref="waitingRoomEl" class="waiting-room">
+        <div class="table-stage">
         <div class="room-code-card">
           <span class="room-code-label">ROOM CODE</span>
           <span class="room-code-value">{{ mpStore.roomCode }}</span>
@@ -245,16 +248,23 @@
 
           <div class="players-list">
             <div
-              v-for="player in mpStore.gamePlayers"
-              :key="player.id"
+              v-for="(seat, si) in seats"
+              :key="seat.player?.id ?? `empty-${si}`"
               class="player-chip"
+              :class="{
+                'player-chip-empty': !seat.player,
+                'seat-overflow': !seat.player && si > mpStore.gamePlayers.length,
+              }"
+              :style="seat.style"
             >
+              <template v-if="seat.player">
+              <div class="seat-id">
               <div class="player-avatar">
-                {{ player.name?.charAt(0) }}
+                {{ seat.player.name?.charAt(0) }}
                 <span
                   class="presence-dot"
-                  :class="{ connected: isPlayerConnected(player.user_id) }"
-                  :title="isPlayerConnected(player.user_id) ? 'Connected' : 'Connecting…'"
+                  :class="{ connected: isPlayerConnected(seat.player.user_id) }"
+                  :title="isPlayerConnected(seat.player.user_id) ? 'Connected' : 'Connecting…'"
                 ></span>
               </div>
               <!-- Their equipped card back — the show-off surface. Explicit
@@ -263,13 +273,14 @@
               <CardBack
                 class="seat-skin"
                 :size="{ width: 20, height: 28 }"
-                :accent="skinColors(seatSkins[player.user_id]).accent"
-                :stripe="skinColors(seatSkins[player.user_id]).stripe"
+                :accent="skinColors(seatSkins[seat.player.user_id]).accent"
+                :stripe="skinColors(seatSkins[seat.player.user_id]).stripe"
                 aria-hidden="true"
               />
+              </div>
               <!-- My own seat is renamable (guests); others render plain. -->
               <input
-                v-if="player.user_id === authStore.user?.id && authStore.isAnonymous && editingName && editTarget === 'room'"
+                v-if="seat.player.user_id === authStore.user?.id && authStore.isAnonymous && editingName && editTarget === 'room'"
                 v-model="nameInput"
                 :ref="(el: any) => el && el.focus && el.focus()"
                 class="username-edit-input seat-edit-input"
@@ -280,46 +291,47 @@
                 @blur="saveName"
               />
               <button
-                v-else-if="player.user_id === authStore.user?.id && authStore.isAnonymous"
+                v-else-if="seat.player.user_id === authStore.user?.id && authStore.isAnonymous"
                 class="player-name player-name-editable"
                 title="Tap to rename"
                 @click="startEditName('room')"
               >
-                {{ player.name }}
+                {{ seat.player.name }}
                 <Pencil class="seat-edit-icon" :stroke-width="2" aria-hidden="true" />
               </button>
-              <span v-else class="player-name">{{ player.name }}</span>
+              <span v-else class="player-name">{{ seat.player.name }}</span>
+              <div class="seat-meta">
               <span
-                v-if="seatRanks[player.user_id]"
+                v-if="seatRanks[seat.player.user_id]"
                 class="rank-chip"
-                :style="{ color: seatRanks[player.user_id]!.color, borderColor: seatRanks[player.user_id]!.color }"
-                :title="`Rank: ${seatRanks[player.user_id]!.title}`"
+                :style="{ color: seatRanks[seat.player.user_id]!.color, borderColor: seatRanks[seat.player.user_id]!.color }"
+                :title="`Rank: ${seatRanks[seat.player.user_id]!.title}`"
               >
-                {{ seatRanks[player.user_id]!.title.toUpperCase() }}
+                {{ seatRanks[seat.player.user_id]!.title.toUpperCase() }}
               </span>
               <span
-                v-if="voiceStore.voiceUserIds.has(player.user_id)"
+                v-if="voiceStore.voiceUserIds.has(seat.player.user_id)"
                 class="voice-dot"
-                :class="{ speaking: voiceStore.speakingUserIds.has(player.user_id) }"
+                :class="{ speaking: voiceStore.speakingUserIds.has(seat.player.user_id) }"
                 title="In voice"
               ></span>
               <button
-                v-if="canVoiceMute(player.user_id)"
+                v-if="canVoiceMute(seat.player.user_id)"
                 class="seat-voice-btn"
-                :class="{ 'is-muted': voiceStore.localMutedUserIds.has(player.user_id) }"
-                :title="voiceMuteTitle(player.user_id)"
-                :aria-label="voiceMuteTitle(player.user_id)"
-                @click="handleVoiceMute(player.user_id)"
+                :class="{ 'is-muted': voiceStore.localMutedUserIds.has(seat.player.user_id) }"
+                :title="voiceMuteTitle(seat.player.user_id)"
+                :aria-label="voiceMuteTitle(seat.player.user_id)"
+                @click="handleVoiceMute(seat.player.user_id)"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" aria-hidden="true">
                   <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                  <path v-if="!voiceStore.localMutedUserIds.has(player.user_id)" d="M15.5 8.5a5 5 0 0 1 0 7" />
-                  <line v-if="voiceStore.localMutedUserIds.has(player.user_id)" x1="15" y1="9" x2="21" y2="15" />
-                  <line v-if="voiceStore.localMutedUserIds.has(player.user_id)" x1="21" y1="9" x2="15" y2="15" />
+                  <path v-if="!voiceStore.localMutedUserIds.has(seat.player.user_id)" d="M15.5 8.5a5 5 0 0 1 0 7" />
+                  <line v-if="voiceStore.localMutedUserIds.has(seat.player.user_id)" x1="15" y1="9" x2="21" y2="15" />
+                  <line v-if="voiceStore.localMutedUserIds.has(seat.player.user_id)" x1="21" y1="9" x2="15" y2="15" />
                 </svg>
               </button>
               <span
-                v-if="player.user_id === mpStore.currentGame?.host_id"
+                v-if="seat.player.user_id === mpStore.currentGame?.host_id"
                 class="player-badge"
               >HOST</span>
               <button
@@ -327,19 +339,19 @@
                 class="player-kick-btn"
                 title="Remove player"
                 aria-label="Remove player"
-                @click="mpStore.kickPlayer(player.user_id)"
+                @click="mpStore.kickPlayer(seat.player.user_id)"
               >
                 <X class="player-kick-icon" :stroke-width="2.5" aria-hidden="true" />
               </button>
-            </div>
-            <div
-              v-if="mpStore.gamePlayers.length < 10"
-              class="player-chip player-chip-empty"
-            >
-              <div class="player-avatar empty">+</div>
-              <span class="player-name muted">Waiting…</span>
+              </div>
+              </template>
+              <template v-else>
+                <div class="player-avatar empty">+</div>
+                <span class="player-name muted">Waiting…</span>
+              </template>
             </div>
           </div>
+        </div>
         </div>
 
         <div class="waiting-actions">
@@ -504,6 +516,16 @@ watch(() => mpStore.gameStatus, async (status, prev) => {
   if (!zones?.length || motion.reduced) return
   gsap.set(zones, { opacity: 0, y: 12 })
   motion.soft(zones, { opacity: 1, y: 0, stagger: 0.07, clearProps: 'all' })
+  // Seats deal in around the table after the zones land. GSAP writes
+  // transform only, so it composes with the seats' CSS `translate` ring
+  // positioning instead of overwriting it.
+  // clearProps names only what the tween wrote: 'all' would also wipe the
+  // Vue-bound --sx/--sy ring vars from the inline style.
+  const seatEls = waitingRoomEl.value?.querySelectorAll('.player-chip')
+  if (seatEls?.length) {
+    gsap.set(seatEls, { opacity: 0, scale: 0.85 })
+    motion.bounce(seatEls, { opacity: 1, scale: 1, stagger: 0.05, delay: 0.2, clearProps: 'opacity,transform' })
+  }
 }, { immediate: true })
 
 // Re-read on every mount: the lobby unmounts while the daily game plays, so
@@ -536,6 +558,33 @@ function openProfile(row: { share_code?: string | null }) {
 // Eager availability probe: until the SQL functions exist on the project the
 // rpc fails and the VIEW LEADERBOARD link never renders.
 onMounted(() => { void lb.fetchBoards() })
+
+// The table: always all 10 seats of the room cap — filled ones first (host
+// at the head), then dashed empties. Each seat carries its spot on the
+// ellipse ring as CSS vars; the desktop stage consumes them, phones ignore
+// them and stack. Host sits at 12 o'clock, the rest deal out clockwise.
+const SEAT_CAP = 10
+const seats = computed(() => {
+  const hostId = mpStore.currentGame?.host_id
+  const players = [
+    ...mpStore.gamePlayers.filter(p => p.user_id === hostId),
+    ...mpStore.gamePlayers.filter(p => p.user_id !== hostId),
+  ]
+  const all: { player: (typeof players)[number] | null }[] = [
+    ...players.map(p => ({ player: p })),
+    ...Array.from({ length: Math.max(0, SEAT_CAP - players.length) }, () => ({ player: null })),
+  ]
+  return all.map((s, i) => {
+    const angle = ((-90 + (360 / SEAT_CAP) * i) * Math.PI) / 180
+    return {
+      ...s,
+      style: {
+        '--sx': `${(50 + 42 * Math.cos(angle)).toFixed(2)}%`,
+        '--sy': `${(50 + 40 * Math.sin(angle)).toFixed(2)}%`,
+      },
+    }
+  })
+})
 
 // Equipped skins per seat, straight from live presence (server echoes what
 // each client reported at auth).
@@ -1914,6 +1963,178 @@ function copyLink() {
 
 .leave-link:hover {
   color: var(--color-alert);
+}
+
+/* GAME TABLE (desktop waiting room) ------------------------------------
+   Phones keep the stacked column above; from 1024px the same DOM becomes
+   a table: seats ride an ellipse ring via per-seat --sx/--sy vars (CSS
+   `translate` centres them, leaving `transform` free for hover + GSAP),
+   and the room-code card becomes the oval table surface at the centre.
+   Declared after every base rule on purpose — source order decides. */
+
+.table-stage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
+  width: 100%;
+}
+
+/* On phones the wrappers vanish so a seat renders exactly as the old
+   horizontal chip; on the table they become the card's rows. */
+.seat-id,
+.seat-meta {
+  display: contents;
+}
+
+/* Phones show one dashed "Waiting…" seat; the table shows the whole ring. */
+@media (max-width: 1023.98px) {
+  .seat-overflow {
+    display: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  .lobby-content--table {
+    max-width: 1080px;
+  }
+
+  .table-stage {
+    position: relative;
+    height: 580px;
+  }
+
+  .room-code-card {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    translate: -50% -50%;
+    width: 560px;
+    height: 300px;
+    justify-content: center;
+    border-radius: 50%;
+    background:
+      radial-gradient(ellipse at center, rgba(255, 204, 0, 0.08), rgba(255, 204, 0, 0.02) 62%, transparent 78%),
+      rgba(0, 0, 0, 0.45);
+    box-shadow:
+      0 0 80px rgba(255, 204, 0, 0.07),
+      inset 0 0 60px rgba(0, 0, 0, 0.55);
+    padding: var(--spacing-6);
+  }
+
+  .room-mode-footer {
+    width: 64%;
+  }
+
+  /* Dissolve the panel chrome: seats and the count position straight
+     against the stage. */
+  .players-section,
+  .players-list {
+    display: contents;
+  }
+
+  .players-count {
+    position: absolute;
+    top: 0;
+    left: 0;
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .player-chip {
+    position: absolute;
+    left: var(--sx);
+    top: var(--sy);
+    translate: -50% -50%;
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--spacing-1);
+    width: 118px;
+    min-height: 104px;
+    padding: var(--spacing-3) var(--spacing-2);
+    border-radius: var(--radius-md);
+    background: rgba(0, 0, 0, 0.55);
+    text-align: center;
+  }
+
+  .player-chip:hover:not(.player-chip-empty) {
+    transform: translateY(-2px);
+  }
+
+  .seat-id {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-2);
+  }
+
+  .seat-meta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-1);
+  }
+
+  .seat-meta:empty {
+    display: none;
+  }
+
+  .player-name,
+  .player-name-editable {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* The action bar: one horizontal row under the table, the host CTA in
+     the middle at a sane width instead of block-stretched. */
+  .waiting-actions {
+    flex-direction: row;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-4);
+    padding-top: var(--spacing-4);
+  }
+
+  .waiting-actions :deep(.btn) {
+    width: auto;
+    min-width: 300px;
+  }
+
+  .waiting-nudge {
+    order: 10;
+    flex-basis: 100%;
+    margin: 0;
+    max-width: none;
+  }
+
+  .waiting-escape {
+    margin-top: 0;
+  }
+
+  .waiting-sep {
+    display: none;
+  }
+
+  .waiting-escape .leave-link {
+    border: 1px solid #333;
+    border-radius: var(--radius-sm);
+    padding: var(--spacing-2) var(--spacing-3);
+    transition:
+      color var(--duration-snap) var(--ease-snap),
+      border-color var(--duration-snap) var(--ease-snap);
+  }
+
+  .waiting-escape .leave-link:hover {
+    border-color: var(--color-alert);
+  }
+
+  /* In the row bar the nudge overlay hangs over free space below — no
+     need to reserve its footprint like the stacked column does. */
+  .waiting-voice:has(.voice-nudge) {
+    margin-bottom: 0;
+  }
 }
 
 /* JOIN MODAL */
