@@ -166,12 +166,21 @@ export function playCard(s: EngineState, playerId: string, cardId: string, opts:
         s.currentColor = card.color
     }
 
+    // Counted before the effect runs, and after the played card is already out
+    // of the hand: a Discard All whose colour is unique in the hand has nothing
+    // left to dump, and handleDiscardAll is then a no-op.
+    const discardAllMatches = card.type === 'discardAll'
+        ? player.hand.filter(c => c.color === card.color).length
+        : 0
+
     applyCardEffect(s, card, ev, opts)
 
     // DiscardAll fully owns its own resolution (discard + top-card effect +
     // win/advance) inside applyCardEffect. Bail so the generic post-play logic
-    // below doesn't double-process it.
-    if (card.type === 'discardAll') return { ok: true, events: ev }
+    // below doesn't double-process it — but ONLY when it actually had matches.
+    // With zero matches it resolved nothing, so falling through is what keeps
+    // the turn from stranding and still lets it count as a winning last card.
+    if (card.type === 'discardAll' && discardAllMatches > 0) return { ok: true, events: ev }
 
     // Win / UNO-penalty checks run for EVERY card type, roulette included.
     if (player.hand.length === 0) {
