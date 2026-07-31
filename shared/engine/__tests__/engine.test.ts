@@ -133,6 +133,37 @@ describe('playCard', () => {
         expect(s.pendingDiscardAllCards).toEqual([])
     })
 
+    it('advances the turn when a Discard All matches nothing else in hand', () => {
+        // The played card is already out of the hand when the effect runs, so a
+        // Discard All whose colour is unique in the hand has zero cards left to
+        // dump. That must still be a normal completed play.
+        const discallRed = card('c-da', 'red', 'discardAll')
+        const blue3 = card('c-b3', 'blue', 'number', 3)
+        const s = makeState({
+            players: [player('p-0', 'You', [discallRed, blue3]), player('p-1', 'B1')],
+        })
+
+        const res = playCard(s, 'p-0', 'c-da')
+
+        expect(res.ok).toBe(true)
+        expect(s.turnState).toBe('WAITING_FOR_ACTION')
+        expect(s.currentPlayerIndex).toBe(1)
+        expect(res.events.some(e => e.t === 'TURN_ADVANCED')).toBe(true)
+    })
+
+    it('wins when a Discard All that matches nothing else is the last card', () => {
+        const discallRed = card('c-da', 'red', 'discardAll')
+        const s = makeState({
+            players: [player('p-0', 'You', [discallRed]), player('p-1', 'B1')],
+        })
+
+        const res = playCard(s, 'p-0', 'c-da')
+
+        expect(res.ok).toBe(true)
+        expect(s.winnerId).toBe('p-0')
+        expect(s.gameState).toBe('GAME_OVER')
+    })
+
     it('enters the picker state on a multi-match Discard All without a pick', () => {
         const discallRed = card('c-da', 'red', 'discardAll')
         const r3 = card('c-r3', 'red', 'number', 3)
