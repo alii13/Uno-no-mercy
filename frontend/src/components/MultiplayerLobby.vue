@@ -217,7 +217,7 @@
       </div>
 
       <!-- Waiting room — after creating, before starting -->
-      <div v-else-if="mpStore.gameStatus === 'waiting'" class="waiting-room">
+      <div v-else-if="mpStore.gameStatus === 'waiting'" ref="waitingRoomEl" class="waiting-room">
         <div class="room-code-card">
           <span class="room-code-label">ROOM CODE</span>
           <span class="room-code-value">{{ mpStore.roomCode }}</span>
@@ -459,7 +459,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import gsap from 'gsap'
+import { useMotion } from '../composables/useMotion'
 import { Copy, Check, Flame, Pencil, X, Zap, Hash, Bot, ChevronRight } from 'lucide-vue-next'
 import { useRetentionStore } from '../stores/retentionStore'
 import { getDailyRecord } from '../utils/dailyChallenge'
@@ -490,6 +492,19 @@ const emit = defineEmits<{
 const authStore = useAuthStore()
 const mpStore = useMultiplayerStore()
 const retention = useRetentionStore()
+
+// Entrance: the waiting room's three zones (code card, players, actions)
+// rise in once, staggered — runs on entering the room, not on player joins.
+const waitingRoomEl = ref<HTMLElement | null>(null)
+const motion = useMotion()
+watch(() => mpStore.gameStatus, async (status, prev) => {
+  if (status !== 'waiting' || prev === 'waiting') return
+  await nextTick()
+  const zones = waitingRoomEl.value?.children
+  if (!zones?.length || motion.reduced) return
+  gsap.set(zones, { opacity: 0, y: 12 })
+  motion.soft(zones, { opacity: 1, y: 0, stagger: 0.07, clearProps: 'all' })
+}, { immediate: true })
 
 // Re-read on every mount: the lobby unmounts while the daily game plays, so
 // returning from it always shows the fresh done state.
@@ -1516,11 +1531,17 @@ function copyLink() {
   cursor: pointer;
   border-radius: var(--radius-sm);
   min-height: 44px;
-  transition: filter var(--duration-snap) var(--ease-snap);
+  transition:
+    filter var(--duration-snap) var(--ease-snap),
+    transform var(--duration-snap) var(--ease-snap);
 }
 
 .code-action-btn:hover {
   filter: brightness(1.1);
+}
+
+.code-action-btn:active {
+  transform: scale(0.97);
 }
 
 .code-action-share {
@@ -1559,19 +1580,27 @@ function copyLink() {
   letter-spacing: 0.2em;
 }
 
+/* Same neutral panel language as the entry cards (.board-card) — the chips
+   were floating on the page background, which is what read as unfinished. */
 .players-section {
   width: 100%;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-4);
 }
 
 .players-count {
-  text-align: center;
+  text-align: left;
   font-family: var(--font-mono);
   color: var(--text-muted);
   letter-spacing: 0.2em;
   font-size: var(--text-sm);
+  padding-bottom: var(--spacing-3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .players-count-num {
@@ -1584,7 +1613,7 @@ function copyLink() {
 .players-list {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-start;
   gap: var(--spacing-2);
 }
 
@@ -1596,6 +1625,14 @@ function copyLink() {
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-pill);
+  transition:
+    border-color var(--duration-snap) var(--ease-snap),
+    transform var(--duration-snap) var(--ease-snap);
+}
+
+.player-chip:hover:not(.player-chip-empty) {
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
 }
 
 .player-chip-empty {
@@ -1758,26 +1795,38 @@ function copyLink() {
 
 .waiting-sep { color: var(--text-muted); }
 
+/* Hairline anchors the CTA zone to the panels above instead of letting it
+   float free at the bottom of the column. */
 .waiting-actions {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-3);
   width: 100%;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding-top: var(--spacing-6);
 }
 
 .waiting-voice {
   display: flex;
   align-items: center;
   gap: var(--spacing-3);
+  position: relative;
 }
 
 /* The discovery nudge is right-anchored for the in-game top bar; here the
-   button sits mid-page, so anchor it left instead of letting it clip
-   off-screen. */
+   button sits mid-page, so centre it under the whole cluster — anchored to
+   either button edge, its 300px overflows a phone viewport. The wrap goes
+   static so .waiting-voice becomes the containing block, and `translate`
+   (not transform) keeps clear of the nudge transition's translateY. */
+.waiting-voice :deep(.voice-wrap) {
+  position: static;
+}
+
 .waiting-voice :deep(.voice-nudge) {
   right: auto;
-  left: 0;
+  left: 50%;
+  translate: -50%;
 }
 
 /* The nudge is an overlay hung below the mic button. Over the game board
