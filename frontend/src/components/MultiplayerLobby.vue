@@ -219,7 +219,12 @@
       <!-- Waiting room — after creating, before starting. On desktop the
            stage lays the seats out around an oval table with the room code
            at its centre; on phones the same DOM stacks into a column. -->
-      <div v-else-if="mpStore.gameStatus === 'waiting'" ref="waitingRoomEl" class="waiting-room">
+      <div
+        v-else-if="mpStore.gameStatus === 'waiting'"
+        ref="waitingRoomEl"
+        class="waiting-room"
+        :class="{ 'waiting-room--dense': seats.length > 10 }"
+      >
         <div class="table-stage">
         <div class="room-code-card">
           <span class="room-code-label">ROOM CODE</span>
@@ -243,7 +248,7 @@
         <div class="players-section">
           <div class="players-count">
             <span class="players-count-num">{{ mpStore.gamePlayers.length }}</span>
-            <span class="players-count-of">of 10 players</span>
+            <span class="players-count-of">of {{ SEAT_CAP }} players</span>
           </div>
 
           <div class="players-list">
@@ -559,28 +564,39 @@ function openProfile(row: { share_code?: string | null }) {
 // rpc fails and the VIEW LEADERBOARD link never renders.
 onMounted(() => { void lb.fetchBoards() })
 
-// The table: always all 10 seats of the room cap — filled ones first (host
-// at the head), then dashed empties. Each seat carries its spot on the
-// ellipse ring as CSS vars; the desktop stage consumes them, phones ignore
-// them and stack. Host sits at 12 o'clock, the rest deal out clockwise.
-const SEAT_CAP = 10
+// The table: filled seats first (host at the head), then dashed empties.
+// Each seat carries its spot on the ellipse ring as CSS vars; the desktop
+// stage consumes them, phones ignore them and stack. Host sits at
+// 12 o'clock, the rest deal out clockwise. The ring stays a 10-seat table
+// until an 11th player actually shows up, then widens to the full cap —
+// 18 dashed seats around a 2-player room would just read as emptiness.
+const SEAT_CAP = 20
 const seats = computed(() => {
   const hostId = mpStore.currentGame?.host_id
   const players = [
     ...mpStore.gamePlayers.filter(p => p.user_id === hostId),
     ...mpStore.gamePlayers.filter(p => p.user_id !== hostId),
   ]
+  const ringSize = players.length <= 10 ? 10 : SEAT_CAP
   const all: { player: (typeof players)[number] | null }[] = [
     ...players.map(p => ({ player: p })),
-    ...Array.from({ length: Math.max(0, SEAT_CAP - players.length) }, () => ({ player: null })),
+    ...Array.from({ length: Math.max(0, ringSize - players.length) }, () => ({ player: null })),
   ]
+  // Past 10 seats a single ring runs out of arc — neighbours on the
+  // ellipse's flanks collide. Stagger alternate seats onto an inner ring
+  // (they sit on the table rim, poker-style), which restores the same
+  // same-ring pitch the 10-seat table has.
+  const staggered = all.length > 10
   return all.map((s, i) => {
-    const angle = ((-90 + (360 / SEAT_CAP) * i) * Math.PI) / 180
+    const angle = ((-90 + (360 / all.length) * i) * Math.PI) / 180
+    const outer = !staggered || i % 2 === 0
+    const rx = outer ? 43 : 30
+    const ry = outer ? 41 : 30
     return {
       ...s,
       style: {
-        '--sx': `${(50 + 42 * Math.cos(angle)).toFixed(2)}%`,
-        '--sy': `${(50 + 40 * Math.sin(angle)).toFixed(2)}%`,
+        '--sx': `${(50 + rx * Math.cos(angle)).toFixed(2)}%`,
+        '--sy': `${(50 + ry * Math.sin(angle)).toFixed(2)}%`,
       },
     }
   })
@@ -690,7 +706,7 @@ const friendlyError = computed(() => {
   const map: Record<string, string> = {
     'Game not found': "That room code didn't match any game. Double-check it and try again.",
     'Game already started': 'That game already kicked off. Ask the host for a new room, or start your own.',
-    'Game is full (max 10 players)': 'That room is full (10 players max). Start your own instead.',
+    'Game is full (max 20 players)': 'That room is full (20 players max). Start your own instead.',
   }
   if (map[e]) return map[e]
   if (/full/i.test(e)) return 'That room is full. Start your own instead.'
@@ -2134,6 +2150,37 @@ function copyLink() {
      need to reserve its footprint like the stacked column does. */
   .waiting-voice:has(.voice-nudge) {
     margin-bottom: 0;
+  }
+
+  /* A ring past 10 seats needs slimmer cards to keep neighbours from
+     touching (20 × ~90px on a ~2000px ellipse ring). */
+  .waiting-room--dense .player-chip {
+    width: 90px;
+    min-height: 0;
+    padding: var(--spacing-2) var(--spacing-1);
+  }
+
+  .waiting-room--dense .player-name,
+  .waiting-room--dense .player-name-editable {
+    font-size: var(--text-xs);
+  }
+
+  /* The card-back skin is the tallest non-essential thing on a seat —
+     dropping it in dense mode buys the vertical pitch the inner ring
+     needs. A smaller table keeps the rim clear of the inner seats. */
+  .waiting-room--dense .seat-skin {
+    display: none;
+  }
+
+  .waiting-room--dense .room-code-card {
+    width: 480px;
+    height: 260px;
+  }
+
+  /* Twenty seats need more vertical arc than ten — a taller stage scales
+     every ring pitch at once instead of fighting per-seat pixels. */
+  .waiting-room--dense .table-stage {
+    height: 700px;
   }
 }
 

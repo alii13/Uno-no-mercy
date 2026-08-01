@@ -11,7 +11,7 @@ UNO No Mercy Online is an independent, fan-made web implementation of the No Mer
 - Free to play
 - No download or installation
 - No account or registration required to play (guest play; an optional free account saves your stats)
-- 2 to 10 players per game
+- 2 to 20 players per game
 - Works on mobile and desktop browsers
 - Open source under the MIT license: https://github.com/alii13/Uno-no-mercy
 
