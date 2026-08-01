@@ -92,4 +92,4 @@ export type ServerMsg =
     | { t: 'snapshot'; seq: number; game: PersonalView }
     | { t: 'event'; seq: number; ev: GameEvent; intentId?: string }
     | { t: 'voice-token'; token: string; meetingId: string }
-    | { t: 'error'; code: 'unauthorized' | 'bad-message' | 'room-not-found' | 'not-host' | 'not-started' | 'already-started' | 'need-players' | 'not-in-lobby' | 'invalid-intent' | 'voice-unavailable'; intentId?: string }
+    | { t: 'error'; code: 'unauthorized' | 'bad-message' | 'room-not-found' | 'room-full' | 'not-host' | 'not-started' | 'already-started' | 'need-players' | 'not-in-lobby' | 'invalid-intent' | 'voice-unavailable'; intentId?: string }
