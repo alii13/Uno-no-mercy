@@ -370,8 +370,10 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     roomCodeRef.value = code
                     try { localStorage.setItem(STORED_ROOM_KEY, code) } catch { /* noop */ }
                 }
-                if (msg.t === 'error' && (msg.code === 'unauthorized' || msg.code === 'room-not-found')) {
-                    error.value = msg.code === 'room-not-found' ? 'Room not found' : 'Could not authenticate'
+                if (msg.t === 'error' && (msg.code === 'unauthorized' || msg.code === 'room-not-found' || msg.code === 'room-full')) {
+                    error.value = msg.code === 'room-not-found' ? 'Room not found'
+                        : msg.code === 'room-full' ? 'Game is full (max 20 players)'
+                        : 'Could not authenticate'
                     settle(false)
                 }
                 handleServerMsg(msg)

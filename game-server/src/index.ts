@@ -5,6 +5,7 @@ import type { ClientMsg, GameEvent, PresencePlayer, ServerMsg } from './protocol
 import { applyIntent, applyUnoCatch, autoResolveAbsentTurn, forceEliminate, persistResults, personalView, startGame, updateStats, viewEventFor, type GameRecord } from './game'
 import { addParticipant, createMeeting, deactivateMeeting, voiceConfigured, type VoiceEnv } from './voice'
 import { gcWindowMs } from './roomGc'
+import { canSeat } from './seats'
 import type { StackingMode } from '../../shared/engine'
 
 interface Env extends AuthEnv, VoiceEnv {
@@ -471,6 +472,11 @@ export class GameRoomDO {
                 return
             }
             const roster = (await this.ctx.storage.get<Record<string, RosterEntry>>('roster')) ?? {}
+            if (!canSeat(roster, verified.userId)) {
+                this.send(ws, { t: 'error', code: 'room-full' })
+                ws.close(1008, 'room full')
+                return
+            }
             const entry = roster[verified.userId]
             if (entry) {
                 entry.name = msg.name || entry.name
