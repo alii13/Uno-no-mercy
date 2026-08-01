@@ -428,13 +428,11 @@ export function rouletteDrawStep(s: EngineState, ev: EngineEvent[], rng: Rng = M
 
     // Wild cards revealed do not count as matching — an actual colored card is needed.
     if (s.rouletteTargetColor && card.color === s.rouletteTargetColor) {
-        // The card that stopped the roulette is discarded and becomes the new top.
-        const idx = p.hand.indexOf(card)
-        if (idx > -1) {
-            p.hand.splice(idx, 1)
-        }
-        s.discardPile.push(card)
-        s.currentColor = card.color === 'wild' ? s.rouletteTargetColor : card.color
+        // The match stays in the victim's hand like every other roulette draw
+        // (a first-card match must still cost a card — discarding it made the
+        // whole spin read as nothing but a color change). The roulette card
+        // keeps the top; play continues in the target color.
+        s.currentColor = s.rouletteTargetColor
         return 'match'
     }
 
@@ -446,6 +444,7 @@ export function rouletteDrawStep(s: EngineState, ev: EngineEvent[], rng: Rng = M
 }
 
 export function finishRouletteTurn(s: EngineState, ev: EngineEvent[]): void {
+    s.rouletteTargetColor = null
     s.turnState = 'WAITING_FOR_ACTION'
     if (s.gameState !== 'GAME_OVER') advanceTurn(s, ev)
 }

@@ -196,7 +196,10 @@ export function applyIntent(game: GameRecord, userId: string, action: IntentActi
             const ev: EngineEvent[] = []
             let outcome = engine.rouletteDrawStep(s, ev)
             while (outcome === 'continue') outcome = engine.rouletteDrawStep(s, ev)
-            const matchCard = outcome === 'match' ? s.discardPile[s.discardPile.length - 1] : undefined
+            // The match stays in the victim's hand (last card drawn) — the
+            // discard top is still the roulette card itself.
+            const victim = s.players[s.currentPlayerIndex]
+            const matchCard = outcome === 'match' ? victim?.hand[victim.hand.length - 1] : undefined
             if (outcome === 'match' || outcome === 'eliminated') {
                 engine.finishRouletteTurn(s, ev)
             }

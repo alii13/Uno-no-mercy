@@ -32,7 +32,7 @@
             <li><span class="chip">DISCARD ALL</span> <span>Dump <strong>every card of that color</strong> from your hand at once.</span></li>
             <li><span class="chip chip-num">7</span> <span><strong>Swap hands</strong> with any player you choose.</span></li>
             <li><span class="chip chip-num">0</span> <span><strong>Everyone passes</strong> their whole hand in the direction of play.</span></li>
-            <li><span class="chip chip-wild">ROULETTE</span> <span><strong>Wild Color Roulette.</strong> The victim draws until they hit the color you pick. Could be one card — could be ten.</span></li>
+            <li><span class="chip chip-wild">ROULETTE</span> <span><strong>Wild Color Roulette.</strong> The victim calls a color, then draws until they hit it. Could be one card — could be ten.</span></li>
             <li><span class="chip chip-wild">WILD +4 REV</span> <span>Reverse direction <em>and</em> hit the next player with +4.</span></li>
           </ul>
         </section>
