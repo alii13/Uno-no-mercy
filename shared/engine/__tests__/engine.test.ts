@@ -5,6 +5,7 @@ import { canPlayCard } from '../rules'
 import {
     playCard,
     rouletteDrawStep,
+    finishRouletteTurn,
     selectDiscardAllTop,
     drawCardToHand,
     eliminatePlayer,
@@ -244,10 +245,11 @@ describe('roulette', () => {
         expect(ev.some(e => e.t === 'TURN_ADVANCED')).toBe(true)
     })
 
-    it('discards the matching card and reports match', () => {
+    it('keeps the matching card in the hand and reports match', () => {
         const s = makeState({
             players: [player('p-0', 'You'), player('p-1', 'Victim', [red5])],
             deck: [card('d-blue', 'blue', 'number', 4)],
+            discardPile: [card('d-roul', 'wild', 'wildColorRoulette')],
             currentPlayerIndex: 1,
             turnState: 'ROULETTE_DRAWING',
             rouletteTargetColor: 'blue',
@@ -256,10 +258,28 @@ describe('roulette', () => {
 
         const outcome = rouletteDrawStep(s, ev)
 
+        // A first-card match must still cost the victim the card they drew —
+        // discarding it read as "the roulette did nothing but change color".
         expect(outcome).toBe('match')
-        expect(s.discardPile[s.discardPile.length - 1]!.id).toBe('d-blue')
+        expect(s.players[1]!.hand.map(c => c.id)).toEqual(['c-red-5', 'd-blue'])
+        expect(s.discardPile[s.discardPile.length - 1]!.id).toBe('d-roul')
         expect(s.currentColor).toBe('blue')
-        expect(s.players[1]!.hand.map(c => c.id)).toEqual(['c-red-5'])
+    })
+
+    it('clears the target color once the roulette turn finishes', () => {
+        const s = makeState({
+            players: [player('p-0', 'You'), player('p-1', 'Victim', [red5])],
+            currentPlayerIndex: 1,
+            turnState: 'ROULETTE_DRAWING',
+            rouletteTargetColor: 'blue',
+        })
+        const ev: EngineEvent[] = []
+
+        finishRouletteTurn(s, ev)
+
+        expect(s.rouletteTargetColor).toBeNull()
+        expect(s.turnState).toBe('WAITING_FOR_ACTION')
+        expect(s.currentPlayerIndex).toBe(0)
     })
 })
 
