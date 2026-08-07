@@ -267,7 +267,7 @@ export const useAuthStore = defineStore('auth', () => {
         }
     }
 
-    // Rename the current player (used by guests via the editable lobby chip).
+    // Rename the current player (used via the editable lobby chip).
     async function updateUsername(name: string) {
         const clean = sanitizeName(name)
         if (!clean || !user.value) return { success: false, error: 'Invalid name' }
