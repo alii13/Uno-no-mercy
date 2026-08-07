@@ -31,7 +31,7 @@
           </div>
           <div class="stat-cell">
             <div class="stat-value">{{ animated.unosCalled }}</div>
-            <div class="stat-label">UNOS CALLED</div>
+            <div class="stat-label">MERCY CALLS</div>
           </div>
           <div class="stat-cell">
             <div class="stat-value">{{ animated.peakHand }}</div>
@@ -176,7 +176,7 @@ function sharePayload() {
     biggestStack: props.stats?.biggestStack ?? 0,
     unosCalled: props.stats?.unosCalled ?? 0,
     peakHand: props.stats?.peakHand ?? 0,
-    siteUrl: 'uno-no-mercy.com',
+    siteUrl: 'open-mercy.com',
   }
 }
 
@@ -217,12 +217,12 @@ async function shareWithImage(opts: { text: string; url: string; fallbackUrl: st
   if (preferNativeShare() && navAny.canShare && navAny.share) {
     const blob = await generateShareImage(sharePayload())
     if (blob) {
-      const file = new File([blob], 'uno-no-mercy-win.png', { type: 'image/png' })
+      const file = new File([blob], 'open-mercy-win.png', { type: 'image/png' })
       if (navAny.canShare({ files: [file] })) {
         try {
           await navAny.share({
             files: [file],
-            title: 'UNO No Mercy',
+            title: 'Open Mercy',
             text: `${opts.text}\n\n${opts.url}`,
           })
           return
@@ -238,10 +238,10 @@ async function shareWithImage(opts: { text: string; url: string; fallbackUrl: st
   window.open(opts.fallbackUrl, '_blank')
 }
 
-const SITE_URL = 'https://uno-no-mercy.com'
+const SITE_URL = 'https://open-mercy.com'
 const shareText = () => props.mode === 'mp'
-  ? 'Just destroyed my friends in UNO No Mercy. No mercy given. Play me if you dare.'
-  : 'Just destroyed the bot in UNO No Mercy. No mercy given. Play me if you dare.'
+  ? 'Just destroyed my friends in Open Mercy. No mercy given. Play me if you dare.'
+  : 'Just destroyed the bot in Open Mercy. No mercy given. Play me if you dare.'
 
 async function onShareWhatsApp() {
   if (sharingWhatsapp.value) return

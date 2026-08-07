@@ -10,8 +10,8 @@
 
       <header class="auth-header">
         <h1 class="auth-brand">
-          <span class="auth-brand-uno">UNO</span>
-          <span class="auth-brand-nomercy">NO MERCY</span>
+          <span class="auth-brand-uno">OPEN</span>
+          <span class="auth-brand-nomercy">MERCY</span>
         </h1>
         <p class="auth-tagline">
           {{ mode === 'claim' ? 'Keep your stats forever'

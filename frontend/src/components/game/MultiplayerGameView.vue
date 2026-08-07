@@ -107,14 +107,14 @@
       :show-uno-button="showUnoButton"
       @call-uno="handleCallUno"
     >
-      <!-- Catch an opponent who forgot to call UNO -->
+      <!-- Catch an opponent who forgot to call Mercy -->
       <Transition name="catch-pop">
         <button
           v-if="caughtTarget"
           class="catch-btn"
           @click="mpStore.catchPlayer(caughtTarget.user_id)"
         >
-          CAUGHT! {{ caughtTarget.name }} forgot UNO
+          CAUGHT! {{ caughtTarget.name }} forgot MERCY
         </button>
       </Transition>
     </PlayerConsoleBar>

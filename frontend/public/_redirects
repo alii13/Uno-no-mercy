@@ -1,9 +1,16 @@
-# Redirect old pages.dev domain to custom domain
-https://uno-no-mercy.pages.dev/* https://uno-no-mercy.com/:splat 301
-https://*.uno-no-mercy.pages.dev/* https://uno-no-mercy.com/:splat 301
+# 301 bridge: old brand domain (+www) to the new domain, path-preserving.
+# uno-no-mercy.com stays attached to this Pages project for the bridge
+# period (decision: 12 months, revisit 2027-08) so these host-matched
+# rules keep firing.
+https://uno-no-mercy.com/* https://open-mercy.com/:splat 301
+https://www.uno-no-mercy.com/* https://open-mercy.com/:splat 301
+
+# Redirect pages.dev domains to the custom domain
+https://uno-no-mercy.pages.dev/* https://open-mercy.com/:splat 301
+https://*.uno-no-mercy.pages.dev/* https://open-mercy.com/:splat 301
 
 # Redirect www to apex
-https://www.uno-no-mercy.com/* https://uno-no-mercy.com/:splat 301
+https://www.open-mercy.com/* https://open-mercy.com/:splat 301
 
 # NOTE: no `/* /index.html 200` rule — Cloudflare Pages flags it as an
 # infinite loop and ignores it. Deep links (/leaderboard, /p/<code>) are

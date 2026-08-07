@@ -111,10 +111,10 @@ async function submit() {
         Accept: 'application/json',
       },
       body: JSON.stringify({
-        _subject: 'UNO No Mercy - New feedback',
+        _subject: 'Open Mercy - New feedback',
         _template: 'box',
         message: payload.message,
-        reply_to: payload.email || 'no-reply@uno-no-mercy.com',
+        reply_to: payload.email || 'no-reply@open-mercy.com',
         user_id: payload.user_id || 'guest',
         page: payload.page,
         user_agent: payload.user_agent,

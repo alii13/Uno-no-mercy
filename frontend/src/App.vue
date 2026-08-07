@@ -3,8 +3,8 @@
     <!-- Loading state -->
     <div v-if="authStore.loading" class="loading-screen" role="status" aria-label="Loading">
       <h1 class="loading-brand">
-        <span class="loading-uno">UNO</span>
-        <span class="loading-nomercy">NO MERCY</span>
+        <span class="loading-uno">OPEN</span>
+        <span class="loading-nomercy">MERCY</span>
       </h1>
       <div class="loading-dot" aria-hidden="true"></div>
       <p class="loading-text">INITIALIZING</p>
@@ -15,8 +15,8 @@
       <div class="reset-container">
         <div class="reset-card">
           <h1 class="reset-brand">
-            <span class="reset-uno">UNO</span>
-            <span class="reset-nomercy">NO MERCY</span>
+            <span class="reset-uno">OPEN</span>
+            <span class="reset-nomercy">MERCY</span>
           </h1>
           <p class="reset-tagline">SET A NEW PASSWORD</p>
 

@@ -3,8 +3,8 @@
     <!-- Top bar — all three CTAs visible from the first pixel, no scroll needed -->
     <header class="top-bar">
       <a class="brand-mark" href="#" @click.prevent>
-        <span class="brand-mark-uno">UNO</span>
-        <span class="brand-mark-nomercy">NO MERCY</span>
+        <span class="brand-mark-uno">OPEN</span>
+        <span class="brand-mark-nomercy">MERCY</span>
       </a>
 
       <div class="top-bar-cta">
@@ -43,9 +43,8 @@
 
       <!-- Wordmark — fades in after the explosion -->
       <div class="hero-wordmark" ref="wordmarkRef">
-        <span class="wm-uno">UNO</span>
+        <span class="wm-uno">OPEN</span>
         <span class="wm-row">
-          <span class="wm-no">NO&nbsp;</span>
           <span class="wm-mercy-wrap">
             <span class="wm-mercy">MERCY</span>
             <svg
@@ -71,7 +70,7 @@
           {{ loading ? 'ENTERING…' : (inviteCode ? 'JOIN THE GAME' : 'PLAY NOW') }}
         </Button>
         <button type="button" class="rules-peek" @click="showRules = true">
-          New to No Mercy? See how it works
+          New to Open Mercy? See how it works
         </button>
         <button type="button" class="rules-peek" @click="navigate({ name: 'leaderboard' })">
           Today's leaderboard &rarr;
@@ -612,10 +611,6 @@ function runHeroChoreography() {
   display: inline-flex;
   align-items: baseline;
   font-size: clamp(2rem, 7vw, 4rem);
-}
-
-.wm-no {
-  color: var(--text-primary);
 }
 
 .wm-mercy-wrap {

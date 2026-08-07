@@ -29,7 +29,7 @@ const UNO_CARD_BACK_STYLES = {
     pointerEvents: 'none'
 } as const
 
-// The "NO MERCY" back, kept in sync with CardBack.vue. Gradient/pattern ids are
+// The "OPEN MERCY" back, kept in sync with CardBack.vue. Gradient/pattern ids are
 // prefixed so they can't collide with the CardBack instances already in the DOM
 // (duplicate SVG ids in one document break url() references).
 const CARD_BACK_SVG = `<svg width="100%" height="100%" viewBox="0 0 250 350" xmlns="http://www.w3.org/2000/svg" style="display:block">
@@ -39,7 +39,7 @@ const CARD_BACK_SVG = `<svg width="100%" height="100%" viewBox="0 0 250 350" xml
   <path d="M 6 310 L 244 310" stroke="url(#fcHazard)" stroke-width="12" />
   <circle cx="125" cy="175" r="90" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="2" stroke-dasharray="10 5" />
   <circle cx="125" cy="175" r="75" fill="#000" stroke="#ff3333" stroke-width="4" />
-  <text x="125" y="165" font-family="Black Ops One, cursive" font-size="42" fill="#ff3333" text-anchor="middle" dominant-baseline="middle">NO</text>
+  <text x="125" y="165" font-family="Black Ops One, cursive" font-size="42" fill="#ff3333" text-anchor="middle" dominant-baseline="middle">OPEN</text>
   <text x="125" y="205" font-family="Black Ops One, cursive" font-size="32" fill="#e6e6e6" text-anchor="middle" dominant-baseline="middle">MERCY</text>
   <defs>
     <linearGradient id="fcPlate" x1="0%" y1="0%" x2="100%" y2="100%">

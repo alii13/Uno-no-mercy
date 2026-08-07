@@ -48,7 +48,7 @@ interface ToolInfo {
     inputSchema: JsonSchema
 }
 
-const HOW_TO_PLAY = `UNO No Mercy — how to play (you only need this to play *well*; you can play
+const HOW_TO_PLAY = `Open Mercy — how to play (you only need this to play *well*; you can play
 *legally* just by picking from \`legal_moves\` in get_state).
 
 Goal: be the first to empty your hand. If your hand ever reaches 25 cards you are
@@ -58,7 +58,7 @@ A card is playable if it matches the current color, or matches the top card's
 number/symbol, or is a wild. When a draw card is on top and a draw stack is
 active you may only respond with another draw card (stacking rules vary by mode).
 
-Card types beyond classic UNO:
+Card types beyond the classic deck:
   - draw2 / draw4 / draw6 / draw10: stack penalties onto the next player.
   - skipEveryone: everyone is skipped, you play again.
   - reverse: flips direction (acts as skip in a 2-player game).
@@ -68,7 +68,7 @@ Card types beyond classic UNO:
   - wildColorRoulette: the next player draws until they hit the chosen color.
 
 Tactics: dump big draw cards when an opponent is low; hold a 7-swap to offload a
-huge hand; keep a wild as an escape; and CALL UNO the moment you are about to be
+huge hand; keep a wild as an escape; and CALL MERCY the moment you are about to be
 left with one card or you take a penalty.
 
 The play loop: call wait_for_turn, then get_state, then choose one of the actions
@@ -302,7 +302,7 @@ export function registerMcpTools(pinia: Pinia): void {
     const all: ToolDef[] = [
         {
             name: 'how_to_play',
-            description: 'Return a primer on UNO No Mercy rules, card types, and basic tactics.',
+            description: 'Return a primer on Open Mercy rules, card types, and basic tactics.',
             inputSchema: noArgs,
             handler: async () => ({ guide: HOW_TO_PLAY }),
         },
@@ -436,7 +436,7 @@ export function registerMcpTools(pinia: Pinia): void {
         },
         {
             name: 'call_uno',
-            description: 'Call UNO. Do this when you are about to be left with one card to avoid a penalty.',
+            description: 'Call MERCY (the last-card call). Do this when you are about to be left with one card to avoid a penalty.',
             inputSchema: noArgs,
             handler: async () => {
                 requireInGame()
@@ -447,7 +447,7 @@ export function registerMcpTools(pinia: Pinia): void {
                     (mode() === 'single' && sp.catchableId === HUMAN_ID) ||
                     (mode() === 'multi' && !!mp.catchableUserId && mp.catchableUserId === mp.myPlayer?.user_id)
                 if (!shouldCallUno() && !exposedSelf) {
-                    throw new Error('Calling UNO is not available right now.')
+                    throw new Error('Calling MERCY is not available right now.')
                 }
                 if (mode() === 'multi') await mp.callUno()
                 else sp.callUno(HUMAN_ID)
@@ -584,7 +584,7 @@ export function registerMcpTools(pinia: Pinia): void {
     // lazily so zod + the MCP SDK code-split out of the main bundle that every
     // human visitor downloads. Best-effort: never block or break the app.
     const catalog: ToolCatalog = {
-        serverName: 'uno-no-mercy',
+        serverName: 'open-mercy',
         serverVersion: '1.0.0',
         tools: all.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })),
         callTool,
