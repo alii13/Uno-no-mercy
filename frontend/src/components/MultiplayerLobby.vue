@@ -9,7 +9,7 @@
 
       <div class="top-bar-cta">
         <input
-          v-if="authStore.isAnonymous && editingName && editTarget === 'bar'"
+          v-if="editingName && editTarget === 'bar'"
           v-model="nameInput"
           v-focus-ring
           class="username-edit-input"
@@ -19,25 +19,16 @@
           @keyup.esc="editingName = false"
           @blur="saveName"
         />
+        <!-- Renamable for guests AND account users — stats stay reachable via
+             the MY STATS link below. -->
         <button
-          v-else-if="authStore.isAnonymous"
+          v-else
           class="username-chip username-chip-editable"
           title="Tap to rename"
           @click="startEditName('bar')"
         >
           {{ authStore.username }}
           <Pencil class="chip-edit-icon" :stroke-width="2" aria-hidden="true" />
-        </button>
-        <!-- Signed in, so the nickname isn't editable here — the chip becomes
-             the way into your own stats instead. -->
-        <button
-          v-else
-          class="username-chip username-chip-action"
-          title="View your stats"
-          @click="$emit('showStats')"
-        >
-          {{ authStore.username }}
-          <ChevronRight class="chip-edit-icon" :stroke-width="2" aria-hidden="true" />
         </button>
         <button
           v-if="authStore.isAnonymous"
@@ -267,9 +258,9 @@
                 :stripe="skinColors(seatSkins[player.user_id]).stripe"
                 aria-hidden="true"
               />
-              <!-- My own seat is renamable (guests); others render plain. -->
+              <!-- My own seat is renamable; others render plain. -->
               <input
-                v-if="player.user_id === authStore.user?.id && authStore.isAnonymous && editingName && editTarget === 'room'"
+                v-if="player.user_id === authStore.user?.id && editingName && editTarget === 'room'"
                 v-model="nameInput"
                 :ref="(el: any) => el && el.focus && el.focus()"
                 class="username-edit-input seat-edit-input"
@@ -280,7 +271,7 @@
                 @blur="saveName"
               />
               <button
-                v-else-if="player.user_id === authStore.user?.id && authStore.isAnonymous"
+                v-else-if="player.user_id === authStore.user?.id"
                 class="player-name player-name-editable"
                 title="Tap to rename"
                 @click="startEditName('room')"
@@ -806,8 +797,7 @@ function copyLink() {
   border-radius: var(--radius-sm);
 }
 
-.username-chip-editable,
-.username-chip-action {
+.username-chip-editable {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -816,8 +806,7 @@ function copyLink() {
   transition: border-color 0.2s, color 0.2s;
 }
 
-.username-chip-editable:hover,
-.username-chip-action:hover {
+.username-chip-editable:hover {
   color: var(--text-primary);
   border-color: rgba(255, 255, 255, 0.25);
 }
