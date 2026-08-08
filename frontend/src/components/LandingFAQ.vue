@@ -6,7 +6,7 @@
         YOUR QUESTIONS, <span class="accent-blue">ANSWERED</span>
       </h2>
       <p class="section-desc" ref="faqDesc">
-        Everything about playing UNO No Mercy online, in one place.
+        Everything about playing Open Mercy online, in one place.
       </p>
 
       <div class="faq-list">
@@ -41,8 +41,8 @@ gsap.registerPlugin(ScrollTrigger)
 // structured data must match the visible questions and answers exactly.
 const faqs = [
   {
-    q: 'Can I play UNO No Mercy online?',
-    a: 'Yes. UNO No Mercy runs directly in your web browser at uno-no-mercy.com. There is nothing to install - open the page and play.',
+    q: 'Can I play Open Mercy online?',
+    a: 'Yes. Open Mercy runs directly in your web browser at open-mercy.com. There is nothing to install - open the page and play.',
   },
   {
     q: 'Is the game free?',
@@ -74,7 +74,7 @@ const faqs = [
   },
   {
     q: 'Does the game include Draw 6 and Draw 10?',
-    a: 'Yes. Both Draw 6 and Draw 10 cards are included, along with the other No Mercy action cards.',
+    a: 'Yes. Both Draw 6 and Draw 10 cards are included, along with the other brutal action cards.',
   },
   {
     q: 'Is stacking supported?',
@@ -85,8 +85,8 @@ const faqs = [
     a: 'If a player\'s hand ever reaches 25 or more cards, that player is eliminated from the game. It is the "no mercy" twist that ends runaway hands.',
   },
   {
-    q: 'Is this an official UNO or Mattel game?',
-    a: 'No. This is an independent, fan-made project. It is not affiliated with, endorsed by, or associated with Mattel or the official UNO brand.',
+    q: 'Is Open Mercy an official UNO or Mattel game?',
+    a: "No. Open Mercy is an independent game. Its ruleset was popularized by Mattel's UNO Show 'Em No Mercy® card game, but this project is not affiliated with, endorsed by, or associated with Mattel or the official UNO brand.",
   },
 ]
 

@@ -92,19 +92,19 @@
       />
     </div>
 
-    <!-- Action dock (BOTTOM): DRAW · CAUGHT · UNO -->
+    <!-- Action dock (BOTTOM): DRAW · CAUGHT · MERCY -->
     <PlayerConsoleBar
       :show-uno-button="store.showUnoButton"
       @call-uno="store.callUno(myPlayerId)"
     >
-      <!-- Catch an opponent who forgot to call UNO -->
+      <!-- Catch an opponent who forgot to call Mercy -->
       <Transition name="catch-pop">
         <button
           v-if="caughtTarget"
           class="catch-btn"
           @click="store.catchNoUno(caughtTarget.id)"
         >
-          CAUGHT! {{ caughtTarget.name }} forgot UNO
+          CAUGHT! {{ caughtTarget.name }} forgot MERCY
         </button>
       </Transition>
     </PlayerConsoleBar>

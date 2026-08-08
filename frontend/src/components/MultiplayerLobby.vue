@@ -3,8 +3,8 @@
     <!-- Top bar — slim, brand left, identity + auth controls right. No scan-line. -->
     <header class="lobby-top-bar">
       <a class="brand-mark" href="#" @click.prevent>
-        <span class="brand-mark-uno">UNO</span>
-        <span class="brand-mark-nomercy">NO MERCY</span>
+        <span class="brand-mark-uno">OPEN</span>
+        <span class="brand-mark-nomercy">MERCY</span>
       </a>
 
       <div class="top-bar-cta">

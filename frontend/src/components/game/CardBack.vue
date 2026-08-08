@@ -57,15 +57,15 @@
         stroke-width="4"
       />
 
-      <!-- NO MERCY Text -->
-      <text 
-        x="125" y="165" 
-        font-family="Black Ops One, cursive" 
-        font-size="42" 
+      <!-- OPEN MERCY Text -->
+      <text
+        x="125" y="165"
+        font-family="Black Ops One, cursive"
+        font-size="42"
         style="fill: var(--card-back-accent, #ff3333)"
         text-anchor="middle"
         dominant-baseline="middle"
-      >NO</text>
+      >OPEN</text>
       <text 
         x="125" y="205" 
         font-family="Black Ops One, cursive" 

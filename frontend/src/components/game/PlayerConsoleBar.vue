@@ -5,14 +5,14 @@
       <slot />
     </div>
 
-    <!-- UNO! (right thumb). Drawing is done by tapping the deck. -->
+    <!-- MERCY! (right thumb). Drawing is done by tapping the deck. -->
     <button
       v-if="showUnoButton"
       class="dock-btn uno-btn"
       type="button"
       @click="$emit('call-uno')"
     >
-      UNO!
+      MERCY!
     </button>
   </div>
 </template>

@@ -10,8 +10,8 @@
       </button>
 
       <a class="brand-mark" href="#" @click.prevent>
-        <span class="brand-mark-uno">UNO</span>
-        <span class="brand-mark-nomercy">NO MERCY</span>
+        <span class="brand-mark-uno">OPEN</span>
+        <span class="brand-mark-nomercy">MERCY</span>
       </a>
 
       <button
@@ -149,7 +149,7 @@
           </div>
           <div class="lifetime-cell">
             <div class="lifetime-value">{{ totalUnoCalls }}</div>
-            <div class="lifetime-label">UNO calls</div>
+            <div class="lifetime-label">MERCY calls</div>
           </div>
           <div class="lifetime-cell">
             <div class="lifetime-value">{{ totalSkipsDealt }}</div>
@@ -325,7 +325,7 @@ function formatDate(dateStr: string): string {
 }
 
 function getShareText() {
-  return `I'm a ${rank.value.title} in UNO No Mercy - ${winRate.value}% win rate across ${gamesPlayed.value} games. Think you can beat me?`
+  return `I'm a ${rank.value.title} in Open Mercy - ${winRate.value}% win rate across ${gamesPlayed.value} games. Think you can beat me?`
 }
 
 function renderShareCanvas() {
@@ -343,7 +343,7 @@ function renderShareCanvas() {
 
   ctx.fillStyle = '#e6e6e6'
   ctx.font = 'bold 28px monospace'
-  ctx.fillText('UNO NO MERCY', 30, 55)
+  ctx.fillText('OPEN MERCY', 30, 55)
 
   ctx.fillStyle = rank.value.color
   ctx.font = 'bold 18px monospace'
@@ -402,7 +402,7 @@ function renderShareCanvas() {
 
   ctx.fillStyle = '#52525b'
   ctx.font = '12px monospace'
-  ctx.fillText('uno-no-mercy.com', 30, 380)
+  ctx.fillText('open-mercy.com', 30, 380)
 }
 
 function generateShareCard() {
@@ -414,24 +414,24 @@ function downloadCard() {
   const canvas = shareCanvas.value
   if (!canvas) return
   const link = document.createElement('a')
-  link.download = 'uno-no-mercy-stats.png'
+  link.download = 'open-mercy-stats.png'
   link.href = canvas.toDataURL('image/png')
   link.click()
 }
 
 function shareToTwitter() {
   const text = encodeURIComponent(getShareText())
-  const url = encodeURIComponent('https://uno-no-mercy.com')
+  const url = encodeURIComponent('https://open-mercy.com')
   window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank')
 }
 
 function shareToWhatsApp() {
-  const text = encodeURIComponent(getShareText() + '\n\nhttps://uno-no-mercy.com')
+  const text = encodeURIComponent(getShareText() + '\n\nhttps://open-mercy.com')
   window.open(`https://wa.me/?text=${text}`, '_blank')
 }
 
 function copyShareLink() {
-  const text = getShareText() + '\n\nhttps://uno-no-mercy.com'
+  const text = getShareText() + '\n\nhttps://open-mercy.com'
   navigator.clipboard?.writeText(text)
   copied.value = true
   setTimeout(() => (copied.value = false), 2000)

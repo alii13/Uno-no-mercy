@@ -62,24 +62,24 @@ function drawDangerTape(ctx: CanvasRenderingContext2D, x: number, y: number, w: 
 }
 
 function drawTitle(ctx: CanvasRenderingContext2D) {
-    // UNO NO MERCY logo, large
+    // OPEN MERCY logo, large
     ctx.save()
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
 
-    // UNO — huge red glow
+    // OPEN — huge red glow
     ctx.font = 'bold 240px "Black Ops One", Impact, sans-serif'
     ctx.fillStyle = '#ff2a2a'
     ctx.shadowColor = 'rgba(255, 42, 42, 0.7)'
     ctx.shadowBlur = 40
-    ctx.fillText('UNO', W / 2, 140)
+    ctx.fillText('OPEN', W / 2, 140)
 
-    // NO MERCY — smaller, gold
+    // MERCY — smaller, gold
     ctx.shadowColor = 'rgba(255, 204, 0, 0.55)'
     ctx.shadowBlur = 25
     ctx.font = 'bold 96px "Black Ops One", Impact, sans-serif'
     ctx.fillStyle = '#ffcc00'
-    ctx.fillText('NO MERCY', W / 2, 400)
+    ctx.fillText('MERCY', W / 2, 400)
     ctx.restore()
 }
 
@@ -124,7 +124,7 @@ function drawStats(ctx: CanvasRenderingContext2D, payload: ShareImagePayload) {
     const cells = [
         { value: String(payload.cardsPlayed), label: 'CARDS PLAYED' },
         { value: String(payload.biggestStack), label: 'BIGGEST STACK' },
-        { value: String(payload.unosCalled), label: 'UNOS CALLED' },
+        { value: String(payload.unosCalled), label: 'MERCY CALLS' },
         { value: String(payload.peakHand), label: 'PEAK HAND' },
     ]
 
@@ -201,7 +201,7 @@ export async function generateShareImage(payload: ShareImagePayload): Promise<Bl
  * Trigger native share if supported, otherwise download. Returns true on
  * either successful share or download.
  */
-export async function shareOrDownload(blob: Blob, filename = 'uno-no-mercy-win.png'): Promise<boolean> {
+export async function shareOrDownload(blob: Blob, filename = 'open-mercy-win.png'): Promise<boolean> {
     const file = new File([blob], filename, { type: 'image/png' })
 
     // Native share with file (mobile mainly)
@@ -210,8 +210,8 @@ export async function shareOrDownload(blob: Blob, filename = 'uno-no-mercy-win.p
         try {
             await navAny.share({
                 files: [file],
-                title: 'UNO No Mercy',
-                text: 'I just won at UNO No Mercy.',
+                title: 'Open Mercy',
+                text: 'I just won at Open Mercy.',
             })
             return true
         } catch {

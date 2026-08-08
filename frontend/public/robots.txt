@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://uno-no-mercy.com/sitemap.xml
+Sitemap: https://open-mercy.com/sitemap.xml

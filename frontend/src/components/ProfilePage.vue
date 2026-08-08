@@ -3,8 +3,8 @@
     <header class="pp-topbar">
       <button class="back-link" @click="$emit('back')">&larr; BACK</button>
       <a class="brand-mark" href="#" @click.prevent>
-        <span class="brand-mark-uno">UNO</span>
-        <span class="brand-mark-nomercy">NO MERCY</span>
+        <span class="brand-mark-uno">OPEN</span>
+        <span class="brand-mark-nomercy">MERCY</span>
       </a>
       <button v-if="p" class="share-btn" @click="onShare">
         {{ shareState === 'copied' ? 'COPIED ✓' : 'SHARE' }}
@@ -23,7 +23,7 @@
           ? 'This profile link doesn\'t match any player.'
           : 'Public profiles aren\'t live yet. The game definitely is.' }}
       </p>
-      <Button variant="primary" size="lg" @click="$emit('back')">PLAY UNO NO MERCY — FREE</Button>
+      <Button variant="primary" size="lg" @click="$emit('back')">PLAY OPEN MERCY — FREE</Button>
     </div>
 
     <div v-else-if="p" ref="contentEl" class="pp-content">
@@ -158,7 +158,7 @@
       <!-- The growth loop: visitors get the challenge, the owner gets tools -->
       <section v-if="!isOwn" class="pp-cta">
         <p class="pp-cta-line">Think you can beat {{ p.username }}?</p>
-        <Button variant="primary" size="lg" block @click="$emit('back')">PLAY UNO NO MERCY — FREE</Button>
+        <Button variant="primary" size="lg" block @click="$emit('back')">PLAY OPEN MERCY — FREE</Button>
       </section>
       <section v-else-if="authStore.isAnonymous" class="pp-cta pp-cta--own">
         <p class="pp-cta-line">This is your guest profile — claim it from the lobby (CREATE ACCOUNT) and everything here is yours forever.</p>

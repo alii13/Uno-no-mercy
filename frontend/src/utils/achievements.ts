@@ -148,11 +148,11 @@ ladder(r => sum(r, x => x.wild_cards_played), a => a.sum_wild_cards, [
 ])
 
 ladder(r => sum(r, x => x.uno_calls), a => a.sum_uno_calls, [
-    ['uno_50', 'Loudmouth', 'Call UNO 50 times lifetime', 50],
-    ['uno_100', 'Siren', 'Call UNO 100 times lifetime', 100],
-    ['uno_250', 'Herald', 'Call UNO 250 times lifetime', 250],
-    ['uno_500', 'Battle Cry', 'Call UNO 500 times lifetime', 500],
-    ['uno_1000', 'Voice of War', 'Call UNO 1,000 times lifetime', 1000],
+    ['uno_50', 'Loudmouth', 'Call MERCY 50 times lifetime', 50],
+    ['uno_100', 'Siren', 'Call MERCY 100 times lifetime', 100],
+    ['uno_250', 'Herald', 'Call MERCY 250 times lifetime', 250],
+    ['uno_500', 'Battle Cry', 'Call MERCY 500 times lifetime', 500],
+    ['uno_1000', 'Voice of War', 'Call MERCY 1,000 times lifetime', 1000],
 ])
 
 ladder(r => sum(r, x => x.swaps_made), a => a.sum_swaps, [
@@ -220,7 +220,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     { id: 'executioner', title: 'Executioner', desc: 'Deal 50 skips lifetime', earned: r => sum(r, x => x.skips_dealt) >= 50 },
     { id: 'sadist', title: 'No Mercy Indeed', desc: 'Play 100 draw cards lifetime', earned: r => sum(r, x => x.draw_cards_played) >= 100 },
     { id: 'wild_thing', title: 'Wild Thing', desc: 'Play 50 wild cards lifetime', earned: r => sum(r, x => x.wild_cards_played) >= 50 },
-    { id: 'town_crier', title: 'Town Crier', desc: 'Call UNO 25 times lifetime', earned: r => sum(r, x => x.uno_calls) >= 25 },
+    { id: 'town_crier', title: 'Town Crier', desc: 'Call MERCY 25 times lifetime', earned: r => sum(r, x => x.uno_calls) >= 25 },
     { id: 'clean_win', title: 'Surgical', desc: 'Win playing 20 cards or fewer', earned: r => r.some(x => realWin(x) && x.cards_played_total <= 20) },
     { id: 'speed_demon', title: 'Speed Demon', desc: 'Win in under 90 seconds', earned: r => r.some(x => realWin(x) && x.game_duration_secs > 0 && x.game_duration_secs < 90) },
     { id: 'marathon', title: 'War of Attrition', desc: 'Finish a 15+ minute game', earned: r => r.some(x => x.game_duration_secs >= 900) },

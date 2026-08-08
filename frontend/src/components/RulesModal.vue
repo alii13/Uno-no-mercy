@@ -8,7 +8,7 @@
 
       <div class="rules-body">
         <p class="rules-goal">
-          Be the first to empty your hand. UNO No Mercy is brutal — penalties stack high
+          Be the first to empty your hand. Open Mercy is brutal — penalties stack high
           and if you ever hold <strong>25 cards</strong>, you're <strong>eliminated</strong>.
         </p>
 
@@ -17,7 +17,7 @@
           <ul class="rules-list">
             <li>Play a card that matches the <strong>color</strong> or the <strong>number/symbol</strong> on the pile.</li>
             <li>Can't play? <strong>Draw</strong> from the deck. If the drawn card is playable it plays automatically.</li>
-            <li>Down to one card? <strong>Call UNO!</strong> — forget and you're penalized.</li>
+            <li>Down to one card? <strong>Call MERCY!</strong> — forget and you're penalized.</li>
           </ul>
         </section>
 

@@ -281,7 +281,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                         break
                     case 'UNO_CALLED':
                         if (ev.playerId === myUserId.value) mpStats.value.unoCalls++
-                        shout(`${playerName(ev.playerId)} called UNO`)
+                        shout(`${playerName(ev.playerId)} called MERCY`)
                         if (catchableUserId.value === ev.playerId) catchableUserId.value = null
                         break
                     case 'UNO_WINDOW_OPEN':
