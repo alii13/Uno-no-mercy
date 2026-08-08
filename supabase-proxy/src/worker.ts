@@ -31,7 +31,7 @@ function getCorsHeaders(request: Request): Record<string, string> {
   // header), never cookies, so we do NOT send Allow-Credentials — that removes
   // the credentialed-cross-origin grant a reflected wildcard would otherwise
   // hand to any *.pages.dev site.
-  const isAllowed = ALLOWED_ORIGINS.includes(origin) || origin === 'https://uno-no-mercy.com' || origin === 'https://www.uno-no-mercy.com' || origin.endsWith('.pages.dev')
+  const isAllowed = ALLOWED_ORIGINS.includes(origin) || origin === 'https://uno-no-mercy.com' || origin === 'https://www.uno-no-mercy.com' || origin === 'https://open-mercy.com' || origin === 'https://www.open-mercy.com' || origin.endsWith('.pages.dev')
 
   return {
     'Access-Control-Allow-Origin': isAllowed ? origin : ALLOWED_ORIGINS[0]!,
