@@ -24,6 +24,7 @@ Guidance for working in this repo. Hard-won - read before changing CSS, raising 
 ## Cloudflare Pages
 
 - **Do not add `/* /index.html 200` to `_redirects`** - Pages flags it as an infinite loop and ignores it. Deep links (`/leaderboard`, `/p/<code>`) work via Pages' automatic SPA fallback, which applies because the build output has no `404.html`.
+- **`_redirects` cannot host-match**: absolute-URL sources (`https://old-domain.com/*`) are rejected with "Only relative URLs are allowed" - and one invalid line reports in the build log while the whole file parses to 0 rules. Host-level redirects (domain bridge, www→apex) live in `functions/_middleware.js`. Check the deploy log's "Parsed N valid redirect rules" line whenever `_redirects` changes.
 - **The Pages project's root directory is the REPO ROOT**, not `frontend/` (the project config has `pages_build_output_dir = "frontend/dist"`). Pages Functions therefore live at repo-root `functions/` - a `frontend/functions/` directory is silently ignored (no build error; the routes just serve the SPA shell instead). Verify with `npx wrangler pages download config uno-no-mercy` if in doubt, and delete the downloaded `wrangler.toml` afterward - committing it would switch the project to file-managed config.
 - Functions deploy with the normal Pages build - no separate wrangler deploy.
 - `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are available to Pages Functions as env bindings.

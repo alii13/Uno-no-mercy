@@ -1,17 +1,8 @@
-# 301 bridge: old brand domain (+www) to the new domain, path-preserving.
-# uno-no-mercy.com stays attached to this Pages project for the bridge
-# period (decision: 12 months, revisit 2027-08) so these host-matched
-# rules keep firing.
-https://uno-no-mercy.com/* https://open-mercy.com/:splat 301
-https://www.uno-no-mercy.com/* https://open-mercy.com/:splat 301
-
-# Redirect pages.dev domains to the custom domain
-https://uno-no-mercy.pages.dev/* https://open-mercy.com/:splat 301
-https://*.uno-no-mercy.pages.dev/* https://open-mercy.com/:splat 301
-
-# Redirect www to apex
-https://www.open-mercy.com/* https://open-mercy.com/:splat 301
-
+# Host-based redirects (old domain → open-mercy.com, www → apex, pages.dev
+# → apex) live in functions/_middleware.js. They CANNOT live here: Pages'
+# _redirects rejects absolute-URL sources ("Only relative URLs are allowed"),
+# and silently skips them in the build log.
+#
 # NOTE: no `/* /index.html 200` rule — Cloudflare Pages flags it as an
 # infinite loop and ignores it. Deep links (/leaderboard, /p/<code>) are
 # served by Pages' automatic SPA fallback (no 404.html in the build output),
