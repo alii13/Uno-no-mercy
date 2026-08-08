@@ -76,6 +76,7 @@ function corsOrigin(req: Request): string | null {
     const origin = req.headers.get('Origin')
     if (!origin) return null
     if (origin === 'https://uno-no-mercy.com' || origin === 'https://www.uno-no-mercy.com') return origin
+    if (origin === 'https://open-mercy.com' || origin === 'https://www.open-mercy.com') return origin
     if (origin === 'https://uno-no-mercy.pages.dev') return origin
     if (/^http:\/\/localhost(:\d+)?$/.test(origin)) return origin
     if (/^https:\/\/[a-z0-9-]+\.uno-no-mercy\.pages\.dev$/.test(origin)) return origin
