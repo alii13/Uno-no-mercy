@@ -46,6 +46,11 @@ Guidance for working in this repo. Hard-won - read before changing CSS, raising 
 - Changing a function's return columns requires `drop function` + recreate - `create or replace` can't do it. The drop triggers the SQL Editor's destructive-operation warning; that's expected.
 - The frontend feature-detects every definer function (probe once, hide the surface on error), so merging frontend and running SQL can happen in either order without breaking prod.
 
+## Tests
+
+- `src/lib/supabase.ts` **throws at import time** when `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are unset, and the CI workflow passes no env. So any spec whose import graph reaches that module must `vi.mock('../../lib/supabase', ...)` — see `stores/__tests__/gameStore.test.ts`. This passes locally either way because `frontend/.env` exists, so it only ever shows up as a red CI on a green local run. Reproduce with `mv .env .env.hidden && npx vitest run` (restore it afterwards).
+- `npm run build` does **not** catch this: `import.meta.env` compiles to `undefined` and the throw is runtime.
+
 ## Data quality
 
 - Multiplayer walkover wins (every opponent left) record near-zero cards played and seconds-long durations. Speed/efficiency records and achievements gate on `cards_played_total >= 5` - keep that filter consistent between SQL (`public_profile`, `weekly_spotlights`) and `frontend/src/utils/achievements.ts`, which has an agreement test suite for exactly this.

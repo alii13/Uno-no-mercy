@@ -331,3 +331,54 @@ describe('kill card capture', () => {
         expect(store.biggestKill).toBeNull()
     })
 })
+
+describe('daily turn log', () => {
+    const draw2: Card = { id: 'c-d2', color: 'red', type: 'draw2' }
+
+    function seat(hand: Card[]) {
+        const store = useGameStore()
+        const bot = makePlayer('p-1', 'Terminator')
+        bot.isBot = true
+        store.players = [makePlayer('p-0', 'You', hand), bot]
+        store.gameState = 'PLAYING'
+        store.currentPlayerIndex = 0
+        store.discardPile = [red5]
+        store.currentColor = 'red'
+        store.turnState = 'WAITING_FOR_ACTION'
+        store.deck = Array.from({ length: 30 }, (_, i) => ({
+            id: `deck-${i}`, color: 'blue', type: 'number', value: (i % 9) + 1,
+        })) as Card[]
+        return store
+    }
+
+    it('records a play for the human but not for the bot', () => {
+        vi.useFakeTimers()
+        const store = seat([red5, draw2])
+        store.playCard('p-0', red5)
+        store.players[1]!.hand = [{ id: 'b-1', color: 'red', type: 'number', value: 3 }]
+        store.playCard('p-1', store.players[1]!.hand[0]!)
+        expect(store.turnLog).toEqual(['p'])
+    })
+
+    it('distinguishes a plain draw from eating a stack', () => {
+        vi.useFakeTimers()
+        const store = seat([red5])
+        store.drawCardsForCurrentPlayer()
+        expect(store.turnLog).toEqual(['d'])
+
+        store.currentPlayerIndex = 0
+        store.turnState = 'WAITING_FOR_ACTION'
+        store.drawStack = 6
+        store.drawCardsForCurrentPlayer()
+        expect(store.turnLog).toEqual(['d', 'x'])
+    })
+
+    it('starts empty on a new game', () => {
+        vi.useFakeTimers()
+        const store = seat([red5])
+        store.drawCardsForCurrentPlayer()
+        expect(store.turnLog.length).toBeGreaterThan(0)
+        store.initializeGame(['You', 'Terminator'])
+        expect(store.turnLog).toEqual([])
+    })
+})
