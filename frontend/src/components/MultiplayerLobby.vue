@@ -92,10 +92,35 @@
               PLAY
             </Button>
           </template>
-          <p v-else class="daily-desc daily-result">
-            {{ dailyRecord.result === 'won' ? `Cleared in ${dailyRecord.turns} turns` : dailyRecord.result === 'eliminated' ? 'Mercy got you today' : 'Lost today' }}
-            — new deal tomorrow.
-          </p>
+          <template v-else>
+            <p class="daily-desc daily-result">
+              {{ dailyRecord.result === 'won' ? `Cleared in ${dailyRecord.turns} turns` : dailyRecord.result === 'eliminated' ? 'Mercy got you today' : 'Lost today' }}
+              <span v-if="dailyPercentile">- top {{ dailyPercentile }}% today.</span>
+              <span v-else>- new deal tomorrow.</span>
+            </p>
+
+            <!-- The run, drawn. Absent when the record came from the server:
+                 the turn log only ever lived on the device that played. -->
+            <div v-if="dailyCells.length" class="daily-run" aria-hidden="true">
+              <span
+                v-for="(cell, i) in dailyCells"
+                :key="i"
+                class="run-cell"
+                :class="`run-cell--${cell}`"
+              />
+            </div>
+            <p v-else class="daily-elsewhere">Played on another device — the run isn't stored here.</p>
+
+            <div v-if="dailyCells.length" class="daily-legend">
+              <span class="legend-item"><Check :size="13" :stroke-width="2.5" /> played</span>
+              <span class="legend-item"><Minus :size="13" :stroke-width="2.5" /> drew</span>
+              <span class="legend-item"><Skull :size="13" :stroke-width="2.5" /> stacked on</span>
+            </div>
+
+            <Button variant="ghost" size="sm" block :disabled="sharingDaily" @click="onShareDaily">
+              {{ dailyShareLabel }}
+            </Button>
+          </template>
         </div>
 
         <!-- Feature-detected the same way the leaderboard link always was:
@@ -451,9 +476,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { Copy, Check, Flame, Pencil, X, Zap, Hash, Bot, ChevronRight } from 'lucide-vue-next'
+import { Copy, Check, Flame, Pencil, X, Zap, Hash, Bot, ChevronRight, Minus, Skull } from 'lucide-vue-next'
 import { useRetentionStore } from '../stores/retentionStore'
-import { getDailyRecord } from '../utils/dailyChallenge'
+import {
+    getDailyRecord, fetchServerDailyRecord, dailyGridCells, buildDailyShareText,
+} from '../utils/dailyChallenge'
+import { localDateString } from '../utils/seededRng'
+import { generateDailyShareImage, shareOrDownload } from '../utils/shareImage'
 import { useLeaderboard } from '../composables/useLeaderboard'
 import { navigate } from '../utils/routes'
 import { useRanks } from '../composables/useRanks'
@@ -485,6 +514,75 @@ const retention = useRetentionStore()
 // Re-read on every mount: the lobby unmounts while the daily game plays, so
 // returning from it always shows the fresh done state.
 const dailyRecord = ref(getDailyRecord())
+// The local record is per device. When it is missing but the player is signed
+// in, ask the server before offering PLAY — otherwise a phone-then-laptop
+// player starts a run the unique index will refuse to score.
+onMounted(async () => {
+    if (dailyRecord.value || !authStore.user?.id) return
+    const remote = await fetchServerDailyRecord(authStore.user.id, localDateString())
+    if (remote) dailyRecord.value = remote
+})
+
+const dailyCells = computed(() => dailyGridCells(dailyRecord.value?.log))
+
+const dailyPercentile = computed(() => {
+    const ctx = lb.dailyContext.value
+    if (!ctx?.my_rank || !ctx.total_players) return null
+    return Math.max(1, Math.ceil((ctx.my_rank / ctx.total_players) * 100))
+})
+
+const sharingDaily = ref(false)
+const dailySharedAs = ref<'shared' | 'copied' | null>(null)
+const dailyShareLabel = computed(() => {
+    if (sharingDaily.value) return 'Preparing…'
+    if (dailySharedAs.value === 'copied') return 'Copied'
+    if (dailySharedAs.value === 'shared') return 'Shared'
+    return 'Share result'
+})
+
+async function onShareDaily() {
+    const rec = dailyRecord.value
+    if (!rec || sharingDaily.value) return
+    sharingDaily.value = true
+    try {
+        const ctx = lb.dailyContext.value
+        const rank = ctx?.my_rank && ctx.total_players
+            ? { rank: ctx.my_rank, total: ctx.total_players }
+            : undefined
+        const text = buildDailyShareText(rec, rank)
+
+        // The run is only worth an image when we still have it. A record
+        // recovered from the server has the outcome but no grid to draw.
+        if (dailyCells.value.length) {
+            const blob = await generateDailyShareImage({
+                date: rec.date,
+                result: rec.result,
+                turns: rec.turns,
+                cells: dailyCells.value,
+                percentile: dailyPercentile.value,
+                siteUrl: 'open-mercy.com',
+            })
+            if (blob) {
+                await shareOrDownload(blob, `open-mercy-daily-${rec.date}.png`)
+                dailySharedAs.value = 'shared'
+                return
+            }
+        }
+        if (navigator.share) {
+            await navigator.share({ text })
+            dailySharedAs.value = 'shared'
+            return
+        }
+        await navigator.clipboard.writeText(text)
+        dailySharedAs.value = 'copied'
+    } catch {
+        // Dismissed sheet, denied clipboard, canvas refusal — leave the button
+        // unconfirmed rather than claiming a share that did not happen.
+    } finally {
+        sharingDaily.value = false
+    }
+}
+
 const dailyDateLabel = new Date()
   .toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   .toUpperCase()
@@ -1037,6 +1135,52 @@ function copyLink() {
 .daily-card.done {
   border-color: rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.02);
+}
+
+/* The run, one cell per turn. Wraps naturally rather than forcing a fixed
+   column count — the card is narrower than the share image and a hard grid
+   would leave a ragged last row at some widths. */
+.daily-run {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.run-cell {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+}
+
+.run-cell--played { background: var(--color-neon-green); }
+.run-cell--drew { background: #52525b; }
+.run-cell--stacked { background: var(--color-alert); }
+
+.daily-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-3);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.legend-item :deep(svg) { flex-shrink: 0; }
+.daily-legend .legend-item:nth-child(1) :deep(svg) { color: var(--color-neon-green); }
+.daily-legend .legend-item:nth-child(2) :deep(svg) { color: #8b8b93; }
+.daily-legend .legend-item:nth-child(3) :deep(svg) { color: var(--color-alert); }
+
+.daily-elsewhere {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 0;
 }
 
 .daily-head {

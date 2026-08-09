@@ -58,6 +58,9 @@ export const useGameStore = defineStore('game', () => {
     // Who last added to the live draw stack. In a stacked chain the dealer is
     // whoever played last before it landed, not whoever started it.
     let lastStackerName: string | null = null
+    // One character per human turn: played / drew / ate a stack. Drives the
+    // daily's share grid, and is the substrate a replay would need later.
+    const turnLog = ref<string[]>([])
     const currentColor = ref<CardColor>('red')
 
     // For Roulette logic
@@ -257,6 +260,7 @@ export const useGameStore = defineStore('game', () => {
         drawStack.value = 0
         biggestKill.value = null
         lastStackerName = null
+        turnLog.value = []
         gameState.value = 'PLAYING'
         winnerId.value = null
         turnState.value = 'DEALING'
@@ -432,6 +436,7 @@ export const useGameStore = defineStore('game', () => {
         if (getDrawValue(card) > 0 && card.type !== 'wildColorRoulette') {
             lastStackerName = player.name
         }
+        if (!player.isBot) turnLog.value.push('p')
 
         // Apply events before setting lastPlay: its watcher is flush:'sync'
         // (GameView throw animation), so an exception there would unwind this
@@ -471,6 +476,8 @@ export const useGameStore = defineStore('game', () => {
         const p = currentPlayer.value
         if (!p) return
         actionInProgress.value = true
+
+        if (!p.isBot) turnLog.value.push(drawStack.value > 0 ? 'x' : 'd')
 
         if (drawStack.value > 0) {
             // Stacking Penalty Draw
@@ -743,6 +750,7 @@ export const useGameStore = defineStore('game', () => {
                     date: dailyDate,
                     result: human && winnerId.value === human.id ? 'won' : (human?.isEliminated ? 'eliminated' : 'lost'),
                     turns: humanStats ? humanStats.cardsPlayedTotal + humanStats.drawsTaken : 0,
+                    log: turnLog.value.join(''),
                 })
             }
             logGameResults()
@@ -797,6 +805,7 @@ export const useGameStore = defineStore('game', () => {
         direction,
         drawStack,
         biggestKill,
+        turnLog,
         currentColor,
         winnerId,
         currentPlayer,
