@@ -1,0 +1,161 @@
+<!doctype html>
+<!--
+  Source for the pre-rendered kill-card OG images in public/og/.
+
+  Kill cards do not render a unique image per share. This template is shot once
+  per damage tier at 1200x630 and committed; the exact names and amount ride in
+  the meta text that functions/k/[code].js writes. Regenerate with:
+
+    bash frontend/scripts/generate-kill-og.sh
+
+  Open with ?tier=<slug> to preview a single tier at full size.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Kill card OG template</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Chakra+Petch:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --red: #ff2a2a;
+    --gold: #ffcc00;
+    --ink: #0a0a0b;
+    --muted: #a1a1aa;
+    /* Safe inset: several platforms crop OG cards toward the centre, so no
+       content sits nearer the edge than this. */
+    --safe: 72px;
+    --tape: 18px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1200px;
+    height: 630px;
+    overflow: hidden;
+    font-family: 'Chakra Petch', sans-serif;
+    background: #0a0a0b;
+  }
+
+  .card {
+    position: relative;
+    width: 1200px;
+    height: 630px;
+    /* The game's 45deg stripe texture is deliberately absent: at the size a
+       link preview actually renders it is invisible, and the high-frequency
+       edges cost ~330KB per image in PNG. */
+    background: radial-gradient(circle at 50% 50%, #18191b 0%, #0a0a0b 78%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    /* Leaves room for the tape strips without them overlapping content. */
+    padding: calc(var(--tape) + var(--safe)) var(--safe);
+  }
+
+  .tape {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: var(--tape);
+    background: repeating-linear-gradient(
+      -45deg, var(--gold) 0 18px, var(--ink) 18px 36px
+    );
+  }
+  .tape--top { top: 0; }
+  .tape--bottom { bottom: 0; }
+
+  .verdict {
+    font-family: 'Black Ops One', Impact, sans-serif;
+    font-size: 40px;
+    letter-spacing: .22em;
+    color: var(--gold);
+    text-shadow: 0 0 24px rgba(255, 204, 0, .45);
+    /* Letter-spacing adds a trailing gap; pull it back so the block reads
+       optically centred against the number below. */
+    text-indent: .22em;
+  }
+
+  .amount {
+    font-family: 'Black Ops One', Impact, sans-serif;
+    font-size: 260px;
+    line-height: .92;
+    color: var(--red);
+    text-shadow: 0 0 60px rgba(255, 42, 42, .55);
+    margin-top: 18px;
+  }
+
+  .caption {
+    font-size: 30px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    color: var(--muted);
+    margin-top: 22px;
+  }
+
+  .footer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(var(--tape) + 34px);
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 18px;
+  }
+
+  .wordmark {
+    font-family: 'Black Ops One', Impact, sans-serif;
+    font-size: 34px;
+    letter-spacing: .06em;
+  }
+  .wordmark .open { color: var(--red); }
+  .wordmark .mercy { color: var(--gold); }
+
+  .url {
+    font-size: 24px;
+    font-weight: 700;
+    color: #00f3ff;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="tape tape--top"></div>
+    <div class="verdict" id="verdict">NO MERCY</div>
+    <div class="amount" id="amount">+26</div>
+    <div class="caption">dealt in a single turn</div>
+    <div class="footer">
+      <span class="wordmark"><span class="open">OPEN</span> <span class="mercy">MERCY</span></span>
+      <span class="url">open-mercy.com</span>
+    </div>
+    <div class="tape tape--bottom"></div>
+  </div>
+
+<script>
+  // Keep in step with KILL_TIERS in src/utils/killCard.ts.
+  const TIERS = {
+    '2':      { label: '+2',  verdict: 'STACKED' },
+    '4':      { label: '+4',  verdict: 'STACKED' },
+    '6':      { label: '+6',  verdict: 'BRUTAL' },
+    '10':     { label: '+10', verdict: 'BRUTAL' },
+    '12':     { label: '+12', verdict: 'SAVAGE' },
+    '16':     { label: '+16', verdict: 'SAVAGE' },
+    '20':     { label: '+20', verdict: 'NO MERCY' },
+    '26plus': { label: '26+', verdict: 'NO MERCY' },
+  }
+
+  const tier = new URLSearchParams(location.search).get('tier') || '26plus'
+  const spec = TIERS[tier] || TIERS['26plus']
+  document.getElementById('amount').textContent = spec.label
+  document.getElementById('verdict').textContent = spec.verdict
+
+  // The screenshot driver waits on this before shooting, so a half-loaded
+  // webfont can never end up baked into a committed image.
+  window.__ready = false
+  document.fonts.ready.then(() => { window.__ready = true })
+</script>
+</body>
+</html>

@@ -28,7 +28,7 @@ Guidance for working in this repo. Hard-won - read before changing CSS, raising 
 - **The Pages project's root directory is the REPO ROOT**, not `frontend/` (the project config has `pages_build_output_dir = "frontend/dist"`). Pages Functions therefore live at repo-root `functions/` - a `frontend/functions/` directory is silently ignored (no build error; the routes just serve the SPA shell instead). Verify with `npx wrangler pages download config uno-no-mercy` if in doubt, and delete the downloaded `wrangler.toml` afterward - committing it would switch the project to file-managed config.
 - Functions deploy with the normal Pages build - no separate wrangler deploy.
 - `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are available to Pages Functions as env bindings.
-- Verify function behavior locally with `npx wrangler pages dev frontend/dist` from the repo root; env can be overridden per-run with `--binding KEY=VALUE`.
+- Verify function behavior locally with `npx wrangler pages dev frontend/dist` from the repo root; env can be overridden per-run with `--binding KEY=VALUE`. Pass `--compatibility-date=<yesterday>` too: with no date wrangler defaults to *today*, and the bundled runtime only supports dates up to its own release, so the Worker fails to start with "requires compatibility date X, but the newest date supported by this server binary is X-1".
 - A function that fails to deploy is indistinguishable from a working page at the HTTP level (200 + HTML via SPA fallback). When consuming a function from the client, check the response content-type, and after deploying a new function, curl its route on the deployment URL and confirm you get its actual output.
 
 ## Game server (Cloudflare Worker + Durable Objects)

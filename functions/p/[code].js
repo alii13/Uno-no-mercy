@@ -50,13 +50,13 @@ export async function onRequestGet(context) {
         profile.wins >= 15 ? 'Enforcer' :
         profile.wins >= 5 ? 'Rookie' : 'Recruit'
 
-    const title = `${profile.username} — ${rankTitle} · ${profile.wins} wins | UNO No Mercy`
+    const title = `${profile.username} - ${rankTitle} · ${profile.wins} wins | Open Mercy`
     const brags = []
     if (profile.max_stack_survived > 0) brags.push(`Survived a +${profile.max_stack_survived} stack`)
     if (profile.best_win_streak > 1) brags.push(`${profile.best_win_streak}-win streak`)
     brags.push(`${profile.games} games played`)
     const description = `${brags.join(' · ')}. Think you can beat ${profile.username}? Play free — no download.`
-    const pageUrl = `https://uno-no-mercy.com/p/${code}`
+    const pageUrl = `https://open-mercy.com/p/${code}`
 
     const setContent = (value) => ({
         element(el) { el.setAttribute('content', value) },

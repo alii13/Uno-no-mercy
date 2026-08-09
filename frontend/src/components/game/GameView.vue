@@ -160,6 +160,7 @@
       :opponent-name="opponentDisplayName"
       :stats="gameStats"
       :is-anonymous="authStore.isAnonymous"
+      :kill="shareableKill"
       mode="sp"
       @rematch="restart"
       @back-to-lobby="store.returnToLobby()"
@@ -207,12 +208,22 @@ import StatusPanel from './StatusPanel.vue'
 import PlayerConsoleBar from './PlayerConsoleBar.vue'
 import GameOverModal from './GameOverModal.vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
+import { isBragworthy } from '../../utils/killCard'
 
 const emit = defineEmits<{ (e: 'claim-account'): void }>()
 
 const store = useGameStore()
 // Wire stack-chain escalation — vignette + shake when drawStack grows
 useStackEscalation(toRef(store, 'drawStack'))
+
+// Only offer the kill link when the human dealt the game's biggest stack.
+// Eating one is not a brag, and a bot-on-bot stack is nobody's story.
+const shareableKill = computed(() => {
+  const k = store.biggestKill
+  if (!k || !isBragworthy(k.amount)) return null
+  const human = store.players.find(p => !p.isBot)
+  return human && k.dealer === human.name ? k : null
+})
 const authStore = useAuthStore()
 const { animateFlyingCard, animateDrawCardsStaggered, killAllFlyingCards } = useCardAnimations()
 
