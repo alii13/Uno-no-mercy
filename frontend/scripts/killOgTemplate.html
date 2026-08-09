@@ -135,22 +135,22 @@
   </div>
 
 <script>
-  // Keep in step with KILL_TIERS in src/utils/killCard.ts.
-  const TIERS = {
-    '2':      { label: '+2',  verdict: 'STACKED' },
-    '4':      { label: '+4',  verdict: 'STACKED' },
-    '6':      { label: '+6',  verdict: 'BRUTAL' },
-    '10':     { label: '+10', verdict: 'BRUTAL' },
-    '12':     { label: '+12', verdict: 'SAVAGE' },
-    '16':     { label: '+16', verdict: 'SAVAGE' },
-    '20':     { label: '+20', verdict: 'NO MERCY' },
-    '26plus': { label: '26+', verdict: 'NO MERCY' },
+  // Every tier below the cap states its exact number, so the image can never
+  // disagree with the amount in the meta title. Keep in step with KILL_TIERS
+  // in src/utils/killCard.ts.
+  function verdictFor(n) {
+    if (n >= 30) return 'NO MERCY'
+    if (n >= 20) return 'SAVAGE'
+    if (n >= 12) return 'BRUTAL'
+    return 'STACKED'
   }
 
-  const tier = new URLSearchParams(location.search).get('tier') || '26plus'
-  const spec = TIERS[tier] || TIERS['26plus']
-  document.getElementById('amount').textContent = spec.label
-  document.getElementById('verdict').textContent = spec.verdict
+  const tier = new URLSearchParams(location.search).get('tier') || '42plus'
+  // Open-ended slugs are the only ones that read as "or more".
+  const openEnded = tier.endsWith('plus')
+  const n = parseInt(tier, 10)
+  document.getElementById('amount').textContent = openEnded ? `${n}+` : `+${n}`
+  document.getElementById('verdict').textContent = verdictFor(n)
 
   // The screenshot driver waits on this before shooting, so a half-loaded
   // webfont can never end up baked into a committed image.

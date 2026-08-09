@@ -2,39 +2,41 @@ import { describe, expect, it } from 'vitest'
 import { KILL_TIERS, killTier, isBragworthy, buildKillMeta, newKillCode, MIN_BRAG_STACK } from '../killCard'
 
 describe('killTier', () => {
-    it('maps each stack size to the largest tier it clears', () => {
-        expect(killTier(2)).toBe('2')
-        expect(killTier(4)).toBe('4')
+    it('names the exact stack size for every even value in range', () => {
+        for (let n = 6; n <= 42; n += 2) {
+            expect(killTier(n)).toBe(String(n))
+        }
+    })
+
+    it('falls back only above the cap, so 42 keeps its own image', () => {
+        expect(killTier(42)).toBe('42')
+        expect(killTier(44)).toBe('42plus')
+        expect(killTier(72)).toBe('42plus')
+        expect(killTier(152)).toBe('42plus')
+    })
+
+    it('rounds an odd amount down so the image never overstates', () => {
+        // Unreachable in play (every draw card is worth 2/4/6/10) but the
+        // image must not claim more than was dealt if one ever appears.
+        expect(killTier(9)).toBe('8')
+        expect(killTier(43)).toBe('42')
+    })
+
+    it('clamps below the brag threshold rather than returning undefined', () => {
         expect(killTier(6)).toBe('6')
-        expect(killTier(10)).toBe('10')
-        expect(killTier(12)).toBe('12')
-        expect(killTier(16)).toBe('16')
-        expect(killTier(20)).toBe('20')
-        expect(killTier(26)).toBe('26plus')
-    })
-
-    it('rounds down to the nearest tier between thresholds', () => {
-        expect(killTier(3)).toBe('2')
-        expect(killTier(9)).toBe('6')
-        expect(killTier(15)).toBe('12')
-        expect(killTier(19)).toBe('16')
-    })
-
-    it('clamps anything past the top tier', () => {
-        expect(killTier(40)).toBe('26plus')
-        expect(killTier(999)).toBe('26plus')
-    })
-
-    it('clamps below the smallest tier rather than returning undefined', () => {
-        expect(killTier(0)).toBe('2')
-        expect(killTier(1)).toBe('2')
-        expect(killTier(-5)).toBe('2')
+        expect(killTier(4)).toBe('6')
+        expect(killTier(0)).toBe('6')
+        expect(killTier(-5)).toBe('6')
     })
 
     it('only ever returns a slug from the published tier list', () => {
-        for (let n = -5; n <= 60; n++) {
+        for (let n = -5; n <= 160; n++) {
             expect(KILL_TIERS).toContain(killTier(n))
         }
+    })
+
+    it('keeps the legacy 26plus slug published for cards minted before the change', () => {
+        expect(KILL_TIERS).toContain('26plus')
     })
 })
 

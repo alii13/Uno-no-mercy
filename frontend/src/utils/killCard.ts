@@ -14,13 +14,28 @@
  * KILL_TIERS before putting it in an image URL.
  */
 
-/** Slugs of the pre-rendered images in public/og/kill-<tier>.png. */
-export const KILL_TIERS = ['2', '4', '6', '10', '12', '16', '20', '26plus'] as const
+/**
+ * Every draw card is worth 2, 4, 6 or 10, so a landed stack is always even —
+ * confirmed against ~4k recorded games, which contain no odd value. That halves
+ * the image set and lets each one state the exact number instead of a floor.
+ *
+ * The range stops at 42 because the distribution falls off a cliff there: five
+ * recorded games at 42, then 44/46/48/50/54/72 with one game each. Above the
+ * cap, '42plus' renders "42+", which is still a true statement.
+ *
+ * '26plus' is retained for cards minted before the exact-number scheme; its
+ * image stays in public/og/ so those links keep unfurling, and the tier CHECK
+ * in kill-cards.sql keeps accepting it.
+ */
+export const KILL_TIER_CAP = 42
+
+export const KILL_TIERS = [
+    '6', '8', '10', '12', '14', '16', '18', '20', '22', '24',
+    '26', '28', '30', '32', '34', '36', '38', '40', '42', '42plus',
+    '26plus',
+] as const
 
 export type KillTier = (typeof KILL_TIERS)[number]
-
-/** Lower bound of each tier, index-aligned with KILL_TIERS. */
-const TIER_FLOORS = [2, 4, 6, 10, 12, 16, 20, 26]
 
 /**
  * Stacks smaller than this are routine — a +4 happens several times a game and
@@ -49,11 +64,11 @@ export function newKillCode(): string {
 }
 
 export function killTier(amount: number): KillTier {
-    let idx = 0
-    for (let i = 0; i < TIER_FLOORS.length; i++) {
-        if (amount >= TIER_FLOORS[i]!) idx = i
-    }
-    return KILL_TIERS[idx]!
+    // Round down to even so a hypothetical odd amount can never overstate.
+    const even = Math.floor(amount / 2) * 2
+    if (even > KILL_TIER_CAP) return '42plus'
+    if (even <= MIN_BRAG_STACK) return '6'
+    return String(even) as KillTier
 }
 
 export function isBragworthy(amount: number): boolean {
