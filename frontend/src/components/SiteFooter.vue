@@ -6,6 +6,11 @@
       alii13
     </a>
     <span class="footer-sep">·</span>
+    <!-- Sitewide crawlable link into the rules guide. It was reachable only
+         from the settings drawer, which left a 1,800-word page effectively
+         orphaned for search. -->
+    <a href="/rules/" class="footer-link">Rules guide</a>
+    <span class="footer-sep">·</span>
     <span class="footer-attribution">
       Music: <a href="https://incompetech.com/" target="_blank" rel="noopener noreferrer" class="footer-attribution-link">Kevin MacLeod</a>
       (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" class="footer-attribution-link">CC BY 4.0</a>)

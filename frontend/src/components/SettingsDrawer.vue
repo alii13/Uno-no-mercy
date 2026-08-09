@@ -121,7 +121,7 @@
                 · SFX: <a href="https://kenney.nl/assets/casino-audio" target="_blank" rel="noopener noreferrer">Kenney</a>
               </p>
               <p class="about-line subtle">
-                <a href="/rules" target="_blank">Rules guide</a>
+                <a href="/rules/" target="_blank">Rules guide</a>
                 · <a href="https://github.com/alii13/Uno-no-mercy" target="_blank" rel="noopener noreferrer">Source</a>
               </p>
             </section>

@@ -26,6 +26,14 @@
           <div class="faq-answer">{{ item.a }}</div>
         </details>
       </div>
+
+      <!-- Answers stay plain text so they match the FAQPage JSON-LD in
+           index.html exactly; the deep link into the rules guide lives here
+           instead of inside an answer. -->
+      <p class="faq-more">
+        Still deciding a rule mid-game?
+        <a href="/rules/" class="faq-more-link">Read the full rules guide</a>
+      </p>
     </div>
   </section>
 </template>
@@ -214,6 +222,23 @@ function initFaq() {
   flex-direction: column;
   gap: 0.6rem;
   text-align: left;
+}
+
+.faq-more {
+  color: var(--text-muted);
+  font-size: 1rem;
+  margin: 2rem 0 0;
+  line-height: 1.6;
+}
+
+.faq-more-link {
+  color: var(--color-neon-blue);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.faq-more-link:hover {
+  color: var(--text-primary);
 }
 
 .faq-row {

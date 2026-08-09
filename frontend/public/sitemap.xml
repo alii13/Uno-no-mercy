@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- URLs must match the canonical form exactly. /rules previously 308-redirected
+     to /rules/, so listing the unslashed form sent crawlers through a redirect
+     into a page whose canonical pointed back at the redirecting URL. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://open-mercy.com/</loc>
@@ -6,8 +9,13 @@
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://open-mercy.com/rules</loc>
+    <loc>https://open-mercy.com/rules/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://open-mercy.com/leaderboard</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.6</priority>
   </url>
 </urlset>
