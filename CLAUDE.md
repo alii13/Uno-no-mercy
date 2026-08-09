@@ -5,7 +5,7 @@ Guidance for working in this repo. Hard-won - read before changing CSS, raising 
 ## UI conventions
 
 - Icons come from `lucide-vue-next` (already a dependency) - never emoji glyphs in UI chrome. Country flag emoji on leaderboards/profiles are the one exception.
-- Concerns are color-zoned with the UNO palette: hazard yellow = daily/streak loop, alert red = primary create action, neon cyan = multiplayer, neutral = practice/meta.
+- Concerns are color-zoned with the deck palette: hazard yellow = daily/streak loop, alert red = primary create action, neon cyan = multiplayer, neutral = practice/meta.
 
 ## CSS tokens
 

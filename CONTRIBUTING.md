@@ -1,12 +1,12 @@
-# Contributing to UNO No Mercy
+# Contributing to Open Mercy
 
 Thanks for your interest. This guide will get you set up.
 
 ## Quick start
 
 ```bash
-git clone https://github.com/alii13/Uno-no-mercy.git
-cd Uno-no-mercy/frontend
+git clone https://github.com/alii13/open-mercy.git
+cd open-mercy/frontend
 npm install
 cp .env.example .env
 # Fill in your Supabase credentials in .env
@@ -87,7 +87,7 @@ const { isMobile, isTablet, isDesktop } = useScreenSize()
 
 ## Game rules
 
-The full No Mercy rules are documented in `UNO "No Mercy" Comprehensive Rules Guide.md` at the repo root. Read it before modifying game logic.
+The full ruleset is documented in `RULES-REFERENCE.md` at the repo root. Read it before modifying game logic.
 
 ## What makes a good PR
 

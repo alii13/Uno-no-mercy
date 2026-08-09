@@ -1,9 +1,15 @@
-## Page 1
+# Rules reference
 
-&lt;img&gt;ChatGPT logo&lt;/img&gt; ChatGPT
+Implementation reference for Open Mercy's ruleset. This documents the published
+rules of Mattel's UNO Show 'Em No Mercy® card game, which Open Mercy implements.
 
-# UNO “No Mercy” Comprehensive Rules Guide
+UNO® and UNO Show 'Em No Mercy® are trademarks of Mattel, Inc. Open Mercy is an
+independent project, not affiliated with, endorsed by, or associated with Mattel.
+Game rules are not copyrightable; this file describes them for implementation
+accuracy. Where this reference and the shipped game differ, the game's own
+in-app rules are authoritative.
 
+---
 UNO Show ‘Em No Mercy (often referred to simply as “UNO No Mercy”) is a variant of the classic UNO card game that introduces new cards and brutal rules on top of standard gameplay 1 2. Below is a detailed breakdown of **official classic UNO rules** and the **special UNO No Mercy rules**, with clear distinctions between them. Examples are provided for clarity, and optional community variations are noted where relevant.
 
 ## Standard UNO Rules (Classic Game)

@@ -1,8 +1,8 @@
-# UNO No Mercy Card Generation System
+# Open Mercy Card Generation System
 
 ## Overview
 
-The card generation system now uses your actual SVG card files to generate all 168 UNO No Mercy cards.
+The card generation system now uses your actual SVG card files to generate all 168 Open Mercy cards.
 
 ## Card Distribution (168 Total)
 

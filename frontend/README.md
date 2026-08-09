@@ -1,6 +1,6 @@
-# UNO No Mercy - Card Generator
+# Open Mercy - Card Generator
 
-A beautiful, programmatic SVG card generator for UNO No Mercy game cards.
+A beautiful, programmatic SVG card generator for Open Mercy game cards.
 
 ## Features
 

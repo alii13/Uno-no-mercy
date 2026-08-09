@@ -1,4 +1,4 @@
-# Required SVG Files for UNO No Mercy Card Generation
+# Required SVG Files for Open Mercy Card Generation
 
 ## Status: ✅ COMPLETE
 

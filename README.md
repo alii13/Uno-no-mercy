@@ -1,12 +1,14 @@
-# UNO No Mercy
+# Open Mercy
 
-A real-time multiplayer UNO card game with the brutal "No Mercy" rule expansion. Play online with friends or battle a ruthless AI - all from your browser.
+A real-time multiplayer card game with a brutal stacking ruleset. Play online with friends or battle a ruthless AI - all from your browser.
 
-**Play now:** [uno-no-mercy.com](https://uno-no-mercy.com)
+**Play now:** [open-mercy.com](https://open-mercy.com)
 
 ## Why this exists
 
-The official UNO No Mercy rules never got a proper digital version. This project brings every chaotic rule - Draw 6, Draw 10, Skip Everyone, Discard All, Color Roulette, hand swaps on 7, hand rotations on 0 - into a fast, playable web game. No downloads, no app stores.
+The ruleset popularized by Mattel's UNO Show 'Em No Mercy® never got a proper digital version. Open Mercy brings every chaotic rule - Draw 6, Draw 10, Skip Everyone, Discard All, Color Roulette, hand swaps on 7, hand rotations on 0 - into a fast, playable web game. No downloads, no app stores.
+
+> Open Mercy is an independent project. It is not affiliated with, endorsed by, or associated with Mattel or the UNO® brand. Card game rules are not copyrightable; the name, art, and trade dress here are our own.
 
 ## What it does
 
@@ -14,14 +16,14 @@ The official UNO No Mercy rules never got a proper digital version. This project
 - **Real-time multiplayer** - create a room, share a code, play with 2-10 players. Works for guests and registered users alike.
 - **VS Bot** - single-player mode against an AI opponent
 - **Playable by AI agents** - the game exposes [WebMCP](#playing-as-an-ai-agent-webmcp) tools, so an AI agent can discover and play a seat just by visiting the page
-- **Full No Mercy rules** - every card from the physical deck implemented faithfully
+- **Full ruleset** - every card type implemented faithfully, including the brutal ones
 - **7-card swap is optional** - choose to swap hands or keep your own
 - **Mobile responsive** - playable on phones (320px+), tablets, and desktops
 - **Password reset** - forgot password flow with email recovery
 - **Supabase backend** - auth (including anonymous), game state, and real-time sync via Supabase Realtime
 - **Cloudflare proxy** - optional Cloudflare Worker to bypass regional Supabase blocks
 
-### No Mercy cards included
+### Cards included
 
 | Card | Effect |
 |------|--------|
@@ -73,8 +75,8 @@ The official UNO No Mercy rules never got a proper digital version. This project
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/alii13/Uno-no-mercy.git
-cd Uno-no-mercy/frontend
+git clone https://github.com/alii13/open-mercy.git
+cd open-mercy/frontend
 npm install
 ```
 
@@ -83,7 +85,7 @@ npm install
 1. Create a project at [supabase.com](https://supabase.com)
 2. Copy your project URL and anon key from **Settings > API**
 3. Enable **anonymous sign-ins** under **Authentication > Settings** (required for guest play)
-4. Set the **Site URL** under **Authentication > URL Configuration** to your deploy URL (e.g. `https://uno-no-mercy.com`)
+4. Set the **Site URL** under **Authentication > URL Configuration** to your deploy URL (e.g. `https://open-mercy.com`)
 5. Create your env file:
 
 ```bash
@@ -121,7 +123,7 @@ The production site runs on [Cloudflare Pages](https://pages.cloudflare.com).
 ```bash
 cd frontend
 npm run build
-npx wrangler pages deploy dist --project-name uno-no-mercy
+npx wrangler pages deploy dist --project-name uno-no-mercy   # Pages project name predates the rebrand
 ```
 
 **Option B: GitHub auto-deploy**
@@ -194,11 +196,11 @@ The agent plays in a loop:
       "can_draw": true
     }
   },
-  "should_call_uno": false
+  "should_call_mercy": false
 }
 ```
 
-Because `legal_moves` is precomputed from the real rules, an agent cannot make an illegal move and needs no prior knowledge of UNO No Mercy to play correctly. `required_action` names the decision due now, and a `how_to_play` tool provides the rules and basic tactics for stronger play.
+Because `legal_moves` is precomputed from the real rules, an agent cannot make an illegal move and needs no prior knowledge of the game to play correctly. `required_action` names the decision due now, and a `how_to_play` tool provides the rules and basic tactics for stronger play.
 
 ### Tools
 
@@ -206,7 +208,7 @@ Because `legal_moves` is precomputed from the real rules, an agent cannot make a
 |-------|-------|
 | Info  | `how_to_play`, `get_state`, `wait_for_turn` |
 | Start | `start_single_player`, `create_multiplayer_game`, `join_multiplayer_game`, `start_multiplayer_game` |
-| Moves | `play_card`, `draw_card`, `pick_wild_color`, `call_uno`, `swap_hands`, `skip_swap`, `set_roulette_color`, `select_discard_all_top` |
+| Moves | `play_card`, `draw_card`, `pick_wild_color`, `call_uno` (the last-card call, shown as MERCY! in the UI), `swap_hands`, `skip_swap`, `set_roulette_color`, `select_discard_all_top` |
 | Exit  | `leave_game` |
 
 ### Surfaces
@@ -215,7 +217,7 @@ The same tools are exposed three ways:
 
 - **`document.modelContext`** - the native W3C API a standards-capable agent reads on visit (primary).
 - **mcp-b `TabServerTransport`** - an in-page MCP server over `postMessage`, for mcp-b clients and browser extensions.
-- **`window.__unoMcp`** - a dependency-free `{ listTools, callTool }` bridge for headless drivers and debugging.
+- **`window.__unoMcp`** (name predates the rebrand) - a dependency-free `{ listTools, callTool }` bridge for headless drivers and debugging.
 
 The WebMCP layer lives in `frontend/src/mcp/`, and the MCP SDK is lazily loaded so it does not add to the bundle a normal player downloads.
 
