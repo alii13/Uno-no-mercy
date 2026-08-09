@@ -41,8 +41,10 @@
         </div>
       </div>
 
-      <!-- Wordmark — fades in after the explosion -->
-      <div class="hero-wordmark" ref="wordmarkRef">
+      <!-- Wordmark — fades in after the explosion. It's the page's h1: the
+           boot-screen h1 in index.html is destroyed when Vue mounts, so the
+           rendered landing page had no top-level heading at all. -->
+      <h1 class="hero-wordmark" ref="wordmarkRef">
         <span class="wm-uno">OPEN</span>
         <span class="wm-row">
           <span class="wm-mercy-wrap">
@@ -58,7 +60,7 @@
             </svg>
           </span>
         </span>
-      </div>
+      </h1>
 
       <p class="hero-tagline" ref="taglineRef">THE RUTHLESS CARD BATTLE</p>
 
@@ -599,6 +601,9 @@ function runHeroChoreography() {
   font-family: var(--font-display);
   line-height: 0.95;
   letter-spacing: 0.04em;
+  /* It's an h1 now — drop the UA margin so the hero layout is unchanged. */
+  margin: 0;
+  font-weight: inherit;
 }
 
 .wm-uno {
