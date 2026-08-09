@@ -477,7 +477,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         }
     }
 
-    type JoinMethod = 'created' | 'code' | 'link' | 'quick_match' | 'restore'
+    // 'live' is a join from the lobby's live-games entry — kept distinct from
+    // 'quick_match' so we can tell whether showing the room actually converts.
+    type JoinMethod = 'created' | 'code' | 'link' | 'quick_match' | 'restore' | 'live'
 
     function trackJoined(method: JoinMethod) {
         roomJoinedAt = Date.now()
@@ -513,7 +515,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         }
     }
 
-    async function joinGame(code: string, via: 'code' | 'link' = 'code') {
+    async function joinGame(code: string, via: 'code' | 'link' | 'live' = 'code') {
         loading.value = true
         error.value = null
         resetState()
