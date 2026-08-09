@@ -1,4 +1,9 @@
-UNO Show ’Em No Mercy – Complete Card-by-Card Rule Breakdown
+# Card-by-card rule breakdown
+
+Implementation reference for Open Mercy. Documents the published rules of Mattel's UNO Show 'Em No Mercy® card game. UNO® is a trademark of Mattel, Inc.; Open Mercy is an independent project, not affiliated with or endorsed by Mattel.
+
+---
+
 UNO Show ’Em No Mercy (often called UNO No Mercy) is a 2023 variant of UNO that ups the ante with extra cards and harsher effects. The deck contains 168 cards (56 more than classic UNO)
 . The game plays like classic UNO – matching cards by color, number, or symbol – but introduces new cards and special rules that make gameplay more brutal
 . Below is a comprehensive breakdown of every unique card type in the UNO No Mercy deck, focusing on how each card works, any unique interactions (like stacking or combos), and rule deviations from classic UNO.
