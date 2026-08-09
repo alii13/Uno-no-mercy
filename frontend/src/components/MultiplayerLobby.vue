@@ -19,30 +19,35 @@
           @keyup.esc="editingName = false"
           @blur="saveName"
         />
-        <!-- Renamable for guests AND account users — stats stay reachable via
-             the MY STATS link below. -->
-        <button
-          v-else
-          class="username-chip username-chip-editable"
-          title="Tap to rename"
-          @click="startEditName('bar')"
-        >
-          {{ authStore.username }}
-          <Pencil class="chip-edit-icon" :stroke-width="2" aria-hidden="true" />
-        </button>
-        <!-- The only route to your own stats used to be: place in today's top
-             50, then click your own leaderboard row. Off the board — which is
-             most players, most days — the dashboard was unreachable. -->
-        <button class="text-link" @click="$emit('showStats')">MY STATS</button>
+        <!-- One account surface for guests and signed-in users alike: the name
+             is the control, and everything about "you" hangs off it. Stats used
+             to need its own header slot; nesting it here costs no width, which
+             matters most on a phone. -->
+        <div v-else class="account" ref="accountRef">
+          <button
+            class="username-chip username-chip-editable"
+            aria-haspopup="menu"
+            :aria-expanded="accountOpen"
+            @click="accountOpen = !accountOpen"
+          >
+            {{ authStore.username }}
+            <ChevronDown class="chip-edit-icon" :stroke-width="2" aria-hidden="true" />
+          </button>
+          <div v-if="accountOpen" class="account-menu" role="menu">
+            <button class="account-item" role="menuitem" @click="viewProfile">View profile</button>
+            <button class="account-item" role="menuitem" @click="editNameFromMenu">Edit name</button>
+            <button class="account-item" role="menuitem" @click="openStats">Stats and card back</button>
+            <button class="account-item account-item--out" role="menuitem" @click="signOutFromMenu">Sign out</button>
+          </div>
+        </div>
+        <!-- Stays in the bar rather than the menu: it is the conversion CTA,
+             and a guest who never opens the menu should still see it. -->
         <button
           v-if="authStore.isAnonymous"
           class="text-link upgrade-link"
           @click="upgradeAccount"
         >
           {{ authStore.claimPending ? 'CONFIRM YOUR EMAIL' : 'CREATE ACCOUNT' }}
-        </button>
-        <button class="text-link" @click="requestSignOut">
-          SIGN OUT
         </button>
       </div>
     </header>
@@ -509,8 +514,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { Copy, Check, Flame, Pencil, X, Zap, Hash, Bot, ChevronRight, Minus, Skull, Users, HelpCircle } from 'lucide-vue-next'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { Copy, Check, Flame, Pencil, X, Zap, Hash, Bot, ChevronRight, Minus, Skull, Users, HelpCircle, ChevronDown } from 'lucide-vue-next'
 import { useRetentionStore } from '../stores/retentionStore'
 import {
     getDailyRecord, fetchServerDailyRecord, dailyGridCells, buildDailyShareText,
@@ -882,6 +887,53 @@ async function saveName() {
     // so other players see the new name, not just future games.
     if (mpStore.currentGame) await mpStore.updateMyName(name)
   }
+}
+
+// --- Account menu ---------------------------------------------------------
+const accountOpen = ref(false)
+const accountRef = ref<HTMLElement | null>(null)
+
+function closeAccount() { accountOpen.value = false }
+
+function onDocPointer(e: PointerEvent) {
+    if (!accountOpen.value) return
+    if (accountRef.value && !accountRef.value.contains(e.target as Node)) closeAccount()
+}
+function onDocKey(e: KeyboardEvent) {
+    if (e.key === 'Escape') closeAccount()
+}
+onMounted(() => {
+    document.addEventListener('pointerdown', onDocPointer)
+    document.addEventListener('keydown', onDocKey)
+})
+onUnmounted(() => {
+    document.removeEventListener('pointerdown', onDocPointer)
+    document.removeEventListener('keydown', onDocKey)
+})
+
+// share_code only exists once leaderboards-v2.sql has run, and a brand-new
+// guest row may not have one yet. Falling back to the dashboard keeps the item
+// from being a dead end.
+function viewProfile() {
+    closeAccount()
+    const code = authStore.profile?.share_code
+    if (code) navigate({ name: 'profile', code })
+    else emit('showStats')
+}
+
+function editNameFromMenu() {
+    closeAccount()
+    startEditName('bar')
+}
+
+function openStats() {
+    closeAccount()
+    emit('showStats')
+}
+
+function signOutFromMenu() {
+    closeAccount()
+    requestSignOut()
 }
 
 function upgradeAccount() {
@@ -1644,6 +1696,57 @@ function copyLink() {
 /* Not a button: .mode-item is already one, and nesting interactive elements
    is invalid and breaks keyboard nav. A labelled span still gets the native
    hover tooltip and is announced by screen readers. */
+/* Account menu -------------------------------------------------------------
+   Anchored to the name chip and right-aligned, so on a narrow screen it grows
+   inwards from the right edge instead of pushing past it. */
+.account {
+  position: relative;
+  display: inline-flex;
+}
+
+.account-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 12rem;
+  /* Never wider than the viewport minus the bar's own padding. */
+  max-width: calc(100vw - var(--spacing-8));
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-1);
+  background: #16171a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.65);
+  z-index: 60;
+}
+
+.account-item {
+  appearance: none;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-2) var(--spacing-3);
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.8);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.account-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.account-item--out {
+  margin-top: var(--spacing-1);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  color: rgba(255, 255, 255, 0.5);
+}
+
 .mode-help {
   position: relative;
   display: inline-flex;
@@ -2303,8 +2406,24 @@ function copyLink() {
     letter-spacing: 0.15em;
   }
 
+  /* Was display:none when the chip was only a rename affordance and the bar
+     was tight. It is now the only route to profile, stats and sign out, so it
+     has to survive on a phone — truncated rather than hidden. */
   .username-chip {
-    display: none;
+    max-width: 8.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.7rem;
+    padding: var(--spacing-1) var(--spacing-2);
+    min-height: 36px;
+  }
+
+  /* Menu items keep a comfortable tap target and may wrap on a narrow phone. */
+  .account-item {
+    padding: var(--spacing-3);
+    min-height: 40px;
+    white-space: normal;
   }
 
   /* Brand + account links share one row; compact the links so they fit,
