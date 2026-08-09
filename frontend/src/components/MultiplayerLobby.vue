@@ -36,7 +36,6 @@
           <div v-if="accountOpen" class="account-menu" role="menu">
             <button class="account-item" role="menuitem" @click="viewProfile">View profile</button>
             <button class="account-item" role="menuitem" @click="editNameFromMenu">Edit name</button>
-            <button class="account-item" role="menuitem" @click="openStats">Stats and card back</button>
             <button class="account-item account-item--out" role="menuitem" @click="signOutFromMenu">Sign out</button>
           </div>
         </div>
@@ -924,11 +923,6 @@ function viewProfile() {
 function editNameFromMenu() {
     closeAccount()
     startEditName('bar')
-}
-
-function openStats() {
-    closeAccount()
-    emit('showStats')
 }
 
 function signOutFromMenu() {
