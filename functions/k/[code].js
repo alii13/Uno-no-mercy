@@ -18,7 +18,12 @@ const CANONICAL_ORIGIN = 'https://open-mercy.com'
  * a CHECK in kill-cards.sql; this is the third gate, and the one that matters,
  * because the value lands inside an image URL.
  */
-const KILL_TIERS = new Set(['2', '4', '6', '10', '12', '16', '20', '26plus'])
+const KILL_TIERS = new Set([
+    '6', '8', '10', '12', '14', '16', '18', '20', '22', '24',
+    '26', '28', '30', '32', '34', '36', '38', '40', '42', '42plus',
+    // Cards minted before stacks got their exact number.
+    '26plus',
+])
 
 async function fetchKill(env, code) {
     const url = env.VITE_SUPABASE_URL

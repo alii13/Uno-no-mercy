@@ -16,11 +16,28 @@ create table if not exists public.kill_cards (
     amount int not null check (amount between 1 and 500),
     -- Selects the pre-rendered OG image. Constrained here as well as in the
     -- Pages Function so a bad row can never widen what lands in an image URL.
-    tier text not null check (tier in ('2', '4', '6', '10', '12', '16', '20', '26plus')),
+    -- Kept in step by the alter below, which is what actually runs on a table
+    -- that already exists.
+    tier text not null,
     cards_played int not null default 0 check (cards_played >= 0),
     user_id uuid references auth.users(id) on delete set null,
     created_at timestamptz not null default now()
 );
+
+-- Allowed image slugs: every even stack size from the brag threshold (6) to the
+-- cap (42), the above-cap fallback, and '26plus' from the original banded
+-- scheme. The legacy slug stays permitted so cards minted before the switch
+-- still validate and their links keep unfurling.
+--
+-- Stated as a drop-then-add so re-running this file updates an existing table;
+-- the inline CHECK in `create table` only fires on a first install.
+alter table public.kill_cards drop constraint if exists kill_cards_tier_check;
+alter table public.kill_cards add constraint kill_cards_tier_check
+    check (tier in (
+        '6', '8', '10', '12', '14', '16', '18', '20', '22', '24',
+        '26', '28', '30', '32', '34', '36', '38', '40', '42', '42plus',
+        '26plus'
+    ));
 
 alter table public.kill_cards enable row level security;
 

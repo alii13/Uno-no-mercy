@@ -13,8 +13,10 @@ TEMPLATE="file://$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote
 OUT="$HERE/../public/og"
 SESSION=killog
 
-# Keep in step with KILL_TIERS in src/utils/killCard.ts.
-TIERS=(2 4 6 10 12 16 20 26plus)
+# Keep in step with KILL_TIERS in src/utils/killCard.ts: every even stack size
+# from the brag threshold to the cap, the above-cap fallback, and the legacy
+# 26plus slug that pre-exact-number cards still point at.
+TIERS=(6 8 10 12 14 16 18 20 22 24 26 28 30 32 34 36 38 40 42 42plus 26plus)
 
 mkdir -p "$OUT"
 agent-browser --session "$SESSION" set viewport 1200 630
