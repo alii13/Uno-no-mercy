@@ -3,9 +3,10 @@
 import { verifySupabaseToken, type AuthEnv } from './auth'
 import type { ClientMsg, GameEvent, PresencePlayer, ServerMsg } from './protocol'
 import { applyIntent, applyUnoCatch, autoResolveAbsentTurn, forceEliminate, persistResults, personalView, startGame, updateStats, viewEventFor, type GameRecord } from './game'
+import { dirCodes, liveTables, normalizeDir, type DirEntry } from './directory'
 import { addParticipant, createMeeting, deactivateMeeting, voiceConfigured, type VoiceEnv } from './voice'
 import { gcWindowMs } from './roomGc'
-import { canSeat } from './seats'
+import { canSeat, MAX_PLAYERS } from './seats'
 import type { StackingMode } from '../../shared/engine'
 
 interface Env extends AuthEnv, VoiceEnv {
@@ -157,9 +158,18 @@ export default {
             return withCors(Response.json({ ok: true, resultsPersistence: !!env.SUPABASE_SERVICE_KEY, voice: voiceConfigured(env) }), req)
         }
 
-        // Open public rooms for quick match.
+        // Open public rooms for quick match. Stays a bare array of codes:
+        // deployed clients consume this shape, and the Worker ships ahead of
+        // the frontend.
         if (url.pathname === '/public-rooms') {
             const res = await directoryStub(env).fetch('https://do/dir-list')
+            return withCors(Response.json(await res.json()), req)
+        }
+
+        // Same directory, enough detail to render a table without a round trip
+        // per room. Carries no player names by design — see directory.ts.
+        if (url.pathname === '/live-tables') {
+            const res = await directoryStub(env).fetch('https://do/dir-tables')
             return withCors(Response.json(await res.json()), req)
         }
 
@@ -393,24 +403,32 @@ export class GameRoomDO {
 
             // --- Public-rooms directory (this DO under the reserved '!directory' name) ---
             case '/dir-register': {
-                const { code } = await req.json<{ code: string }>()
-                const dir = (await this.ctx.storage.get<Record<string, number>>('dir')) ?? {}
-                dir[code] = Date.now()
+                const body = await req.json<{ code: string; snapshot?: Partial<DirEntry> }>()
+                const dir = normalizeDir(await this.ctx.storage.get('dir'))
+                const prev = dir[body.code]
+                dir[body.code] = {
+                    // Keep the original registration time: it is the ordering
+                    // key for quick match, and a re-register on every roster
+                    // change would otherwise send a room to the back forever.
+                    at: prev?.at ?? Date.now(),
+                    updatedAt: Date.now(),
+                    ...body.snapshot,
+                }
                 await this.ctx.storage.put('dir', dir)
                 return new Response('ok')
             }
             case '/dir-unregister': {
                 const { code } = await req.json<{ code: string }>()
-                const dir = (await this.ctx.storage.get<Record<string, number>>('dir')) ?? {}
+                const dir = normalizeDir(await this.ctx.storage.get('dir'))
                 delete dir[code]
                 await this.ctx.storage.put('dir', dir)
                 return new Response('ok')
             }
             case '/dir-list': {
-                const dir = (await this.ctx.storage.get<Record<string, number>>('dir')) ?? {}
-                // Oldest first so early rooms fill up before new ones open.
-                const codes = Object.entries(dir).sort((a, b) => a[1] - b[1]).map(([code]) => code)
-                return Response.json(codes)
+                return Response.json(dirCodes(await this.ctx.storage.get('dir')))
+            }
+            case '/dir-tables': {
+                return Response.json(liveTables(await this.ctx.storage.get('dir'), Date.now()))
             }
 
             case '/room-ws': {
@@ -614,10 +632,10 @@ export class GameRoomDO {
                 const { game, events } = startGame(seated, msg.stackingMode ?? (roomRec.stackingMode as StackingMode) ?? 'official')
                 this.game = game
                 if (roomRec.isPublic) {
-                    // A started room is no longer joinable via quick match.
-                    await directoryStub(this.env).fetch('https://do/dir-unregister', {
-                        method: 'POST', body: JSON.stringify({ code: roomRec.code }),
-                    })
+                    // A started room stays in the directory but flips to
+                    // inProgress: the landing strip wants to show a live game,
+                    // and dirCodes() is what keeps quick match from joining it.
+                    await this.refreshDirectory(await this.ctx.storage.get<Record<string, RosterEntry>>('roster') ?? {})
                 }
                 await this.broadcastGame(events)
                 return
@@ -753,6 +771,40 @@ export class GameRoomDO {
         const frame: ServerMsg = { t: 'presence', players }
         for (const { ws } of sockets) {
             this.send(ws, frame)
+        }
+        await this.refreshDirectory(roster)
+    }
+
+    /**
+     * Publish this room's snapshot to the public directory so the landing page
+     * can render it without a round trip per room. Private rooms are never in
+     * the directory, so they skip it entirely.
+     *
+     * Never allowed to fail loudly: the directory is a shop window, and a
+     * window that will not update must not take the game down with it.
+     */
+    private async refreshDirectory(roster: Record<string, RosterEntry>): Promise<void> {
+        try {
+            if (!(await this.isRoomPublic())) return
+            const room = await this.ctx.storage.get<RoomRecord>('room')
+            if (!room) return
+            const players = Object.keys(roster).length
+            const skins = Object.values(roster).map(e => e.skin).filter(Boolean) as string[]
+            await directoryStub(this.env).fetch('https://do/dir-register', {
+                method: 'POST',
+                body: JSON.stringify({
+                    code: room.code,
+                    snapshot: {
+                        players,
+                        seatsFree: Math.max(0, MAX_PLAYERS - players),
+                        inProgress: this.roomStatus() === 'playing',
+                        mode: room.stackingMode,
+                        skins,
+                    },
+                }),
+            })
+        } catch {
+            // Directory unreachable — the room plays on regardless.
         }
     }
 }

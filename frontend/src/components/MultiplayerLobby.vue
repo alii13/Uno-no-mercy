@@ -194,6 +194,22 @@
         <!-- Other ways in: icon-led list rows, one identity color per mode -->
         <div class="mode-list" role="group" aria-label="Other ways to play">
           <span class="mode-overline">Or jump in</span>
+          <!-- Only rendered when a public room with a free seat actually
+               exists. An empty "live games" row advertises that nobody is
+               playing, which is worse than no row at all. -->
+          <button
+            v-if="live.joinable.value.length"
+            class="mode-item mode-item--live"
+            :disabled="mpStore.loading"
+            @click="handleJoinLive"
+          >
+            <span class="mode-glyph mode-glyph--live"><Users :size="17" :stroke-width="2.25" aria-hidden="true" /></span>
+            <span class="mode-text">
+              <span class="mode-name"><span class="live-dot" aria-hidden="true" />{{ liveHeadline }}</span>
+              <span class="mode-hint">{{ liveHint }}</span>
+            </span>
+            <ChevronRight class="mode-chev" :size="16" aria-hidden="true" />
+          </button>
           <button class="mode-item" :disabled="mpStore.loading" @click="handleQuickMatch">
             <span class="mode-glyph mode-glyph--cyan"><Zap :size="17" :stroke-width="2.25" aria-hidden="true" /></span>
             <span class="mode-text">
@@ -476,7 +492,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { Copy, Check, Flame, Pencil, X, Zap, Hash, Bot, ChevronRight, Minus, Skull } from 'lucide-vue-next'
+import { Copy, Check, Flame, Pencil, X, Zap, Hash, Bot, ChevronRight, Minus, Skull, Users } from 'lucide-vue-next'
 import { useRetentionStore } from '../stores/retentionStore'
 import {
     getDailyRecord, fetchServerDailyRecord, dailyGridCells, buildDailyShareText,
@@ -484,6 +500,7 @@ import {
 import { localDateString } from '../utils/seededRng'
 import { generateDailyShareImage, shareOrDownload } from '../utils/shareImage'
 import { useLeaderboard } from '../composables/useLeaderboard'
+import { useLiveTables } from '../composables/useLiveTables'
 import { navigate } from '../utils/routes'
 import { useRanks } from '../composables/useRanks'
 import { skinColors } from '../utils/cosmetics'
@@ -734,6 +751,33 @@ const currentModeDesc = computed(
 async function handleCreateGame() {
   roomEnded.value = false
   await mpStore.createGame(selectedStackingMode.value)
+}
+
+const live = useLiveTables()
+onMounted(() => live.start())
+
+const liveHeadline = computed(() => {
+    const n = live.waitingPlayers.value
+    return n === 1 ? 'Someone is waiting' : `${n} players waiting`
+})
+
+const liveHint = computed(() => {
+    const rooms = live.joinable.value.length
+    const roomText = rooms === 1 ? '1 open room' : `${rooms} open rooms`
+    const running = live.inProgressCount.value
+    if (!running) return `${roomText} - sit down now`
+    return `${roomText}, ${running} game${running === 1 ? '' : 's'} in progress`
+})
+
+// Fullest room first: joining the busiest table is more likely to start a
+// game than padding out a room with one bored person in it.
+async function handleJoinLive() {
+    const target = [...live.joinable.value].sort((a, b) => b.players - a.players)[0]
+    if (!target || mpStore.loading) return
+    roomEnded.value = false
+    const joined = await mpStore.joinGame(target.code, 'live')
+    // The room may have filled or started between poll and click.
+    if (!joined) await live.refresh()
 }
 
 async function handleQuickMatch() {
@@ -1546,6 +1590,42 @@ function copyLink() {
    multiplayer, neutral = practice) per the palette convention. */
 .mode-glyph--cyan {
   color: var(--color-neon-blue);
+}
+
+.mode-glyph--live {
+  color: var(--color-neon-green);
+}
+
+/* Slightly lifted from the neighbouring rows: this one is only on screen when
+   there is genuinely someone to play against, so it should read as the live
+   option rather than another menu item. */
+.mode-item--live {
+  border-color: rgba(0, 255, 102, 0.22);
+  background: rgba(0, 255, 102, 0.04);
+}
+
+.mode-item--live:hover:not(:disabled) {
+  border-color: rgba(0, 255, 102, 0.45);
+}
+
+.live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: var(--spacing-2);
+  border-radius: 50%;
+  background: var(--color-neon-green);
+  vertical-align: middle;
+  animation: live-pulse 2s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot { animation: none; }
 }
 
 .mode-glyph--dim {
