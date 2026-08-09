@@ -236,12 +236,18 @@
               <span class="mode-name">Play vs bot</span>
               <span class="mode-hint">
                 {{ ladderHint }}
-                <span
-                  class="mode-help"
-                  role="img"
-                  :aria-label="LADDER_EXPLAINER"
-                  :title="LADDER_EXPLAINER"
-                ><HelpCircle :size="13" :stroke-width="2.25" /></span>
+                <span class="mode-help" role="img" :aria-label="LADDER_EXPLAINER">
+                  <HelpCircle :size="13" :stroke-width="2.25" />
+                  <!-- aria-hidden: the concise aria-label above is what gets
+                       read, or the whole panel would be appended to the row's
+                       accessible name. -->
+                  <span class="mode-tip" aria-hidden="true">
+                    <strong class="mode-tip-title">The ladder</strong>
+                    Eight opponents, easiest to hardest. Each plays its own way -
+                    Vera hoards wilds, Kobra stacks every draw she holds. Beat one
+                    to unlock the next.
+                  </span>
+                </span>
               </span>
             </span>
             <ChevronRight class="mode-chev" :size="16" aria-hidden="true" />
@@ -778,7 +784,8 @@ onMounted(() => {
 })
 
 const LADDER_EXPLAINER =
-    'Eight bot opponents, each with its own style. Beat one to unlock the next.'
+    'The ladder: eight opponents from easiest to hardest, each with its own style. '
+    + 'Beat one to unlock the next.'
 
 function ordinal(n: number): string {
     const rem100 = n % 100
@@ -1638,6 +1645,7 @@ function copyLink() {
    is invalid and breaks keyboard nav. A labelled span still gets the native
    hover tooltip and is announced by screen readers. */
 .mode-help {
+  position: relative;
   display: inline-flex;
   vertical-align: -2px;
   margin-left: var(--spacing-1);
@@ -1645,7 +1653,69 @@ function copyLink() {
   cursor: help;
 }
 
-.mode-help:hover { color: rgba(255, 255, 255, 0.7); }
+.mode-help:hover { color: var(--color-hazard); }
+
+/* Replaces the native title tooltip, which the browser delays about a second
+   and paints in OS chrome that ignores the theme entirely. Opens above so the
+   card's bottom edge cannot clip it. */
+.mode-tip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  width: max-content;
+  max-width: 17rem;
+  padding: var(--spacing-2) var(--spacing-3);
+  background: #16171a;
+  border: 1px solid rgba(255, 204, 0, 0.3);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  transform: translate(-50%, 4px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  pointer-events: none;
+  z-index: 40;
+}
+
+.mode-tip-title {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--color-hazard);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.66rem;
+}
+
+/* The notch, drawn as a rotated square tucked under the panel edge. */
+.mode-tip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -5px 0 0 -4px;
+  background: #16171a;
+  border-right: 1px solid rgba(255, 204, 0, 0.3);
+  border-bottom: 1px solid rgba(255, 204, 0, 0.3);
+  transform: rotate(45deg);
+}
+
+.mode-help:hover .mode-tip {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mode-tip { transition: none; }
+}
 
 .mode-glyph--live {
   color: var(--color-neon-green);
