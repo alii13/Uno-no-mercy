@@ -11,6 +11,7 @@ export type Route =
     | { name: 'home' }
     | { name: 'leaderboard' }
     | { name: 'profile'; code: string }
+    | { name: 'kill'; code: string }
 
 const SHARE_CODE = /^[A-Za-z0-9]{4,32}$/
 
@@ -20,12 +21,19 @@ export function parseRoute(pathname: string): Route {
         const code = pathname.slice(3)
         if (SHARE_CODE.test(code)) return { name: 'profile', code }
     }
+    // Shared kill card. The edge rewrites this path's meta tags for the link
+    // preview; this is the screen the human who clicks it actually lands on.
+    if (pathname.startsWith('/k/')) {
+        const code = pathname.slice(3)
+        if (SHARE_CODE.test(code)) return { name: 'kill', code }
+    }
     return { name: 'home' }
 }
 
 export function routePath(route: Route): string {
     if (route.name === 'leaderboard') return '/leaderboard'
     if (route.name === 'profile') return `/p/${route.code}`
+    if (route.name === 'kill') return `/k/${route.code}`
     return '/'
 }
 

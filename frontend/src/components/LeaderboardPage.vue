@@ -137,6 +137,7 @@ import gsap from 'gsap'
 import { useLeaderboard, type DailyRow, type WeeklyRow } from '../composables/useLeaderboard'
 import { useMotion } from '../composables/useMotion'
 import { navigate } from '../utils/routes'
+import { formatCountdown, msUntilLocalMidnight } from '../utils/countdown'
 import { skinColors } from '../utils/cosmetics'
 import { flagEmoji } from '../utils/country'
 import { rankFor } from '../utils/ranks'
@@ -198,13 +199,9 @@ const SPOT_META = {
 // their local midnight.
 const now = ref(Date.now())
 let ticker: number | undefined
-const dealCountdown = computed(() => {
-    const d = new Date(now.value)
-    const midnight = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)
-    const mins = Math.max(1, Math.round((midnight.getTime() - d.getTime()) / 60000))
-    const h = Math.floor(mins / 60)
-    return h > 0 ? `${h}H ${mins % 60}M` : `${mins % 60}M`
-})
+const dealCountdown = computed(() =>
+    formatCountdown(msUntilLocalMidnight(new Date(now.value))),
+)
 
 const footerLine = computed(() => {
     const ctx = tab.value === 'daily' ? lb.dailyContext.value : lb.weeklyContext.value
@@ -245,7 +242,9 @@ watch([tab, () => lb.loading.value], async () => {
 
 onMounted(() => {
     void lb.fetchBoards()
-    ticker = window.setInterval(() => { now.value = Date.now() }, 30_000)
+    // Ticks to the second: at 30s with whole-minute display the number sat
+    // unchanged for up to a minute and read as static text.
+    ticker = window.setInterval(() => { now.value = Date.now() }, 1000)
 })
 onUnmounted(() => { if (ticker) clearInterval(ticker) })
 </script>

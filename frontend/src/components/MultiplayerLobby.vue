@@ -30,6 +30,10 @@
           {{ authStore.username }}
           <Pencil class="chip-edit-icon" :stroke-width="2" aria-hidden="true" />
         </button>
+        <!-- The only route to your own stats used to be: place in today's top
+             50, then click your own leaderboard row. Off the board — which is
+             most players, most days — the dashboard was unreachable. -->
+        <button class="text-link" @click="$emit('showStats')">MY STATS</button>
         <button
           v-if="authStore.isAnonymous"
           class="text-link upgrade-link"
@@ -229,8 +233,16 @@
           <button class="mode-item" @click="$emit('playLocal', selectedStackingMode)">
             <span class="mode-glyph mode-glyph--dim"><Bot :size="17" :stroke-width="2.25" aria-hidden="true" /></span>
             <span class="mode-text">
-              <span class="mode-name">Play vs {{ nextOpponent.name }}</span>
-              <span class="mode-hint">{{ ladderHint }}</span>
+              <span class="mode-name">Play vs bot</span>
+              <span class="mode-hint">
+                {{ ladderHint }}
+                <span
+                  class="mode-help"
+                  role="img"
+                  :aria-label="LADDER_EXPLAINER"
+                  :title="LADDER_EXPLAINER"
+                ><HelpCircle :size="13" :stroke-width="2.25" /></span>
+              </span>
             </span>
             <ChevronRight class="mode-chev" :size="16" aria-hidden="true" />
           </button>
@@ -492,7 +504,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { Copy, Check, Flame, Pencil, X, Zap, Hash, Bot, ChevronRight, Minus, Skull, Users } from 'lucide-vue-next'
+import { Copy, Check, Flame, Pencil, X, Zap, Hash, Bot, ChevronRight, Minus, Skull, Users, HelpCircle } from 'lucide-vue-next'
 import { useRetentionStore } from '../stores/retentionStore'
 import {
     getDailyRecord, fetchServerDailyRecord, dailyGridCells, buildDailyShareText,
@@ -765,10 +777,22 @@ onMounted(() => {
     ladderDone.value = isLadderComplete()
 })
 
+const LADDER_EXPLAINER =
+    'Eight bot opponents, each with its own style. Beat one to unlock the next.'
+
+function ordinal(n: number): string {
+    const rem100 = n % 100
+    if (rem100 >= 11 && rem100 <= 13) return `${n}th`
+    return `${n}${({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th'}`
+}
+
+// Mode first, ladder second. "Play vs Scrap / Opponent 1 of 8" told a new
+// player neither what the mode was nor what the number meant — it reads as a
+// completion count when it is a position.
 const ladderHint = computed(() =>
     ladderDone.value
-        ? 'Every opponent beaten - rematch the last one'
-        : `Opponent ${ladder.value.beaten + 1} of ${ladder.value.total}`,
+        ? `All 8 beaten - rematch ${nextOpponent.value.name}`
+        : `Next up: ${nextOpponent.value.name}, ${ordinal(ladder.value.beaten + 1)} of ${ladder.value.total} opponents`,
 )
 
 const live = useLiveTables()
@@ -1609,6 +1633,19 @@ function copyLink() {
 .mode-glyph--cyan {
   color: var(--color-neon-blue);
 }
+
+/* Not a button: .mode-item is already one, and nesting interactive elements
+   is invalid and breaks keyboard nav. A labelled span still gets the native
+   hover tooltip and is announced by screen readers. */
+.mode-help {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-left: var(--spacing-1);
+  color: rgba(255, 255, 255, 0.35);
+  cursor: help;
+}
+
+.mode-help:hover { color: rgba(255, 255, 255, 0.7); }
 
 .mode-glyph--live {
   color: var(--color-neon-green);

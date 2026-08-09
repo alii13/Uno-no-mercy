@@ -55,24 +55,30 @@ describe('isBragworthy', () => {
 describe('buildKillMeta', () => {
     const base = { dealer: 'shekh', victim: 'Priya', amount: 26, cardsPlayed: 31 }
 
-    it('leads the title with the brag, not the brand', () => {
+    it('leads with who did what to whom, in plain words', () => {
         const { title } = buildKillMeta(base)
-        expect(title.startsWith('shekh stacked +26 on Priya')).toBe(true)
+        expect(title).toBe('shekh made Priya draw 26 cards in one turn')
     })
 
-    it('names the game somewhere in the title for context', () => {
-        expect(buildKillMeta(base).title).toContain('Open Mercy')
+    it('keeps the number in the title, since that is the brag', () => {
+        expect(buildKillMeta(base).title).toContain('26')
     })
 
-    it('puts the call to action in the description', () => {
+    it('explains what the game is, for a stranger who has never heard of it', () => {
         const { description } = buildKillMeta(base)
-        expect(description).toContain('31 cards')
+        expect(description).toContain('Open Mercy')
         expect(description.toLowerCase()).toContain('free')
+        expect(description.toLowerCase()).toContain('no download')
     })
 
     it('truncates absurd usernames so the unfurl stays readable', () => {
         const { title } = buildKillMeta({ ...base, dealer: 'x'.repeat(200) })
         expect(title.length).toBeLessThan(120)
+    })
+
+    it('carries no em dash', () => {
+        const { title, description } = buildKillMeta(base)
+        expect(`${title} ${description}`).not.toContain(String.fromCharCode(8212))
     })
 
     it('falls back to a neutral noun when a name is blank', () => {

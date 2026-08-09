@@ -76,6 +76,22 @@
     repeating-linear-gradient(0deg, transparent 0, transparent 50px, #000 50px, #000 51px);
 }
 
+/* The -45deg hatching used to live only inside the pit, which is a single grid
+   row — so it stopped dead partway down the screen and the hand band below it
+   was untextured. It belongs to the whole table, so it spans the view here and
+   .pit-hatching no longer paints it. */
+.table-hatching {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.018) 0 2px,
+    transparent 2px 22px
+  );
+}
+
 .vignette {
   position: absolute;
   inset: 0;
@@ -483,15 +499,12 @@
 }
 
 /* LAYER 1 — Diagonal industrial hatching, 2% opacity. Floor markings, not noise. */
+/* Kept as a hook for pit-only effects; the hatching itself is now .table-hatching
+   at game-view level so it does not stop at the pit's bottom edge. */
 .pit-hatching {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-image: repeating-linear-gradient(
-    -45deg,
-    rgba(255, 255, 255, 0.018) 0 2px,
-    transparent 2px 22px
-  );
   z-index: 0;
 }
 

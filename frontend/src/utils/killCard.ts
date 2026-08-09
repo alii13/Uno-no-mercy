@@ -102,7 +102,10 @@ export function buildKillMeta(input: KillMetaInput): { title: string; descriptio
     const dealer = cleanName(input.dealer)
     const victim = cleanName(input.victim)
     return {
-        title: `${dealer} stacked +${input.amount} on ${victim} · Open Mercy`,
-        description: `+${input.amount} in a single turn, ${input.cardsPlayed} cards played. Think you can survive worse? Play Open Mercy free, no download.`,
+        title: `${dealer} made ${victim} draw ${input.amount} cards in one turn`,
+        // A stranger seeing this has never heard of the game, so the second
+        // sentence has to say what it is, not just brag. "13 cards played" was
+        // noise nobody outside the game could read anything into.
+        description: `Open Mercy is UNO with the brakes cut - draws stack, and 25 cards knocks you out. Free in your browser, no download, no sign-up.`,
     }
 }

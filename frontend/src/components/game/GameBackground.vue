@@ -1,5 +1,7 @@
 <template>
   <div class="metal-surface" aria-hidden="true"></div>
+  <!-- Spans the whole table, not just the pit row — see .table-hatching. -->
+  <div class="table-hatching" aria-hidden="true"></div>
   <div class="vignette" aria-hidden="true"></div>
 </template>
 
