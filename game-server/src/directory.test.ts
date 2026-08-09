@@ -1,0 +1,100 @@
+import { describe, expect, it } from 'vitest'
+import { normalizeDir, dirCodes, liveTables, DIR_STALE_MS } from './directory'
+
+const NOW = 1_700_000_000_000
+
+describe('normalizeDir', () => {
+    it('reads entries written before snapshots existed', () => {
+        expect(normalizeDir({ AAAA: NOW })).toEqual({ AAAA: { at: NOW } })
+    })
+
+    it('passes through entries that already carry a snapshot', () => {
+        const e = { at: NOW, players: 3, seatsFree: 17 }
+        expect(normalizeDir({ AAAA: e })).toEqual({ AAAA: e })
+    })
+
+    it('copes with a missing directory', () => {
+        expect(normalizeDir(undefined)).toEqual({})
+    })
+})
+
+describe('dirCodes', () => {
+    it('orders oldest first so early rooms fill before new ones open', () => {
+        const codes = dirCodes({ NEW: NOW + 5000, OLD: NOW, MID: NOW + 1000 })
+        expect(codes).toEqual(['OLD', 'MID', 'NEW'])
+    })
+
+    it('still works on a directory of bare timestamps', () => {
+        expect(dirCodes({ B: NOW + 10, A: NOW })).toEqual(['A', 'B'])
+    })
+
+    it('never offers a started room to quick match', () => {
+        // Started rooms stay listed so the landing strip can show them, so
+        // this filter is the only thing stopping quick match from dropping
+        // someone into a game already under way.
+        const dir = {
+            RUNNING: { at: NOW, players: 4, inProgress: true },
+            OPEN: { at: NOW + 10, players: 1, inProgress: false },
+        }
+        expect(dirCodes(dir)).toEqual(['OPEN'])
+    })
+
+    it('treats a legacy entry with no flag as joinable', () => {
+        expect(dirCodes({ OLD: NOW })).toEqual(['OLD'])
+    })
+})
+
+describe('liveTables', () => {
+    const room = (over: Record<string, unknown> = {}) => ({
+        at: NOW, updatedAt: NOW, players: 2, seatsFree: 18, inProgress: false, mode: 'official', ...over,
+    })
+
+    it('hides empty rooms — a dead table is a worse advert than none', () => {
+        const out = liveTables({ EMPTY: room({ players: 0 }), LIVE: room() }, NOW)
+        expect(out.map((t) => t.code)).toEqual(['LIVE'])
+    })
+
+    it('hides rooms whose DO died without unregistering', () => {
+        const stale = room({ updatedAt: NOW - DIR_STALE_MS - 1 })
+        expect(liveTables({ ZOMBIE: stale }, NOW)).toEqual([])
+    })
+
+    it('keeps a room that simply has not changed recently', () => {
+        const quiet = room({ updatedAt: NOW - 10 * 60 * 1000 })
+        expect(liveTables({ QUIET: quiet }, NOW).map((t) => t.code)).toEqual(['QUIET'])
+    })
+
+    it('puts the fullest table first', () => {
+        const out = liveTables({
+            ONE: room({ players: 1 }),
+            FOUR: room({ players: 4 }),
+            TWO: room({ players: 2 }),
+        }, NOW)
+        expect(out.map((t) => t.code)).toEqual(['FOUR', 'TWO', 'ONE'])
+    })
+
+    it('caps how many it returns', () => {
+        const dir = Object.fromEntries(
+            Array.from({ length: 10 }, (_, i) => [`R${i}`, room({ players: i + 1 })]),
+        )
+        expect(liveTables(dir, NOW).length).toBe(3)
+        expect(liveTables(dir, NOW, 5).length).toBe(5)
+    })
+
+    it('never exposes anything that identifies a player', () => {
+        const out = liveTables({ AAAA: room({ skins: ['neon'] }) }, NOW)
+        const keys = Object.keys(out[0]!)
+        expect(keys.sort()).toEqual(
+            ['code', 'inProgress', 'mode', 'players', 'seatsFree', 'skins'].sort(),
+        )
+        // 'players' is a legitimate key, so match only the words that would
+        // actually mean a leak. No /i with a [A-Z] class — the flag cancels it.
+        expect(JSON.stringify(out)).not.toMatch(/name|user/i)
+    })
+
+    it('fills defaults for a legacy entry that has no snapshot yet', () => {
+        // Bare-number entries have no player count, so they are not "live"
+        // until their room reports one. Better an empty strip than a lie.
+        expect(liveTables({ OLD: NOW }, NOW)).toEqual([])
+    })
+})
