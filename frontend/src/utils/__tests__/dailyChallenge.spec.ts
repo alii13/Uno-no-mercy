@@ -1,4 +1,17 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+// dailyChallenge imports the Supabase client for fetchServerDailyRecord, and
+// lib/supabase throws at import time when VITE_SUPABASE_* are unset — which is
+// the case in CI, where the workflow passes no env. Same mock gameStore.test.ts
+// uses, and for the same reason.
+vi.mock('../../lib/supabase', () => ({
+    supabase: {
+        from: () => {
+            throw new Error('unexpected supabase call in a pure daily test')
+        },
+    },
+}))
+
 import { buildDailyShareText, dailyGridCells } from '../dailyChallenge'
 
 const base = { date: '2026-08-09', result: 'won' as const, turns: 23, log: '' }
