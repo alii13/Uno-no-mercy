@@ -73,10 +73,9 @@ export async function onRequestGet(context) {
     const dealer = cleanName(kill.dealer)
     const victim = cleanName(kill.victim)
     const amount = Number(kill.amount) || 0
-    const cardsPlayed = Number(kill.cards_played) || 0
 
-    const title = `${dealer} stacked +${amount} on ${victim} · Open Mercy`
-    const description = `+${amount} in a single turn, ${cardsPlayed} cards played. Think you can survive worse? Play Open Mercy free, no download.`
+    const title = `${dealer} made ${victim} draw ${amount} cards in one turn`
+    const description = `Open Mercy is UNO with the brakes cut - draws stack, and 25 cards knocks you out. Free in your browser, no download, no sign-up.`
     const pageUrl = `${CANONICAL_ORIGIN}/k/${code}`
     const image = KILL_TIERS.has(kill.tier)
         ? `${CANONICAL_ORIGIN}/og/kill-${kill.tier}.jpg`

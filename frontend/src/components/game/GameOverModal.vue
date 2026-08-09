@@ -114,6 +114,7 @@ import { siX, siWhatsapp } from 'simple-icons'
 import { generateShareImage, shareOrDownload } from '../../utils/shareImage'
 import { killTier, newKillCode } from '../../utils/killCard'
 import { supabase } from '../../lib/supabase'
+import { useAuthStore } from '../../stores/authStore'
 import { track } from '../../utils/analytics'
 
 interface Stats {
@@ -205,6 +206,7 @@ function sharePayload() {
 // --- Kill link -------------------------------------------------------------
 // Minted lazily: a row is only written when someone actually taps share, so an
 // unshared game costs nothing. The code is reused if they tap twice.
+const authStore = useAuthStore()
 const mintingKill = ref(false)
 const killUrl = ref<string | null>(null)
 const killShared = ref(false)
@@ -227,11 +229,15 @@ async function mintKillUrl(): Promise<string | null> {
   // No .select() on purpose — see newKillCode(). The code is ours already, and
   // asking for it back would need a SELECT policy the table deliberately lacks.
   const code = newKillCode()
+  // In solo the human's seat is literally named "You", which reads as the
+  // reader in a shared link ("You stacked +22 on Scrap"). Swap in the actual
+  // profile name so the brag names the person who earned it.
+  const dealerName = k.dealer === 'You' ? authStore.username : k.dealer
   const { error } = await supabase
     .from('kill_cards')
     .insert({
       code,
-      dealer: k.dealer.slice(0, 40),
+      dealer: dealerName.slice(0, 40),
       victim: k.victim.slice(0, 40),
       amount: k.amount,
       tier: killTier(k.amount),
@@ -250,7 +256,7 @@ async function onShareKill() {
   try {
     const url = await mintKillUrl()
     if (!url) return
-    const text = `I stacked +${props.kill.amount} on ${props.kill.victim} in Open Mercy.`
+    const text = `+${props.kill.amount} on ${props.kill.victim}. One turn. Beat that.`
     track('share', { method: 'kill_link', content_type: props.mode === 'mp' ? 'mp_kill' : 'sp_kill' })
 
     if (preferNativeShare() && navigator.share) {

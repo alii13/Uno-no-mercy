@@ -19,26 +19,34 @@
           @keyup.esc="editingName = false"
           @blur="saveName"
         />
-        <!-- Renamable for guests AND account users — stats stay reachable via
-             the MY STATS link below. -->
-        <button
-          v-else
-          class="username-chip username-chip-editable"
-          title="Tap to rename"
-          @click="startEditName('bar')"
-        >
-          {{ authStore.username }}
-          <Pencil class="chip-edit-icon" :stroke-width="2" aria-hidden="true" />
-        </button>
+        <!-- One account surface for guests and signed-in users alike: the name
+             is the control, and everything about "you" hangs off it. Stats used
+             to need its own header slot; nesting it here costs no width, which
+             matters most on a phone. -->
+        <div v-else class="account" ref="accountRef">
+          <button
+            class="username-chip username-chip-editable"
+            aria-haspopup="menu"
+            :aria-expanded="accountOpen"
+            @click="accountOpen = !accountOpen"
+          >
+            {{ authStore.username }}
+            <ChevronDown class="chip-edit-icon" :stroke-width="2" aria-hidden="true" />
+          </button>
+          <div v-if="accountOpen" class="account-menu" role="menu">
+            <button class="account-item" role="menuitem" @click="viewProfile">View profile</button>
+            <button class="account-item" role="menuitem" @click="editNameFromMenu">Edit name</button>
+            <button class="account-item account-item--out" role="menuitem" @click="signOutFromMenu">Sign out</button>
+          </div>
+        </div>
+        <!-- Stays in the bar rather than the menu: it is the conversion CTA,
+             and a guest who never opens the menu should still see it. -->
         <button
           v-if="authStore.isAnonymous"
           class="text-link upgrade-link"
           @click="upgradeAccount"
         >
           {{ authStore.claimPending ? 'CONFIRM YOUR EMAIL' : 'CREATE ACCOUNT' }}
-        </button>
-        <button class="text-link" @click="requestSignOut">
-          SIGN OUT
         </button>
       </div>
     </header>
@@ -229,8 +237,22 @@
           <button class="mode-item" @click="$emit('playLocal', selectedStackingMode)">
             <span class="mode-glyph mode-glyph--dim"><Bot :size="17" :stroke-width="2.25" aria-hidden="true" /></span>
             <span class="mode-text">
-              <span class="mode-name">Play vs {{ nextOpponent.name }}</span>
-              <span class="mode-hint">{{ ladderHint }}</span>
+              <span class="mode-name">Play vs bot</span>
+              <span class="mode-hint">
+                {{ ladderHint }}
+                <span class="mode-help" role="img" :aria-label="LADDER_EXPLAINER">
+                  <HelpCircle :size="13" :stroke-width="2.25" />
+                  <!-- aria-hidden: the concise aria-label above is what gets
+                       read, or the whole panel would be appended to the row's
+                       accessible name. -->
+                  <span class="mode-tip" aria-hidden="true">
+                    <strong class="mode-tip-title">The ladder</strong>
+                    Eight opponents, easiest to hardest. Each plays its own way -
+                    Vera hoards wilds, Kobra stacks every draw she holds. Beat one
+                    to unlock the next.
+                  </span>
+                </span>
+              </span>
             </span>
             <ChevronRight class="mode-chev" :size="16" aria-hidden="true" />
           </button>
@@ -491,8 +513,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { Copy, Check, Flame, Pencil, X, Zap, Hash, Bot, ChevronRight, Minus, Skull, Users } from 'lucide-vue-next'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { Copy, Check, Flame, Pencil, X, Zap, Hash, Bot, ChevronRight, Minus, Skull, Users, HelpCircle, ChevronDown } from 'lucide-vue-next'
 import { useRetentionStore } from '../stores/retentionStore'
 import {
     getDailyRecord, fetchServerDailyRecord, dailyGridCells, buildDailyShareText,
@@ -765,10 +787,23 @@ onMounted(() => {
     ladderDone.value = isLadderComplete()
 })
 
+const LADDER_EXPLAINER =
+    'The ladder: eight opponents from easiest to hardest, each with its own style. '
+    + 'Beat one to unlock the next.'
+
+function ordinal(n: number): string {
+    const rem100 = n % 100
+    if (rem100 >= 11 && rem100 <= 13) return `${n}th`
+    return `${n}${({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th'}`
+}
+
+// Mode first, ladder second. "Play vs Scrap / Opponent 1 of 8" told a new
+// player neither what the mode was nor what the number meant — it reads as a
+// completion count when it is a position.
 const ladderHint = computed(() =>
     ladderDone.value
-        ? 'Every opponent beaten - rematch the last one'
-        : `Opponent ${ladder.value.beaten + 1} of ${ladder.value.total}`,
+        ? `All 8 beaten - rematch ${nextOpponent.value.name}`
+        : `Next up: ${nextOpponent.value.name}, ${ordinal(ladder.value.beaten + 1)} of ${ladder.value.total} opponents`,
 )
 
 const live = useLiveTables()
@@ -851,6 +886,48 @@ async function saveName() {
     // so other players see the new name, not just future games.
     if (mpStore.currentGame) await mpStore.updateMyName(name)
   }
+}
+
+// --- Account menu ---------------------------------------------------------
+const accountOpen = ref(false)
+const accountRef = ref<HTMLElement | null>(null)
+
+function closeAccount() { accountOpen.value = false }
+
+function onDocPointer(e: PointerEvent) {
+    if (!accountOpen.value) return
+    if (accountRef.value && !accountRef.value.contains(e.target as Node)) closeAccount()
+}
+function onDocKey(e: KeyboardEvent) {
+    if (e.key === 'Escape') closeAccount()
+}
+onMounted(() => {
+    document.addEventListener('pointerdown', onDocPointer)
+    document.addEventListener('keydown', onDocKey)
+})
+onUnmounted(() => {
+    document.removeEventListener('pointerdown', onDocPointer)
+    document.removeEventListener('keydown', onDocKey)
+})
+
+// share_code only exists once leaderboards-v2.sql has run, and a brand-new
+// guest row may not have one yet. Falling back to the dashboard keeps the item
+// from being a dead end.
+function viewProfile() {
+    closeAccount()
+    const code = authStore.profile?.share_code
+    if (code) navigate({ name: 'profile', code })
+    else emit('showStats')
+}
+
+function editNameFromMenu() {
+    closeAccount()
+    startEditName('bar')
+}
+
+function signOutFromMenu() {
+    closeAccount()
+    requestSignOut()
 }
 
 function upgradeAccount() {
@@ -1610,6 +1687,133 @@ function copyLink() {
   color: var(--color-neon-blue);
 }
 
+/* Not a button: .mode-item is already one, and nesting interactive elements
+   is invalid and breaks keyboard nav. A labelled span still gets the native
+   hover tooltip and is announced by screen readers. */
+/* Account menu -------------------------------------------------------------
+   Anchored to the name chip and right-aligned, so on a narrow screen it grows
+   inwards from the right edge instead of pushing past it. */
+.account {
+  position: relative;
+  display: inline-flex;
+}
+
+.account-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 12rem;
+  /* Never wider than the viewport minus the bar's own padding. */
+  max-width: calc(100vw - var(--spacing-8));
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-1);
+  background: #16171a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.65);
+  z-index: 60;
+}
+
+.account-item {
+  appearance: none;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-2) var(--spacing-3);
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.8);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.account-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.account-item--out {
+  margin-top: var(--spacing-1);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.mode-help {
+  position: relative;
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-left: var(--spacing-1);
+  color: rgba(255, 255, 255, 0.35);
+  cursor: help;
+}
+
+.mode-help:hover { color: var(--color-hazard); }
+
+/* Replaces the native title tooltip, which the browser delays about a second
+   and paints in OS chrome that ignores the theme entirely. Opens above so the
+   card's bottom edge cannot clip it. */
+.mode-tip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  width: max-content;
+  max-width: 17rem;
+  padding: var(--spacing-2) var(--spacing-3);
+  background: #16171a;
+  border: 1px solid rgba(255, 204, 0, 0.3);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  transform: translate(-50%, 4px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  pointer-events: none;
+  z-index: 40;
+}
+
+.mode-tip-title {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--color-hazard);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.66rem;
+}
+
+/* The notch, drawn as a rotated square tucked under the panel edge. */
+.mode-tip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -5px 0 0 -4px;
+  background: #16171a;
+  border-right: 1px solid rgba(255, 204, 0, 0.3);
+  border-bottom: 1px solid rgba(255, 204, 0, 0.3);
+  transform: rotate(45deg);
+}
+
+.mode-help:hover .mode-tip {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mode-tip { transition: none; }
+}
+
 .mode-glyph--live {
   color: var(--color-neon-green);
 }
@@ -2196,8 +2400,24 @@ function copyLink() {
     letter-spacing: 0.15em;
   }
 
+  /* Was display:none when the chip was only a rename affordance and the bar
+     was tight. It is now the only route to profile, stats and sign out, so it
+     has to survive on a phone — truncated rather than hidden. */
   .username-chip {
-    display: none;
+    max-width: 8.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.7rem;
+    padding: var(--spacing-1) var(--spacing-2);
+    min-height: 36px;
+  }
+
+  /* Menu items keep a comfortable tap target and may wrap on a narrow phone. */
+  .account-item {
+    padding: var(--spacing-3);
+    min-height: 40px;
+    white-space: normal;
   }
 
   /* Brand + account links share one row; compact the links so they fit,
