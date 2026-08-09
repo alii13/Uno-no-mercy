@@ -382,3 +382,35 @@ describe('daily turn log', () => {
         expect(store.turnLog).toEqual([])
     })
 })
+
+describe('bot personalities', () => {
+    it('gives each bot seat a profile', () => {
+        const store = useGameStore()
+        store.initializeGame(['You', 'A', 'B'], 'official', { botIds: ['vera', 'kobra'] })
+        const ids = store.players.filter(p => p.isBot).map(p => store.botProfiles[p.id]?.id)
+        expect(ids).toEqual(['vera', 'kobra'])
+    })
+
+    it('forces the daily opponent no matter what the caller asks for', () => {
+        // Everyone in the world must face the same bot on the same deal, so
+        // unlock state must not be able to reach into the daily.
+        const store = useGameStore()
+        store.initializeGame(['You', 'X'], 'official', { dailySeed: '2026-08-09', botIds: ['scrap'] })
+        const bot = store.players.find(p => p.isBot)!
+        expect(store.botProfiles[bot.id]?.id).toBe('terminator')
+    })
+
+    it('falls back to the first rung for an unknown bot id', () => {
+        const store = useGameStore()
+        store.initializeGame(['You', 'X'], 'official', { botIds: ['does-not-exist'] })
+        const bot = store.players.find(p => p.isBot)!
+        expect(store.botProfiles[bot.id]?.id).toBe('scrap')
+    })
+
+    it('clears profiles from the previous game on rematch', () => {
+        const store = useGameStore()
+        store.initializeGame(['You', 'A', 'B'], 'official', { botIds: ['vera', 'kobra'] })
+        store.initializeGame(['You', 'A'], 'official', { botIds: ['rook'] })
+        expect(Object.keys(store.botProfiles)).toHaveLength(1)
+    })
+})

@@ -3,9 +3,14 @@ import { ref, computed, watch } from 'vue'
 import type { Card, Player, GameState, TurnState, CardColor } from '../types/card'
 import * as engine from '@engine'
 import type { EngineEvent, EngineState } from '@engine'
-import { canPlayCard, getDrawValue, getWildCardColor, generateFullDeck, shuffleDeck, DEFAULT_STACKING_MODE } from '@engine'
+import { canPlayCard, getDrawValue, generateFullDeck, shuffleDeck, DEFAULT_STACKING_MODE } from '@engine'
+import {
+    BOT_LADDER, botById, dailyBot, chooseCard, chooseSwapTarget, chooseWildColor, willCatchMercy,
+    type BotProfile,
+} from '@engine/bot'
 import { seededRng } from '../utils/seededRng'
 import { markDailyDone } from '../utils/dailyChallenge'
+import { recordBotWin } from '../utils/botLadder'
 import type { StackingMode } from '@engine'
 import { soundEffects } from '../composables/useSoundEffects'
 import { supabase } from '../lib/supabase'
@@ -202,7 +207,7 @@ export const useGameStore = defineStore('game', () => {
                 case 'AT_ONE_UNCALLED': {
                     const p = players.value.find(x => x.id === e.playerId)
                     if (!p) break
-                    if (p.isBot && hostRng() > 0.3) {
+                    if (p.isBot && willCatchMercy(profileFor(p), hostRng)) {
                         callUno(p.id)
                     } else {
                         openCatchWindow(p)
@@ -231,8 +236,17 @@ export const useGameStore = defineStore('game', () => {
     // identically for every player in the world on the same day.
     let hostRng: () => number = Math.random
     let dailyDate: string | null = null
+    /** Personality per bot seat, keyed by player id. */
+    const botProfiles = ref<Record<string, BotProfile>>({})
+    function profileFor(p: Player): BotProfile {
+        return botProfiles.value[p.id] ?? BOT_LADDER[0]!
+    }
 
-    function initializeGame(playerNames: string[], mode?: StackingMode, opts?: { dailySeed?: string }) {
+    function initializeGame(
+        playerNames: string[],
+        mode?: StackingMode,
+        opts?: { dailySeed?: string; botIds?: string[] },
+    ) {
         dailyDate = opts?.dailySeed ?? null
         hostRng = dailyDate ? seededRng(`uno-daily-${dailyDate}`) : Math.random
         dealGeneration++
@@ -248,6 +262,14 @@ export const useGameStore = defineStore('game', () => {
             isBot: index > 0,
             score: 0
         }))
+        // The daily forces its opponent rather than accepting one, so no
+        // caller — and no unlock state — can change who the world plays.
+        botProfiles.value = Object.fromEntries(
+            players.value.filter(p => p.isBot).map((p, i) => [
+                p.id,
+                dailyDate ? dailyBot() : botById(opts?.botIds?.[i] ?? BOT_LADDER[0]!.id),
+            ]),
+        )
 
         const rawDeck = generateFullDeck()
         deck.value = shuffleDeck(rawDeck, hostRng)
@@ -654,25 +676,13 @@ export const useGameStore = defineStore('game', () => {
             canPlayCard(c, top, currentColor.value, drawStack.value, stackingMode.value)
         )
 
-        if (playableCards.length > 0) {
-            let cardToPlay: Card
-            if (drawStack.value > 0) {
-                cardToPlay = playableCards[0]!
-            } else {
-                const specialCards = playableCards.filter(c =>
-                    c.type !== 'number' && c.type !== 'discardAll'
-                )
-                if (specialCards.length > 0) {
-                    cardToPlay = specialCards[Math.floor(hostRng() * specialCards.length)]!
-                } else {
-                    cardToPlay = playableCards[Math.floor(hostRng() * playableCards.length)]!
-                }
-            }
-
-            let colorToPick: CardColor | undefined
-            if (cardToPlay.color === 'wild') {
-                colorToPick = chooseBotColor(bot)
-            }
+        const cardToPlay = chooseCard(
+            { playable: playableCards, drawStack: drawStack.value, opponents: [] },
+            profileFor(bot),
+            hostRng,
+        )
+        if (cardToPlay) {
+            const colorToPick = cardToPlay.color === 'wild' ? chooseBotColor(bot) : undefined
             playerActionPlayCard(cardToPlay, colorToPick)
         } else {
             drawCardsForCurrentPlayer()
@@ -680,20 +690,19 @@ export const useGameStore = defineStore('game', () => {
     }
 
     function chooseBotColor(bot: Player): CardColor {
-        return getWildCardColor(bot.hand, hostRng)
+        return chooseWildColor(bot.hand, profileFor(bot), hostRng)
     }
 
     function executeBotSwap() {
         if (!currentPlayer.value?.isBot || turnState.value !== 'CHOOSING_PLAYER_TO_SWAP') return
-        const otherPlayers = players.value.filter(p =>
-            p.id !== currentPlayer.value?.id && !p.isEliminated
+        const bot = currentPlayer.value
+        const otherPlayers = players.value.filter(p => p.id !== bot?.id && !p.isEliminated)
+        const target = bot && chooseSwapTarget(
+            { playable: [], drawStack: 0, opponents: otherPlayers },
+            profileFor(bot),
+            hostRng,
         )
-        if (otherPlayers.length > 0) {
-            const target = otherPlayers[Math.floor(hostRng() * otherPlayers.length)]
-            if (target) {
-                swapHands(target.id)
-            }
-        }
+        if (target) swapHands(target.id)
     }
 
     watch([currentPlayerIndex, gameState, turnState, topCard], () => {
@@ -744,6 +753,16 @@ export const useGameStore = defineStore('game', () => {
                 duration_seconds: spStartedAt ? Math.round((Date.now() - spStartedAt) / 1000) : undefined,
                 rules: stackingMode.value,
             })
+            // Ladder progress is solo-only and never from the daily: the daily
+            // pins its own opponent, so clearing it would otherwise unlock the
+            // hardest rung without ever facing the ones below it.
+            if (!dailyDate && human && winnerId.value === human.id) {
+                const beaten = players.value.find(pl => pl.isBot)
+                if (beaten) {
+                    const prof = botProfiles.value[beaten.id]
+                    if (prof) recordBotWin(prof.id)
+                }
+            }
             if (dailyDate) {
                 const humanStats = human ? playerStats.value[human.id] : null
                 markDailyDone({
@@ -805,6 +824,7 @@ export const useGameStore = defineStore('game', () => {
         direction,
         drawStack,
         biggestKill,
+        botProfiles,
         turnLog,
         currentColor,
         winnerId,

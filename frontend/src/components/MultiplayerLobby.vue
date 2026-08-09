@@ -229,8 +229,8 @@
           <button class="mode-item" @click="$emit('playLocal', selectedStackingMode)">
             <span class="mode-glyph mode-glyph--dim"><Bot :size="17" :stroke-width="2.25" aria-hidden="true" /></span>
             <span class="mode-text">
-              <span class="mode-name">Play vs bot</span>
-              <span class="mode-hint">Practise solo, nothing on the line</span>
+              <span class="mode-name">Play vs {{ nextOpponent.name }}</span>
+              <span class="mode-hint">{{ ladderHint }}</span>
             </span>
             <ChevronRight class="mode-chev" :size="16" aria-hidden="true" />
           </button>
@@ -501,6 +501,7 @@ import { localDateString } from '../utils/seededRng'
 import { generateDailyShareImage, shareOrDownload } from '../utils/shareImage'
 import { useLeaderboard } from '../composables/useLeaderboard'
 import { useLiveTables } from '../composables/useLiveTables'
+import { nextBot, ladderProgress, isLadderComplete } from '../utils/botLadder'
 import { navigate } from '../utils/routes'
 import { useRanks } from '../composables/useRanks'
 import { skinColors } from '../utils/cosmetics'
@@ -752,6 +753,23 @@ async function handleCreateGame() {
   roomEnded.value = false
   await mpStore.createGame(selectedStackingMode.value)
 }
+
+// Re-read on mount: the lobby unmounts while a solo game plays, so returning
+// from a win always shows the newly unlocked opponent.
+const nextOpponent = ref(nextBot())
+const ladder = ref(ladderProgress())
+const ladderDone = ref(isLadderComplete())
+onMounted(() => {
+    nextOpponent.value = nextBot()
+    ladder.value = ladderProgress()
+    ladderDone.value = isLadderComplete()
+})
+
+const ladderHint = computed(() =>
+    ladderDone.value
+        ? 'Every opponent beaten - rematch the last one'
+        : `Opponent ${ladder.value.beaten + 1} of ${ladder.value.total}`,
+)
 
 const live = useLiveTables()
 onMounted(() => live.start())

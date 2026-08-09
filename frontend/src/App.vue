@@ -143,6 +143,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { track, trackScreen } from './utils/analytics'
 import { localDateString } from './utils/seededRng'
+import { nextBot } from './utils/botLadder'
 import { adoptProfileEquip, applyEquipped } from './utils/cosmetics'
 import { currentRoute, navigate } from './utils/routes'
 import { syncCountryToProfile } from './utils/country'
@@ -315,7 +316,9 @@ function retryGuestSignin() {
 }
 
 function startLocalGame(mode?: 'official' | 'house' | 'casual') {
-  localGameStore.initializeGame(['You', 'Terminator'], mode)
+  // Solo faces the next unbeaten rung, so the practice mode has somewhere to go.
+  const opponent = nextBot()
+  localGameStore.initializeGame(['You', opponent.name], mode, { botIds: [opponent.id] })
 }
 
 // The daily challenge: official rules, date-seeded so the whole world gets
