@@ -2,7 +2,13 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase, type UserProfile } from '../lib/supabase'
 import { track } from '../utils/analytics'
-import type { User } from '@supabase/supabase-js'
+import {
+    directAuthorizeUrl,
+    readOAuthError,
+    urlWithoutOAuthError,
+    type OAuthRedirectError,
+} from '../utils/oauthRedirect'
+import type { OAuthResponse, User } from '@supabase/supabase-js'
 
 export const useAuthStore = defineStore('auth', () => {
     const user = ref<User | null>(null)
@@ -33,6 +39,9 @@ export const useAuthStore = defineStore('auth', () => {
                 if (session.user.is_anonymous && session.user.new_email) hadPendingClaim = true
                 await fetchProfile()
             }
+
+            // After getSession, so the SDK has already had its look at the URL.
+            consumeOAuthError()
 
             // Listen for auth changes
             // IMPORTANT: Per Supabase docs, avoid await inside this callback!
@@ -254,6 +263,73 @@ export const useAuthStore = defineStore('auth', () => {
         }
     }
 
+    /** An OAuth failure read off the URL we were redirected back to. */
+    const oauthError = ref<OAuthRedirectError | null>(null)
+
+    /**
+     * Pick up an OAuth failure from the return trip and clear it from the URL.
+     *
+     * `linkIdentity()` navigates away, so its failures can't be caught at the
+     * call site — the only place a collision shows up is here. Clearing matters
+     * because the params would otherwise re-trigger the error on every refresh.
+     */
+    function consumeOAuthError() {
+        const found = readOAuthError(window.location.search, window.location.hash)
+        if (!found) return
+        oauthError.value = found
+        if (found.code === 'identity_already_exists') track('guest_claim_google_taken', {})
+        window.history.replaceState({}, '', urlWithoutOAuthError(window.location))
+    }
+
+    function clearOAuthError() {
+        oauthError.value = null
+    }
+
+    /** Hand the browser to Google. Returns only on failure — success navigates away. */
+    async function startGoogleRedirect(call: () => Promise<OAuthResponse>) {
+        try {
+            const { data, error: oauthErr } = await call()
+            if (oauthErr) throw oauthErr
+            if (!data?.url) throw new Error('Google sign-in is unavailable right now')
+            window.location.assign(directAuthorizeUrl(data.url, import.meta.env.VITE_SUPABASE_URL))
+            return { success: true }
+        } catch (err: any) {
+            error.value = err.message
+            return { success: false, error: err.message }
+        }
+    }
+
+    /**
+     * Convert the guest to a permanent account with a Google identity — the
+     * OAuth twin of claimAccount(). Attaching an identity to the existing user
+     * keeps the same user id, so the profile row, share code and every
+     * game_results row stay attached, and it skips the confirmation email that
+     * loses most of the people who start the email claim.
+     *
+     * Requires "manual linking" enabled on the Supabase project; without it this
+     * fails with manual_linking_disabled.
+     */
+    async function linkGoogleIdentity() {
+        if (!user.value || !isAnonymous.value) {
+            return { success: false, error: 'Not a guest session' }
+        }
+        track('guest_claim_google_started', {})
+        return startGoogleRedirect(() => supabase.auth.linkIdentity({
+            provider: 'google',
+            // skipBrowserRedirect: we navigate by hand so the authorize hop can
+            // skip the proxy (see directAuthorizeUrl).
+            options: { redirectTo: window.location.origin, skipBrowserRedirect: true },
+        }))
+    }
+
+    /** Google sign-in for a visitor with no guest session to preserve. */
+    async function signInWithGoogle() {
+        return startGoogleRedirect(() => supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: { redirectTo: window.location.origin, skipBrowserRedirect: true },
+        }))
+    }
+
     /** Re-send the claim confirmation to the pending address. */
     async function resendClaimEmail() {
         const email = user.value?.new_email
@@ -333,11 +409,15 @@ export const useAuthStore = defineStore('auth', () => {
         isAnonymous,
         claimPending,
         username,
+        oauthError,
         initialize,
         signUp,
         signIn,
         signInAnonymously,
         claimAccount,
+        linkGoogleIdentity,
+        signInWithGoogle,
+        clearOAuthError,
         resendClaimEmail,
         updateUsername,
         signOut,

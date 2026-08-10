@@ -51,9 +51,26 @@
         <!-- The claim form -->
         <form v-else class="auth-form" @submit.prevent="handleClaim">
           <p class="claim-copy">
-            Playing as <strong>{{ authStore.username }}</strong>. Add an email and password —
-            your stats, badges and profile link stay exactly where they are.
+            Playing as <strong>{{ authStore.username }}</strong>. Your stats, badges and
+            profile link stay exactly where they are.
           </p>
+
+          <div class="google-block">
+            <button type="button" class="google-btn" :disabled="loading" @click="handleGoogle">
+              <span class="google-mark" aria-hidden="true">
+                <svg viewBox="0 0 48 48" width="18" height="18">
+                  <path fill="#4285F4" d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z" />
+                  <path fill="#34A853" d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z" />
+                  <path fill="#FBBC05" d="M11.69 28.18C11.25 26.86 11 25.45 11 24s.25-2.86.69-4.18v-5.7H4.34C2.85 17.09 2 20.45 2 24s.85 6.91 2.34 9.88l7.35-5.7z" />
+                  <path fill="#EA4335" d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z" />
+                </svg>
+              </span>
+              <span class="google-label">{{ loading ? 'OPENING GOOGLE…' : 'CLAIM WITH GOOGLE' }}</span>
+            </button>
+            <p class="google-note">One tap. No confirmation email.</p>
+          </div>
+
+          <div class="or-rule"><span>OR USE AN EMAIL</span></div>
 
           <label class="field">
             <span class="field-label">EMAIL</span>
@@ -83,7 +100,7 @@
           </label>
 
           <p v-if="error" class="msg msg-error">{{ error }}</p>
-          <button v-if="emailTaken" class="link" type="button" @click="switchToLoginFromCollision">
+          <button v-if="emailTaken || googleTaken" class="link" type="button" @click="switchToLoginFromCollision">
             SIGN IN TO THAT ACCOUNT INSTEAD →
           </button>
 
@@ -150,6 +167,22 @@
 
       <!-- Login / Signup forms -->
       <form v-else-if="mode !== 'claim'" class="auth-form" @submit.prevent="handleSubmit">
+        <!-- Also on sign-in, not just sign-up: someone who created their account
+             with Google has no password to type. -->
+        <button type="button" class="google-btn" :disabled="loading" @click="handleGoogle">
+          <span class="google-mark" aria-hidden="true">
+            <svg viewBox="0 0 48 48" width="18" height="18">
+              <path fill="#4285F4" d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z" />
+              <path fill="#34A853" d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z" />
+              <path fill="#FBBC05" d="M11.69 28.18C11.25 26.86 11 25.45 11 24s.25-2.86.69-4.18v-5.7H4.34C2.85 17.09 2 20.45 2 24s.85 6.91 2.34 9.88l7.35-5.7z" />
+              <path fill="#EA4335" d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z" />
+            </svg>
+          </span>
+          <span class="google-label">{{ loading ? 'OPENING GOOGLE…' : 'CONTINUE WITH GOOGLE' }}</span>
+        </button>
+
+        <div class="or-rule"><span>OR USE AN EMAIL</span></div>
+
         <label v-if="mode === 'signup'" class="field">
           <span class="field-label">USERNAME</span>
           <input
@@ -250,11 +283,25 @@ const loading = ref(false)
 const error = ref('')
 const successMsg = ref('')
 const emailTaken = ref(false)
+const googleTaken = ref(false)
 const editingClaimEmail = ref(false)
 
 onMounted(() => {
   if (props.initialMode) {
     mode.value = props.initialMode
+  }
+
+  // A Google failure can only be reported after the round-trip, so the store
+  // parked it on the URL's behalf and this is where it becomes visible.
+  const failed = authStore.oauthError
+  if (failed) {
+    if (failed.code === 'identity_already_exists') {
+      googleTaken.value = true
+      error.value = 'That Google account already belongs to another player.'
+    } else {
+      error.value = failed.message
+    }
+    authStore.clearOAuthError()
   }
 })
 
@@ -263,6 +310,32 @@ function setMode(next: 'login' | 'signup' | 'forgot' | 'claim') {
   error.value = ''
   successMsg.value = ''
   emailTaken.value = false
+  googleTaken.value = false
+}
+
+// Success never returns here — the browser is already on its way to Google.
+async function handleGoogle() {
+  loading.value = true
+  error.value = ''
+  googleTaken.value = false
+
+  try {
+    const result = mode.value === 'claim'
+      ? await authStore.linkGoogleIdentity()
+      : await authStore.signInWithGoogle()
+    if (!result.success) fail(result.error)
+  } catch (err: any) {
+    fail(err?.message)
+  }
+}
+
+// GoTrue's own wording ("Manual linking is disabled") describes our
+// configuration, not anything the player can act on. Keep it in the console and
+// point them at the path that still works.
+function fail(reason?: string) {
+  console.error('Google sign-in failed:', reason)
+  error.value = 'Google sign-in is unavailable right now. Use an email instead.'
+  loading.value = false
 }
 
 async function handleClaim() {
@@ -586,10 +659,106 @@ async function handleForgotPassword() {
   padding-top: var(--spacing-3);
 }
 
+/* Button and its caption travel together, so they get their own tighter gap
+   instead of inheriting the form's spacing-4 between every field. */
+.google-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+/* Solid white against the card's near-black: this is the faster path and should
+   read as the primary one, and light-on-dark is Google's own button treatment. */
+.google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-3);
+  width: 100%;
+  min-height: 48px;
+  padding: var(--spacing-3) var(--spacing-4);
+  background: #fff;
+  border: 1px solid #fff;
+  border-radius: var(--radius-sm);
+  color: #1f1f1f;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  transition: background var(--duration-snap) var(--ease-snap),
+              transform var(--duration-snap) var(--ease-snap);
+}
+
+.google-btn:hover:not(:disabled) {
+  background: #ededed;
+}
+
+.google-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.google-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* The mark keeps its size when a long label wraps. */
+.google-mark {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.google-label {
+  line-height: 1.2;
+}
+
+.google-note {
+  margin: 0;
+  text-align: center;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+}
+
+/* Label sitting in a gap in the hairline, so the two paths read as alternatives
+   without adding another heavy block to the card. */
+.or-rule {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  white-space: nowrap;
+}
+
+.or-rule::before,
+.or-rule::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
 @media (max-width: 480px) {
   .auth-card {
     padding: var(--spacing-6) var(--spacing-4);
     gap: var(--spacing-4);
+  }
+
+  /* 'CONTINUE WITH GOOGLE' is the longest label and has to survive 320px with
+     the mark and gap alongside it, so the tracking comes in rather than wrap. */
+  .google-btn {
+    gap: var(--spacing-2);
+    letter-spacing: 0.06em;
+  }
+
+  .or-rule {
+    gap: var(--spacing-2);
+    letter-spacing: 0.12em;
   }
 
   .auth-tagline {
@@ -601,6 +770,15 @@ async function handleForgotPassword() {
     gap: var(--spacing-1);
     letter-spacing: 0.05em;
     font-size: 0.65rem;
+  }
+}
+
+/* 'CONTINUE WITH GOOGLE' wraps to two lines at 320px on the tracking reduction
+   alone, which leaves the mark floating beside a stacked label. One more size
+   step keeps every label on a single line down to the narrowest phones. */
+@media (max-width: 360px) {
+  .google-btn {
+    font-size: var(--text-xs);
   }
 }
 </style>

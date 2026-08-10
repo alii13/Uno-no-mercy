@@ -25,6 +25,15 @@ const h = vi.hoisted(() => {
         updateUserResult: { data: { user: null }, error: null } as unknown,
         resendCalls: [] as unknown[],
         authCallback: null as ((event: string, session: unknown) => void) | null,
+        linkIdentityCalls: [] as unknown[],
+        oauthCalls: [] as unknown[],
+        oauthResult: {
+            data: { provider: 'google', url: 'https://uno-supabase-proxy.workers.dev/auth/v1/authorize?provider=google' },
+            error: null,
+        } as unknown,
+        navigations: [] as string[],
+        replacedUrls: [] as string[],
+        loc: { origin: 'https://uno-no-mercy.com', pathname: '/', search: '', hash: '' },
         reset() {
             state.getSession = async () => ({ data: { session: null } })
             state.signInAnonymouslyCalls = 0
@@ -35,6 +44,17 @@ const h = vi.hoisted(() => {
             state.updateUserResult = { data: { user: null }, error: null }
             state.resendCalls = []
             state.authCallback = null
+            state.linkIdentityCalls = []
+            state.oauthCalls = []
+            state.oauthResult = {
+                data: { provider: 'google', url: 'https://uno-supabase-proxy.workers.dev/auth/v1/authorize?provider=google' },
+                error: null,
+            }
+            state.navigations = []
+            state.replacedUrls = []
+            state.loc.pathname = '/'
+            state.loc.search = ''
+            state.loc.hash = ''
         },
     }
     return { state }
@@ -55,6 +75,8 @@ vi.mock('../../lib/supabase', () => ({
                 return h.state.updateUserResult
             },
             resend: async (opts: unknown) => { h.state.resendCalls.push(opts); return { error: null } },
+            linkIdentity: async (creds: unknown) => { h.state.linkIdentityCalls.push(creds); return h.state.oauthResult },
+            signInWithOAuth: async (creds: unknown) => { h.state.oauthCalls.push(creds); return h.state.oauthResult },
         },
         from: () => {
             const b: Record<string, unknown> = {}
@@ -70,7 +92,14 @@ vi.mock('../../lib/supabase', () => ({
 const { track } = vi.hoisted(() => ({ track: vi.fn() }))
 vi.mock('../../utils/analytics', () => ({ track }))
 
-vi.stubGlobal('window', { location: { origin: 'https://uno-no-mercy.com' } })
+vi.stubGlobal('window', {
+    location: Object.assign(h.state.loc, {
+        assign: (url: string) => { h.state.navigations.push(url) },
+    }),
+    history: {
+        replaceState: (_s: unknown, _t: unknown, url: string) => { h.state.replacedUrls.push(url) },
+    },
+})
 
 import { useAuthStore } from '../authStore'
 
@@ -220,6 +249,108 @@ describe('claiming a guest account (in-place anonymous conversion)', () => {
         expect(track).toHaveBeenCalledWith('guest_claim_completed', expect.anything())
         expect(auth.isAnonymous).toBe(false)
         expect(auth.user?.id).toBe('anon-1')
+    })
+})
+
+describe('claiming a guest account with Google', () => {
+    function seedGuest(auth: ReturnType<typeof useAuthStore>) {
+        auth.user = { id: 'anon-1', is_anonymous: true } as unknown as User
+        auth.profile = { id: 'anon-1', username: 'RecklessShark28', created_at: '' } as UserProfile
+    }
+
+    it('links the identity in place rather than starting a new session', async () => {
+        const auth = useAuthStore()
+        seedGuest(auth)
+
+        const res = await auth.linkGoogleIdentity()
+
+        expect(res.success).toBe(true)
+        expect(h.state.linkIdentityCalls).toHaveLength(1)
+        expect(h.state.linkIdentityCalls[0]).toMatchObject({
+            provider: 'google',
+            // Without skipBrowserRedirect the SDK navigates to the proxied URL itself.
+            options: { redirectTo: 'https://uno-no-mercy.com', skipBrowserRedirect: true },
+        })
+        // The guarantee the whole feature rests on: the identity is added to the
+        // existing user, so nothing is signed out and no new user is minted.
+        expect(h.state.oauthCalls).toHaveLength(0)
+        expect(h.state.signInAnonymouslyCalls).toBe(0)
+        expect(auth.user?.id).toBe('anon-1')
+        expect(auth.profile?.username).toBe('RecklessShark28')
+        expect(track).toHaveBeenCalledWith('guest_claim_google_started', expect.anything())
+    })
+
+    it('navigates to the authorize URL the SDK minted', async () => {
+        const auth = useAuthStore()
+        seedGuest(auth)
+
+        await auth.linkGoogleIdentity()
+
+        expect(h.state.navigations).toHaveLength(1)
+        expect(h.state.navigations[0]).toContain('/auth/v1/authorize?provider=google')
+    })
+
+    it('refuses for a non-guest session without calling the API', async () => {
+        const auth = useAuthStore()
+        auth.user = { id: 'reg-1', is_anonymous: false } as unknown as User
+
+        const res = await auth.linkGoogleIdentity()
+
+        expect(res.success).toBe(false)
+        expect(h.state.linkIdentityCalls).toHaveLength(0)
+        expect(h.state.navigations).toHaveLength(0)
+    })
+
+    it('reports failure without navigating when no authorize URL comes back', async () => {
+        const auth = useAuthStore()
+        seedGuest(auth)
+        h.state.oauthResult = { data: { url: null }, error: null }
+
+        const res = await auth.linkGoogleIdentity()
+
+        expect(res.success).toBe(false)
+        expect(h.state.navigations).toHaveLength(0)
+    })
+
+    it('uses a plain OAuth sign-in when there is no guest to preserve', async () => {
+        const auth = useAuthStore()
+
+        const res = await auth.signInWithGoogle()
+
+        expect(res.success).toBe(true)
+        expect(h.state.oauthCalls).toHaveLength(1)
+        expect(h.state.linkIdentityCalls).toHaveLength(0)
+        expect(h.state.navigations).toHaveLength(1)
+    })
+})
+
+describe('the OAuth return trip', () => {
+    it('surfaces the collision that linkIdentity could not report at the call site', async () => {
+        h.state.loc.search = '?error=server_error&error_code=identity_already_exists&error_description=Identity+is+already+linked'
+        const auth = useAuthStore()
+
+        await auth.initialize()
+
+        expect(auth.oauthError?.code).toBe('identity_already_exists')
+        expect(track).toHaveBeenCalledWith('guest_claim_google_taken', expect.anything())
+    })
+
+    it('clears the error from the URL so a refresh does not resurrect it', async () => {
+        h.state.loc.search = '?error_code=identity_already_exists'
+        const auth = useAuthStore()
+
+        await auth.initialize()
+
+        expect(h.state.replacedUrls).toEqual(['/'])
+    })
+
+    it('leaves a clean return trip alone', async () => {
+        const auth = useAuthStore()
+
+        await auth.initialize()
+
+        expect(auth.oauthError).toBeNull()
+        expect(h.state.replacedUrls).toHaveLength(0)
     })
 })
 
