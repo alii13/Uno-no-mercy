@@ -46,7 +46,7 @@
           class="text-link upgrade-link"
           @click="upgradeAccount"
         >
-          {{ authStore.claimPending ? 'CONFIRM YOUR EMAIL' : 'CREATE ACCOUNT' }}
+          {{ authStore.claimPending ? 'CONFIRM YOUR EMAIL' : 'CLAIM ACCOUNT' }}
         </button>
       </div>
     </header>
@@ -435,11 +435,11 @@
 
 
     <!-- Guests only: plain sign-out abandons the guest profile and its
-         server-side stats. Claiming (CREATE ACCOUNT) is the safe exit. -->
+         server-side stats. Claiming (CLAIM ACCOUNT) is the safe exit. -->
     <ConfirmDialog
       :open="showSignOutConfirm"
       title="Sign out of this guest profile?"
-      message="Signing out abandons this guest profile and its stats. CREATE ACCOUNT claims it first — free, and everything you've earned stays."
+      message="Signing out abandons this guest profile and its stats. CLAIM ACCOUNT keeps it - free, and everything you've earned stays."
       confirm-label="SIGN OUT ANYWAY"
       cancel-label="GO BACK"
       @confirm="confirmSignOut"

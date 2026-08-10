@@ -11,6 +11,8 @@
          orphaned for search. -->
     <a href="/rules/" class="footer-link">Rules guide</a>
     <span class="footer-sep">·</span>
+    <a href="/privacy/" class="footer-link">Privacy</a>
+    <span class="footer-sep">·</span>
     <span class="footer-attribution">
       Music: <a href="https://incompetech.com/" target="_blank" rel="noopener noreferrer" class="footer-attribution-link">Kevin MacLeod</a>
       (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" class="footer-attribution-link">CC BY 4.0</a>)

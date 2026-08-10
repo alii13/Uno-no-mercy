@@ -161,7 +161,7 @@
         <Button variant="primary" size="lg" block @click="$emit('back')">PLAY OPEN MERCY — FREE</Button>
       </section>
       <section v-else-if="authStore.isAnonymous" class="pp-cta pp-cta--own">
-        <p class="pp-cta-line">This is your guest profile — claim it from the lobby (CREATE ACCOUNT) and everything here is yours forever.</p>
+        <p class="pp-cta-line">This is your guest profile - claim it from the lobby (CLAIM ACCOUNT) and everything here is yours forever.</p>
         <Button variant="secondary" size="md" block @click="$emit('back')">GO TO LOBBY</Button>
         <!-- Guests own their stats and card back too; withholding the tools
              left them with no route to the dashboard at all. -->
