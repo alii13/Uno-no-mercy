@@ -525,6 +525,7 @@ import { useLeaderboard } from '../composables/useLeaderboard'
 import { useLiveTables } from '../composables/useLiveTables'
 import { nextBot, ladderProgress, isLadderComplete } from '../utils/botLadder'
 import { navigate } from '../utils/routes'
+import { track } from '../utils/analytics'
 import { useRanks } from '../composables/useRanks'
 import { skinColors } from '../utils/cosmetics'
 import CardBack from './game/CardBack.vue'
@@ -605,16 +606,19 @@ async function onShareDaily() {
             if (blob) {
                 await shareOrDownload(blob, `open-mercy-daily-${rec.date}.png`)
                 dailySharedAs.value = 'shared'
+                track('share', { method: 'image', content_type: 'daily' })
                 return
             }
         }
         if (navigator.share) {
             await navigator.share({ text })
             dailySharedAs.value = 'shared'
+            track('share', { method: 'native', content_type: 'daily' })
             return
         }
         await navigator.clipboard.writeText(text)
         dailySharedAs.value = 'copied'
+        track('share', { method: 'clipboard', content_type: 'daily' })
     } catch {
         // Dismissed sheet, denied clipboard, canvas refusal — leave the button
         // unconfirmed rather than claiming a share that did not happen.

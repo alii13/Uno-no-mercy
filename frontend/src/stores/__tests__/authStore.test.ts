@@ -101,11 +101,21 @@ vi.stubGlobal('window', {
     },
 })
 
+// The node test environment has no sessionStorage, and the Google claim marker
+// depends on it surviving a navigation.
+const session = new Map<string, string>()
+vi.stubGlobal('sessionStorage', {
+    getItem: (k: string) => session.get(k) ?? null,
+    setItem: (k: string, v: string) => { session.set(k, v) },
+    removeItem: (k: string) => { session.delete(k) },
+})
+
 import { useAuthStore } from '../authStore'
 
 beforeEach(() => {
     setActivePinia(createPinia())
     h.state.reset()
+    session.clear()
     track.mockClear()
 })
 
@@ -332,6 +342,95 @@ describe('claiming a guest account with Google', () => {
         expect(h.state.linkIdentityCalls).toHaveLength(0)
         expect((h.state.oauthCalls[0] as { options: Record<string, unknown> }).options.skipBrowserRedirect)
             .toBeUndefined()
+    })
+})
+
+describe('attributing a completed claim to how it happened', () => {
+    it('reports an email claim as email', async () => {
+        const auth = useAuthStore()
+        await auth.initialize()
+        auth.user = { id: 'anon-1', is_anonymous: true } as unknown as User
+        h.state.updateUserResult = {
+            data: { user: { id: 'anon-1', is_anonymous: true, new_email: 'a@b.com' } },
+            error: null,
+        }
+        await auth.claimAccount('a@b.com', 'secret123')
+
+        h.state.authCallback!('SIGNED_IN', {
+            user: { id: 'anon-1', is_anonymous: false, email: 'a@b.com' },
+            access_token: 't',
+        })
+
+        expect(track).toHaveBeenCalledWith('guest_claim_completed', { method: 'email' })
+    })
+
+    /**
+     * The regression this whole change exists for. linkIdentity leaves the page,
+     * so the completion is observed by a *fresh* store on the return trip. An
+     * in-memory flag cannot survive that, and the previous latch was only ever
+     * set by the email path, so Google conversions recorded a start and no finish.
+     */
+    it('reports a Google claim as google, across the page navigation', async () => {
+        const first = useAuthStore()
+        first.user = { id: 'anon-1', is_anonymous: true } as unknown as User
+        await first.linkGoogleIdentity()
+
+        // The redirect: everything in memory is gone, only sessionStorage remains.
+        setActivePinia(createPinia())
+        track.mockClear()
+        const returned = useAuthStore()
+        h.state.getSession = async () => ({
+            data: { session: { user: { id: 'anon-1', is_anonymous: false }, access_token: 't' } },
+        })
+
+        await returned.initialize()
+        h.state.authCallback!('SIGNED_IN', {
+            user: { id: 'anon-1', is_anonymous: false },
+            access_token: 't',
+        })
+
+        expect(track).toHaveBeenCalledWith('guest_claim_completed', { method: 'google' })
+    })
+
+    it('does not report a completion while the guest is still anonymous', async () => {
+        const auth = useAuthStore()
+        auth.user = { id: 'anon-1', is_anonymous: true } as unknown as User
+        await auth.linkGoogleIdentity()
+        track.mockClear()
+
+        h.state.authCallback = null
+        await auth.initialize()
+        h.state.authCallback!('SIGNED_IN', {
+            user: { id: 'anon-1', is_anonymous: true },
+            access_token: 't',
+        })
+
+        expect(track).not.toHaveBeenCalledWith('guest_claim_completed', expect.anything())
+    })
+
+    /**
+     * A collision leaves the marker behind. Without clearing it, the next
+     * successful Google sign-in in the same tab would be counted as a guest
+     * conversion that never happened.
+     */
+    it('drops the marker when the link came back failed, so nothing is misattributed', async () => {
+        const first = useAuthStore()
+        first.user = { id: 'anon-1', is_anonymous: true } as unknown as User
+        await first.linkGoogleIdentity()
+
+        setActivePinia(createPinia())
+        track.mockClear()
+        h.state.loc.search = '?error_code=identity_already_exists'
+        const returned = useAuthStore()
+        await returned.initialize()
+
+        // Later in the same tab: a real sign-in, not a claim.
+        h.state.authCallback!('SIGNED_IN', {
+            user: { id: 'someone-else', is_anonymous: false },
+            access_token: 't',
+        })
+
+        expect(track).not.toHaveBeenCalledWith('guest_claim_completed', expect.anything())
     })
 })
 

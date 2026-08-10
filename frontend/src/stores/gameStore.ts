@@ -760,17 +760,32 @@ export const useGameStore = defineStore('game', () => {
                 const beaten = players.value.find(pl => pl.isBot)
                 if (beaten) {
                     const prof = botProfiles.value[beaten.id]
-                    if (prof) recordBotWin(prof.id)
+                    if (prof) {
+                        recordBotWin(prof.id)
+                        // Rung, not just id: the drop-off per rung is what says
+                        // whether the ladder pulls people back or stalls them.
+                        track('bot_defeated', {
+                            bot_id: prof.id,
+                            rung: BOT_LADDER.findIndex(b => b.id === prof.id) + 1,
+                        })
+                    }
                 }
             }
             if (dailyDate) {
                 const humanStats = human ? playerStats.value[human.id] : null
+                const dailyResult = human && winnerId.value === human.id
+                    ? 'won'
+                    : (human?.isEliminated ? 'eliminated' : 'lost')
+                const dailyTurns = humanStats ? humanStats.cardsPlayedTotal + humanStats.drawsTaken : 0
                 markDailyDone({
                     date: dailyDate,
-                    result: human && winnerId.value === human.id ? 'won' : (human?.isEliminated ? 'eliminated' : 'lost'),
-                    turns: humanStats ? humanStats.cardsPlayedTotal + humanStats.drawsTaken : 0,
+                    result: dailyResult,
+                    turns: dailyTurns,
                     log: turnLog.value.join(''),
                 })
+                // Separate from sp_game_finished, which cannot distinguish the
+                // daily from a practice game, and cannot see 'eliminated' at all.
+                track('daily_finished', { result: dailyResult, turns: dailyTurns })
             }
             logGameResults()
         }

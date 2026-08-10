@@ -6,6 +6,7 @@
 
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { nextTick } from 'vue'
 
 vi.mock('../../lib/supabase', () => ({
     supabase: {
@@ -20,6 +21,9 @@ vi.mock('../../composables/useSoundEffects', () => ({
     soundEffects: new Proxy({}, { get: () => () => undefined }),
 }))
 
+const { track } = vi.hoisted(() => ({ track: vi.fn() }))
+vi.mock('../../utils/analytics', () => ({ track, trackScreen: vi.fn() }))
+
 import { useGameStore } from '../gameStore'
 import type { Card, Player } from '../../types/card'
 
@@ -31,6 +35,7 @@ const red5: Card = { id: 'c-red-5', color: 'red', type: 'number', value: 5 }
 
 beforeEach(() => {
     setActivePinia(createPinia())
+    track.mockClear()
 })
 
 afterEach(() => {
@@ -412,5 +417,64 @@ describe('bot personalities', () => {
         store.initializeGame(['You', 'A', 'B'], 'official', { botIds: ['vera', 'kobra'] })
         store.initializeGame(['You', 'A'], 'official', { botIds: ['rook'] })
         expect(Object.keys(store.botProfiles)).toHaveLength(1)
+    })
+})
+
+/**
+ * The daily and the ladder were entirely uninstrumented, so both retention
+ * features shipped blind. These pin the events to the real finish path rather
+ * than to a hand-built board, so a refactor that moves the watcher cannot
+ * quietly stop reporting.
+ *
+ * The awaits matter: the finish block lives in a Vue watcher, which flushes on
+ * the next tick, so asserting straight after playCard sees nothing at all.
+ */
+describe('daily and ladder analytics', () => {
+    const red7: Card = { id: 'c-red-7', color: 'red', type: 'number', value: 7 }
+
+    /** Put the human initializeGame actually created on turn, one card from winning. */
+    async function winAsHuman(store: ReturnType<typeof useGameStore>) {
+        const human = store.players.find(p => !p.isBot)!
+        human.hand = [red7]
+        store.discardPile = [red5]
+        store.currentColor = 'red'
+        store.currentPlayerIndex = store.players.indexOf(human)
+        store.gameState = 'PLAYING'
+        store.turnState = 'WAITING_FOR_ACTION'
+        store.playCard(human.id, red7)
+        await nextTick()
+        return human
+    }
+
+    it('reports a finished daily with its outcome', async () => {
+        vi.useFakeTimers()
+        const store = useGameStore()
+        store.initializeGame(['You', 'Terminator'], 'official', { dailySeed: '2026-08-10' })
+
+        const human = await winAsHuman(store)
+
+        expect(store.winnerId).toBe(human.id)
+        expect(track).toHaveBeenCalledWith('daily_finished', expect.objectContaining({ result: 'won' }))
+    })
+
+    it('credits no ladder rung for the daily, which pins its own opponent', async () => {
+        vi.useFakeTimers()
+        const store = useGameStore()
+        store.initializeGame(['You', 'Terminator'], 'official', { dailySeed: '2026-08-10' })
+
+        await winAsHuman(store)
+
+        expect(track).not.toHaveBeenCalledWith('bot_defeated', expect.anything())
+    })
+
+    it('credits the rung actually beaten in a practice game', async () => {
+        vi.useFakeTimers()
+        const store = useGameStore()
+        store.initializeGame(['You', 'Scrap'], 'official', { botIds: ['scrap'] })
+
+        await winAsHuman(store)
+
+        expect(track).toHaveBeenCalledWith('bot_defeated', { bot_id: 'scrap', rung: 1 })
+        expect(track).not.toHaveBeenCalledWith('daily_finished', expect.anything())
     })
 })

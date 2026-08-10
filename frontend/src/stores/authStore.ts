@@ -31,7 +31,7 @@ export const useAuthStore = defineStore('auth', () => {
                 accessToken.value = session.access_token
                 // Resume a claim that was pending before a refresh, so its
                 // completion still gets counted when the confirmation lands.
-                if (session.user.is_anonymous && session.user.new_email) hadPendingClaim = true
+                if (session.user.is_anonymous && session.user.new_email) markClaimPending('email')
                 await fetchProfile()
             }
 
@@ -50,9 +50,10 @@ export const useAuthStore = defineStore('auth', () => {
                 // A pending claim completing = the confirmed session arriving
                 // with is_anonymous off. Analytics-only latch; UI state derives
                 // from the user object itself (claimPending).
-                if (hadPendingClaim && session?.user && session.user.is_anonymous === false) {
-                    hadPendingClaim = false
-                    track('guest_claim_completed', {})
+                const claimMethod = pendingClaimMethod()
+                if (claimMethod && session?.user && session.user.is_anonymous === false) {
+                    clearPendingClaim()
+                    track('guest_claim_completed', { method: claimMethod })
                 }
 
                 // Handle specific events. USER_UPDATED fires on in-place
@@ -228,9 +229,41 @@ export const useAuthStore = defineStore('auth', () => {
     // Derived from the user object (survives refreshes), never latched.
     const claimPending = computed(() => isAnonymous.value && !!user.value?.new_email)
 
-    // Analytics-only: lets the auth listener recognize the confirmed session
-    // that completes a claim started this visit (or resumed after a refresh).
-    let hadPendingClaim = false
+    /**
+     * Which claim is in flight, so the completion event can say how it happened.
+     *
+     * Analytics-only. It records the method because email and Google converge on
+     * the same completion, and without it the two paths are indistinguishable —
+     * which is the one comparison the Google work exists to settle.
+     *
+     * Google needs more than a variable: linking leaves the page entirely, so an
+     * in-memory flag cannot survive the round-trip. The method parks in
+     * sessionStorage (same tab, gone when it closes) and is picked up on return.
+     * Email keeps working off user.new_email, which survives the confirmation
+     * link being opened in a different tab or browser altogether.
+     */
+    type ClaimMethod = 'email' | 'google'
+    const CLAIM_METHOD_KEY = 'om_claim_method'
+    let pendingClaim: ClaimMethod | null = null
+
+    function markClaimPending(method: ClaimMethod) {
+        pendingClaim = method
+        // Only Google crosses a navigation, so only Google needs to persist.
+        if (method !== 'google') return
+        try { sessionStorage.setItem(CLAIM_METHOD_KEY, method) } catch { /* private mode */ }
+    }
+
+    function pendingClaimMethod(): ClaimMethod | null {
+        if (pendingClaim) return pendingClaim
+        try {
+            return sessionStorage.getItem(CLAIM_METHOD_KEY) === 'google' ? 'google' : null
+        } catch { return null }
+    }
+
+    function clearPendingClaim() {
+        pendingClaim = null
+        try { sessionStorage.removeItem(CLAIM_METHOD_KEY) } catch { /* private mode */ }
+    }
 
     /** Convert the guest to a permanent account IN PLACE — same user id, so
      *  the profile row, share code, and every game_results row stay attached.
@@ -248,7 +281,7 @@ export const useAuthStore = defineStore('auth', () => {
             )
             if (updateError) throw updateError
             if (data.user) user.value = data.user // carries new_email → claimPending
-            hadPendingClaim = true
+            markClaimPending('email')
             track('guest_claim_email_sent', {})
             return { success: true, needsConfirmation: true }
         } catch (err: any) {
@@ -273,6 +306,9 @@ export const useAuthStore = defineStore('auth', () => {
         if (!found) return
         oauthError.value = found
         if (found.code === 'identity_already_exists') track('guest_claim_google_taken', {})
+        // The claim died here. Leaving the marker set would attribute the next
+        // successful Google sign-in in this tab to a claim that never completed.
+        clearPendingClaim()
         window.history.replaceState({}, '', urlWithoutOAuthError(window.location))
     }
 
@@ -316,6 +352,7 @@ export const useAuthStore = defineStore('auth', () => {
             return { success: false, error: 'Not a guest session' }
         }
         track('guest_claim_google_started', {})
+        markClaimPending('google')
         return startGoogleRedirect(() => supabase.auth.linkIdentity({
             provider: 'google',
             options: { redirectTo: window.location.origin },
