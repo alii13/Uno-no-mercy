@@ -342,6 +342,7 @@ function startLocalGame(mode?: 'official' | 'house' | 'casual') {
 // The daily challenge: official rules, date-seeded so the whole world gets
 // the same deal today.
 function startDailyGame() {
+  track('daily_started', {})
   localGameStore.initializeGame(['You', 'Terminator'], 'official', { dailySeed: localDateString() })
 }
 </script>
