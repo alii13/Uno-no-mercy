@@ -46,6 +46,13 @@ Guidance for working in this repo. Hard-won - read before changing CSS, raising 
 - Changing a function's return columns requires `drop function` + recreate - `create or replace` can't do it. The drop triggers the SQL Editor's destructive-operation warning; that's expected.
 - The frontend feature-detects every definer function (probe once, hide the surface on error), so merging frontend and running SQL can happen in either order without breaking prod.
 
+### OAuth (Google)
+
+- **The authorize hop must bypass the Supabase proxy.** `supabase-proxy` forwards with `redirect: 'follow'`, so a top-level navigation to its `/auth/v1/authorize` makes the worker chase Supabase's 302 to Google and return Google's sign-in HTML from the `workers.dev` origin, where the login can never complete. Mint the URL with `skipBrowserRedirect: true` and swap the origin back (`utils/oauthRedirect.ts`). Only that navigation skips the proxy; the PKCE token exchange still runs on the client's configured URL.
+- Guest conversion uses `linkIdentity()`, not a fresh sign-in: attaching an identity to the anonymous user keeps the same user id, which is what keeps the profile row, share code and `game_results` attached. It needs **manual linking** enabled on the project, or it fails with `manual_linking_disabled`.
+- `linkIdentity()` navigates away, so its failures never reject at the call site. A collision comes back as `error_code=identity_already_exists` in the return URL and is read once in `authStore.initialize()`. Clear those params surgically - `?join=<code>` carries multiplayer invites and `App.vue` reads it immediately after `initialize()`.
+- The Google consent screen must be **published**, not left in Testing. Only `openid email profile` is requested, all non-sensitive, so publishing needs no verification review and carries no user cap; Testing status silently caps or warns instead.
+
 ## Tests
 
 - `src/lib/supabase.ts` **throws at import time** when `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are unset, and the CI workflow passes no env. So any spec whose import graph reaches that module must `vi.mock('../../lib/supabase', ...)` — see `stores/__tests__/gameStore.test.ts`. This passes locally either way because `frontend/.env` exists, so it only ever shows up as a red CI on a green local run. Reproduce with `mv .env .env.hidden && npx vitest run` (restore it afterwards).

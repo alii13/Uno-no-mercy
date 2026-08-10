@@ -239,6 +239,14 @@ onMounted(async () => {
 
   await authStore.initialize()
 
+  // A failed Google link redirects back to the home path, where nothing would
+  // explain why. Reopen the claim screen so the reason is visible and the
+  // sign-in-instead route is one tap away.
+  if (authStore.oauthError) {
+    authMode.value = 'claim'
+    showAuthView.value = true
+  }
+
   // Reconnect: if we were in an in-progress game when the tab reloaded/dropped,
   // re-enter it instead of stranding the player in the lobby.
   if (authStore.isAuthenticated) {
