@@ -106,11 +106,17 @@ export default {
     proxyHeaders.set('Host', supabaseHost)
 
     try {
+      // 'manual', not 'follow'. Following a redirect here means the worker fetches
+      // the destination itself and returns ITS body from this origin. For OAuth
+      // that is fatal: /auth/v1/authorize answers 302 to accounts.google.com, so a
+      // top-level navigation would render Google's sign-in page on the worker's
+      // origin, where a login can never complete. Passing the 302 straight back
+      // lets the browser follow it to Google.
       const response = await fetch(targetUrl.toString(), {
         method: request.method,
         headers: proxyHeaders,
         body: request.body,
-        redirect: 'follow',
+        redirect: 'manual',
       })
 
       // Build response with CORS headers

@@ -268,8 +268,7 @@ describe('claiming a guest account with Google', () => {
         expect(h.state.linkIdentityCalls).toHaveLength(1)
         expect(h.state.linkIdentityCalls[0]).toMatchObject({
             provider: 'google',
-            // Without skipBrowserRedirect the SDK navigates to the proxied URL itself.
-            options: { redirectTo: 'https://uno-no-mercy.com', skipBrowserRedirect: true },
+            options: { redirectTo: 'https://uno-no-mercy.com' },
         })
         // The guarantee the whole feature rests on: the identity is added to the
         // existing user, so nothing is signed out and no new user is minted.
@@ -280,14 +279,22 @@ describe('claiming a guest account with Google', () => {
         expect(track).toHaveBeenCalledWith('guest_claim_google_started', expect.anything())
     })
 
-    it('navigates to the authorize URL the SDK minted', async () => {
+    /**
+     * Regression guard for a real break. Passing skipBrowserRedirect makes us
+     * responsible for the navigation, but linkIdentity resolves the provider URL
+     * server-side, so the url it returns is Google's — and the origin rewrite we
+     * used to apply turned it into <project>.supabase.co/o/oauth2/v2/auth, which
+     * Supabase answers with "requested path is invalid".
+     */
+    it('leaves the navigation to the SDK and never rewrites the provider URL', async () => {
         const auth = useAuthStore()
         seedGuest(auth)
 
         await auth.linkGoogleIdentity()
 
-        expect(h.state.navigations).toHaveLength(1)
-        expect(h.state.navigations[0]).toContain('/auth/v1/authorize?provider=google')
+        const opts = (h.state.linkIdentityCalls[0] as { options: Record<string, unknown> }).options
+        expect(opts.skipBrowserRedirect).toBeUndefined()
+        expect(h.state.navigations).toHaveLength(0)
     })
 
     it('refuses for a non-guest session without calling the API', async () => {
@@ -301,15 +308,18 @@ describe('claiming a guest account with Google', () => {
         expect(h.state.navigations).toHaveLength(0)
     })
 
-    it('reports failure without navigating when no authorize URL comes back', async () => {
+    it('surfaces a link failure to the caller', async () => {
         const auth = useAuthStore()
         seedGuest(auth)
-        h.state.oauthResult = { data: { url: null }, error: null }
+        h.state.oauthResult = {
+            data: { provider: 'google', url: null },
+            error: { message: 'Manual linking is disabled', code: 'manual_linking_disabled' },
+        }
 
         const res = await auth.linkGoogleIdentity()
 
         expect(res.success).toBe(false)
-        expect(h.state.navigations).toHaveLength(0)
+        expect(res.error).toBe('Manual linking is disabled')
     })
 
     it('uses a plain OAuth sign-in when there is no guest to preserve', async () => {
@@ -320,7 +330,8 @@ describe('claiming a guest account with Google', () => {
         expect(res.success).toBe(true)
         expect(h.state.oauthCalls).toHaveLength(1)
         expect(h.state.linkIdentityCalls).toHaveLength(0)
-        expect(h.state.navigations).toHaveLength(1)
+        expect((h.state.oauthCalls[0] as { options: Record<string, unknown> }).options.skipBrowserRedirect)
+            .toBeUndefined()
     })
 })
 

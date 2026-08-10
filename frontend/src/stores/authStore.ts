@@ -2,12 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase, type UserProfile } from '../lib/supabase'
 import { track } from '../utils/analytics'
-import {
-    directAuthorizeUrl,
-    readOAuthError,
-    urlWithoutOAuthError,
-    type OAuthRedirectError,
-} from '../utils/oauthRedirect'
+import { readOAuthError, urlWithoutOAuthError, type OAuthRedirectError } from '../utils/oauthRedirect'
 import type { OAuthResponse, User } from '@supabase/supabase-js'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -285,13 +280,20 @@ export const useAuthStore = defineStore('auth', () => {
         oauthError.value = null
     }
 
-    /** Hand the browser to Google. Returns only on failure — success navigates away. */
+    /**
+     * Hand the browser to Google. Returns only on failure — success navigates away.
+     *
+     * The SDK owns the navigation, deliberately. Passing skipBrowserRedirect to
+     * take it over ourselves looks harmless and is not: linkIdentity fetches the
+     * provider URL server-side (it hardcodes skip_http_redirect on that request),
+     * so the url it hands back is *Google's*, not Supabase's. Rewriting its origin
+     * produced https://<project>.supabase.co/o/oauth2/v2/auth, which answers
+     * "requested path is invalid".
+     */
     async function startGoogleRedirect(call: () => Promise<OAuthResponse>) {
         try {
-            const { data, error: oauthErr } = await call()
+            const { error: oauthErr } = await call()
             if (oauthErr) throw oauthErr
-            if (!data?.url) throw new Error('Google sign-in is unavailable right now')
-            window.location.assign(directAuthorizeUrl(data.url, import.meta.env.VITE_SUPABASE_URL))
             return { success: true }
         } catch (err: any) {
             error.value = err.message
@@ -316,17 +318,21 @@ export const useAuthStore = defineStore('auth', () => {
         track('guest_claim_google_started', {})
         return startGoogleRedirect(() => supabase.auth.linkIdentity({
             provider: 'google',
-            // skipBrowserRedirect: we navigate by hand so the authorize hop can
-            // skip the proxy (see directAuthorizeUrl).
-            options: { redirectTo: window.location.origin, skipBrowserRedirect: true },
+            options: { redirectTo: window.location.origin },
         }))
     }
 
-    /** Google sign-in for a visitor with no guest session to preserve. */
+    /**
+     * Google sign-in for a visitor with no guest session to preserve.
+     *
+     * Unlike linkIdentity, this navigates to Supabase's own /authorize, which
+     * answers with a 302 to Google — so it only works while the proxy passes
+     * redirects through instead of following them (supabase-proxy/src/index.ts).
+     */
     async function signInWithGoogle() {
         return startGoogleRedirect(() => supabase.auth.signInWithOAuth({
             provider: 'google',
-            options: { redirectTo: window.location.origin, skipBrowserRedirect: true },
+            options: { redirectTo: window.location.origin },
         }))
     }
 

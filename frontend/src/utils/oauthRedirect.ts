@@ -1,35 +1,9 @@
 /**
- * The two awkward parts of the Google OAuth round-trip.
+ * Reading an OAuth failure off the URL we were redirected back to.
  *
- * Both are pure so they can be tested without touching the Supabase client
- * (which throws at import time when env is unset — see CLAUDE.md "Tests").
+ * Pure so it can be tested without touching the Supabase client (which throws at
+ * import time when env is unset — see CLAUDE.md "Tests").
  */
-
-/**
- * Point the authorize navigation at Supabase directly, never at the proxy.
- *
- * `supabase-proxy` forwards with `redirect: 'follow'`, so a top-level navigation
- * to its /auth/v1/authorize makes the worker chase Supabase's 302 to Google and
- * return Google's sign-in HTML from the worker's own origin — a login that can
- * never complete. Swapping the origin back keeps that one hop off the proxy;
- * the PKCE token exchange afterwards still runs on the client's configured URL.
- *
- * A no-op when no proxy is configured, since the two origins are then identical.
- */
-export function directAuthorizeUrl(authorizeUrl: string, directSupabaseUrl?: string): string {
-    if (!directSupabaseUrl) return authorizeUrl
-    try {
-        const direct = new URL(directSupabaseUrl)
-        const target = new URL(authorizeUrl)
-        target.protocol = direct.protocol
-        target.host = direct.host
-        return target.toString()
-    } catch {
-        // A malformed env value must not cost us the login — the proxied URL at
-        // least reaches Supabase for anyone not behind an ISP block.
-        return authorizeUrl
-    }
-}
 
 export interface OAuthRedirectError {
     /** `identity_already_exists` is the one we act on: that Google account is already a player. */
