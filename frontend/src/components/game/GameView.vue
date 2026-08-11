@@ -197,7 +197,7 @@ import { soundEffects } from '../../composables/useSoundEffects'
 import { useCardAnimations } from '../../composables/useCardAnimations'
 import { preloadCardImages } from '../../utils/preloadCardImages'
 import { animateOpponentThrow, skipEveryoneShockwave, showTurnBanner, pulseSeat } from '../../composables/useGameFeel'
-import { useGameFx } from '../../composables/fx/useGameFx'
+import { useGameFx, type FxColor } from '../../composables/fx/useGameFx'
 import { useHeatWiring, slamMagnitude } from '../../composables/fx/useFxWiring'
 import OpponentChip from './OpponentChip.vue'
 import HandFan from './HandFan.vue'
@@ -523,6 +523,16 @@ const isShakeActive = ref(false)
 watch(() => store.drawStack, (newVal, oldVal) => {
   if (newVal > oldVal && newVal >= 6) {
     triggerShake()
+  }
+  // Stack eaten: the reset to 0 lands before advanceTurn, so currentPlayer is
+  // still the victim. Spray the stack's cards from the pile into their seat.
+  if (oldVal >= 6 && newVal === 0) {
+    const discardEl = discardAreaRef.value
+    const victim = store.currentPlayer
+    const seatEl = victim?.id === myPlayerId ? playerHandRef.value : (victim ? opponentRefs.value[victim.id] : null)
+    if (discardEl && seatEl) {
+      fx.emit('stackSpray', { fromEl: discardEl, toEl: seatEl, color: (store.currentColor ?? 'wild') as FxColor, count: oldVal })
+    }
   }
 })
 
