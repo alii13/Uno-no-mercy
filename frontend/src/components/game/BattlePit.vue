@@ -27,7 +27,7 @@
 
       <div v-if="drawStack && drawStack > 0" class="rail-cell rail-stack" :class="{ critical: drawStack >= 12 }">
         <span class="rail-cell-label">STACK</span>
-        <span class="rail-cell-value">+{{ drawStack }}</span>
+        <span class="rail-cell-value">+<RollingNumber :value="drawStack" /></span>
       </div>
 
       <!-- Mercy thermometer — tall vertical bar, fills bottom→top toward 25 -->
@@ -38,7 +38,7 @@
           <span class="mercy-tick mercy-tick-crit"></span>
         </div>
         <div class="mercy-readout">
-          <span class="mercy-num">{{ myCardCount }}</span>
+          <span class="mercy-num"><RollingNumber :value="myCardCount ?? 0" /></span>
           <span class="mercy-of">/25</span>
           <span class="mercy-label-text">MERCY</span>
         </div>
@@ -75,12 +75,12 @@
       <div v-if="currentColor && currentColor !== 'wild'" class="hud-cell">
         <span class="color-dot" :class="`dot-${currentColor}`" aria-hidden="true"></span>
       </div>
-      <div v-if="drawStack && drawStack > 0" class="hud-cell hud-stack-mobile" :class="{ critical: drawStack >= 12 }">+{{ drawStack }}</div>
+      <div v-if="drawStack && drawStack > 0" class="hud-cell hud-stack-mobile" :class="{ critical: drawStack >= 12 }">+<RollingNumber :value="drawStack" /></div>
       <div class="hud-cell hud-mercy-mobile" :class="mercyClass">
         <span class="mobile-mercy-bar">
           <span class="mobile-mercy-fill" :style="{ width: mercyPct + '%' }"></span>
         </span>
-        <span class="mobile-mercy-text">{{ myCardCount }}/25</span>
+        <span class="mobile-mercy-text"><RollingNumber :value="myCardCount ?? 0" />/25</span>
       </div>
     </div>
 
@@ -92,6 +92,7 @@ import { ref, computed, watch } from 'vue'
 import gsap from 'gsap'
 import { useScreenSize } from '../../composables/useScreenSize'
 import { sweepDirectionRing } from '../../composables/useGameFeel'
+import RollingNumber from './RollingNumber.vue'
 
 const props = defineProps<{
   showDrawHint: boolean
