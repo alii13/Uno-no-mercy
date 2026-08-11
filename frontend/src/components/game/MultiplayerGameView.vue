@@ -122,6 +122,9 @@
     <!-- Animated Card Layer (for flying cards) -->
     <div class="animation-layer" ref="animationLayer"></div>
 
+    <!-- WebGL FX layer: particles, shockwaves, ambient heat (?fx=1 shows debug) -->
+    <FxLayer />
+
     <!-- Color Picker Modal (for regular Wild cards) -->
     <ColorPickerModal 
       v-if="showColorPicker"
@@ -273,6 +276,7 @@ import StatusPanel from './StatusPanel.vue'
 import PlayerConsoleBar from './PlayerConsoleBar.vue'
 import GameOverModal from './GameOverModal.vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
+import FxLayer from './FxLayer.vue'
 import type { Card, CardColor } from '../../types/card'
 import { canPlayCard } from '../../utils/gameRules'
 import { countByColor } from '../../utils/gameHelpers'

@@ -111,7 +111,10 @@
 
     <!-- Animated Card Layer (for flying cards) -->
     <div class="animation-layer" ref="animationLayer"></div>
-    
+
+    <!-- WebGL FX layer: particles, shockwaves, ambient heat (?fx=1 shows debug) -->
+    <FxLayer />
+
     <!-- Modals / Overlays -->
     <ColorPickerModal
       v-if="store.turnState === 'CHOOSING_ROULETTE_COLOR' && isMyTurn"
@@ -208,6 +211,7 @@ import StatusPanel from './StatusPanel.vue'
 import PlayerConsoleBar from './PlayerConsoleBar.vue'
 import GameOverModal from './GameOverModal.vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
+import FxLayer from './FxLayer.vue'
 import { isBragworthy } from '../../utils/killCard'
 
 const emit = defineEmits<{ (e: 'claim-account'): void }>()
