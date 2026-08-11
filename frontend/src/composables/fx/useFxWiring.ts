@@ -5,7 +5,7 @@
  */
 
 import { watch } from 'vue'
-import { useGameFx } from './useGameFx'
+import { useGameFx, type FxColor } from './useGameFx'
 import type { Card } from '../../types/card'
 
 /** Shockwave magnitude for a power card — the +N draw amount, or a sensible
@@ -36,5 +36,26 @@ export function useHeatWiring(getDrawStack: () => number, getCardCount: () => nu
     () => [getDrawStack(), getCardCount()] as const,
     ([stack, count]) => fx.emit('heat', { level: heatLevel(stack, count) }),
     { immediate: true },
+  )
+}
+
+/**
+ * Emit `colorFlood` when a wild's colour is chosen. Fires when the active colour
+ * changes to a concrete colour while the top card is a wild — so it triggers on
+ * wild colour picks (roulette, drawn wild, played wild) but not on ordinary
+ * coloured cards, which also move currentColor.
+ */
+export function useWildFloodWiring(
+  getCurrentColor: () => string | undefined,
+  getTopCardColor: () => string | undefined,
+): void {
+  const fx = useGameFx()
+  watch(
+    getCurrentColor,
+    (color) => {
+      if (!color || color === 'wild') return
+      if (getTopCardColor() !== 'wild') return
+      fx.emit('colorFlood', { color: color as FxColor })
+    },
   )
 }

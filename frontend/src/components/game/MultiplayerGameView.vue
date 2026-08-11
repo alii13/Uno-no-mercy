@@ -285,7 +285,7 @@ import { playDealerIntro } from '../../composables/useDealerIntro'
 import { useRetentionStore } from '../../stores/retentionStore'
 import { animateOpponentThrow, skipEveryoneShockwave, showTurnBanner, pulseSeat } from '../../composables/useGameFeel'
 import { useGameFx } from '../../composables/fx/useGameFx'
-import { useHeatWiring, slamMagnitude } from '../../composables/fx/useFxWiring'
+import { useHeatWiring, useWildFloodWiring, slamMagnitude } from '../../composables/fx/useFxWiring'
 
 const emit = defineEmits<{ (e: 'claim-account'): void }>()
 
@@ -394,6 +394,8 @@ const currentColor = computed(() => (currentGame.value?.current_color || 'red') 
 const turnState = computed(() => currentGame.value?.turn_state || 'WAITING_FOR_ACTION')
 const discardPile = computed(() => (currentGame.value?.discard_pile as Card[]) || [])
 const topCard = computed(() => discardPile.value[discardPile.value.length - 1])
+// Colour flood when a wild's colour is chosen
+useWildFloodWiring(() => currentColor.value, () => topCard.value?.color)
 
 const currentPlayerName = computed(() => {
   if (!currentGame.value?.current_player_id) return 'Unknown'

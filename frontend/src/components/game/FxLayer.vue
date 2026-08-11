@@ -60,6 +60,22 @@ function edgeFlash(color: FxColor): void {
     .to(el, { opacity: 0, duration: 0.32, ease: 'power2.in' })
 }
 
+/** Full-screen radial wash in the chosen colour when a wild resolves. */
+function colorWash(color: FxColor): void {
+  if (useMotion().reduced) return
+  const el = document.createElement('div')
+  el.style.cssText = `
+    position: fixed; inset: 0; pointer-events: none; z-index: 898;
+    background: radial-gradient(ellipse at center, ${EDGE_GLOW[color]} 0%, transparent 65%);
+    opacity: 0; will-change: opacity;
+  `
+  document.body.appendChild(el)
+  gsap
+    .timeline({ onComplete: () => el.remove() })
+    .to(el, { opacity: 1, duration: 0.14, ease: 'power2.out' })
+    .to(el, { opacity: 0, duration: 0.5, ease: 'power2.in' })
+}
+
 onMounted(() => {
   mountFxCanvas()
   window.addEventListener('resize', resizeFxCanvas)
@@ -92,6 +108,12 @@ onMounted(() => {
     }),
     // Ambient table heat, anchored to the discard pile.
     fx.on('heat', ({ level }) => setHeat(level, discardCenter() ?? undefined)),
+    // Wild colour chosen: a wash + a big ring in the new colour.
+    fx.on('colorFlood', ({ color }) => {
+      colorWash(color)
+      const c = discardCenter()
+      if (c && isFxCanvasAvailable()) shockwave(c.x, c.y, color, 520, 0.8)
+    }),
   )
 })
 

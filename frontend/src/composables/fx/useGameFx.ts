@@ -23,6 +23,8 @@ export interface FxEventMap {
   stackSpray: { fromEl: HTMLElement; toEl: HTMLElement; color: FxColor; count: number }
   /** Ambient table heat, 0..1 — embers + haze that track stack/mercy pressure. */
   heat: { level: number }
+  /** A wild's colour was chosen — flood a ring + wash in that colour. */
+  colorFlood: { color: FxColor }
   /** Stack cam ignition (macro, step 3) — sustained embers from the pile. */
   embers: { originEl: HTMLElement; color: FxColor; on: boolean }
   /** Victory burst (macro, step 4). */

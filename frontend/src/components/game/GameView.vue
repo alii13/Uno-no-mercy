@@ -198,7 +198,7 @@ import { useCardAnimations } from '../../composables/useCardAnimations'
 import { preloadCardImages } from '../../utils/preloadCardImages'
 import { animateOpponentThrow, skipEveryoneShockwave, showTurnBanner, pulseSeat } from '../../composables/useGameFeel'
 import { useGameFx, type FxColor } from '../../composables/fx/useGameFx'
-import { useHeatWiring, slamMagnitude } from '../../composables/fx/useFxWiring'
+import { useHeatWiring, useWildFloodWiring, slamMagnitude } from '../../composables/fx/useFxWiring'
 import OpponentChip from './OpponentChip.vue'
 import HandFan from './HandFan.vue'
 import CardPile from './CardPile.vue'
@@ -293,6 +293,8 @@ const myPlayer = computed(() => store.players.find(p => p.id === myPlayerId))
 const myColorCounts = computed(() => countByColor(myPlayer.value?.hand ?? []))
 // Ambient table heat rises with the stack and the local hand's mercy proximity
 useHeatWiring(() => store.drawStack, () => myPlayer.value?.hand.length ?? 0)
+// Colour flood when a wild's colour is chosen
+useWildFloodWiring(() => store.currentColor, () => store.topCard?.color)
 const opponents = computed(() => store.players.filter(p => p.id !== myPlayerId))
 
 // An opponent caught without calling UNO — the human can penalize them.

@@ -317,6 +317,23 @@
   filter: grayscale(1);
 }
 
+/* On the brink of mercy (20+ cards): red aura + slow pulse so the whole table
+   can see who's about to be knocked out. */
+.opponent-card.danger {
+  border-color: var(--color-alert);
+  animation: opponent-danger-pulse 1.4s ease-in-out infinite;
+}
+@keyframes opponent-danger-pulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(255, 42, 42, 0.35); }
+  50% { box-shadow: 0 0 22px 4px rgba(255, 42, 42, 0.6); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .opponent-card.danger {
+    animation: none;
+    box-shadow: 0 0 16px rgba(255, 42, 42, 0.5);
+  }
+}
+
 /* Swap target (single-player 7-card): pulse + pointer to invite a tap. */
 .opponent-card.selectable {
   cursor: pointer;

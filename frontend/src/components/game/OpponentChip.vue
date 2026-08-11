@@ -7,7 +7,7 @@
   <div
     class="opponent-card"
     :data-uid="uid"
-    :class="{ active: isActive, selectable: isSelectable, eliminated: isEliminated, disconnected: isDisconnected }"
+    :class="{ active: isActive, selectable: isSelectable, eliminated: isEliminated, disconnected: isDisconnected, danger: !isEliminated && cardCount >= 20 }"
     :role="isSelectable ? 'button' : undefined"
     :tabindex="isSelectable ? 0 : undefined"
     :aria-label="`${name}, ${cardCount} cards${isActive ? ', current turn' : ''}`"
