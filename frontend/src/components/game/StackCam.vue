@@ -212,6 +212,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 0.4em;
+  max-width: 94vw;
   white-space: nowrap;
   color: #fff;
   font-family: var(--font-display), sans-serif;
@@ -224,9 +225,9 @@ onUnmounted(() => {
   pointer-events: none;
 }
 .stackcam.revealing .sc-banner { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-.sc-banner-amt { color: var(--sc-color, #ff2a2a); font-weight: 800; }
-.sc-banner-arrow { color: var(--sc-color, #ff2a2a); opacity: 0.8; }
-.sc-banner-name { font-weight: 700; }
+.sc-banner-amt { color: var(--sc-color, #ff2a2a); font-weight: 800; flex: none; }
+.sc-banner-arrow { color: var(--sc-color, #ff2a2a); opacity: 0.8; flex: none; }
+.sc-banner-name { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 @media (prefers-reduced-motion: reduce) {
   .sc-bar { transition: none; }
