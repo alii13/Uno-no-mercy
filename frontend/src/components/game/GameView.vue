@@ -521,6 +521,16 @@ const messageStyle = computed(() => {
 
 const isShakeActive = ref(false)
 
+// Mercy call: a gold spark flare on the caller's seat the moment they declare.
+watch(() => ({ ...store.hasCalledUno }), (now, prev) => {
+  for (const id in now) {
+    if (now[id] && !prev?.[id]) {
+      const seatEl = id === myPlayerId ? playerHandRef.value : opponentRefs.value[id]
+      if (seatEl) fx.emit('impact', { originEl: seatEl, color: 'yellow', power: true })
+    }
+  }
+})
+
 // Watch for big stack increases to trigger shake
 watch(() => store.drawStack, (newVal, oldVal) => {
   if (newVal > oldVal && newVal >= 6) {
