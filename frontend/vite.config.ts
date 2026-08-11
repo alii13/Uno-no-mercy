@@ -11,6 +11,7 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
       '@engine': path.resolve(__dirname, '../shared/engine'),
       '@protocol': path.resolve(__dirname, '../shared/protocol.ts'),
+      '@roomCode': path.resolve(__dirname, '../shared/roomCode.ts'),
     },
   },
   assetsInclude: ['**/*.png', '**/*.jpg', '**/*.jpeg'],
@@ -18,6 +19,7 @@ export default defineConfig({
     include: [
       '**/*.{test,spec}.?(c|m)[jt]s?(x)',
       '../shared/engine/**/*.test.ts',
+      '../shared/__tests__/**/*.test.ts',
       '../game-server/src/**/*.test.ts',
     ],
   },

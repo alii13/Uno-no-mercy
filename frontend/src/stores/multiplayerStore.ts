@@ -17,6 +17,57 @@ import type { ClientMsg, IntentAction, PersonalView, PresencePlayer, ServerMsg }
 const GAME_SERVER = (import.meta.env.VITE_GAME_SERVER_URL as string | undefined) || 'https://uno-game-server.shekhaliul44.workers.dev'
 const STORED_ROOM_KEY = 'uno_mp_room'
 
+/**
+ * How long a stored room code is worth trying to rejoin.
+ *
+ * The code used to be stored bare, with no expiry, so a tab closed mid-game left
+ * it behind forever and every later visit tried to rejoin a room that had been
+ * garbage-collected days earlier. Those attempts were silent and self-healing,
+ * but they were 156 of 365 recorded join failures — 43% of the number was the app
+ * chasing its own ghost rather than a player failing to get in.
+ *
+ * Two hours comfortably covers a refresh, a dropped connection, or a phone
+ * locking mid-game. Past that the room is gone unless others kept it alive, and
+ * a failed restore tells us nothing.
+ */
+const STORED_ROOM_TTL_MS = 2 * 60 * 60 * 1000
+
+interface StoredRoom {
+    code: string
+    at: number
+}
+
+function storeRoom(code: string): void {
+    try {
+        localStorage.setItem(STORED_ROOM_KEY, JSON.stringify({ code, at: Date.now() } satisfies StoredRoom))
+    } catch { /* noop */ }
+}
+
+/** The stored code if it's still plausibly live, else null (clearing as it goes). */
+function storedRoom(): string | null {
+    let raw: string | null = null
+    try { raw = localStorage.getItem(STORED_ROOM_KEY) } catch { return null }
+    if (!raw) return null
+
+    let entry: StoredRoom | null = null
+    try {
+        const parsed = JSON.parse(raw) as unknown
+        if (parsed && typeof parsed === 'object' && 'code' in parsed) entry = parsed as StoredRoom
+    } catch {
+        // Written by a build that stored the bare code. Nothing to date it by, so
+        // drop it rather than chase a room of unknown age.
+    }
+    if (!entry || typeof entry.code !== 'string' || typeof entry.at !== 'number') {
+        try { localStorage.removeItem(STORED_ROOM_KEY) } catch { /* noop */ }
+        return null
+    }
+    if (Date.now() - entry.at > STORED_ROOM_TTL_MS) {
+        try { localStorage.removeItem(STORED_ROOM_KEY) } catch { /* noop */ }
+        return null
+    }
+    return entry.code
+}
+
 export const useMultiplayerStore = defineStore('multiplayer', () => {
     const authStore = useAuthStore()
 
@@ -368,7 +419,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 const msg = JSON.parse(e.data) as ServerMsg
                 if (msg.t === 'hello') {
                     roomCodeRef.value = code
-                    try { localStorage.setItem(STORED_ROOM_KEY, code) } catch { /* noop */ }
+                    storeRoom(code)
                 }
                 if (msg.t === 'error' && (msg.code === 'unauthorized' || msg.code === 'room-not-found' || msg.code === 'room-full')) {
                     error.value = msg.code === 'room-not-found' ? 'Room not found'
@@ -577,8 +628,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
     /** Resume the room stored from a previous session (page refresh). */
     async function restoreActiveGame() {
-        let code: string | null = null
-        try { code = localStorage.getItem(STORED_ROOM_KEY) } catch { /* noop */ }
+        const code = storedRoom()
         if (!code) return
         const ok = await connect(code)
         if (!ok) {

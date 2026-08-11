@@ -468,18 +468,21 @@
             <h2 class="join-modal-title">JOIN GAME</h2>
             <p class="join-modal-desc">Enter the 6-character room code</p>
 
+            <!-- The old placeholder was ABC123, which taught the exact typo that
+                 breaks joins: codes never contain 1. -->
             <input
               v-model="joinCode"
               type="text"
-              placeholder="ABC123"
+              placeholder="BQ7K2M"
               maxlength="6"
               class="room-input"
+              @input="joinCodeError = ''"
               @keyup.enter="joinGame"
               autofocus
             />
 
-            <div v-if="mpStore.error" class="error-banner">
-              {{ mpStore.error }}
+            <div v-if="joinCodeError || mpStore.error" class="error-banner">
+              {{ joinCodeError || mpStore.error }}
             </div>
 
             <div class="join-modal-actions">
@@ -526,6 +529,7 @@ import { useLiveTables } from '../composables/useLiveTables'
 import { nextBot, ladderProgress, isLadderComplete } from '../utils/botLadder'
 import { navigate } from '../utils/routes'
 import { track } from '../utils/analytics'
+import { isRoomCode, normalizeRoomCode, roomCodeProblem } from '@roomCode'
 import { useRanks } from '../composables/useRanks'
 import { skinColors } from '../utils/cosmetics'
 import CardBack from './game/CardBack.vue'
@@ -681,6 +685,7 @@ const editingName = ref(false)
 const editTarget = ref<'bar' | 'room' | null>(null)
 const nameInput = ref('')
 const joinCode = ref('')
+const joinCodeError = ref('')
 const copied = ref(false)
 const selectedStackingMode = ref<StackingMode>(gameStore.stackingMode)
 
@@ -705,7 +710,7 @@ onMounted(() => {
   // shape is plausible. Anything weird falls through to the user
   // opening the join modal themselves.
   if (mpStore.currentGame) return
-  if (!/^[A-Z0-9]{4,8}$/.test(code)) return
+  if (!isRoomCode(code)) return
 
   joinCode.value = code
   void mpStore.joinGame(code, 'link').then((res) => {
@@ -845,7 +850,18 @@ async function handleQuickMatch() {
 async function joinGame() {
   if (mpStore.loading) return
   roomEnded.value = false
-  const result = await mpStore.joinGame(joinCode.value)
+
+  // Reject a bad code here instead of letting the server's route miss it: that
+  // path answers with a bare 404, which the browser reports as an anonymous
+  // socket close, leaving nothing to show the player.
+  const problem = roomCodeProblem(joinCode.value)
+  if (problem) {
+    joinCodeError.value = problem
+    return
+  }
+  joinCodeError.value = ''
+
+  const result = await mpStore.joinGame(normalizeRoomCode(joinCode.value))
   if (result || mpStore.error === 'Room not found') {
     showJoinModal.value = false
     joinCode.value = ''

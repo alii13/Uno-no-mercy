@@ -154,6 +154,7 @@ import { localDateString } from './utils/seededRng'
 import { nextBot } from './utils/botLadder'
 import { adoptProfileEquip, applyEquipped } from './utils/cosmetics'
 import { currentRoute, navigate } from './utils/routes'
+import { isRoomCode } from '@roomCode'
 import KillCardPage from './components/KillCardPage.vue'
 import { syncCountryToProfile } from './utils/country'
 import LandingPage from './components/LandingPage.vue'
@@ -256,8 +257,8 @@ onMounted(async () => {
     // arrival and let the lobby's auto-join take over. No play_clicked here —
     // it counts real CTA clicks. Failure falls back to the landing page,
     // where the invite banner and the retry toast still apply.
-    const invite = new URLSearchParams(window.location.search).get('join')?.toUpperCase().trim() || ''
-    if (/^[A-Z0-9]{4,8}$/.test(invite)) await attemptGuestSignin()
+    const invite = new URLSearchParams(window.location.search).get('join') || ''
+    if (isRoomCode(invite)) await attemptGuestSignin()
   }
 })
 

@@ -8,7 +8,8 @@
       "@/*": ["./src/*"],
       "@engine": ["../shared/engine/index.ts"],
       "@engine/*": ["../shared/engine/*"],
-      "@protocol": ["../shared/protocol.ts"]
+      "@protocol": ["../shared/protocol.ts"],
+      "@roomCode": ["../shared/roomCode.ts"]
     },
 
     /* Linting */
