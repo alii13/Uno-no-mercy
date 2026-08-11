@@ -38,6 +38,7 @@ export type GameEvent =
     | { t: 'CARD_PLAYED'; by: string; card: Card; chosenColor?: CardColor }
     | { t: 'YOU_DREW'; cards: Card[] }
     | { t: 'PLAYER_DREW'; playerId: string; count: number }
+    | { t: 'STACK_EATEN'; playerId: string; amount: number }
     | { t: 'RESHUFFLED' }
     | { t: 'ELIMINATED'; playerId: string }
     | { t: 'UNO_PENALTY'; playerId: string }

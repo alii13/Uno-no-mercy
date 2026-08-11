@@ -111,8 +111,14 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     let spectateStartedAt = 0
     let spectatedThisGame = false
     let koN = 0
+    let stackEatenN = 0
+    let mercyCallN = 0
     const lastAction = ref<{ text: string; n: number } | null>(null)
     const lastRemotePlay = ref<{ userId: string; card: Card; n: number } | null>(null)
+    // One-shot FX signals from the server: who ate a +N stack, who called Mercy.
+    // The monotonic `n` makes the view's watcher fire even on identical repeats.
+    const lastStackEaten = ref<{ playerId: string; amount: number; n: number } | null>(null)
+    const lastMercyCall = ref<{ playerId: string; n: number } | null>(null)
     let actionN = 0
     let playN = 0
     let intentN = 0
@@ -318,6 +324,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     case 'YOU_DREW':
                         mpStats.value.drawsTaken++
                         break
+                    case 'STACK_EATEN':
+                        lastStackEaten.value = { playerId: ev.playerId, amount: ev.amount, n: ++stackEatenN }
+                        break
                     case 'ELIMINATED':
                         if (!eliminationOrder.value.includes(ev.playerId)) eliminationOrder.value.push(ev.playerId)
                         shout(`${playerName(ev.playerId)} is ELIMINATED`)
@@ -333,6 +342,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     case 'UNO_CALLED':
                         if (ev.playerId === myUserId.value) mpStats.value.unoCalls++
                         shout(`${playerName(ev.playerId)} called MERCY`)
+                        lastMercyCall.value = { playerId: ev.playerId, n: ++mercyCallN }
                         if (catchableUserId.value === ev.playerId) catchableUserId.value = null
                         break
                     case 'UNO_WINDOW_OPEN':
@@ -501,6 +511,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         spectatedThisGame = false
         lastAction.value = null
         lastRemotePlay.value = null
+        lastStackEaten.value = null
+        lastMercyCall.value = null
         error.value = null
         mpStats.value = {
             peakCards: 0, drawCardsPlayed: 0, wildCardsPlayed: 0, cardsPlayedTotal: 0,
@@ -775,6 +787,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         disconnectedUserIds,
         lastAction,
         lastRemotePlay,
+        lastStackEaten,
+        lastMercyCall,
         catchableUserId,
         catchPlayer,
         mpStats,

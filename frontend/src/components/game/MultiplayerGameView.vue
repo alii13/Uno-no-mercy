@@ -284,7 +284,7 @@ import { useStackEscalation } from '../../composables/useStackEscalation'
 import { playDealerIntro } from '../../composables/useDealerIntro'
 import { useRetentionStore } from '../../stores/retentionStore'
 import { animateOpponentThrow, skipEveryoneShockwave, showTurnBanner, pulseSeat } from '../../composables/useGameFeel'
-import { useGameFx } from '../../composables/fx/useGameFx'
+import { useGameFx, type FxColor } from '../../composables/fx/useGameFx'
 import { useHeatWiring, useWildFloodWiring, slamMagnitude } from '../../composables/fx/useFxWiring'
 
 const emit = defineEmits<{ (e: 'claim-account'): void }>()
@@ -396,6 +396,23 @@ const discardPile = computed(() => (currentGame.value?.discard_pile as Card[]) |
 const topCard = computed(() => discardPile.value[discardPile.value.length - 1])
 // Colour flood when a wild's colour is chosen
 useWildFloodWiring(() => currentColor.value, () => topCard.value?.color)
+
+// Server-tagged FX signals: the DO tells us who ate a +N stack and who called
+// Mercy (the client can't derive these — the snapshot arrives after the turn has
+// already advanced). Spray the stack into the victim's seat; flare the caller's.
+watch(() => mpStore.lastStackEaten, (e) => {
+  if (!e) return
+  const discardEl = discardAreaRef.value
+  const seatEl = e.playerId === authStore.user?.id ? playerHandRef.value : opponentChipEl(e.playerId)
+  if (discardEl && seatEl) {
+    fx.emit('stackSpray', { fromEl: discardEl, toEl: seatEl, color: currentColor.value as FxColor, count: e.amount })
+  }
+})
+watch(() => mpStore.lastMercyCall, (e) => {
+  if (!e) return
+  const seatEl = e.playerId === authStore.user?.id ? playerHandRef.value : opponentChipEl(e.playerId)
+  if (seatEl) fx.emit('impact', { originEl: seatEl, color: 'yellow', power: true })
+})
 
 const currentPlayerName = computed(() => {
   if (!currentGame.value?.current_player_id) return 'Unknown'
