@@ -421,7 +421,7 @@ describe('join failures are tracked from every connect entry point', () => {
     })
 
     it('tracks a refresh into a room that has since closed', async () => {
-        fakeStorage.store['uno_mp_room'] = 'OLDRM1'
+        fakeStorage.store['uno_mp_room'] = JSON.stringify({ code: 'DEADRM', at: Date.now() })
         const mp = useMultiplayerStore()
         const restoring = mp.restoreActiveGame()
         const ws = await firstSocket()
@@ -430,6 +430,46 @@ describe('join failures are tracked from every connect entry point', () => {
         await restoring
         expect(track).toHaveBeenCalledWith('mp_join_failed', { reason: 'Room not found', attempt: 1, method: 'restore' })
         // The dead room is forgotten so the next refresh doesn't retry it.
+        expect(fakeStorage.store['uno_mp_room']).toBeUndefined()
+    })
+})
+
+/**
+ * A bare code with no timestamp was retried on every visit forever, so a tab
+ * closed mid-game produced a "failed join" days later that no user ever saw. That
+ * was 43% of all recorded join failures.
+ */
+describe('the stored room expires', () => {
+    it('still restores a room stored moments ago', async () => {
+        fakeStorage.store['uno_mp_room'] = JSON.stringify({ code: 'DEADRM', at: Date.now() - 60_000 })
+        const mp = useMultiplayerStore()
+        void mp.restoreActiveGame()
+
+        // Reaching the point of opening a socket is all this needs to prove.
+        for (let i = 0; i < 60 && FakeWebSocket.instances.length === 0; i++) await Promise.resolve()
+        expect(FakeWebSocket.instances.length).toBeGreaterThan(0)
+    })
+
+    it('ignores a room stored hours ago, without recording a failure', async () => {
+        fakeStorage.store['uno_mp_room'] = JSON.stringify({
+            code: 'DEADRM',
+            at: Date.now() - 3 * 60 * 60 * 1000,
+        })
+        const mp = useMultiplayerStore()
+
+        await mp.restoreActiveGame()
+
+        expect(track).not.toHaveBeenCalledWith('mp_join_failed', expect.anything())
+        expect(fakeStorage.store['uno_mp_room']).toBeUndefined()
+    })
+
+    it('drops an undateable entry written by an older build', async () => {
+        fakeStorage.store['uno_mp_room'] = 'DEADRM'
+        const mp = useMultiplayerStore()
+
+        await mp.restoreActiveGame()
+
+        expect(track).not.toHaveBeenCalledWith('mp_join_failed', expect.anything())
         expect(fakeStorage.store['uno_mp_room']).toBeUndefined()
     })
 })
@@ -519,7 +559,7 @@ describe('leaving', () => {
         const mp = useMultiplayerStore()
         const ws = await joinRoom(mp)
         ws.receive({ t: 'snapshot', seq: 2, game: playingView() })
-        expect(localStorage.getItem('uno_mp_room')).toBe('AB12CD')
+        expect(JSON.parse(localStorage.getItem('uno_mp_room')!).code).toBe('AB12CD')
 
         await mp.leaveGame()
 

@@ -6,6 +6,7 @@ import { applyIntent, applyUnoCatch, autoResolveAbsentTurn, forceEliminate, pers
 import { dirCodes, liveTables, normalizeDir, type DirEntry } from './directory'
 import { addParticipant, createMeeting, deactivateMeeting, voiceConfigured, type VoiceEnv } from './voice'
 import { gcWindowMs } from './roomGc'
+import { ROOM_CODE_ALPHABET, isRoomCode, normalizeRoomCode } from '../../shared/roomCode'
 import { canSeat, MAX_PLAYERS } from './seats'
 import type { StackingMode } from '../../shared/engine'
 
@@ -38,14 +39,14 @@ const TURN_GRACE_MS = 20 * 1000
 // How long a player who hit 1 card without calling UNO stays catchable.
 const CATCH_WINDOW_MS = 8 * 1000
 
-// Unambiguous alphabet (no 0/O, 1/I/L) for share codes.
-const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
-
+// The alphabet is shared with the client (../../shared/roomCode). It lived in two
+// places with different rules, which is what let a code containing 0 or 1 pass the
+// client and then miss this worker's route.
 function generateRoomCode(): string {
     const bytes = new Uint8Array(6)
     crypto.getRandomValues(bytes)
     let code = ''
-    for (const b of bytes) code += CODE_ALPHABET[b % CODE_ALPHABET.length]
+    for (const b of bytes) code += ROOM_CODE_ALPHABET[b % ROOM_CODE_ALPHABET.length]
     return code
 }
 
@@ -174,15 +175,22 @@ export default {
         }
 
         // Join a room over WebSocket: /room/CODE/ws
-        const roomWs = url.pathname.match(/^\/room\/([A-Za-z2-9]+)\/ws$/)
+        // Deliberately loose: match any code shape here and judge it below. The
+        // pattern used to be [A-Za-z2-9]+, so a code containing 0 or 1 missed the
+        // route entirely and fell through to the router's bare 404 — which is the
+        // very thing the comment below warns about. That accounted for one in
+        // eight hand-typed joins, reported only as an anonymous ws_closed_1006.
+        const roomWs = url.pathname.match(/^\/room\/([^/]{1,32})\/ws$/)
         if (roomWs) {
             if (req.headers.get('Upgrade') !== 'websocket') {
                 return new Response('expected websocket', { status: 426 })
             }
-            const stub = await locateRoom(env, roomWs[1]!.toUpperCase())
             // A 404 on the upgrade reaches the client as an anonymous 1006 —
             // indistinguishable from a network drop. Accept the socket and
             // deliver the verdict in-protocol so dead links are diagnosable.
+            const code = normalizeRoomCode(roomWs[1]!)
+            if (!isRoomCode(code)) return roomGoneSocket()
+            const stub = await locateRoom(env, code)
             if (!stub) return roomGoneSocket()
             return stub.fetch('https://do/room-ws', req)
         }
