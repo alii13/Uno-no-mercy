@@ -789,6 +789,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         lastRemotePlay,
         lastStackEaten,
         lastMercyCall,
+        eliminationOrder,
         catchableUserId,
         catchPlayer,
         mpStats,

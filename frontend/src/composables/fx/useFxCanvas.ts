@@ -362,6 +362,20 @@ export function spray(x0: number, y0: number, x1: number, y1: number, color: FxC
   requestFrame()
 }
 
+/** Multi-colour celebratory burst — fans upward, then falls under gravity. */
+export function confetti(x: number, y: number, count = 90): void {
+  if (!available) return
+  const cols: FxColor[] = ['red', 'blue', 'green', 'yellow', 'wild']
+  const n = Math.round(count * fxKnobs().particleScale)
+  for (let i = 0; i < n; i++) {
+    const rgb = rgbFor(cols[i % cols.length]!)
+    const ang = -Math.PI / 2 + rand(-0.95, 0.95) // upward fan
+    const speed = rand(300, 660)
+    spawn(x, y, Math.cos(ang) * speed, Math.sin(ang) * speed, rand(6, 12), rand(1.1, 1.9), 720, rgb)
+  }
+  requestFrame()
+}
+
 /** Ambient table heat, 0..1 — embers keep rising while level > 0. */
 export function setHeat(level: number, origin?: { x: number; y: number }): void {
   heatLevel = Math.max(0, Math.min(1, level))

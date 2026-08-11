@@ -425,6 +425,13 @@ watch(() => mpStore.lastMercyCall, (e) => {
   const seatEl = e.playerId === authStore.user?.id ? playerHandRef.value : opponentChipEl(e.playerId)
   if (seatEl) fx.emit('impact', { originEl: seatEl, color: 'yellow', power: true })
 })
+// KO beat on each elimination; confetti when I win.
+watch(() => mpStore.eliminationOrder.length, (now, prev) => {
+  if (now > prev) fx.emit('ko', {})
+})
+watch(() => currentGame.value?.winner_id, (id, prev) => {
+  if (id && !prev && isMpWinner.value) fx.emit('confetti', { originEl: discardAreaRef.value })
+})
 
 const currentPlayerName = computed(() => {
   if (!currentGame.value?.current_player_id) return 'Unknown'

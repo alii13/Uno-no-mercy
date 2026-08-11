@@ -317,6 +317,17 @@
   filter: grayscale(1);
 }
 
+/* KO beat: the board desaturates for ~half a second when a player is knocked
+   out. Applied to .game-view only, so the white flash overlay and the WebGL FX
+   particles (both outside .game-view) stay full-colour on top. */
+body.fx-ko-desat .game-view {
+  filter: saturate(0.2) brightness(0.88);
+  transition: filter 0.08s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  body.fx-ko-desat .game-view { filter: none; }
+}
+
 /* On the brink of mercy (20+ cards): red aura + slow pulse so the whole table
    can see who's about to be knocked out. */
 .opponent-card.danger {

@@ -31,8 +31,10 @@ export interface FxEventMap {
   stackCamReveal: { amount: number; color: FxColor; victimEl: HTMLElement | null; victimName: string }
   /** Stack cam ignition (macro, step 3) — sustained embers from the pile. */
   embers: { originEl: HTMLElement; color: FxColor; on: boolean }
-  /** Victory burst (macro, step 4). */
-  confetti: { originEl: HTMLElement }
+  /** A player was knocked out — white freeze-flash + a beat of desaturation. */
+  ko: Record<string, never>
+  /** Victory — celebratory confetti from the winner's card (or screen centre). */
+  confetti: { originEl: HTMLElement | null }
 }
 
 export type FxEvent = keyof FxEventMap

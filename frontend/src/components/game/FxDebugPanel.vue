@@ -23,6 +23,8 @@
       <button @click="fire('spray')">stack spray</button>
       <button @click="camIgnite">cam ignite</button>
       <button @click="camReveal">cam reveal</button>
+      <button @click="fx.emit('ko', {})">ko flash</button>
+      <button @click="fx.emit('confetti', { originEl: null })">confetti</button>
     </div>
 
     <div class="fx-row">

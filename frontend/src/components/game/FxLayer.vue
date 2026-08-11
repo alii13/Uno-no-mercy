@@ -16,6 +16,7 @@ import {
   shockwave,
   spray,
   setHeat,
+  confetti,
 } from '../../composables/fx/useFxCanvas'
 import { burstImpactParticles } from '../../composables/useGameFeel'
 import { useMotion } from '../../composables/useMotion'
@@ -58,6 +59,24 @@ function edgeFlash(color: FxColor): void {
     .timeline({ onComplete: () => el.remove() })
     .to(el, { opacity: 1, duration: 0.08, ease: 'power2.out' })
     .to(el, { opacity: 0, duration: 0.32, ease: 'power2.in' })
+}
+
+/** White freeze-flash + a beat of board desaturation when a player is KO'd. */
+function koFlash(): void {
+  if (useMotion().reduced) return
+  const el = document.createElement('div')
+  el.style.cssText = `
+    position: fixed; inset: 0; pointer-events: none; z-index: 901;
+    background: #fff; opacity: 0; will-change: opacity;
+  `
+  document.body.appendChild(el)
+  gsap
+    .timeline({ onComplete: () => el.remove() })
+    .to(el, { opacity: 0.8, duration: 0.05, ease: 'power2.out' })
+    .to(el, { opacity: 0, duration: 0.4, ease: 'power2.in' })
+
+  document.body.classList.add('fx-ko-desat')
+  window.setTimeout(() => document.body.classList.remove('fx-ko-desat'), 520)
 }
 
 /** Full-screen radial wash in the chosen colour when a wild resolves. */
@@ -113,6 +132,16 @@ onMounted(() => {
       colorWash(color)
       const c = discardCenter()
       if (c && isFxCanvasAvailable()) shockwave(c.x, c.y, color, 520, 0.8)
+    }),
+    // Player KO'd: white flash + a beat of desaturation.
+    fx.on('ko', () => koFlash()),
+    // Victory: confetti from the winner's card, or screen centre.
+    fx.on('confetti', ({ originEl }) => {
+      if (!isFxCanvasAvailable()) return
+      const c = originEl
+        ? { x: originEl.getBoundingClientRect().left + originEl.getBoundingClientRect().width / 2, y: originEl.getBoundingClientRect().top + originEl.getBoundingClientRect().height / 2 }
+        : { x: window.innerWidth / 2, y: window.innerHeight * 0.4 }
+      confetti(c.x, c.y, 110)
     }),
   )
 })

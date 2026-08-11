@@ -366,8 +366,14 @@ onUnmounted(() => {
 // Duck the music when the game ends so the modal entrance + win/loss
 // sting can cut through; restore on rematch.
 const retention = useRetentionStore()
+// KO beat: white flash + board desaturation each time a player is knocked out.
+watch(() => store.players.filter(p => p.isEliminated).length, (now, prev) => {
+  if (now > prev) fx.emit('ko', {})
+})
+
 watch(() => store.gameState, (now, prev) => {
   if (now === 'GAME_OVER') {
+    if (store.winnerId === 'p-0') fx.emit('confetti', { originEl: discardAreaRef.value })
     music.duck()
     // Record once per game end — accumulate lifetime stats + advance the streak.
     const s: any = (store as any).playerStats?.['p-0']
