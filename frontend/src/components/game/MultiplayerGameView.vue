@@ -283,7 +283,9 @@ import { countByColor } from '../../utils/gameHelpers'
 import { useStackEscalation } from '../../composables/useStackEscalation'
 import { playDealerIntro } from '../../composables/useDealerIntro'
 import { useRetentionStore } from '../../stores/retentionStore'
-import { animateOpponentThrow, burstImpactParticles, skipEveryoneShockwave, showTurnBanner, pulseSeat } from '../../composables/useGameFeel'
+import { animateOpponentThrow, skipEveryoneShockwave, showTurnBanner, pulseSeat } from '../../composables/useGameFeel'
+import { useGameFx } from '../../composables/fx/useGameFx'
+import { useHeatWiring, slamMagnitude } from '../../composables/fx/useFxWiring'
 
 const emit = defineEmits<{ (e: 'claim-account'): void }>()
 
@@ -385,6 +387,9 @@ const currentGame = computed(() => mpStore.currentGame)
 const direction = computed(() => currentGame.value?.direction || 1)
 const drawStack = computed(() => currentGame.value?.draw_stack || 0)
 useStackEscalation(drawStack)
+const fx = useGameFx()
+// Ambient table heat rises with the stack and the local hand's mercy proximity
+useHeatWiring(() => drawStack.value, () => myHand.value.length)
 const currentColor = computed(() => (currentGame.value?.current_color || 'red') as CardColor)
 const turnState = computed(() => currentGame.value?.turn_state || 'WAITING_FOR_ACTION')
 const discardPile = computed(() => (currentGame.value?.discard_pile as Card[]) || [])
@@ -510,7 +515,8 @@ watch(() => mpStore.lastRemotePlay, (play) => {
       layer: animationLayer.value,
       onImpact: () => {
         // Land sound is fired centrally by the topCard watcher (once per play).
-        if (isPowerCard) burstImpactParticles(discardEl, play.card.color)
+        fx.emit('impact', { originEl: discardEl, color: play.card.color, power: isPowerCard })
+        if (isPowerCard) fx.emit('slam', { originEl: discardEl, color: play.card.color, magnitude: slamMagnitude(play.card) })
       }
     })
   }

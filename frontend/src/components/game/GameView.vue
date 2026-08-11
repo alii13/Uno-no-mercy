@@ -196,7 +196,9 @@ import type { Card as CardType, CardColor } from '../../types/card'
 import { soundEffects } from '../../composables/useSoundEffects'
 import { useCardAnimations } from '../../composables/useCardAnimations'
 import { preloadCardImages } from '../../utils/preloadCardImages'
-import { animateOpponentThrow, burstImpactParticles, skipEveryoneShockwave, showTurnBanner, pulseSeat } from '../../composables/useGameFeel'
+import { animateOpponentThrow, skipEveryoneShockwave, showTurnBanner, pulseSeat } from '../../composables/useGameFeel'
+import { useGameFx } from '../../composables/fx/useGameFx'
+import { useHeatWiring, slamMagnitude } from '../../composables/fx/useFxWiring'
 import OpponentChip from './OpponentChip.vue'
 import HandFan from './HandFan.vue'
 import CardPile from './CardPile.vue'
@@ -217,6 +219,7 @@ import { isBragworthy } from '../../utils/killCard'
 const emit = defineEmits<{ (e: 'claim-account'): void }>()
 
 const store = useGameStore()
+const fx = useGameFx()
 // Wire stack-chain escalation — vignette + shake when drawStack grows
 useStackEscalation(toRef(store, 'drawStack'))
 
@@ -288,6 +291,8 @@ provide('animationLayer', animationLayer)
 
 const myPlayer = computed(() => store.players.find(p => p.id === myPlayerId))
 const myColorCounts = computed(() => countByColor(myPlayer.value?.hand ?? []))
+// Ambient table heat rises with the stack and the local hand's mercy proximity
+useHeatWiring(() => store.drawStack, () => myPlayer.value?.hand.length ?? 0)
 const opponents = computed(() => store.players.filter(p => p.id !== myPlayerId))
 
 // An opponent caught without calling UNO — the human can penalize them.
@@ -444,7 +449,8 @@ watch(() => store.lastPlay, (play) => {
           card: play.card,
           layer: animationLayer.value,
           onImpact: () => {
-            if (isPowerCard) burstImpactParticles(discardEl, play.card.color)
+            fx.emit('impact', { originEl: discardEl, color: play.card.color, power: isPowerCard })
+            if (isPowerCard) fx.emit('slam', { originEl: discardEl, color: play.card.color, magnitude: slamMagnitude(play.card) })
           }
         })
       } catch {

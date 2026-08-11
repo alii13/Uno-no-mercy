@@ -88,7 +88,8 @@ import { useScreenSize } from '../../composables/useScreenSize'
 import { useMotion } from '../../composables/useMotion'
 import { useHandPeek } from '../../composables/useHandPeek'
 import { soundEffects } from '../../composables/useSoundEffects'
-import { burstImpactParticles } from '../../composables/useGameFeel'
+import { useGameFx } from '../../composables/fx/useGameFx'
+import { slamMagnitude } from '../../composables/fx/useFxWiring'
 
 // Unified hand for both single-player and multiplayer. It owns fan/scroll
 // layout, the flying-clone play animation, and the throw sound only — the
@@ -182,6 +183,7 @@ watch(() => props.cards.map(c => c.id), (ids) => {
 const discardAreaRef = inject<Ref<HTMLElement | null>>('discardAreaRef', ref(null))
 const animationLayer = inject<Ref<HTMLElement | null>>('animationLayer', ref(null))
 const handContainer = ref<HTMLElement | null>(null)
+const fx = useGameFx()
 
 const cardRefs = ref<Map<string, HTMLElement>>(new Map())
 function setCardRef(cardId: string, el: HTMLElement | ComponentPublicInstance | null) {
@@ -423,9 +425,11 @@ function executePlay(card: CardType) {
   // MP: the topCard watcher), so it fires exactly once per play.
   const isPowerCard = card.color === 'wild' || card.type.includes('draw') || card.type === 'skipEveryone'
   tl.call(() => {
-    if (isPowerCard && discardAreaRef.value) {
+    if (!discardAreaRef.value) return
+    fx.emit('impact', { originEl: discardAreaRef.value, color: card.color, power: isPowerCard })
+    if (isPowerCard) {
       triggerPileFlash(card.color === 'wild' ? 'wild' : card.color)
-      burstImpactParticles(discardAreaRef.value, card.color)
+      fx.emit('slam', { originEl: discardAreaRef.value, color: card.color, magnitude: slamMagnitude(card) })
     }
   })
 
