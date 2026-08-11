@@ -122,6 +122,12 @@
     <!-- Animated Card Layer (for flying cards) -->
     <div class="animation-layer" ref="animationLayer"></div>
 
+    <!-- WebGL FX layer: particles, shockwaves, ambient heat (?fx=1 shows debug) -->
+    <FxLayer />
+
+    <!-- Stack cam: cinematic when the draw stack goes big -->
+    <StackCam />
+
     <!-- Color Picker Modal (for regular Wild cards) -->
     <ColorPickerModal 
       v-if="showColorPicker"
@@ -273,13 +279,17 @@ import StatusPanel from './StatusPanel.vue'
 import PlayerConsoleBar from './PlayerConsoleBar.vue'
 import GameOverModal from './GameOverModal.vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
+import FxLayer from './FxLayer.vue'
+import StackCam from './StackCam.vue'
 import type { Card, CardColor } from '../../types/card'
 import { canPlayCard } from '../../utils/gameRules'
 import { countByColor } from '../../utils/gameHelpers'
 import { useStackEscalation } from '../../composables/useStackEscalation'
 import { playDealerIntro } from '../../composables/useDealerIntro'
 import { useRetentionStore } from '../../stores/retentionStore'
-import { animateOpponentThrow, burstImpactParticles, skipEveryoneShockwave, showTurnBanner, pulseSeat } from '../../composables/useGameFeel'
+import { animateOpponentThrow, skipEveryoneShockwave, showTurnBanner, pulseSeat } from '../../composables/useGameFeel'
+import { useGameFx, type FxColor } from '../../composables/fx/useGameFx'
+import { useHeatWiring, useWildFloodWiring, useStackCamWiring, slamMagnitude, STACK_CAM_THRESHOLD } from '../../composables/fx/useFxWiring'
 
 const emit = defineEmits<{ (e: 'claim-account'): void }>()
 
@@ -381,10 +391,47 @@ const currentGame = computed(() => mpStore.currentGame)
 const direction = computed(() => currentGame.value?.direction || 1)
 const drawStack = computed(() => currentGame.value?.draw_stack || 0)
 useStackEscalation(drawStack)
+const fx = useGameFx()
+// Ambient table heat rises with the stack and the local hand's mercy proximity
+useHeatWiring(() => drawStack.value, () => myHand.value.length)
 const currentColor = computed(() => (currentGame.value?.current_color || 'red') as CardColor)
 const turnState = computed(() => currentGame.value?.turn_state || 'WAITING_FOR_ACTION')
 const discardPile = computed(() => (currentGame.value?.discard_pile as Card[]) || [])
 const topCard = computed(() => discardPile.value[discardPile.value.length - 1])
+// Colour flood when a wild's colour is chosen
+useWildFloodWiring(() => currentColor.value, () => topCard.value?.color)
+// Stack cam: light up while the draw stack is at cinematic size
+useStackCamWiring(() => drawStack.value, () => currentColor.value)
+
+// Server-tagged FX signals: the DO tells us who ate a +N stack and who called
+// Mercy (the client can't derive these — the snapshot arrives after the turn has
+// already advanced). Spray the stack into the victim's seat; flare the caller's.
+watch(() => mpStore.lastStackEaten, (e) => {
+  if (!e) return
+  const discardEl = discardAreaRef.value
+  const seatEl = e.playerId === authStore.user?.id ? playerHandRef.value : opponentChipEl(e.playerId)
+  if (discardEl && seatEl) {
+    fx.emit('stackSpray', { fromEl: discardEl, toEl: seatEl, color: currentColor.value as FxColor, count: e.amount })
+  }
+  if (e.amount >= STACK_CAM_THRESHOLD) {
+    const name = e.playerId === authStore.user?.id
+      ? 'YOU'
+      : (mpStore.gamePlayers.find(p => p.user_id === e.playerId)?.name ?? '')
+    fx.emit('stackCamReveal', { amount: e.amount, color: currentColor.value as FxColor, victimEl: seatEl, victimName: name })
+  }
+})
+watch(() => mpStore.lastMercyCall, (e) => {
+  if (!e) return
+  const seatEl = e.playerId === authStore.user?.id ? playerHandRef.value : opponentChipEl(e.playerId)
+  if (seatEl) fx.emit('impact', { originEl: seatEl, color: 'yellow', power: true })
+})
+// KO beat on each elimination; confetti when I win.
+watch(() => mpStore.eliminationOrder.length, (now, prev) => {
+  if (now > prev) fx.emit('ko', {})
+})
+watch(() => currentGame.value?.winner_id, (id, prev) => {
+  if (id && !prev && isMpWinner.value) fx.emit('confetti', { originEl: discardAreaRef.value })
+})
 
 const currentPlayerName = computed(() => {
   if (!currentGame.value?.current_player_id) return 'Unknown'
@@ -506,7 +553,8 @@ watch(() => mpStore.lastRemotePlay, (play) => {
       layer: animationLayer.value,
       onImpact: () => {
         // Land sound is fired centrally by the topCard watcher (once per play).
-        if (isPowerCard) burstImpactParticles(discardEl, play.card.color)
+        fx.emit('impact', { originEl: discardEl, color: play.card.color, power: isPowerCard })
+        if (isPowerCard) fx.emit('slam', { originEl: discardEl, color: play.card.color, magnitude: slamMagnitude(play.card) })
       }
     })
   }

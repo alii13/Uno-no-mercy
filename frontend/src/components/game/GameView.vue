@@ -111,7 +111,13 @@
 
     <!-- Animated Card Layer (for flying cards) -->
     <div class="animation-layer" ref="animationLayer"></div>
-    
+
+    <!-- WebGL FX layer: particles, shockwaves, ambient heat (?fx=1 shows debug) -->
+    <FxLayer />
+
+    <!-- Stack cam: cinematic when the draw stack goes big -->
+    <StackCam />
+
     <!-- Modals / Overlays -->
     <ColorPickerModal
       v-if="store.turnState === 'CHOOSING_ROULETTE_COLOR' && isMyTurn"
@@ -193,7 +199,9 @@ import type { Card as CardType, CardColor } from '../../types/card'
 import { soundEffects } from '../../composables/useSoundEffects'
 import { useCardAnimations } from '../../composables/useCardAnimations'
 import { preloadCardImages } from '../../utils/preloadCardImages'
-import { animateOpponentThrow, burstImpactParticles, skipEveryoneShockwave, showTurnBanner, pulseSeat } from '../../composables/useGameFeel'
+import { animateOpponentThrow, skipEveryoneShockwave, showTurnBanner, pulseSeat } from '../../composables/useGameFeel'
+import { useGameFx, type FxColor } from '../../composables/fx/useGameFx'
+import { useHeatWiring, useWildFloodWiring, useStackCamWiring, slamMagnitude, STACK_CAM_THRESHOLD } from '../../composables/fx/useFxWiring'
 import OpponentChip from './OpponentChip.vue'
 import HandFan from './HandFan.vue'
 import CardPile from './CardPile.vue'
@@ -208,11 +216,14 @@ import StatusPanel from './StatusPanel.vue'
 import PlayerConsoleBar from './PlayerConsoleBar.vue'
 import GameOverModal from './GameOverModal.vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
+import FxLayer from './FxLayer.vue'
+import StackCam from './StackCam.vue'
 import { isBragworthy } from '../../utils/killCard'
 
 const emit = defineEmits<{ (e: 'claim-account'): void }>()
 
 const store = useGameStore()
+const fx = useGameFx()
 // Wire stack-chain escalation — vignette + shake when drawStack grows
 useStackEscalation(toRef(store, 'drawStack'))
 
@@ -284,6 +295,12 @@ provide('animationLayer', animationLayer)
 
 const myPlayer = computed(() => store.players.find(p => p.id === myPlayerId))
 const myColorCounts = computed(() => countByColor(myPlayer.value?.hand ?? []))
+// Ambient table heat rises with the stack and the local hand's mercy proximity
+useHeatWiring(() => store.drawStack, () => myPlayer.value?.hand.length ?? 0)
+// Colour flood when a wild's colour is chosen
+useWildFloodWiring(() => store.currentColor, () => store.topCard?.color)
+// Stack cam: light up while the draw stack is at cinematic size
+useStackCamWiring(() => store.drawStack, () => store.currentColor)
 const opponents = computed(() => store.players.filter(p => p.id !== myPlayerId))
 
 // An opponent caught without calling UNO — the human can penalize them.
@@ -349,8 +366,14 @@ onUnmounted(() => {
 // Duck the music when the game ends so the modal entrance + win/loss
 // sting can cut through; restore on rematch.
 const retention = useRetentionStore()
+// KO beat: white flash + board desaturation each time a player is knocked out.
+watch(() => store.players.filter(p => p.isEliminated).length, (now, prev) => {
+  if (now > prev) fx.emit('ko', {})
+})
+
 watch(() => store.gameState, (now, prev) => {
   if (now === 'GAME_OVER') {
+    if (store.winnerId === 'p-0') fx.emit('confetti', { originEl: discardAreaRef.value })
     music.duck()
     // Record once per game end — accumulate lifetime stats + advance the streak.
     const s: any = (store as any).playerStats?.['p-0']
@@ -440,7 +463,8 @@ watch(() => store.lastPlay, (play) => {
           card: play.card,
           layer: animationLayer.value,
           onImpact: () => {
-            if (isPowerCard) burstImpactParticles(discardEl, play.card.color)
+            fx.emit('impact', { originEl: discardEl, color: play.card.color, power: isPowerCard })
+            if (isPowerCard) fx.emit('slam', { originEl: discardEl, color: play.card.color, magnitude: slamMagnitude(play.card) })
           }
         })
       } catch {
@@ -509,10 +533,33 @@ const messageStyle = computed(() => {
 
 const isShakeActive = ref(false)
 
+// Mercy call: a gold spark flare on the caller's seat the moment they declare.
+watch(() => ({ ...store.hasCalledUno }), (now, prev) => {
+  for (const id in now) {
+    if (now[id] && !prev?.[id]) {
+      const seatEl = id === myPlayerId ? playerHandRef.value : opponentRefs.value[id]
+      if (seatEl) fx.emit('impact', { originEl: seatEl, color: 'yellow', power: true })
+    }
+  }
+})
+
 // Watch for big stack increases to trigger shake
 watch(() => store.drawStack, (newVal, oldVal) => {
   if (newVal > oldVal && newVal >= 6) {
     triggerShake()
+  }
+  // Stack eaten: the reset to 0 lands before advanceTurn, so currentPlayer is
+  // still the victim. Spray the stack's cards from the pile into their seat.
+  if (oldVal >= 6 && newVal === 0) {
+    const discardEl = discardAreaRef.value
+    const victim = store.currentPlayer
+    const seatEl = victim?.id === myPlayerId ? playerHandRef.value : (victim ? opponentRefs.value[victim.id] : null)
+    if (discardEl && seatEl) {
+      fx.emit('stackSpray', { fromEl: discardEl, toEl: seatEl, color: (store.currentColor ?? 'wild') as FxColor, count: oldVal })
+    }
+    if (oldVal >= STACK_CAM_THRESHOLD) {
+      fx.emit('stackCamReveal', { amount: oldVal, color: (store.currentColor ?? 'wild') as FxColor, victimEl: seatEl ?? null, victimName: victim?.name ?? '' })
+    }
   }
 })
 

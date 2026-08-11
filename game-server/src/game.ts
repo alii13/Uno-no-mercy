@@ -257,7 +257,7 @@ function resolveDraw(game: GameRecord, userId: string): IntentResult {
             engine.drawCardToHand(s, userId, ev)
         }
         if (s.gameState !== 'GAME_OVER') engine.advanceTurn(s, ev)
-        return { ok: true, events: [...events, ...translateEngineEvents(ev)] }
+        return { ok: true, events: [{ t: 'STACK_EATEN', playerId: userId, amount: count }, ...events, ...translateEngineEvents(ev)] }
     }
 
     // Draw until playable.
@@ -309,6 +309,7 @@ export function autoResolveAbsentTurn(game: GameRecord, userId: string): GameEve
             if (s.drawStack > 0) {
                 const count = s.drawStack
                 s.drawStack = 0
+                out.push({ t: 'STACK_EATEN', playerId: userId, amount: count })
                 for (let i = 0; i < count; i++) {
                     if (current.isEliminated || gameOver()) break
                     engine.drawCardToHand(s, userId, ev)
