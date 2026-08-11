@@ -39,6 +39,27 @@ export function useHeatWiring(getDrawStack: () => number, getCardCount: () => nu
   )
 }
 
+/** Draw-stack size at which the stack cam ignites. Double digits read as an
+ *  event on the pot counter; +8 fires too often in No Mercy to stay special. */
+export const STACK_CAM_THRESHOLD = 10
+
+/**
+ * Keep the stack cam lit while the draw stack is at cinematic size. Emits
+ * `stackCamActive` on every change at/above the threshold (the cam ignites once,
+ * then just rolls the pot); emits a quiet reveal (no victim) if the stack drops
+ * back below the threshold without being eaten, so the cam always stands down.
+ */
+export function useStackCamWiring(getDrawStack: () => number, getColor: () => string | undefined): void {
+  const fx = useGameFx()
+  watch(getDrawStack, (now, old) => {
+    if (now >= STACK_CAM_THRESHOLD) {
+      fx.emit('stackCamActive', { amount: now, color: (getColor() ?? 'wild') as FxColor })
+    } else if (old !== undefined && old >= STACK_CAM_THRESHOLD && now > 0) {
+      fx.emit('stackCamReveal', { amount: old, color: (getColor() ?? 'wild') as FxColor, victimEl: null, victimName: '' })
+    }
+  })
+}
+
 /**
  * Emit `colorFlood` when a wild's colour is chosen. Fires when the active colour
  * changes to a concrete colour while the top card is a wild — so it triggers on

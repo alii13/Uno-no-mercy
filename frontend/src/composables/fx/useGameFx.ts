@@ -25,6 +25,10 @@ export interface FxEventMap {
   heat: { level: number }
   /** A wild's colour was chosen — flood a ring + wash in that colour. */
   colorFlood: { color: FxColor }
+  /** Stack cam: the draw stack is at cinematic size — ignite / update the pot. */
+  stackCamActive: { amount: number; color: FxColor }
+  /** Stack cam: the stack was eaten — reveal the victim, then stand down. */
+  stackCamReveal: { amount: number; color: FxColor; victimEl: HTMLElement | null; victimName: string }
   /** Stack cam ignition (macro, step 3) — sustained embers from the pile. */
   embers: { originEl: HTMLElement; color: FxColor; on: boolean }
   /** Victory burst (macro, step 4). */

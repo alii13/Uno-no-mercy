@@ -125,6 +125,9 @@
     <!-- WebGL FX layer: particles, shockwaves, ambient heat (?fx=1 shows debug) -->
     <FxLayer />
 
+    <!-- Stack cam: cinematic when the draw stack goes big -->
+    <StackCam />
+
     <!-- Color Picker Modal (for regular Wild cards) -->
     <ColorPickerModal 
       v-if="showColorPicker"
@@ -277,6 +280,7 @@ import PlayerConsoleBar from './PlayerConsoleBar.vue'
 import GameOverModal from './GameOverModal.vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
 import FxLayer from './FxLayer.vue'
+import StackCam from './StackCam.vue'
 import type { Card, CardColor } from '../../types/card'
 import { canPlayCard } from '../../utils/gameRules'
 import { countByColor } from '../../utils/gameHelpers'
@@ -285,7 +289,7 @@ import { playDealerIntro } from '../../composables/useDealerIntro'
 import { useRetentionStore } from '../../stores/retentionStore'
 import { animateOpponentThrow, skipEveryoneShockwave, showTurnBanner, pulseSeat } from '../../composables/useGameFeel'
 import { useGameFx, type FxColor } from '../../composables/fx/useGameFx'
-import { useHeatWiring, useWildFloodWiring, slamMagnitude } from '../../composables/fx/useFxWiring'
+import { useHeatWiring, useWildFloodWiring, useStackCamWiring, slamMagnitude, STACK_CAM_THRESHOLD } from '../../composables/fx/useFxWiring'
 
 const emit = defineEmits<{ (e: 'claim-account'): void }>()
 
@@ -396,6 +400,8 @@ const discardPile = computed(() => (currentGame.value?.discard_pile as Card[]) |
 const topCard = computed(() => discardPile.value[discardPile.value.length - 1])
 // Colour flood when a wild's colour is chosen
 useWildFloodWiring(() => currentColor.value, () => topCard.value?.color)
+// Stack cam: light up while the draw stack is at cinematic size
+useStackCamWiring(() => drawStack.value, () => currentColor.value)
 
 // Server-tagged FX signals: the DO tells us who ate a +N stack and who called
 // Mercy (the client can't derive these — the snapshot arrives after the turn has
@@ -406,6 +412,12 @@ watch(() => mpStore.lastStackEaten, (e) => {
   const seatEl = e.playerId === authStore.user?.id ? playerHandRef.value : opponentChipEl(e.playerId)
   if (discardEl && seatEl) {
     fx.emit('stackSpray', { fromEl: discardEl, toEl: seatEl, color: currentColor.value as FxColor, count: e.amount })
+  }
+  if (e.amount >= STACK_CAM_THRESHOLD) {
+    const name = e.playerId === authStore.user?.id
+      ? 'YOU'
+      : (mpStore.gamePlayers.find(p => p.user_id === e.playerId)?.name ?? '')
+    fx.emit('stackCamReveal', { amount: e.amount, color: currentColor.value as FxColor, victimEl: seatEl, victimName: name })
   }
 })
 watch(() => mpStore.lastMercyCall, (e) => {

@@ -115,6 +115,9 @@
     <!-- WebGL FX layer: particles, shockwaves, ambient heat (?fx=1 shows debug) -->
     <FxLayer />
 
+    <!-- Stack cam: cinematic when the draw stack goes big -->
+    <StackCam />
+
     <!-- Modals / Overlays -->
     <ColorPickerModal
       v-if="store.turnState === 'CHOOSING_ROULETTE_COLOR' && isMyTurn"
@@ -198,7 +201,7 @@ import { useCardAnimations } from '../../composables/useCardAnimations'
 import { preloadCardImages } from '../../utils/preloadCardImages'
 import { animateOpponentThrow, skipEveryoneShockwave, showTurnBanner, pulseSeat } from '../../composables/useGameFeel'
 import { useGameFx, type FxColor } from '../../composables/fx/useGameFx'
-import { useHeatWiring, useWildFloodWiring, slamMagnitude } from '../../composables/fx/useFxWiring'
+import { useHeatWiring, useWildFloodWiring, useStackCamWiring, slamMagnitude, STACK_CAM_THRESHOLD } from '../../composables/fx/useFxWiring'
 import OpponentChip from './OpponentChip.vue'
 import HandFan from './HandFan.vue'
 import CardPile from './CardPile.vue'
@@ -214,6 +217,7 @@ import PlayerConsoleBar from './PlayerConsoleBar.vue'
 import GameOverModal from './GameOverModal.vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
 import FxLayer from './FxLayer.vue'
+import StackCam from './StackCam.vue'
 import { isBragworthy } from '../../utils/killCard'
 
 const emit = defineEmits<{ (e: 'claim-account'): void }>()
@@ -295,6 +299,8 @@ const myColorCounts = computed(() => countByColor(myPlayer.value?.hand ?? []))
 useHeatWiring(() => store.drawStack, () => myPlayer.value?.hand.length ?? 0)
 // Colour flood when a wild's colour is chosen
 useWildFloodWiring(() => store.currentColor, () => store.topCard?.color)
+// Stack cam: light up while the draw stack is at cinematic size
+useStackCamWiring(() => store.drawStack, () => store.currentColor)
 const opponents = computed(() => store.players.filter(p => p.id !== myPlayerId))
 
 // An opponent caught without calling UNO — the human can penalize them.
@@ -544,6 +550,9 @@ watch(() => store.drawStack, (newVal, oldVal) => {
     const seatEl = victim?.id === myPlayerId ? playerHandRef.value : (victim ? opponentRefs.value[victim.id] : null)
     if (discardEl && seatEl) {
       fx.emit('stackSpray', { fromEl: discardEl, toEl: seatEl, color: (store.currentColor ?? 'wild') as FxColor, count: oldVal })
+    }
+    if (oldVal >= STACK_CAM_THRESHOLD) {
+      fx.emit('stackCamReveal', { amount: oldVal, color: (store.currentColor ?? 'wild') as FxColor, victimEl: seatEl ?? null, victimName: victim?.name ?? '' })
     }
   }
 })

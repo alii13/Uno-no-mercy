@@ -21,6 +21,8 @@
       <button @click="fire('impact', { power: true })">impact +power</button>
       <button @click="fire('slam')">slam</button>
       <button @click="fire('spray')">stack spray</button>
+      <button @click="camIgnite">cam ignite</button>
+      <button @click="camReveal">cam reveal</button>
     </div>
 
     <div class="fx-row">
@@ -75,6 +77,14 @@ function fire(event: 'impact' | 'slam' | 'spray', opts: { power?: boolean } = {}
 
 function applyHeat(): void {
   fx.emit('heat', { level: heat.value })
+}
+
+function camIgnite(): void {
+  fx.emit('stackCamActive', { amount: magnitude.value, color: color.value })
+}
+
+function camReveal(): void {
+  fx.emit('stackCamReveal', { amount: magnitude.value, color: color.value, victimEl: seatAnchor(), victimName: 'DECKWRECKER' })
 }
 
 function applySlowmo(): void {
