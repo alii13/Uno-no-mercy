@@ -706,6 +706,60 @@ describe('lobby auto-start countdown', () => {
     })
 })
 
+describe('quick chat', () => {
+    it('logs a relayed phrase with the sender name resolved', async () => {
+        const mp = useMultiplayerStore()
+        const ws = await joinRoom(mp)
+        ws.receive({ t: 'snapshot', seq: 2, game: playingView() })
+
+        ws.receive({ t: 'chat', userId: 'opp', phraseId: 'mercy' })
+
+        expect(mp.lastChat).toMatchObject({ userId: 'opp', name: 'RIVAL', text: 'Mercy!' })
+        expect(mp.chatLog).toHaveLength(1)
+    })
+
+    it('drops messages from muted players', async () => {
+        const mp = useMultiplayerStore()
+        const ws = await joinRoom(mp)
+        ws.receive({ t: 'snapshot', seq: 2, game: playingView() })
+
+        mp.toggleChatMute('opp')
+        ws.receive({ t: 'chat', userId: 'opp', phraseId: 'hurry' })
+        expect(mp.lastChat).toBeNull()
+        expect(mp.chatLog).toHaveLength(0)
+
+        // Unmute lets them speak again.
+        mp.toggleChatMute('opp')
+        ws.receive({ t: 'chat', userId: 'opp', phraseId: 'hurry' })
+        expect(mp.lastChat?.text).toBe('Hurry up!')
+    })
+
+    it('ignores ids outside the catalog', async () => {
+        const mp = useMultiplayerStore()
+        const ws = await joinRoom(mp)
+        ws.receive({ t: 'chat', userId: 'opp', phraseId: 'not-a-phrase' })
+        expect(mp.lastChat).toBeNull()
+    })
+
+    it('sends the phrase id over the socket', async () => {
+        const mp = useMultiplayerStore()
+        const ws = await joinRoom(mp)
+        mp.sendChat('gg')
+        expect(ws.lastSent()).toEqual({ t: 'chat', phraseId: 'gg' })
+    })
+
+    it('leaving clears the log and mutes', async () => {
+        const mp = useMultiplayerStore()
+        const ws = await joinRoom(mp)
+        ws.receive({ t: 'chat', userId: 'me', phraseId: 'hi' })
+        mp.toggleChatMute('opp')
+        await mp.leaveGame()
+        expect(mp.chatLog).toHaveLength(0)
+        expect(mp.lastChat).toBeNull()
+        expect(mp.mutedChatIds.size).toBe(0)
+    })
+})
+
 describe('leaving', () => {
     it('clears state and the stored room', async () => {
         const mp = useMultiplayerStore()

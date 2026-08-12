@@ -468,6 +468,9 @@
             <button class="leave-link" @click="playBotInstead">PLAY VS BOT INSTEAD</button>
           </div>
         </div>
+
+        <!-- Quick chat doubles as the warm-up toy while the countdown runs -->
+        <QuickChat />
       </div>
     </div>
 
@@ -574,6 +577,7 @@ import { skinColors } from '../utils/cosmetics'
 import CardBack from './game/CardBack.vue'
 import Badge from './Badge.vue'
 import AutoStartRing from './AutoStartRing.vue'
+import QuickChat from './QuickChat.vue'
 import { vFocusRing } from '../directives/focusRing'
 import { preloadCardImages } from '../utils/preloadCardImages'
 import { useAuthStore } from '../stores/authStore'

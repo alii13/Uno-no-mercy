@@ -30,6 +30,9 @@ export type ClientMsg =
     | { t: 'start'; stackingMode?: StackingMode }
     | { t: 'voice-join' }
     | { t: 'badge-up'; tier: number }
+    // Quick chat is id-only (see shared/quickChat.ts) — no free text crosses
+    // the socket, so there is nothing to moderate.
+    | { t: 'chat'; phraseId: string }
     | { t: 'intent'; id: string; action: IntentAction }
 
 // --- Game events: animation-grade facts, personalized per viewer ---
@@ -98,4 +101,5 @@ export type ServerMsg =
     | { t: 'event'; seq: number; ev: GameEvent; intentId?: string }
     | { t: 'voice-token'; token: string; meetingId: string }
     | { t: 'badge-up'; userId: string; tier: number }
+    | { t: 'chat'; userId: string; phraseId: string }
     | { t: 'error'; code: 'unauthorized' | 'bad-message' | 'room-not-found' | 'room-full' | 'not-host' | 'not-started' | 'already-started' | 'need-players' | 'not-in-lobby' | 'invalid-intent' | 'voice-unavailable'; intentId?: string }
