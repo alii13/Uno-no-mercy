@@ -143,12 +143,14 @@ onUnmounted(() => {
   pointer-events: auto;
 }
 
-/* Radial spotlight dim — sits BELOW the WebGL FX canvas (z 900) so embers and
-   the card fountain stay bright on top while the board darkens. */
+/* Radial spotlight dim. The whole cinematic band sits ABOVE the flying/thrown
+   card clones (z 1000-2100 from useCardAnimations / useGameFeel) so a card in
+   flight during a stack build can't cover the cam. Order within the band:
+   dim < washes < FX canvas < letterbox < pot/banner < KO flash. */
 .sc-dim {
   position: fixed;
   inset: 0;
-  z-index: 890;
+  z-index: 2100;
   background: radial-gradient(ellipse at center, transparent 20%, rgba(0, 0, 0, 0.72) 78%);
   opacity: 0;
   transition: opacity 0.4s ease-out;
@@ -163,7 +165,7 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   height: 9vh;
-  z-index: 950;
+  z-index: 2200;
   background: #000;
   transition: transform 0.42s cubic-bezier(0.16, 1, 0.3, 1);
   pointer-events: none;
@@ -178,7 +180,7 @@ onUnmounted(() => {
   position: fixed;
   top: 16vh;
   left: 50%;
-  z-index: 955;
+  z-index: 2210;
   display: flex;
   align-items: baseline;
   gap: 0.1em;
@@ -187,7 +189,10 @@ onUnmounted(() => {
   font-size: clamp(2.4rem, 9vw, 5rem);
   font-weight: 800;
   letter-spacing: 0.04em;
-  text-shadow: 0 0 30px var(--sc-color, #ff2a2a), 0 4px 14px rgba(0, 0, 0, 0.7);
+  /* Glow via filter, not text-shadow: the odometer columns are overflow:hidden
+     to clip the digit roll, which would box-clip a per-glyph text-shadow. A
+     filter on the pot applies after that clipping, so the glow stays soft. */
+  filter: drop-shadow(0 0 16px var(--sc-color, #ff2a2a)) drop-shadow(0 4px 10px rgba(0, 0, 0, 0.7));
   transform: translate(-50%, -20px) scale(0.6);
   opacity: 0;
   transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.24s ease-out;
@@ -208,7 +213,7 @@ onUnmounted(() => {
   position: fixed;
   top: 50%;
   left: 50%;
-  z-index: 955;
+  z-index: 2210;
   display: flex;
   align-items: center;
   gap: 0.4em;

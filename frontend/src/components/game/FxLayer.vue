@@ -50,7 +50,7 @@ function edgeFlash(color: FxColor): void {
   if (useMotion().reduced) return
   const el = document.createElement('div')
   el.style.cssText = `
-    position: fixed; inset: 0; pointer-events: none; z-index: 899;
+    position: fixed; inset: 0; pointer-events: none; z-index: 2105;
     box-shadow: inset 0 0 120px 20px ${EDGE_GLOW[color]};
     opacity: 0; will-change: opacity;
   `
@@ -66,7 +66,7 @@ function koFlash(): void {
   if (useMotion().reduced) return
   const el = document.createElement('div')
   el.style.cssText = `
-    position: fixed; inset: 0; pointer-events: none; z-index: 901;
+    position: fixed; inset: 0; pointer-events: none; z-index: 2300;
     background: #fff; opacity: 0; will-change: opacity;
   `
   document.body.appendChild(el)
@@ -84,7 +84,7 @@ function colorWash(color: FxColor): void {
   if (useMotion().reduced) return
   const el = document.createElement('div')
   el.style.cssText = `
-    position: fixed; inset: 0; pointer-events: none; z-index: 898;
+    position: fixed; inset: 0; pointer-events: none; z-index: 2104;
     background: radial-gradient(ellipse at center, ${EDGE_GLOW[color]} 0%, transparent 65%);
     opacity: 0; will-change: opacity;
   `

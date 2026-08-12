@@ -162,7 +162,7 @@ export function mountFxCanvas(): void {
     width: '100%',
     height: '100%',
     pointerEvents: 'none',
-    zIndex: '900', // above hand/toast, below modals
+    zIndex: '2110', // above flying/thrown card clones (z 1000-2100) so particles read
   })
   document.body.appendChild(canvas)
 
