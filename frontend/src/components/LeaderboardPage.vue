@@ -48,23 +48,17 @@
             @click="openProfile(row)"
           >
             <Crown v-if="row.rank === 1" class="lb-pod-crown" :size="16" aria-hidden="true" />
-            <CardBack
-              class="lb-pod-skin"
-              :size="row.rank === 1 ? { width: 46, height: 65 } : { width: 36, height: 51 }"
-              :accent="skinColors(row.skin ?? undefined).accent"
-              :stripe="skinColors(row.skin ?? undefined).stripe"
-              aria-hidden="true"
+            <Badge
+              v-if="badgeInfoFor(row)?.badge"
+              :badge="badgeInfoFor(row)!.badge"
+              :points="badgeInfoFor(row)!.points"
+              :progress="badgeInfoFor(row)!.progress"
+              size="mark"
+              link
+              class="lb-pod-emblem"
             />
             <span class="lb-pod-badge" :class="medalClass(row.rank)">{{ row.rank }}</span>
             <span class="lb-pod-name">
-              <Badge
-                v-if="badgeInfoFor(row)?.badge"
-                :badge="badgeInfoFor(row)!.badge"
-                :points="badgeInfoFor(row)!.points"
-                :progress="badgeInfoFor(row)!.progress"
-                size="mark"
-                class="lb-pod-tier"
-              />
               {{ row.is_me ? 'YOU' : row.username }}
               <template v-if="flagEmoji(row.country)"> {{ flagEmoji(row.country) }}</template>
             </span>
@@ -140,10 +134,8 @@ import { useLeaderboard, type DailyRow, type WeeklyRow } from '../composables/us
 import { useMotion } from '../composables/useMotion'
 import { navigate } from '../utils/routes'
 import { formatCountdown, msUntilLocalMidnight } from '../utils/countdown'
-import { skinColors } from '../utils/cosmetics'
 import { flagEmoji } from '../utils/country'
 import { useBadges } from '../composables/useBadges'
-import CardBack from './game/CardBack.vue'
 import SiteFooter from './SiteFooter.vue'
 import Badge from './Badge.vue'
 import BadgedName from './BadgedName.vue'
@@ -411,12 +403,11 @@ onUnmounted(() => { if (ticker) clearInterval(ticker) })
   filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.5));
 }
 
-.lb-pod-skin {
-  border-radius: 4px;
-  box-shadow: none;
-}
+.lb-pod-emblem { flex: none; }
+.lb-pod-emblem :deep(.badge-emblem) { width: 48px; height: 48px; }
+.lb-pod--1 .lb-pod-emblem :deep(.badge-emblem) { width: 60px; height: 60px; }
 
-/* Medal badge overlaps the skin's lower edge. */
+/* Medal badge overlaps the emblem's lower edge. */
 .lb-pod-badge {
   width: 20px;
   height: 20px;
@@ -511,11 +502,6 @@ onUnmounted(() => { if (ticker) clearInterval(ticker) })
   color: var(--text-muted);
   font-size: var(--text-sm);
   letter-spacing: 0.04em;
-}
-
-.lb-pod-tier {
-  vertical-align: -3px;
-  margin-right: 2px;
 }
 
 .lb-name {

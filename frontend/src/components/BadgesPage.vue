@@ -61,6 +61,35 @@
         </p>
       </section>
 
+      <!-- Inactivity decay -->
+      <section class="bp-intro">
+        <h2 class="bp-h2">If you go quiet</h2>
+        <p>
+          Your badge is permanent - once you reach a tier it's yours for good, and no
+          amount of time away takes it. Only your progress toward the <em>next</em> badge
+          can slip.
+        </p>
+        <p>
+          You get a <strong>one-week grace</strong>: play at least once every seven days
+          and nothing slips. After that, you lose <strong>5% of your progress toward the
+          next badge each day</strong> you don't play. It only ever touches that progress,
+          never the badge underneath.
+        </p>
+        <p class="bp-fine">Say you're 1,000 points into your climb toward the next badge:</p>
+        <table class="bp-table">
+          <thead>
+            <tr><th>Time away</th><th>Progress you keep</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Up to 1 week</td><td>1,000 - nothing slips</td></tr>
+            <tr><td>2 weeks</td><td>about 700</td></tr>
+            <tr><td>3 weeks</td><td>about 490</td></tr>
+            <tr><td>4 weeks</td><td>about 340</td></tr>
+          </tbody>
+        </table>
+        <p>Play a single game and it starts climbing back the same day.</p>
+      </section>
+
       <SiteFooter />
     </div>
   </div>
@@ -232,6 +261,29 @@ const EARN = [
   white-space: nowrap;
 }
 .bp-fine { margin: 0; color: #8a8f98; font-size: 0.8rem; line-height: 1.5; }
+
+.bp-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--spacing-3) 0;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+.bp-table th,
+.bp-table td {
+  padding: var(--spacing-2) var(--spacing-3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: left;
+}
+.bp-table th {
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #8a8f98;
+}
+.bp-table td { color: #cfcfd4; }
+.bp-table th:last-child,
+.bp-table td:last-child { text-align: right; color: #e6e6e6; }
 
 @media (max-width: 480px) {
   .bp-tier {

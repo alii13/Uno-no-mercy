@@ -299,14 +299,13 @@
     box-shadow var(--duration-soft) var(--ease-soft);
 }
 
-/* Badge mark on a seat — small enough to sit inline before the name text. */
-.opponent-card .seat-emblem {
-  margin-right: 5px;
-  vertical-align: -3px;
+/* The tier badge stands in for the seat's avatar. */
+.opponent-card .seat-avatar {
+  flex: none;
 }
-.opponent-card .seat-emblem .badge-emblem {
-  width: 14px;
-  height: 15px;
+.opponent-card .seat-avatar .badge-emblem {
+  width: 30px;
+  height: 30px;
 }
 
 .opponent-card.active {
