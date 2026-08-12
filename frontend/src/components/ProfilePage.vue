@@ -38,11 +38,19 @@
         />
         <div class="pp-identity">
           <div class="pp-name-row">
+            <Badge
+              v-if="badgeInfo"
+              :badge="badgeInfo.badge"
+              :points="badgeInfo.points"
+              :progress="badgeInfo.progress"
+              size="mark"
+              link
+              class="pp-name-badge"
+            />
             <h1 class="pp-name">{{ p.username }}</h1>
             <span v-if="flagEmoji(p.country)" class="pp-flag" :title="p.country ?? ''">{{ flagEmoji(p.country) }}</span>
           </div>
           <div class="pp-chips">
-            <Badge v-if="badgeInfo" :badge="badgeInfo.badge" size="chip" class="pp-badge" />
             <span class="pp-chip">{{ p.wins }} WINS</span>
             <span class="pp-chip">SINCE {{ memberSince }}</span>
           </div>
@@ -380,6 +388,9 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
 }
 
 .pp-flag { font-size: 1.1rem; line-height: 1; flex-shrink: 0; }
+
+.pp-name-badge { flex: none; }
+.pp-name-badge :deep(.badge-emblem) { width: 30px; height: 33px; }
 
 .pp-chips {
   display: flex;

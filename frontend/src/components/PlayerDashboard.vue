@@ -46,7 +46,7 @@
           <div class="identity-name">{{ username }}</div>
           <div class="identity-rank">
             <button class="identity-badge-btn" @click="navigate({ name: 'badges' })" title="How badges work">
-              <Badge :badge="badge" size="chip" />
+              <Badge :badge="badge" :points="badgePoints" :progress="badgeProgress" size="chip" />
             </button>
           </div>
           <div v-if="badgeProgress.next" class="identity-progress">
@@ -279,7 +279,7 @@ const {
   totalCardsPlayed, totalSkipsDealt,
   totalUnoCalls, biggestStackSurvived,
   peakCardsEver, ruthlessness,
-  badge, badgeProgress, recentGames, avgGameDuration,
+  badge, badgePoints, badgeProgress, recentGames, avgGameDuration,
 } = usePlayerStats()
 
 const retention = useRetentionStore()
