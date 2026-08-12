@@ -89,7 +89,10 @@ export interface PersonalView {
 
 export type ServerMsg =
     | { t: 'hello'; roomCode: string; userId: string; hostUserId: string | null }
-    | { t: 'presence'; players: PresencePlayer[] }
+    // autoStartInMs: countdown remaining for a public lobby, sent as a
+    // duration so client clock skew cannot bend it; absent = no countdown.
+    // autoStartPaused: the room dipped below the minimum and the clock froze.
+    | { t: 'presence'; players: PresencePlayer[]; autoStartInMs?: number; autoStartPaused?: boolean }
     | { t: 'pong'; now: number }
     | { t: 'snapshot'; seq: number; game: PersonalView }
     | { t: 'event'; seq: number; ev: GameEvent; intentId?: string }

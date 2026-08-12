@@ -71,7 +71,8 @@ export function normalizeDir(raw: Record<string, DirEntry | number> | undefined)
 }
 
 /**
- * Joinable codes, oldest first, so early rooms fill before new ones open.
+ * Joinable codes, fullest first, so players concentrate into the room
+ * closest to starting instead of spreading one per lobby; age breaks ties.
  *
  * Started rooms stay registered now — the landing strip wants to show a game
  * in progress, and evicting them on start meant the directory only ever held
@@ -84,7 +85,7 @@ export function dirCodes(raw: Record<string, DirEntry | number> | undefined): st
     const dir = normalizeDir(raw)
     return Object.entries(dir)
         .filter(([, e]) => entryStatus(e) === 'lobby')
-        .sort((a, b) => a[1].at - b[1].at)
+        .sort((a, b) => (b[1].players ?? 0) - (a[1].players ?? 0) || a[1].at - b[1].at)
         .map(([code]) => code)
 }
 

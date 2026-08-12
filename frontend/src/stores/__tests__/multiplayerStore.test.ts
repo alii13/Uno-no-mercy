@@ -673,6 +673,39 @@ describe('quick match never sits down in a finished room', () => {
     })
 })
 
+describe('lobby auto-start countdown', () => {
+    const seats = [
+        { userId: 'me', name: 'TESTER', connected: true },
+        { userId: 'opp', name: 'RIVAL', connected: true },
+    ]
+
+    it('mirrors the countdown carried on presence frames', async () => {
+        const mp = useMultiplayerStore()
+        const ws = await joinRoom(mp)
+
+        ws.receive({ t: 'presence', players: seats, autoStartInMs: 30_000 })
+        expect(mp.autoStart?.paused).toBe(false)
+        // Sent as a duration; the store anchors it to its own clock.
+        expect(mp.autoStart!.deadline).toBeGreaterThan(Date.now() + 29_000)
+
+        ws.receive({ t: 'presence', players: seats.slice(0, 1), autoStartInMs: 12_000, autoStartPaused: true })
+        expect(mp.autoStart?.paused).toBe(true)
+
+        // A frame with no countdown clears it (old worker, private room).
+        ws.receive({ t: 'presence', players: seats })
+        expect(mp.autoStart).toBeNull()
+    })
+
+    it('clears the countdown when the deal happens', async () => {
+        const mp = useMultiplayerStore()
+        const ws = await joinRoom(mp)
+        ws.receive({ t: 'presence', players: seats, autoStartInMs: 10_000 })
+
+        ws.receive({ t: 'event', seq: 1, ev: { t: 'STARTED' } })
+        expect(mp.autoStart).toBeNull()
+    })
+})
+
 describe('leaving', () => {
     it('clears state and the stored room', async () => {
         const mp = useMultiplayerStore()

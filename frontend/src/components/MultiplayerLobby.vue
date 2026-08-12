@@ -306,6 +306,14 @@
           </div>
         </div>
 
+        <!-- Public rooms deal themselves once two players are seated; the
+             server owns the clock, this only renders it. -->
+        <AutoStartRing
+          v-if="mpStore.autoStart"
+          :deadline="mpStore.autoStart.deadline"
+          :paused="mpStore.autoStart.paused"
+        />
+
         <div class="players-section">
           <div class="players-count">
             <span class="players-count-num">{{ mpStore.gamePlayers.length }}</span>
@@ -550,6 +558,7 @@ import { useBadges } from '../composables/useBadges'
 import { skinColors } from '../utils/cosmetics'
 import CardBack from './game/CardBack.vue'
 import Badge from './Badge.vue'
+import AutoStartRing from './AutoStartRing.vue'
 import { vFocusRing } from '../directives/focusRing'
 import { preloadCardImages } from '../utils/preloadCardImages'
 import { useAuthStore } from '../stores/authStore'

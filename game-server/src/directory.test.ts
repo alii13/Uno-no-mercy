@@ -19,9 +19,20 @@ describe('normalizeDir', () => {
 })
 
 describe('dirCodes', () => {
-    it('orders oldest first so early rooms fill before new ones open', () => {
+    it('orders oldest first among equally-full rooms', () => {
         const codes = dirCodes({ NEW: NOW + 5000, OLD: NOW, MID: NOW + 1000 })
         expect(codes).toEqual(['OLD', 'MID', 'NEW'])
+    })
+
+    it('fills the fullest room first so players concentrate', () => {
+        // One player per room is the failure mode: three lonely lobbies
+        // instead of one game about to start.
+        const codes = dirCodes({
+            LONELY: { at: NOW, players: 1, status: 'lobby' as const },
+            ALMOST: { at: NOW + 5000, players: 3, status: 'lobby' as const },
+            PAIR: { at: NOW + 1000, players: 2, status: 'lobby' as const },
+        })
+        expect(codes).toEqual(['ALMOST', 'PAIR', 'LONELY'])
     })
 
     it('still works on a directory of bare timestamps', () => {
