@@ -17,7 +17,7 @@
   >
     <div class="avatar" :class="{ 'avatar-active': isActive, speaking: isSpeaking }">{{ name.charAt(0).toUpperCase() }}</div>
     <div class="opponent-info">
-      <span class="name">{{ name }}<Badge v-if="badge" :badge="badge" size="mark" class="seat-emblem" />
+      <span class="name"><Badge v-if="badge" :badge="badge" :points="badgePoints" :progress="badgeProgress" size="mark" class="seat-emblem" />{{ name }}
         <span v-if="inVoice" class="voice-dot" :class="{ speaking: isSpeaking }" title="In voice"></span>
       </span>
       <span v-if="isDisconnected && !isEliminated" class="card-count dc-text">DISCONNECTED</span>
@@ -53,13 +53,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import Badge from '../Badge.vue'
-import type { Badge as BadgeType } from '../../utils/badges'
+import type { Badge as BadgeType, Progress } from '../../utils/badges'
 
 const props = defineProps<{
   name: string
   cardCount: number
   uid?: string
   badge?: BadgeType
+  badgePoints?: number
+  badgeProgress?: Progress
   isActive?: boolean
   isEliminated?: boolean
   isDisconnected?: boolean

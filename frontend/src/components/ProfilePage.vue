@@ -38,11 +38,19 @@
         />
         <div class="pp-identity">
           <div class="pp-name-row">
+            <Badge
+              v-if="badgeInfo"
+              :badge="badgeInfo.badge"
+              :points="badgeInfo.points"
+              :progress="badgeInfo.progress"
+              size="mark"
+              link
+              class="pp-name-badge"
+            />
             <h1 class="pp-name">{{ p.username }}</h1>
             <span v-if="flagEmoji(p.country)" class="pp-flag" :title="p.country ?? ''">{{ flagEmoji(p.country) }}</span>
           </div>
           <div class="pp-chips">
-            <Badge v-if="badgeInfo" :badge="badgeInfo.badge" size="chip" class="pp-badge" />
             <span class="pp-chip">{{ p.wins }} WINS</span>
             <span class="pp-chip">SINCE {{ memberSince }}</span>
           </div>
@@ -114,43 +122,6 @@
           </div>
         </section>
 
-        <!-- Badge case: earned medallions lit, locked ones grayed out -->
-        <section class="pp-badges">
-          <div class="pp-badges-head">
-            <h3 class="pp-section-title pp-section-title--flush">BADGE CASE</h3>
-            <span class="pp-badge-count">{{ earned.size }}/{{ ACHIEVEMENTS.length }}</span>
-          </div>
-          <div
-            class="pp-badges-bar"
-            role="img"
-            :aria-label="`${earned.size} of ${ACHIEVEMENTS.length} badges earned`"
-          >
-            <div class="pp-badges-fill" :style="{ width: (earned.size / ACHIEVEMENTS.length) * 100 + '%' }"></div>
-          </div>
-          <div class="pp-badge-grid">
-            <div
-              v-for="a in visibleBadges"
-              :key="a.id"
-              class="pp-badge"
-              :class="{ earned: earned.has(a.id) }"
-            >
-              <span class="pp-badge-disc">
-                <component :is="badgeIcon(a.id)" :size="16" aria-hidden="true" />
-              </span>
-              <span class="pp-badge-text">
-                <span class="pp-badge-title">{{ a.title.toUpperCase() }}</span>
-                <span class="pp-badge-desc">{{ a.desc }}</span>
-              </span>
-            </div>
-          </div>
-          <button
-            v-if="sortedBadges.length > visibleBadges.length || showAllBadges"
-            class="pp-badges-toggle"
-            @click="showAllBadges = !showAllBadges"
-          >
-            {{ showAllBadges ? 'SHOW FEWER' : `SHOW ALL ${ACHIEVEMENTS.length} BADGES` }}
-          </button>
-        </section>
       </template>
 
       <!-- The growth loop: visitors get the challenge, the owner gets tools -->
@@ -178,14 +149,11 @@
 import { ref, computed, onMounted, watch, nextTick, type FunctionalComponent } from 'vue'
 import {
     Trophy, Swords, Target, Flame, Zap, Shield, Layers, SkipForward, Plus,
-    Droplet, Medal, Award, Crown, Gem, ShieldCheck, TrendingUp, Axe, Skull,
-    Sparkles, Megaphone, Crosshair, Hourglass, ArrowLeftRight, CalendarCheck,
 } from 'lucide-vue-next'
 import gsap from 'gsap'
 import { useProfile } from '../composables/useProfile'
 import { useMotion } from '../composables/useMotion'
 import { useAuthStore } from '../stores/authStore'
-import { ACHIEVEMENTS, earnedFromAggregates } from '../utils/achievements'
 import { skinColors } from '../utils/cosmetics'
 import { flagEmoji } from '../utils/country'
 import { shareProfile } from '../utils/share'
@@ -245,57 +213,6 @@ const FORM_LETTER: Record<string, string> = { won: 'W', lost: 'L', eliminated: '
 
 const activityTotal = computed(() => pp.activity.value.reduce((n, d) => n + d.games, 0))
 
-const sortedBadges = computed(() =>
-    [...ACHIEVEMENTS].sort((a, b) => Number(earned.value.has(b.id)) - Number(earned.value.has(a.id))),
-)
-
-// Collapsed: everything earned plus the next locked goals — enough to
-// tease the ladder without a 100-cell wall.
-const showAllBadges = ref(false)
-const visibleBadges = computed(() => {
-    if (showAllBadges.value) return sortedBadges.value
-    return sortedBadges.value.slice(0, Math.max(earned.value.size + 6, 12))
-})
-
-/** Tier ladders share a family icon, resolved by id prefix. */
-const BADGE_FAMILY_ICONS: Array<[string, FunctionalComponent]> = [
-    ['wins_', Trophy], ['games_', Swords], ['streak_', Flame], ['stack_', Shield],
-    ['peak_', Layers], ['comeback_', TrendingUp], ['skips_', SkipForward], ['draw_', Plus],
-    ['wild_', Sparkles], ['uno_', Megaphone], ['swap_', ArrowLeftRight], ['daily_', CalendarCheck],
-    ['eff_', Crosshair], ['speed_', Zap], ['marathon_', Hourglass], ['rate_', Target],
-]
-
-function badgeIcon(id: string): FunctionalComponent {
-    return BADGE_ICONS[id]
-        ?? BADGE_FAMILY_ICONS.find(([prefix]) => id.startsWith(prefix))?.[1]
-        ?? Medal
-}
-
-const BADGE_ICONS: Record<string, FunctionalComponent> = {
-    first_blood: Droplet,
-    first_win: Trophy,
-    hat_trick: Medal,
-    pentakill: Swords,
-    ten_wins: Award,
-    fifty_wins: Crown,
-    hundred_wins: Gem,
-    stack_16: Shield,
-    stack_24: ShieldCheck,
-    hoarder: Layers,
-    dragon: Flame,
-    comeback: TrendingUp,
-    executioner: Axe,
-    sadist: Skull,
-    wild_thing: Sparkles,
-    town_crier: Megaphone,
-    clean_win: Crosshair,
-    speed_demon: Zap,
-    marathon: Hourglass,
-    swap_meet: ArrowLeftRight,
-    daily_devotee: CalendarCheck,
-}
-
-const earned = computed(() => new Set(p.value ? earnedFromAggregates(p.value).map(a => a.id) : []))
 
 const shareState = ref<'idle' | 'copied'>('idle')
 
@@ -471,6 +388,9 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
 }
 
 .pp-flag { font-size: 1.1rem; line-height: 1; flex-shrink: 0; }
+
+.pp-name-badge { flex: none; }
+.pp-name-badge :deep(.badge-emblem) { width: 30px; height: 33px; }
 
 .pp-chips {
   display: flex;
@@ -657,122 +577,6 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
 .pp-form-chip--lost {
   background: rgba(255, 255, 255, 0.08);
   color: var(--text-secondary);
-}
-
-.pp-badges-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--spacing-3);
-  margin-bottom: var(--spacing-2);
-}
-
-.pp-section-title--flush { margin: 0; }
-
-.pp-badge-count {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  letter-spacing: 0.1em;
-  color: var(--color-hazard);
-}
-
-.pp-badges-bar {
-  height: 4px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
-  overflow: hidden;
-  margin-bottom: var(--spacing-4);
-}
-
-.pp-badges-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: var(--color-hazard, #ffcc00);
-}
-
-.pp-badge-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-  gap: var(--spacing-3);
-}
-
-.pp-badge {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  padding: var(--spacing-3);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.015);
-  opacity: 0.45;
-}
-
-.pp-badge.earned {
-  opacity: 1;
-  border-color: rgba(255, 204, 0, 0.25);
-}
-
-.pp-badge-disc {
-  width: 34px;
-  height: 34px;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text-muted);
-}
-
-.pp-badge.earned .pp-badge-disc {
-  border-color: rgba(255, 204, 0, 0.45);
-  background: rgba(255, 204, 0, 0.08);
-  color: var(--color-hazard, #ffcc00);
-  box-shadow: 0 0 10px rgba(255, 204, 0, 0.15);
-}
-
-.pp-badge-text {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-
-.pp-badge-title {
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  letter-spacing: 0.1em;
-  color: var(--text-primary);
-}
-
-.pp-badge.earned .pp-badge-title { color: var(--color-hazard); }
-
-.pp-badge-desc {
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  color: var(--text-muted);
-  line-height: 1.45;
-}
-
-.pp-badges-toggle {
-  width: 100%;
-  margin-top: var(--spacing-3);
-  padding: var(--spacing-3);
-  background: none;
-  border: 1px dashed rgba(255, 255, 255, 0.15);
-  border-radius: var(--radius-sm);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  letter-spacing: 0.14em;
-  color: var(--text-secondary);
-  cursor: pointer;
-  min-height: 40px;
-}
-
-.pp-badges-toggle:hover {
-  border-color: rgba(255, 204, 0, 0.4);
-  color: var(--color-hazard, #ffcc00);
 }
 
 .pp-cta {

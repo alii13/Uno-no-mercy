@@ -46,7 +46,7 @@
           <div class="identity-name">{{ username }}</div>
           <div class="identity-rank">
             <button class="identity-badge-btn" @click="navigate({ name: 'badges' })" title="How badges work">
-              <Badge :badge="badge" size="chip" />
+              <Badge :badge="badge" :points="badgePoints" :progress="badgeProgress" size="chip" />
             </button>
           </div>
           <div v-if="badgeProgress.next" class="identity-progress">
@@ -165,24 +165,6 @@
         </div>
       </section>
 
-      <!-- Badge case — earned lit, locked dimmed. Earning is pure history,
-           so the case can never disagree with the record above it. -->
-      <section class="record-section">
-        <h3 class="section-title">BADGE CASE <span class="badge-count">{{ earnedIds.size }}/{{ ACHIEVEMENTS.length }}</span></h3>
-        <div class="badge-grid">
-          <div
-            v-for="a in ACHIEVEMENTS"
-            :key="a.id"
-            class="badge-cell"
-            :class="{ earned: earnedIds.has(a.id) }"
-            :title="a.desc"
-          >
-            <span class="badge-title">{{ a.title.toUpperCase() }}</span>
-            <span class="badge-desc">{{ a.desc }}</span>
-          </div>
-        </div>
-      </section>
-
       <!-- Card backs — earn-only skins. Ownership derives from the record;
            only the equip choice is stored. -->
       <section class="record-section">
@@ -272,7 +254,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { usePlayerStats } from '../composables/usePlayerStats'
-import { ACHIEVEMENTS, earnedAchievements, type ResultRow } from '../utils/achievements'
 import { CARD_BACKS, equip, getEquippedId } from '../utils/cosmetics'
 import { useRetentionStore } from '../stores/retentionStore'
 import { useAuthStore } from '../stores/authStore'
@@ -298,16 +279,13 @@ const {
   totalCardsPlayed, totalSkipsDealt,
   totalUnoCalls, biggestStackSurvived,
   peakCardsEver, ruthlessness,
-  badge, badgeProgress, recentGames, avgGameDuration,
-  results,
+  badge, badgePoints, badgeProgress, recentGames, avgGameDuration,
 } = usePlayerStats()
-
-const earnedIds = computed(() => new Set(earnedAchievements(results.value as ResultRow[]).map(a => a.id)))
 
 const retention = useRetentionStore()
 const ownedSkinIds = computed(() => new Set(
   CARD_BACKS
-    .filter(s => s.unlocked({ wins: gamesWon.value, longestStreak: retention.longestStreak, earned: earnedIds.value }))
+    .filter(s => s.unlocked({ wins: gamesWon.value, longestStreak: retention.longestStreak, maxStackSurvived: biggestStackSurvived.value }))
     .map(s => s.id),
 ))
 const equippedId = ref(getEquippedId())
@@ -810,55 +788,6 @@ function copyShareLink() {
 }
 
 /* RECENT GAMES */
-.badge-count {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  letter-spacing: 0.1em;
-  margin-left: var(--spacing-2);
-}
-
-.badge-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: var(--spacing-2);
-  margin-top: var(--spacing-3);
-}
-
-.badge-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: var(--spacing-2);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--radius-sm);
-  opacity: 0.35;
-}
-
-.badge-cell.earned {
-  opacity: 1;
-  border-color: rgba(255, 204, 0, 0.4);
-  background: rgba(255, 204, 0, 0.05);
-}
-
-.badge-title {
-  font-family: var(--font-display);
-  font-size: 0.7rem;
-  letter-spacing: 0.1em;
-  color: var(--text-primary);
-}
-
-.badge-cell.earned .badge-title {
-  color: var(--color-hazard);
-}
-
-.badge-desc {
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  color: var(--text-muted);
-  line-height: 1.3;
-}
-
 .skin-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));

@@ -11,6 +11,8 @@
         :uid="opp.user_id"
         :name="opp.name"
         :badge="mpBadges[opp.user_id]?.badge"
+        :badge-points="mpBadges[opp.user_id]?.points"
+        :badge-progress="mpBadges[opp.user_id]?.progress"
         :card-count="(opp.hand as Card[])?.length || 0"
         count-label="INTEL"
         :is-active="currentGame?.current_player_id === opp.user_id"

@@ -57,6 +57,14 @@
             />
             <span class="lb-pod-badge" :class="medalClass(row.rank)">{{ row.rank }}</span>
             <span class="lb-pod-name">
+              <Badge
+                v-if="badgeInfoFor(row)?.badge"
+                :badge="badgeInfoFor(row)!.badge"
+                :points="badgeInfoFor(row)!.points"
+                :progress="badgeInfoFor(row)!.progress"
+                size="mark"
+                class="lb-pod-tier"
+              />
               {{ row.is_me ? 'YOU' : row.username }}
               <template v-if="flagEmoji(row.country)"> {{ flagEmoji(row.country) }}</template>
             </span>
@@ -78,21 +86,16 @@
             @keydown.enter="openProfile(row)"
           >
             <span class="lb-rank">{{ row.rank }}</span>
-            <CardBack
-              class="lb-skin"
-              :size="{ width: 18, height: 25 }"
-              :accent="skinColors(row.skin ?? undefined).accent"
-              :stripe="skinColors(row.skin ?? undefined).stripe"
-              aria-hidden="true"
-            />
-            <span class="lb-name">{{ row.is_me ? 'YOU' : row.username }}</span>
+            <BadgedName
+              :badge="badgeInfoFor(row)?.badge"
+              :points="badgeInfoFor(row)?.points"
+              :progress="badgeInfoFor(row)?.progress"
+              link
+              class="lb-ident"
+            >
+              <span class="lb-name">{{ row.is_me ? 'YOU' : row.username }}</span>
+            </BadgedName>
             <span v-if="flagEmoji(row.country)" class="lb-flag" :title="row.country ?? ''">{{ flagEmoji(row.country) }}</span>
-            <Badge
-              v-if="row.user_id && badges[row.user_id]"
-              :badge="badges[row.user_id]!.badge"
-              size="chip"
-              class="lb-badge"
-            />
             <span class="lb-score" :class="{ out: metric(row).out }">
               {{ metric(row).main }}<template v-if="metric(row).sub"> · {{ metric(row).sub }}</template>
             </span>
@@ -143,6 +146,7 @@ import { useBadges } from '../composables/useBadges'
 import CardBack from './game/CardBack.vue'
 import SiteFooter from './SiteFooter.vue'
 import Badge from './Badge.vue'
+import BadgedName from './BadgedName.vue'
 
 defineEmits<{ (e: 'back'): void }>()
 
@@ -169,6 +173,10 @@ watch(rows, (rs) => {
     const ids = rs.map(r => r.user_id).filter((x): x is string => !!x)
     if (ids.length) void fetchBadges(ids)
 }, { immediate: true })
+
+function badgeInfoFor(row: Row) {
+    return row.user_id ? badges.value[row.user_id] : undefined
+}
 
 function switchTab(next: 'daily' | 'weekly') {
     if (tab.value === next) return
@@ -505,10 +513,9 @@ onUnmounted(() => { if (ticker) clearInterval(ticker) })
   letter-spacing: 0.04em;
 }
 
-.lb-skin {
-  flex-shrink: 0;
-  border-radius: 3px;
-  box-shadow: none;
+.lb-pod-tier {
+  vertical-align: -3px;
+  margin-right: 2px;
 }
 
 .lb-name {
@@ -531,8 +538,9 @@ onUnmounted(() => { if (ticker) clearInterval(ticker) })
   line-height: 1;
 }
 
-.lb-badge {
-  flex-shrink: 0;
+.lb-ident {
+  flex: 1;
+  min-width: 0;
 }
 
 .lb-score {
@@ -621,7 +629,6 @@ onUnmounted(() => { if (ticker) clearInterval(ticker) })
 }
 
 @media (max-width: 480px) {
-  .lb-badge :deep(.badge-label) { display: none; }
   .lb-score { font-size: 0.65rem; }
   .lb-row { gap: var(--spacing-2); padding: var(--spacing-3) var(--spacing-2); }
   .lb-podium { gap: var(--spacing-2); }

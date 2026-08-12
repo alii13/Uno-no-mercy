@@ -15,7 +15,7 @@ import {
     progressToNext,
     DECAY,
 } from '../badges'
-import type { ResultRow } from '../achievements'
+import type { ResultRow } from '../gameStats'
 
 function row(overrides: Partial<ResultRow>): ResultRow {
     return {

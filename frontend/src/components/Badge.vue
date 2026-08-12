@@ -1,10 +1,19 @@
 <template>
     <span
+        ref="rootEl"
         class="badge"
-        :class="[`badge--${size}`, { 'badge--foil': badge.tier >= 9, 'badge--dormant': dormant }]"
+        :class="[`badge--${size}`, { 'badge--foil': badge.tier >= 9, 'badge--dormant': dormant, 'badge--link': link }]"
         :style="{ '--badge-color': badge.color }"
-        :title="titleText"
-        :aria-label="titleText"
+        :role="link ? 'button' : undefined"
+        :tabindex="link ? 0 : undefined"
+        :aria-label="ariaLabel"
+        @mouseenter="openTip"
+        @mouseleave="scheduleClose"
+        @focusin="openTip"
+        @focusout="scheduleClose"
+        @click="onActivate"
+        @keydown.enter.prevent="onActivate"
+        @keydown.space.prevent="onActivate"
     >
         <span class="badge-emblem" aria-hidden="true">
             <svg class="badge-shield" viewBox="0 0 40 44" preserveAspectRatio="xMidYMid meet">
@@ -21,13 +30,32 @@
             </span>
             <span class="badge-progress-label">{{ needed }} to {{ progress.next.title }}</span>
         </span>
+
+        <Teleport to="body">
+            <span
+                v-if="tipOpen"
+                class="badge-tip"
+                :style="tipStyle"
+                role="tooltip"
+                @mouseenter="cancelClose"
+                @mouseleave="scheduleClose"
+            >
+                <span class="badge-tip-name">{{ badge.title }}</span>
+                <span class="badge-tip-rank">Rank {{ badge.tier }} of 10</span>
+                <span v-if="points != null" class="badge-tip-line">{{ points.toLocaleString() }} points</span>
+                <span v-if="progress && progress.next" class="badge-tip-line">{{ needed }} to {{ progress.next.title }}</span>
+                <span v-else-if="points != null" class="badge-tip-line badge-tip-apex">Top rank reached</span>
+                <button v-if="link" type="button" class="badge-tip-cta" @click="goToBadges">How badges work &rarr;</button>
+            </span>
+        </Teleport>
     </span>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onUnmounted } from 'vue'
 import { Crown } from 'lucide-vue-next'
 import type { Badge, Progress } from '../utils/badges'
+import { navigate } from '../utils/routes'
 
 const props = withDefaults(
     defineProps<{
@@ -35,21 +63,75 @@ const props = withDefaults(
         size?: 'mark' | 'chip' | 'full'
         /** Show the tier name next to the emblem. Defaults on except for `mark`. */
         label?: boolean
-        /** Progress-to-next, only rendered in the `full` size. */
+        /** The owner's points — shown in the hover tooltip when provided. */
+        points?: number
+        /** Progress-to-next, used by the tooltip and the `full` size bar. */
         progress?: Progress
         /** Apex-only: an idle No Mercy King renders dimmed. */
         dormant?: boolean
+        /** Make the badge a button that opens the /badges explainer. */
+        link?: boolean
     }>(),
-    { size: 'chip', label: undefined, progress: undefined, dormant: false },
+    { size: 'chip', label: undefined, points: undefined, progress: undefined, dormant: false, link: false },
 )
 
 const showLabel = computed(() => (props.label ?? props.size !== 'mark'))
 const crownSize = computed(() => (props.size === 'full' ? 20 : props.size === 'chip' ? 12 : 10))
 const pctText = computed(() => `${Math.round((props.progress?.pct ?? 0) * 100)}%`)
 const needed = computed(() => (props.progress?.needed ?? 0).toLocaleString())
-const titleText = computed(() =>
-    props.dormant ? `${props.badge.title} (dormant)` : props.badge.title,
-)
+
+const ariaLabel = computed(() => {
+    const parts = [`${props.badge.title}, rank ${props.badge.tier} of 10`]
+    if (props.points != null) parts.push(`${props.points} points`)
+    if (props.progress?.next) parts.push(`${props.progress.needed} to ${props.progress.next.title}`)
+    if (props.dormant) parts.push('dormant')
+    if (props.link) parts.push('opens how badges work')
+    return parts.join(', ')
+})
+
+// Hover/focus tooltip, teleported to body so it never clips inside tight seats
+// or overflow-hidden rows. Positioned from the badge's live rect. A short close
+// delay + the tooltip's own hover keep it alive while the pointer travels onto
+// it, so its "how badges work" link is actually reachable.
+const rootEl = ref<HTMLElement | null>(null)
+const tipOpen = ref(false)
+const tipStyle = ref<Record<string, string>>({})
+let closeTimer: ReturnType<typeof setTimeout> | null = null
+
+function cancelClose() {
+    if (closeTimer) { clearTimeout(closeTimer); closeTimer = null }
+}
+function openTip() {
+    cancelClose()
+    const el = rootEl.value
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    const below = r.top < 96
+    tipStyle.value = {
+        '--badge-color': props.badge.color,
+        left: `${Math.round(r.left + r.width / 2)}px`,
+        top: `${Math.round(below ? r.bottom + 8 : r.top - 8)}px`,
+        transform: below ? 'translate(-50%, 0)' : 'translate(-50%, -100%)',
+    }
+    tipOpen.value = true
+}
+function scheduleClose() {
+    cancelClose()
+    closeTimer = setTimeout(() => { tipOpen.value = false }, 160)
+}
+function goToBadges() {
+    cancelClose()
+    tipOpen.value = false
+    navigate({ name: 'badges' })
+}
+function onActivate(e: Event) {
+    if (!props.link) return
+    e.stopPropagation()
+    cancelClose()
+    tipOpen.value = false
+    navigate({ name: 'badges' })
+}
+onUnmounted(cancelClose)
 </script>
 
 <style scoped>
@@ -186,6 +268,70 @@ const titleText = computed(() =>
     text-transform: uppercase;
     color: rgba(255, 255, 255, 0.65);
 }
+
+.badge--link {
+    cursor: pointer;
+    border-radius: 6px;
+}
+.badge--link:hover .badge-emblem,
+.badge--link:focus-visible .badge-emblem {
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 6px var(--badge-color));
+}
+.badge--link:focus-visible {
+    outline: 2px solid var(--badge-color);
+    outline-offset: 2px;
+}
+
+/* Teleported hover tooltip — fixed, above all game/FX layers. --badge-color is
+   set inline on the element so color-mix resolves outside the badge subtree. */
+.badge-tip {
+    position: fixed;
+    z-index: 3200;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 12px;
+    min-width: 132px;
+    background: rgba(11, 11, 13, 0.97);
+    border: 1px solid color-mix(in srgb, var(--badge-color) 50%, transparent);
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    font-family: var(--font-mono);
+    line-height: 1.35;
+    white-space: nowrap;
+    pointer-events: auto;
+}
+.badge-tip-name {
+    font-family: var(--font-display), sans-serif;
+    font-size: 0.82rem;
+    letter-spacing: 0.06em;
+    color: var(--badge-color);
+    text-transform: uppercase;
+}
+.badge-tip-rank {
+    font-size: 0.58rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.45);
+}
+.badge-tip-line {
+    font-size: 0.72rem;
+    color: #e6e6e6;
+}
+.badge-tip-apex { color: var(--badge-color); }
+.badge-tip-cta {
+    margin-top: 3px;
+    padding: 0;
+    background: none;
+    border: none;
+    text-align: left;
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.06em;
+    color: rgba(255, 204, 0, 0.85);
+    cursor: pointer;
+}
+.badge-tip-cta:hover { color: #ffcc00; }
 
 @media (prefers-reduced-motion: reduce) {
     .badge-sheen,

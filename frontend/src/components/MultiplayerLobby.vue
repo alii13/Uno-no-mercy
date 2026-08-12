@@ -146,6 +146,15 @@
               :class="{ mine: row.is_me }"
             >
               <span class="board-rank">{{ row.rank }}</span>
+              <Badge
+                v-if="dailyBadgeFor(row)?.badge"
+                :badge="dailyBadgeFor(row)!.badge"
+                :points="dailyBadgeFor(row)!.points"
+                :progress="dailyBadgeFor(row)!.progress"
+                size="mark"
+                link
+                class="board-badge"
+              />
               <!-- share_code only exists once the v2 SQL is installed, so the
                    name falls back to plain text rather than a dead button. -->
               <component
@@ -156,6 +165,7 @@
               >
                 {{ row.username }}
               </component>
+              <span v-if="flagEmoji(row.country)" class="board-flag" :title="row.country ?? ''">{{ flagEmoji(row.country) }}</span>
               <span
                 class="board-metric"
                 :class="row.result === 'won' ? 'board-metric--won' : 'board-metric--out'"
@@ -523,6 +533,7 @@ import {
 import { localDateString } from '../utils/seededRng'
 import { generateDailyShareImage, shareOrDownload } from '../utils/shareImage'
 import { useLeaderboard } from '../composables/useLeaderboard'
+import { flagEmoji } from '../utils/country'
 import { useLiveTables } from '../composables/useLiveTables'
 import { nextBot, ladderProgress, isLadderComplete } from '../utils/botLadder'
 import { navigate } from '../utils/routes'
@@ -672,6 +683,20 @@ watch(
   (ids) => { if (ids.length) void fetchBadges(ids) },
   { immediate: true },
 )
+
+// Badges for the "Today's top" daily board.
+const { badges: dailyBadges, fetchBadges: fetchDailyBadges } = useBadges()
+watch(
+  () => lb.daily.value.map(r => r.user_id),
+  (ids) => {
+    const real = ids.filter((x): x is string => !!x)
+    if (real.length) void fetchDailyBadges(real)
+  },
+  { immediate: true },
+)
+function dailyBadgeFor(row: { user_id?: string | null }) {
+  return row.user_id ? dailyBadges.value[row.user_id] : undefined
+}
 const voiceStore = useVoiceStore()
 const gameStore = useGameStore()
 
@@ -1218,6 +1243,17 @@ function copyLink() {
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
+}
+
+.board-badge {
+  flex: none;
+  vertical-align: -2px;
+}
+
+.board-flag {
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+  line-height: 1;
 }
 
 .board-name {

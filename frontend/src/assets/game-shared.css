@@ -299,9 +299,9 @@
     box-shadow var(--duration-soft) var(--ease-soft);
 }
 
-/* Badge mark on a seat — small enough to sit inline with the name text. */
+/* Badge mark on a seat — small enough to sit inline before the name text. */
 .opponent-card .seat-emblem {
-  margin-left: 5px;
+  margin-right: 5px;
   vertical-align: -3px;
 }
 .opponent-card .seat-emblem .badge-emblem {

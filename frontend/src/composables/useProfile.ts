@@ -8,7 +8,7 @@
 
 import { ref } from 'vue'
 import { supabase } from '../lib/supabase'
-import type { ProfileAggregates } from '../utils/achievements'
+import type { ProfileAggregates } from '../utils/gameStats'
 import type { ActivityDay } from '../utils/activity'
 
 export interface PublicProfile extends ProfileAggregates {
