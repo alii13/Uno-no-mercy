@@ -119,6 +119,9 @@
     <!-- Stack cam: cinematic when the draw stack goes big -->
     <StackCam />
 
+    <!-- Badge-up: celebratory banner when a player crosses into a new badge -->
+    <BadgeUpBanner />
+
     <!-- Modals / Overlays -->
     <ColorPickerModal
       v-if="store.turnState === 'CHOOSING_ROULETTE_COLOR' && isMyTurn"
@@ -221,6 +224,8 @@ import GameOverModal from './GameOverModal.vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
 import FxLayer from './FxLayer.vue'
 import StackCam from './StackCam.vue'
+import BadgeUpBanner from './BadgeUpBanner.vue'
+import { useBadgeUp } from '../../composables/useBadgeUp'
 import { isBragworthy } from '../../utils/killCard'
 
 const emit = defineEmits<{ (e: 'claim-account'): void }>()
@@ -344,6 +349,7 @@ const prevHandLengths = ref<Record<string, number>>({})
 onMounted(async () => {
   preloadCardImages()
   music.start()
+  void badgeUp.snapshotBaseline()
   if (store.isDealing) {
     // The intro is eye candy — a failure in it must not abort the deal.
     await playDealerIntro().catch(() => {})
@@ -378,6 +384,7 @@ onUnmounted(() => {
 // Duck the music when the game ends so the modal entrance + win/loss
 // sting can cut through; restore on rematch.
 const retention = useRetentionStore()
+const badgeUp = useBadgeUp()
 // KO beat: white flash + board desaturation each time a player is knocked out.
 watch(() => store.players.filter(p => p.isEliminated).length, (now, prev) => {
   if (now > prev) fx.emit('ko', {})
@@ -398,6 +405,17 @@ watch(() => store.gameState, (now, prev) => {
         peakHand: s.peakCards || 0,
         mode: 'sp',
       })
+      // Badge-up: did this game push the player into a new tier? (crossed reads
+      // the retention tally we just updated, so it must run after record.)
+      const nb = badgeUp.crossed({
+        won: store.winnerId === 'p-0',
+        completedLoss: store.winnerId !== 'p-0',
+        cardsPlayedTotal: s.cardsPlayedTotal || 0,
+        drawCardsPlayed: s.drawCardsPlayed || 0,
+        biggestStackSurvived: s.biggestStackSurvived || 0,
+        unoCalls: s.unoCalls || 0,
+      })
+      if (nb) fx.emit('badgeUp', { name: myPlayer.value?.name ?? 'You', tier: nb.tier, self: true })
     }
   } else if (prev === 'GAME_OVER' && now === 'PLAYING') {
     music.unduck()

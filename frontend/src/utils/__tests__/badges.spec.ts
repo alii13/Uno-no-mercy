@@ -6,6 +6,8 @@ import {
     earnedPoints,
     aggregateRows,
     pointsFromRows,
+    pointsFromRetention,
+    gameContribution,
     POINT_WEIGHTS,
     decayFactor,
     applyDecay,
@@ -116,6 +118,45 @@ describe('aggregateRows (mirrors badges.sql)', () => {
         ]
         // 1 win(100) + 3 draw(6) + 8 stack(24) + 1 uno(4) + 1 day(25) = 159
         expect(pointsFromRows(rows)).toBe(159)
+    })
+})
+
+describe('pointsFromRetention (guest estimate)', () => {
+    it('scores wins, completed losses, and mercy calls from local stats', () => {
+        // 3 wins(300) + 2 losses(24) + 5 mercy(20) = 344
+        expect(pointsFromRetention({ gamesPlayed: 5, gamesWon: 3, unoCalls: 5 })).toBe(344)
+    })
+
+    it('is an undercount vs the full formula, so claiming only bumps up', () => {
+        const guest = pointsFromRetention({ gamesPlayed: 1, gamesWon: 1, unoCalls: 1 })
+        // Same game through the full formula also scores draw cards + stack + day.
+        const server = pointsFromRows([
+            row({ result: 'won', cards_played_total: 20, draw_cards_played: 3, biggest_stack_survived: 8, uno_calls: 1, played_at: '2026-07-01T00:00:00Z' }),
+        ])
+        expect(guest).toBeLessThan(server)
+    })
+
+    it('never goes negative on odd inputs', () => {
+        expect(pointsFromRetention({ gamesPlayed: 0, gamesWon: 5, unoCalls: 0 })).toBe(500)
+        expect(pointsFromRetention({ gamesPlayed: 0, gamesWon: 0, unoCalls: 0 })).toBe(0)
+    })
+})
+
+describe('gameContribution (signed-in live badge-up)', () => {
+    it('adds a win, draw cards, stack, and mercy for a real game', () => {
+        // win(100) + 3 draw(6) + 8 stack(24) + 2 mercy(8) = 138
+        expect(gameContribution({ won: true, completedLoss: false, cardsPlayedTotal: 20, drawCardsPlayed: 3, biggestStackSurvived: 8, unoCalls: 2 })).toBe(138)
+    })
+
+    it('does not mint win/loss points for a walkover (< 5 cards)', () => {
+        expect(gameContribution({ won: true, completedLoss: false, cardsPlayedTotal: 2, drawCardsPlayed: 0, biggestStackSurvived: 0, unoCalls: 0 })).toBe(0)
+    })
+
+    it('a baseline + contribution can cross a tier', () => {
+        const before = 590 // Scrapper, just under Enforcer (600)
+        const after = before + gameContribution({ won: true, completedLoss: false, cardsPlayedTotal: 20, drawCardsPlayed: 0, biggestStackSurvived: 0, unoCalls: 0 })
+        expect(badgeFor(before).title).toBe('Scrapper')
+        expect(badgeFor(after).title).toBe('Enforcer')
     })
 })
 

@@ -597,6 +597,17 @@ export class GameRoomDO {
                 return
             }
 
+            case 'badge-up': {
+                // A cosmetic "so-and-so reached a new badge" — relay to everyone
+                // else at the table. No game state, no persistence.
+                const tier = Number(msg.tier)
+                if (!Number.isFinite(tier) || tier < 1 || tier > 10) return
+                for (const s of this.roomSockets()) {
+                    if (s.userId !== tag.userId) this.send(s.ws, { t: 'badge-up', userId: tag.userId, tier })
+                }
+                return
+            }
+
             case 'kick': {
                 const roomRec = await this.ctx.storage.get<RoomRecord>('room')
                 if (roomRec?.hostUserId !== tag.userId || msg.userId === tag.userId) {

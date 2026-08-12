@@ -107,6 +107,16 @@ export function pointsFromRows(rows: ResultRow[]): number {
     return earnedPoints(aggregateRows(rows))
 }
 
+/** Guests have no server history, only a local lifetime tally that can't see
+ *  per-game stats (draw cards, stacks, days). A reduced estimate off the fields
+ *  the retention store does keep - always an undercount of the real formula, so
+ *  claiming an account only ever bumps a guest's badge up. */
+export function pointsFromRetention(a: { gamesPlayed: number; gamesWon: number; unoCalls: number }): number {
+    const wins = Math.max(0, a.gamesWon)
+    const completedLosses = Math.max(0, a.gamesPlayed - a.gamesWon)
+    return wins * POINT_WEIGHTS.win + completedLosses * POINT_WEIGHTS.completedLoss + Math.max(0, a.unoCalls) * POINT_WEIGHTS.unoCall
+}
+
 /** Inactivity decay: the surplus above your current tier bleeds while you're
  *  away, floored at the tier threshold so a badge never demotes. */
 export const DECAY = {
@@ -140,6 +150,30 @@ export function daysIdleFromRows(rows: ResultRow[], nowMs: number): number {
     }
     if (newest === 0) return 0
     return Math.max(0, Math.floor((nowMs - newest) / MS_PER_DAY))
+}
+
+/** Points a single finished game adds, for the signed-in live badge-up check
+ *  (added to a server baseline so no post-game round-trip is needed). The day
+ *  bonus is left out, so the check is conservative - it can fire a game late,
+ *  never early. Guests reverse their local tally instead (pointsFromRetention). */
+export interface GameContribution {
+    won: boolean
+    completedLoss: boolean
+    cardsPlayedTotal: number
+    drawCardsPlayed: number
+    biggestStackSurvived: number
+    unoCalls: number
+}
+
+export function gameContribution(g: GameContribution): number {
+    const real = g.cardsPlayedTotal >= MIN_PLAYS
+    let p = 0
+    if (g.won && real) p += POINT_WEIGHTS.win
+    else if (g.completedLoss && real) p += POINT_WEIGHTS.completedLoss
+    p += Math.max(0, g.unoCalls) * POINT_WEIGHTS.unoCall
+    p += Math.max(0, g.drawCardsPlayed) * POINT_WEIGHTS.drawCard
+    p += Math.max(0, g.biggestStackSurvived) * POINT_WEIGHTS.stackSurvived
+    return p
 }
 
 /** Cosmetic badge for a single-player bot, tied to its ladder rung (1-based).

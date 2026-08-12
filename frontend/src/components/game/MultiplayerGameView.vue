@@ -129,6 +129,9 @@
     <!-- Stack cam: cinematic when the draw stack goes big -->
     <StackCam />
 
+    <!-- Badge-up: in-room banner when any player crosses into a new badge -->
+    <BadgeUpBanner />
+
     <!-- Color Picker Modal (for regular Wild cards) -->
     <ColorPickerModal 
       v-if="showColorPicker"
@@ -283,6 +286,8 @@ import GameOverModal from './GameOverModal.vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
 import FxLayer from './FxLayer.vue'
 import StackCam from './StackCam.vue'
+import BadgeUpBanner from './BadgeUpBanner.vue'
+import { useBadgeUp } from '../../composables/useBadgeUp'
 import type { Card, CardColor } from '../../types/card'
 import { canPlayCard } from '../../utils/gameRules'
 import { countByColor } from '../../utils/gameHelpers'
@@ -402,6 +407,12 @@ const direction = computed(() => currentGame.value?.direction || 1)
 const drawStack = computed(() => currentGame.value?.draw_stack || 0)
 useStackEscalation(drawStack)
 const fx = useGameFx()
+const badgeUp = useBadgeUp()
+
+// Another seat's badge-up arrived over the wire — show it to this client too.
+watch(() => mpStore.lastBadgeUp, (b) => {
+  if (b) fx.emit('badgeUp', { name: b.name, tier: b.tier, self: false })
+})
 // Ambient table heat rises with the stack and the local hand's mercy proximity
 useHeatWiring(() => drawStack.value, () => myHand.value.length)
 const currentColor = computed(() => (currentGame.value?.current_color || 'red') as CardColor)
@@ -835,6 +846,19 @@ watch(gameStatus, (now, prev) => {
         peakHand: s.peakCards || 0,
         mode: 'mp',
       })
+      // Badge-up: if this game crossed a tier, celebrate here and tell the room.
+      const nb = badgeUp.crossed({
+        won: isMpWinner.value,
+        completedLoss: !isMpWinner.value,
+        cardsPlayedTotal: s.cardsPlayedTotal || 0,
+        drawCardsPlayed: s.drawCardsPlayed || 0,
+        biggestStackSurvived: s.biggestStackSurvived || 0,
+        unoCalls: s.unoCalls || 0,
+      })
+      if (nb) {
+        fx.emit('badgeUp', { name: myPlayer.value?.name ?? 'You', tier: nb.tier, self: true })
+        mpStore.sendBadgeUp(nb.tier)
+      }
     }
   }
 })
@@ -842,6 +866,7 @@ watch(gameStatus, (now, prev) => {
 // Initialize component and run initial deal animation if needed
 onMounted(async () => {
   preloadCardImages()
+  void badgeUp.snapshotBaseline()
   // If we landed straight into a playing game (refresh / deep link), kick off music.
   if (gameStatus.value === 'playing') music.start()
 
