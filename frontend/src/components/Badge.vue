@@ -16,11 +16,7 @@
         @keydown.space.prevent="onActivate"
     >
         <span class="badge-emblem" aria-hidden="true">
-            <svg class="badge-shield" viewBox="0 0 40 44" preserveAspectRatio="xMidYMid meet">
-                <path d="M20 1.5 L37 9 V22 C37 32.5 28.7 39.6 20 42.5 C11.3 39.6 3 32.5 3 22 V9 Z" />
-            </svg>
-            <Crown v-if="badge.tier === 10" class="badge-crown" :size="crownSize" />
-            <span v-else class="badge-tier">{{ badge.tier }}</span>
+            <img class="badge-art" :src="art" alt="" draggable="false" />
             <span class="badge-sheen"></span>
         </span>
         <span v-if="showLabel" class="badge-label">{{ badge.title }}</span>
@@ -53,8 +49,8 @@
 
 <script setup lang="ts">
 import { computed, ref, onUnmounted } from 'vue'
-import { Crown } from 'lucide-vue-next'
 import type { Badge, Progress } from '../utils/badges'
+import { BADGE_ART } from '../utils/badgeArt'
 import { navigate } from '../utils/routes'
 
 const props = withDefaults(
@@ -76,7 +72,7 @@ const props = withDefaults(
 )
 
 const showLabel = computed(() => (props.label ?? props.size !== 'mark'))
-const crownSize = computed(() => (props.size === 'full' ? 20 : props.size === 'chip' ? 12 : 10))
+const art = computed(() => BADGE_ART[props.badge.tier] ?? BADGE_ART[1])
 const pctText = computed(() => `${Math.round((props.progress?.pct ?? 0) * 100)}%`)
 const needed = computed(() => (props.progress?.needed ?? 0).toLocaleString())
 
@@ -149,60 +145,41 @@ onUnmounted(cancelClose)
     gap: 0.5em;
 }
 
-/* Emblem: a solid shield in the tier colour, a metallic rim, the tier number
-   (or a crown at the apex), and a sheen that sweeps on hover. */
+/* Emblem: the tier's heraldic SVG art, with a sheen masked to its own
+   silhouette so the shine sweeps exactly across the shape on hover. */
 .badge-emblem {
     position: relative;
-    display: inline-grid;
-    place-items: center;
+    display: block;
     width: var(--emblem-size, 22px);
-    height: calc(var(--emblem-size, 22px) * 1.1);
+    height: var(--emblem-size, 22px);
     flex: none;
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
 }
-.badge--mark { --emblem-size: 20px; }
-.badge--chip { --emblem-size: 22px; }
-.badge--full { --emblem-size: 64px; }
+.badge--mark { --emblem-size: 22px; }
+.badge--chip { --emblem-size: 24px; }
+.badge--full { --emblem-size: 72px; }
 
-.badge-shield {
+.badge-art {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
-}
-.badge-shield path {
-    fill: var(--badge-color);
-    stroke: rgba(255, 255, 255, 0.55);
-    stroke-width: 1.4;
-    paint-order: stroke fill;
+    object-fit: contain;
+    display: block;
 }
 
-.badge-tier,
-.badge-crown {
-    position: relative;
-    z-index: 1;
-    color: #fff;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-}
-.badge-tier {
-    font-family: var(--font-display), var(--font-mono);
-    font-weight: 800;
-    font-size: calc(var(--emblem-size, 22px) * 0.5);
-}
-.badge-crown { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5)); }
-
-/* Diagonal sheen — parked off-emblem, sweeps across on hover. */
+/* Diagonal sheen — clipped to the shared heater-shield silhouette so the
+   shine sweeps across the emblem body on hover. */
 .badge-sheen {
     position: absolute;
     inset: 0;
-    border-radius: inherit;
-    background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.75) 50%, transparent 70%);
+    background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.8) 50%, transparent 70%);
     background-size: 220% 100%;
     background-position: 140% 0;
     mix-blend-mode: screen;
     opacity: 0;
     pointer-events: none;
-    clip-path: polygon(50% 0, 92% 18%, 92% 52%, 50% 98%, 8% 52%, 8% 18%);
+    clip-path: polygon(50% 4%, 81% 16%, 78% 52%, 50% 95%, 22% 52%, 19% 16%);
 }
 .badge:hover .badge-sheen {
     opacity: 1;
@@ -211,9 +188,6 @@ onUnmounted(cancelClose)
 }
 
 /* Top two tiers get a slow, always-on foil shimmer so they read as earned. */
-.badge--foil .badge-shield path {
-    stroke: rgba(255, 255, 255, 0.9);
-}
 .badge--foil .badge-sheen {
     opacity: 0.9;
     animation: badge-foil 3.4s ease-in-out infinite;
