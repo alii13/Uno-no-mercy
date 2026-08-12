@@ -13,6 +13,8 @@
  * are visible only after someone chooses to spectate.
  */
 
+export type RoomPhase = 'lobby' | 'playing' | 'finished'
+
 export interface DirEntry {
     /** When the room first registered. Ordering key — oldest first. */
     at: number
@@ -24,6 +26,13 @@ export interface DirEntry {
     mode?: string
     /** Equipped card-back ids, cosmetic only. */
     skins?: string[]
+    /**
+     * The room's phase. `inProgress` alone cannot say "finished", and a
+     * finished game reports inProgress: false — which put dead rooms back in
+     * the quick-match pool, where every joiner rendered someone else's
+     * game-over on arrival.
+     */
+    status?: RoomPhase
 }
 
 /** What a room looks like to the landing page. */
@@ -34,6 +43,12 @@ export interface PublicTable {
     inProgress: boolean
     mode: string
     skins: string[]
+    status: RoomPhase
+}
+
+/** Entries written before `status` existed only know started-or-not. */
+function entryStatus(e: DirEntry): RoomPhase {
+    return e.status ?? (e.inProgress ? 'playing' : 'lobby')
 }
 
 /**
@@ -60,13 +75,15 @@ export function normalizeDir(raw: Record<string, DirEntry | number> | undefined)
  *
  * Started rooms stay registered now — the landing strip wants to show a game
  * in progress, and evicting them on start meant the directory only ever held
- * empty lobbies. Quick match must therefore filter them out here, or it would
- * drop someone into a game already under way.
+ * empty lobbies. Quick match must therefore filter here, on the room's phase:
+ * only a room still in its lobby has a seat to offer. A playing room would
+ * drop the joiner into a game under way; a finished one would seat them in
+ * front of someone else's game-over.
  */
 export function dirCodes(raw: Record<string, DirEntry | number> | undefined): string[] {
     const dir = normalizeDir(raw)
     return Object.entries(dir)
-        .filter(([, e]) => !e.inProgress)
+        .filter(([, e]) => entryStatus(e) === 'lobby')
         .sort((a, b) => a[1].at - b[1].at)
         .map(([code]) => code)
 }
@@ -84,6 +101,8 @@ export function liveTables(
     const dir = normalizeDir(raw)
     return Object.entries(dir)
         .filter(([, e]) => (e.players ?? 0) > 0)
+        // A finished game is not an invitation to anything.
+        .filter(([, e]) => entryStatus(e) !== 'finished')
         .filter(([, e]) => now - (e.updatedAt ?? e.at) < DIR_STALE_MS)
         // Fullest first: a table with people on it is the better invitation,
         // and a nearly-empty room reads as a dead game.
@@ -96,5 +115,6 @@ export function liveTables(
             inProgress: !!e.inProgress,
             mode: e.mode ?? 'official',
             skins: e.skins ?? [],
+            status: entryStatus(e),
         }))
 }

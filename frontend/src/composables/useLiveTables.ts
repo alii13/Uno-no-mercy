@@ -23,6 +23,8 @@ export interface LiveTable {
     inProgress: boolean
     mode: string
     skins: string[]
+    /** Absent from an old Worker's payload — derive from inProgress then. */
+    status?: 'lobby' | 'playing' | 'finished'
 }
 
 /** Refresh cadence. Rooms change on the order of tens of seconds. */
@@ -49,9 +51,11 @@ export function useLiveTables() {
         }
     }
 
-    /** Rooms someone can actually sit down in right now. */
+    /** Rooms someone can actually sit down in right now. Only a room still
+     *  in its lobby qualifies — `!inProgress` alone also matched finished
+     *  rooms, handing joiners someone else's game-over. */
     const joinable = computed(() =>
-        tables.value.filter((t) => !t.inProgress && t.seatsFree > 0),
+        tables.value.filter((t) => (t.status ?? (t.inProgress ? 'playing' : 'lobby')) === 'lobby' && t.seatsFree > 0),
     )
 
     /** Shown as context only — a running game has no seat to take. */

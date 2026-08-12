@@ -159,13 +159,23 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         }))
     }
 
+    // A joiner with no seat in a finished game (a stale invite link, or a
+    // directory race serving a room right as its game ended) must not stare
+    // at someone else's game-over. Treat the room as its waiting room — the
+    // next deal seats everyone connected, this joiner included.
+    const ghostInFinishedGame = computed(() => {
+        const v = view.value
+        const me = myUserId.value
+        return !!v && v.status === 'finished' && !!me && !v.players.some(p => p.userId === me)
+    })
+
     const currentGame = computed<GameRow | null>(() => {
         const v = view.value
         if (!v || !roomCodeRef.value) return null
         return {
             id: v.gameId ?? roomCode.value,
             room_code: roomCode.value,
-            status: v.status === 'lobby' ? 'waiting' : v.status,
+            status: v.status === 'lobby' || ghostInFinishedGame.value ? 'waiting' : v.status,
             host_id: v.hostUserId ?? hostUserId.value ?? '',
             current_player_id: v.currentPlayerId,
             direction: v.direction,
@@ -187,7 +197,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
     const gamePlayers = computed<GamePlayerRow[]>(() => {
         const v = view.value
-        if (v && v.status !== 'lobby') {
+        if (v && v.status !== 'lobby' && !ghostInFinishedGame.value) {
             return v.players.map(p => ({
                 id: p.userId,
                 game_id: roomCodeRef.value ?? '',
@@ -422,6 +432,13 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         closedByUs = false
         connectFailReason = null
         realtimeStatus.value = 'CONNECTING'
+        // Supersede any previous socket. Null the ref first so its close
+        // handler sees itself replaced and neither reconnects nor touches
+        // shared state — a late restore socket racing a quick match used to
+        // overwrite the new room's state with the old room's game-over.
+        const prev = ws
+        ws = null
+        try { prev?.close() } catch { /* noop */ }
         return new Promise<boolean>((resolve) => {
             const socket = new WebSocket(wsUrl(code))
             ws = socket
@@ -437,6 +454,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 socket.send(JSON.stringify({ t: 'auth', token, name: myNickname(), skin: getEquippedId() } satisfies ClientMsg))
             }
             socket.onmessage = (e) => {
+                // Only the current socket may drive the store.
+                if (ws !== socket) return
                 const msg = JSON.parse(e.data) as ServerMsg
                 if (msg.t === 'hello') {
                     roomCodeRef.value = code
@@ -489,6 +508,19 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
     function sendMsg(msg: ClientMsg) {
         if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg))
+    }
+
+    /** Drop the socket and forget the room, without the leave ceremony —
+     *  for backing out of a room we should never have sat down in. */
+    function quietDisconnect() {
+        closedByUs = true
+        if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
+        const prev = ws
+        ws = null
+        try { prev?.close() } catch { /* noop */ }
+        realtimeStatus.value = 'CLOSED'
+        try { localStorage.removeItem(STORED_ROOM_KEY) } catch { /* noop */ }
+        resetState()
     }
 
     function sendBadgeUp(tier: number) {
@@ -633,8 +665,14 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 .catch(() => [] as string[])
             for (const code of codes) {
                 if (await connect(code)) {
-                    trackJoined('quick_match')
-                    return code
+                    // Directory races aside, never sit down in a room whose
+                    // game is not in its lobby — a finished room renders
+                    // someone else's game-over on arrival.
+                    if (view.value?.status === 'lobby') {
+                        trackJoined('quick_match')
+                        return code
+                    }
+                    quietDisconnect()
                 }
             }
             // Nothing open — host a public room and wait for company.
@@ -664,6 +702,13 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             trackJoinFailed('restore', 1)
             try { localStorage.removeItem(STORED_ROOM_KEY) } catch { /* noop */ }
             resetState()
+            return
+        }
+        // A restore that lands in a finished game this user never sat in is
+        // the ghost trap, not a resume — forget the room. A finished game
+        // they DID sit in keeps its game-over (and the rematch button).
+        if (ghostInFinishedGame.value) {
+            quietDisconnect()
             return
         }
         // A restored game keeps its identity so a rematch isn't miscounted
@@ -807,6 +852,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         lastBadgeUp,
         sendBadgeUp,
         eliminationOrder,
+        ghostInFinishedGame,
         catchableUserId,
         catchPlayer,
         mpStats,
