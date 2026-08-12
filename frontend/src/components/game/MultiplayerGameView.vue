@@ -10,6 +10,7 @@
         :key="opp.user_id"
         :uid="opp.user_id"
         :name="opp.name"
+        :badge="mpBadges[opp.user_id]?.badge"
         :card-count="(opp.hand as Card[])?.length || 0"
         count-label="INTEL"
         :is-active="currentGame?.current_player_id === opp.user_id"
@@ -263,6 +264,7 @@ import { useAuthStore } from '../../stores/authStore'
 import { useVoiceStore } from '../../stores/voiceStore'
 import { soundEffects } from '../../composables/useSoundEffects'
 import { useCardAnimations } from '../../composables/useCardAnimations'
+import { useBadges } from '../../composables/useBadges'
 import { preloadCardImages } from '../../utils/preloadCardImages'
 import CardPile from './CardPile.vue'
 import HandFan from './HandFan.vue'
@@ -378,6 +380,14 @@ const visibleHand = computed(() => {
 // Computed from store
 const myPlayer = computed(() => mpStore.myPlayer)
 const allOpponents = computed(() => mpStore.opponents)
+
+// Badges for every seat — fetched once via player_points as ids become known.
+const { badges: mpBadges, fetchBadges } = useBadges()
+watch(
+  () => [myPlayer.value?.user_id, ...allOpponents.value.map(o => o.user_id)].filter(Boolean) as string[],
+  (ids) => { if (ids.length) void fetchBadges(ids) },
+  { immediate: true },
+)
 const myHand = computed(() => (myPlayer.value?.hand as Card[]) || [])
 const myColorCounts = computed(() => countByColor(myHand.value))
 const isMyTurn = computed(() => mpStore.isMyTurn)

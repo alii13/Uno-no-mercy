@@ -11,6 +11,7 @@
         :ref="(el) => { if (el) opponentRefs[player.id] = (el as any).$el }"
         :uid="player.id"
         :name="player.name"
+        :badge="seatBadge(player.id)"
         :card-count="player.hand.length"
         :is-active="player.id === store.currentPlayer?.id"
         :is-selectable="store.turnState === 'CHOOSING_PLAYER_TO_SWAP' && isMyTurn"
@@ -195,6 +196,8 @@ import { useGameStore } from '../../stores/gameStore'
 import { useAuthStore } from '../../stores/authStore'
 import { canPlayCard } from '../../utils/gameRules'
 import { countByColor } from '../../utils/gameHelpers'
+import { botBadge } from '../../utils/badges'
+import { BOT_LADDER } from '@engine/bot'
 import type { Card as CardType, CardColor } from '../../types/card'
 import { soundEffects } from '../../composables/useSoundEffects'
 import { useCardAnimations } from '../../composables/useCardAnimations'
@@ -302,6 +305,15 @@ useWildFloodWiring(() => store.currentColor, () => store.topCard?.color)
 // Stack cam: light up while the draw stack is at cinematic size
 useStackCamWiring(() => store.drawStack, () => store.currentColor)
 const opponents = computed(() => store.players.filter(p => p.id !== myPlayerId))
+
+// Bots wear a cosmetic badge tied to their ladder rung, so a solo seat still
+// reads as "ranked". The human's real badge shows on their own HUD.
+function seatBadge(playerId: string) {
+  const prof = store.botProfiles[playerId]
+  if (!prof) return undefined
+  const rung = BOT_LADDER.findIndex(b => b.id === prof.id) + 1
+  return rung > 0 ? botBadge(rung) : undefined
+}
 
 // An opponent caught without calling UNO — the human can penalize them.
 const caughtTarget = computed(() => {

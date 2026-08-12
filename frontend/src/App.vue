@@ -76,6 +76,12 @@
       @back="navigate({ name: 'home' })"
     />
 
+    <!-- Badge system explainer (/badges) — how points and tiers work -->
+    <BadgesPage
+      v-else-if="currentRoute.name === 'badges' && !inMpMatch"
+      @back="navigate({ name: 'home' })"
+    />
+
     <!-- Shareable public profile (/p/<code>) — works signed in or out -->
     <ProfilePage
       v-else-if="currentRoute.name === 'profile' && !inMpMatch"
@@ -167,6 +173,7 @@ import Button from './components/ui/Button.vue'
 const MultiplayerLobby = defineAsyncComponent(() => import('./components/MultiplayerLobby.vue'))
 const PlayerDashboard = defineAsyncComponent(() => import('./components/PlayerDashboard.vue'))
 const LeaderboardPage = defineAsyncComponent(() => import('./components/LeaderboardPage.vue'))
+const BadgesPage = defineAsyncComponent(() => import('./components/BadgesPage.vue'))
 const ProfilePage = defineAsyncComponent(() => import('./components/ProfilePage.vue'))
 const GameView = defineAsyncComponent(() => import('./components/game/GameView.vue'))
 const MultiplayerGameView = defineAsyncComponent(() => import('./components/game/MultiplayerGameView.vue'))

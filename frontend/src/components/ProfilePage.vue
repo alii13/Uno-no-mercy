@@ -42,17 +42,15 @@
             <span v-if="flagEmoji(p.country)" class="pp-flag" :title="p.country ?? ''">{{ flagEmoji(p.country) }}</span>
           </div>
           <div class="pp-chips">
-            <span class="pp-chip pp-chip--rank" :style="{ color: rank.color, borderColor: rank.color }">
-              <Star :size="11" aria-hidden="true" /> {{ rank.title.toUpperCase() }}
-            </span>
+            <Badge v-if="badgeInfo" :badge="badgeInfo.badge" size="chip" class="pp-badge" />
             <span class="pp-chip">{{ p.wins }} WINS</span>
             <span class="pp-chip">SINCE {{ memberSince }}</span>
           </div>
-          <div v-if="nextRank" class="pp-progress">
-            <div class="pp-progress-bar" role="img" :aria-label="`${nextRank.winsNeeded} wins to ${nextRank.title}`">
-              <div class="pp-progress-fill" :style="{ width: progressPct + '%', background: rank.color }"></div>
+          <div v-if="badgeInfo?.progress.next" class="pp-progress">
+            <div class="pp-progress-bar" role="img" :aria-label="`${badgeInfo.progress.needed} points to ${badgeInfo.progress.next.title}`">
+              <div class="pp-progress-fill" :style="{ width: Math.round(badgeInfo.progress.pct * 100) + '%', background: badgeInfo.badge.color }"></div>
             </div>
-            <span class="pp-progress-label">{{ nextRank.winsNeeded }} WINS TO {{ nextRank.title.toUpperCase() }}</span>
+            <span class="pp-progress-label">{{ badgeInfo.progress.needed.toLocaleString() }} POINTS TO {{ badgeInfo.progress.next.title.toUpperCase() }}</span>
           </div>
         </div>
       </section>
@@ -179,7 +177,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick, type FunctionalComponent } from 'vue'
 import {
-    Star, Trophy, Swords, Target, Flame, Zap, Shield, Layers, SkipForward, Plus,
+    Trophy, Swords, Target, Flame, Zap, Shield, Layers, SkipForward, Plus,
     Droplet, Medal, Award, Crown, Gem, ShieldCheck, TrendingUp, Axe, Skull,
     Sparkles, Megaphone, Crosshair, Hourglass, ArrowLeftRight, CalendarCheck,
 } from 'lucide-vue-next'
@@ -192,11 +190,12 @@ import { skinColors } from '../utils/cosmetics'
 import { flagEmoji } from '../utils/country'
 import { shareProfile } from '../utils/share'
 import { track } from '../utils/analytics'
-import { RANKS, rankFor } from '../utils/ranks'
+import { useBadges } from '../composables/useBadges'
 import ActivityHeatmap from './ActivityHeatmap.vue'
 import CardBack from './game/CardBack.vue'
 import SiteFooter from './SiteFooter.vue'
 import Button from './ui/Button.vue'
+import Badge from './Badge.vue'
 
 const props = defineProps<{ code: string }>()
 defineEmits<{ (e: 'back'): void; (e: 'dashboard'): void }>()
@@ -209,18 +208,9 @@ const contentEl = ref<HTMLElement | null>(null)
 const p = computed(() => pp.profile.value)
 const isOwn = computed(() => !!authStore.profile?.share_code && authStore.profile.share_code === props.code)
 
-const rank = computed(() => rankFor(p.value?.wins ?? 0))
-const nextRank = computed(() => {
-    const wins = p.value?.wins ?? 0
-    const next = RANKS.find(r => r.threshold > wins)
-    return next ? { title: next.title, winsNeeded: next.threshold - wins, threshold: next.threshold } : null
-})
-const progressPct = computed(() => {
-    if (!nextRank.value) return 100
-    const wins = p.value?.wins ?? 0
-    const cur = rank.value.threshold
-    return Math.round(((wins - cur) / (nextRank.value.threshold - cur)) * 100)
-})
+const { badges, fetchBadges } = useBadges()
+watch(() => p.value?.user_id, (id) => { if (id) void fetchBadges([id]) }, { immediate: true })
+const badgeInfo = computed(() => (p.value?.user_id ? badges.value[p.value.user_id] : undefined))
 
 const winRate = computed(() => {
     if (!p.value || p.value.games === 0) return 0

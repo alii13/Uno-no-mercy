@@ -44,11 +44,14 @@
         <div class="identity-avatar">{{ username.charAt(0).toUpperCase() }}</div>
         <div class="identity-info">
           <div class="identity-name">{{ username }}</div>
-          <div class="identity-rank" :style="{ color: rank.color }">
-            {{ rank.title }}
+          <div class="identity-rank">
+            <button class="identity-badge-btn" @click="navigate({ name: 'badges' })" title="How badges work">
+              <Badge :badge="badge" size="chip" />
+            </button>
           </div>
-          <div v-if="nextRank" class="identity-progress">
-            {{ nextRank.winsNeeded }} wins to {{ nextRank.title }}
+          <div v-if="badgeProgress.next" class="identity-progress">
+            {{ badgeProgress.needed.toLocaleString() }} points to {{ badgeProgress.next.title }}
+            <button class="identity-how" @click="navigate({ name: 'badges' })">How badges work &rarr;</button>
           </div>
           <button
             v-if="authStore.profile?.share_code"
@@ -275,6 +278,7 @@ import { useRetentionStore } from '../stores/retentionStore'
 import { useAuthStore } from '../stores/authStore'
 import { navigate } from '../utils/routes'
 import Button from './ui/Button.vue'
+import Badge from './Badge.vue'
 
 defineEmits<{
   (e: 'back'): void
@@ -294,7 +298,7 @@ const {
   totalCardsPlayed, totalSkipsDealt,
   totalUnoCalls, biggestStackSurvived,
   peakCardsEver, ruthlessness,
-  rank, nextRank, recentGames, avgGameDuration,
+  badge, badgeProgress, recentGames, avgGameDuration,
   results,
 } = usePlayerStats()
 
@@ -325,7 +329,7 @@ function formatDate(dateStr: string): string {
 }
 
 function getShareText() {
-  return `I'm a ${rank.value.title} in Open Mercy - ${winRate.value}% win rate across ${gamesPlayed.value} games. Think you can beat me?`
+  return `I'm a ${badge.value.title} in Open Mercy - ${winRate.value}% win rate across ${gamesPlayed.value} games. Think you can beat me?`
 }
 
 function renderShareCanvas() {
@@ -345,9 +349,9 @@ function renderShareCanvas() {
   ctx.font = 'bold 28px monospace'
   ctx.fillText('OPEN MERCY', 30, 55)
 
-  ctx.fillStyle = rank.value.color
+  ctx.fillStyle = badge.value.color
   ctx.font = 'bold 18px monospace'
-  ctx.fillText(rank.value.title.toUpperCase(), 30, 85)
+  ctx.fillText(badge.value.title.toUpperCase(), 30, 85)
 
   ctx.fillStyle = '#a1a1aa'
   ctx.font = '16px monospace'
@@ -610,6 +614,12 @@ function copyShareLink() {
   font-size: var(--text-base);
   letter-spacing: 0.1em;
 }
+.identity-badge-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
 
 .identity-progress {
   font-family: var(--font-mono);
@@ -617,6 +627,19 @@ function copyShareLink() {
   color: var(--text-muted);
   letter-spacing: 0.1em;
 }
+.identity-how {
+  display: block;
+  margin-top: var(--spacing-1);
+  background: none;
+  border: none;
+  padding: 0;
+  color: rgba(255, 204, 0, 0.75);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+.identity-how:hover { color: #ffcc00; }
 
 .public-profile-link {
   align-self: flex-start;

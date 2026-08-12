@@ -299,6 +299,16 @@
     box-shadow var(--duration-soft) var(--ease-soft);
 }
 
+/* Badge mark on a seat — small enough to sit inline with the name text. */
+.opponent-card .seat-emblem {
+  margin-left: 5px;
+  vertical-align: -3px;
+}
+.opponent-card .seat-emblem .badge-emblem {
+  width: 14px;
+  height: 15px;
+}
+
 .opponent-card.active {
   border-color: var(--color-neon-blue);
   background: rgba(0, 243, 255, 0.06);

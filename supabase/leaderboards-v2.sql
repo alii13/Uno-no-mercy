@@ -3,6 +3,9 @@
 -- the return type changed, hence drop + recreate). Table changes are
 -- additive: two nullable profile columns. The share_code default backfills
 -- existing rows with distinct codes.
+--
+-- Re-run after adding badges: both board functions now also return user_id
+-- so the client can look up each row's badge via player_points (badges.sql).
 
 -- Shareable, rename-safe identity for /p/<code> profile URLs.
 alter table public.profiles
@@ -21,6 +24,7 @@ create or replace function public.daily_leaderboard(
 )
 returns table (
     rank bigint,
+    user_id uuid,
     username text,
     share_code text,
     country text,
@@ -42,6 +46,7 @@ as $$
                      (gr.cards_played_total + gr.draws_taken) asc,
                      gr.game_duration_secs asc
         ) as rank,
+        gr.user_id,
         coalesce(p.username, 'PLAYER') as username,
         p.share_code,
         p.country,
@@ -66,6 +71,7 @@ drop function if exists public.weekly_wins_leaderboard(int);
 create or replace function public.weekly_wins_leaderboard(max_rows int default 50)
 returns table (
     rank bigint,
+    user_id uuid,
     username text,
     share_code text,
     country text,
@@ -85,6 +91,7 @@ as $$
             order by count(*) filter (where gr.result = 'won') desc,
                      count(*) asc
         ) as rank,
+        gr.user_id,
         coalesce(p.username, 'PLAYER') as username,
         p.share_code,
         p.country,

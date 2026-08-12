@@ -12,6 +12,7 @@ import type { ProfileAggregates } from '../utils/achievements'
 import type { ActivityDay } from '../utils/activity'
 
 export interface PublicProfile extends ProfileAggregates {
+    user_id: string | null
     username: string
     country: string | null
     skin: string | null

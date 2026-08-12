@@ -10,6 +10,7 @@ import { ref, readonly } from 'vue'
 export type Route =
     | { name: 'home' }
     | { name: 'leaderboard' }
+    | { name: 'badges' }
     | { name: 'profile'; code: string }
     | { name: 'kill'; code: string }
 
@@ -17,6 +18,7 @@ const SHARE_CODE = /^[A-Za-z0-9]{4,32}$/
 
 export function parseRoute(pathname: string): Route {
     if (pathname === '/leaderboard') return { name: 'leaderboard' }
+    if (pathname === '/badges') return { name: 'badges' }
     if (pathname.startsWith('/p/')) {
         const code = pathname.slice(3)
         if (SHARE_CODE.test(code)) return { name: 'profile', code }
@@ -32,6 +34,7 @@ export function parseRoute(pathname: string): Route {
 
 export function routePath(route: Route): string {
     if (route.name === 'leaderboard') return '/leaderboard'
+    if (route.name === 'badges') return '/badges'
     if (route.name === 'profile') return `/p/${route.code}`
     if (route.name === 'kill') return `/k/${route.code}`
     return '/'
