@@ -835,7 +835,9 @@ export class GameRoomDO {
         for (const { ws } of sockets) {
             this.send(ws, frame)
         }
-        await this.refreshDirectory(roster)
+        // Pass the connected count: this path runs from close handlers where
+        // the closing socket is excluded, and roomSockets() would recount it.
+        await this.refreshDirectory(roster, connectedIds.size)
     }
 
     /** Advance the auto-start clock; returns the presence-frame fields. */
@@ -871,11 +873,12 @@ export class GameRoomDO {
      * Never allowed to fail loudly: the directory is a shop window, and a
      * window that will not update must not take the game down with it.
      */
-    private async refreshDirectory(roster: Record<string, RosterEntry>): Promise<void> {
+    private async refreshDirectory(roster: Record<string, RosterEntry>, connected?: number): Promise<void> {
         try {
             if (!(await this.isRoomPublic())) return
             const room = await this.ctx.storage.get<RoomRecord>('room')
             if (!room) return
+            connected ??= this.roomSockets().length
             // A hibernated DO wakes with `game` unloaded and roomStatus()
             // reads it directly — without this, the presence broadcast a
             // backgrounded phone triggers would report a playing or finished
@@ -889,6 +892,7 @@ export class GameRoomDO {
                     code: room.code,
                     snapshot: {
                         players,
+                        connected,
                         seatsFree: Math.max(0, MAX_PLAYERS - players),
                         // Kept alongside status so a rollback still reads sane entries.
                         inProgress: this.roomStatus() === 'playing',

@@ -42,6 +42,29 @@ describe('autoStartTick', () => {
         expect(t.at).toBe(NOW + 22_000 + 8_000)
     })
 
+    it('a reconnect flap never cuts the clock', () => {
+        let s = autoStartTick(undefined, { ...lobby, connected: 3 })
+        // One player's socket drops (still above the minimum)...
+        s = autoStartTick(s, { ...lobby, connected: 2, now: NOW + 2_000 })
+        expect(s.at).toBe(NOW + AUTO_START_MS)
+        // ...and comes back. Same people - not a join, no cut.
+        s = autoStartTick(s, { ...lobby, connected: 3, now: NOW + 4_000 })
+        expect(s.at).toBe(NOW + AUTO_START_MS)
+        // A genuinely new fourth player still cuts.
+        s = autoStartTick(s, { ...lobby, connected: 4, now: NOW + 5_000 })
+        expect(s.at).toBe(NOW + AUTO_START_MS - AUTO_START_CUT_MS)
+    })
+
+    it('a resume never lands below the floor', () => {
+        let s = autoStartTick(undefined, { ...lobby, connected: 2 })
+        // Paused with 2s left...
+        s = autoStartTick(s, { ...lobby, connected: 1, now: NOW + 28_000 })
+        expect(s.leftMs).toBe(2_000)
+        // ...a joiner five minutes later still gets a readable lobby.
+        s = autoStartTick(s, { ...lobby, connected: 2, now: NOW + 300_000 })
+        expect(s.at).toBe(NOW + 300_000 + AUTO_START_FLOOR_MS)
+    })
+
     it('a presence change that is not a join does not cut', () => {
         let s = autoStartTick(undefined, { ...lobby, connected: 3 })
         // Same count again (a rename, a skin change) — clock untouched.
