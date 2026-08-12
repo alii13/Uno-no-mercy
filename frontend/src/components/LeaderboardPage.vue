@@ -57,6 +57,14 @@
             />
             <span class="lb-pod-badge" :class="medalClass(row.rank)">{{ row.rank }}</span>
             <span class="lb-pod-name">
+              <Badge
+                v-if="badgeInfoFor(row)?.badge"
+                :badge="badgeInfoFor(row)!.badge"
+                :points="badgeInfoFor(row)!.points"
+                :progress="badgeInfoFor(row)!.progress"
+                size="mark"
+                class="lb-pod-tier"
+              />
               {{ row.is_me ? 'YOU' : row.username }}
               <template v-if="flagEmoji(row.country)"> {{ flagEmoji(row.country) }}</template>
             </span>
@@ -78,13 +86,6 @@
             @keydown.enter="openProfile(row)"
           >
             <span class="lb-rank">{{ row.rank }}</span>
-            <CardBack
-              class="lb-skin"
-              :size="{ width: 18, height: 25 }"
-              :accent="skinColors(row.skin ?? undefined).accent"
-              :stripe="skinColors(row.skin ?? undefined).stripe"
-              aria-hidden="true"
-            />
             <BadgedName
               :badge="badgeInfoFor(row)?.badge"
               :points="badgeInfoFor(row)?.points"
@@ -144,6 +145,7 @@ import { flagEmoji } from '../utils/country'
 import { useBadges } from '../composables/useBadges'
 import CardBack from './game/CardBack.vue'
 import SiteFooter from './SiteFooter.vue'
+import Badge from './Badge.vue'
 import BadgedName from './BadgedName.vue'
 
 defineEmits<{ (e: 'back'): void }>()
@@ -511,10 +513,9 @@ onUnmounted(() => { if (ticker) clearInterval(ticker) })
   letter-spacing: 0.04em;
 }
 
-.lb-skin {
-  flex-shrink: 0;
-  border-radius: 3px;
-  box-shadow: none;
+.lb-pod-tier {
+  vertical-align: -3px;
+  margin-right: 2px;
 }
 
 .lb-name {
