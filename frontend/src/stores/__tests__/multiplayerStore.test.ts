@@ -646,6 +646,31 @@ describe('quick match never sits down in a finished room', () => {
         expect(ws.readyState).toBe(3)
     })
 
+    it('a superseded restore attempt does not wipe the room that superseded it', async () => {
+        fakeStorage.store['uno_mp_room'] = JSON.stringify({ code: 'OLDRM1', at: Date.now() })
+        const mp = useMultiplayerStore()
+        const restoring = mp.restoreActiveGame()
+        for (let i = 0; i < 60 && FakeWebSocket.instances.length === 0; i++) await Promise.resolve()
+
+        // The user out-clicks the slow restore and joins a fresh room.
+        const joining = mp.joinGame('FRESH2')
+        for (let i = 0; i < 20 && FakeWebSocket.instances.length < 2; i++) await Promise.resolve()
+        const fresh = FakeWebSocket.instances[1]!
+        fresh.open()
+        fresh.receive({ t: 'hello', roomCode: 'FRESH2', userId: 'me', hostUserId: 'me' })
+        fresh.receive({ t: 'presence', players: [{ userId: 'me', name: 'TESTER', connected: true }] })
+        fresh.receive({ t: 'snapshot', seq: 0, game: playingView({ status: 'lobby', you: null, currentPlayerId: null, players: [] }) })
+        await joining
+        await restoring
+
+        // The restore resolved as superseded: no reset, no phantom failure,
+        // and the fresh room's stored code survives.
+        expect(mp.roomCode).toBe('FRESH2')
+        expect(mp.currentGame?.status).toBe('waiting')
+        expect(JSON.parse(fakeStorage.store['uno_mp_room']!).code).toBe('FRESH2')
+        expect(track).not.toHaveBeenCalledWith('mp_join_failed', expect.objectContaining({ method: 'restore' }))
+    })
+
     it('frames from a superseded socket cannot poison the new room', async () => {
         const mp = useMultiplayerStore()
         const stale = await joinRoom(mp)

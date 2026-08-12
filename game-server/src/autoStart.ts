@@ -44,8 +44,17 @@ export function autoStartTick(prev: AutoStartState | undefined, input: {
         return {}
     }
 
-    if (s.leftMs !== undefined) return { at: input.now + s.leftMs, seen: input.connected }
-    if (s.at === undefined) return { at: input.now + AUTO_START_MS, seen: input.connected }
+    // `seen` never goes down while the clock lives (it only resets with the
+    // state): a socket flap lowers `connected` and the reconnect would
+    // otherwise read as a fresh join and take a cut.
+    const seen = Math.max(s.seen ?? 0, input.connected)
+
+    if (s.leftMs !== undefined) {
+        // Resume keeps the remainder but never below the floor — pause/resume
+        // cycles must not burn the clock down to dealing joiners in instantly.
+        return { at: input.now + Math.max(s.leftMs, AUTO_START_FLOOR_MS), seen }
+    }
+    if (s.at === undefined) return { at: input.now + AUTO_START_MS, seen }
 
     let remaining = s.at - input.now
     // Only a join above the minimum cuts; the second player STARTS the clock
@@ -54,5 +63,5 @@ export function autoStartTick(prev: AutoStartState | undefined, input: {
         remaining = Math.max(Math.min(remaining, AUTO_START_FLOOR_MS), remaining - AUTO_START_CUT_MS)
     }
     if (input.seatsFree === 0) remaining = Math.min(remaining, AUTO_START_FULL_MS)
-    return { at: input.now + remaining, seen: input.connected }
+    return { at: input.now + remaining, seen }
 }
