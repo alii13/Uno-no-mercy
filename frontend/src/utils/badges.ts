@@ -110,8 +110,8 @@ export function pointsFromRows(rows: ResultRow[]): number {
 /** Inactivity decay: the surplus above your current tier bleeds while you're
  *  away, floored at the tier threshold so a badge never demotes. */
 export const DECAY = {
-    /** Days since last game before any decay starts. */
-    graceDays: 4,
+    /** Days since last game before any decay starts (one week). */
+    graceDays: 7,
     /** Fraction of surplus retained per day past grace (geometric, self-limiting). */
     dailyRetention: 0.95,
 } as const

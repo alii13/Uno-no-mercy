@@ -138,10 +138,10 @@ describe('decay', () => {
         expect(badgeFor(decayed).tier).toBe(badgeFor(earned).tier)
     })
 
-    it('bleeds only the surplus (worked example: Brute, 10 days idle)', () => {
-        const earned = 3_700
-        // 6 decay days: 1000 * 0.95^6 ≈ 735.09 → 2700 + 735 = 3435
-        expect(applyDecay(earned, 10)).toBe(2_700 + Math.round(1_000 * Math.pow(0.95, 6)))
+    it('bleeds only the surplus (worked example: Brute, 3 days past grace)', () => {
+        const earned = 3_700 // Brute floor 2,700, surplus 1,000 toward Warlord
+        const idle = DECAY.graceDays + 3
+        expect(applyDecay(earned, idle)).toBe(2_700 + Math.round(1_000 * Math.pow(0.95, 3)))
     })
 
     it('never demotes below any earned tier, for any surplus and idleness', () => {
