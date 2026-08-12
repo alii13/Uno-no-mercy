@@ -628,7 +628,8 @@ export class GameRoomDO {
                 // Id-only quick chat: relay nothing outside the shared
                 // catalog, and echo to everyone including the sender so one
                 // frame drives every client's bubbles.
-                if (!quickChatPhrase(String(msg.phraseId))) {
+                const phrase = quickChatPhrase(String(msg.phraseId))
+                if (!phrase) {
                     this.send(ws, { t: 'error', code: 'bad-message' })
                     return
                 }
@@ -638,7 +639,10 @@ export class GameRoomDO {
                 if (!chatAllowed(times, Date.now())) return
                 this.chatTimes.set(tag.userId, times)
                 for (const s of this.roomSockets()) {
-                    this.send(s.ws, { t: 'chat', userId: tag.userId, phraseId: msg.phraseId })
+                    // Relay the canonical id, never the raw payload — a value
+                    // that merely stringifies to a valid id must not ride to
+                    // every socket in the room.
+                    this.send(s.ws, { t: 'chat', userId: tag.userId, phraseId: phrase.id })
                 }
                 return
             }

@@ -28,7 +28,7 @@
   <Teleport to="body">
     <Transition name="qc-sheet">
       <div v-if="open" class="qc-backdrop" @click.self="open = false">
-        <div class="qc-sheet" role="dialog" aria-label="Quick chat">
+        <div class="qc-sheet" role="dialog" aria-modal="true" aria-label="Quick chat">
           <div ref="logEl" class="qc-log">
             <p v-if="!mpStore.chatLog.length" class="qc-log-empty">
               Say something - the whole table sees it.
@@ -95,23 +95,37 @@ function toggleSheet() {
   open.value = !open.value
 }
 
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') open.value = false
+}
+
 watch(open, (o) => {
-  if (!o) return
+  if (!o) {
+    document.removeEventListener('keydown', onKeydown)
+    return
+  }
+  document.addEventListener('keydown', onKeydown)
   unread.value = false
   seenN = mpStore.lastChat?.n ?? seenN
   // Newest message in view when the sheet opens.
   void nextTick(() => { logEl.value?.scrollTo({ top: logEl.value.scrollHeight }) })
 })
 
-// Mirror the server's 1s gap so taps that would be dropped are not offered.
+// Mirror the server's limits (1s gap, 3 per 5s window) so taps the relay
+// would silently drop are never offered.
 const coolingDown = ref(false)
 let coolTimer: ReturnType<typeof setTimeout> | null = null
+const sendTimes: number[] = []
 
 function send(phraseId: string) {
   if (coolingDown.value) return
+  const now = Date.now()
+  while (sendTimes.length && now - sendTimes[0]! >= 5_000) sendTimes.shift()
   mpStore.sendChat(phraseId)
+  sendTimes.push(now)
   coolingDown.value = true
-  coolTimer = setTimeout(() => { coolingDown.value = false }, 1000)
+  const wait = sendTimes.length >= 3 ? sendTimes[0]! + 5_000 - now : 1_000
+  coolTimer = setTimeout(() => { coolingDown.value = false }, Math.max(1_000, wait))
   open.value = false
 }
 
@@ -145,6 +159,11 @@ watch(() => mpStore.lastChat, (m) => {
   const rect = seat?.getBoundingClientRect()
   const anchored = !!rect && rect.width > 0
   const kept = bubbles.value.slice(-3)
+  // Lowest unused slot: bubbles expire out of the middle on their own
+  // timers, so counting survivors would stack two bubbles on one spot.
+  const used = new Set(kept.filter(b => !b.anchored).map(b => b.slot))
+  let slot = 0
+  while (used.has(slot)) slot++
   bubbles.value = [...kept, {
     n: m.n,
     name: m.name,
@@ -153,16 +172,19 @@ watch(() => mpStore.lastChat, (m) => {
     anchored,
     x: anchored ? rect.left + rect.width / 2 : 0,
     y: anchored ? rect.bottom + 6 : 0,
-    slot: anchored ? 0 : kept.filter(b => !b.anchored).length,
+    slot: anchored ? 0 : slot,
   }]
-  timers.push(setTimeout(() => {
+  const handle = setTimeout(() => {
     bubbles.value = bubbles.value.filter(b => b.n !== m.n)
-  }, 2600))
+    timers.splice(timers.indexOf(handle), 1)
+  }, 2600)
+  timers.push(handle)
 })
 
 onUnmounted(() => {
   timers.forEach(clearTimeout)
   if (coolTimer) clearTimeout(coolTimer)
+  document.removeEventListener('keydown', onKeydown)
 })
 </script>
 
