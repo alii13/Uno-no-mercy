@@ -11,7 +11,7 @@ vi.stubGlobal('localStorage', fakeStorage)
 import { CARD_BACKS, adoptProfileEquip, equip, getEquippedId, skinColors, type UnlockInputs } from '../cosmetics'
 
 const inputs = (over: Partial<UnlockInputs> = {}): UnlockInputs =>
-    ({ wins: 0, longestStreak: 0, earned: new Set<string>(), ...over })
+    ({ wins: 0, longestStreak: 0, maxStackSurvived: 0, ...over })
 
 beforeEach(() => { fakeStorage.store = {} })
 
@@ -23,8 +23,8 @@ describe('card back unlocks', () => {
 
     it('each unlock rule keys off the right input', () => {
         expect(CARD_BACKS.find(s => s.id === 'toxic')!.unlocked(inputs({ longestStreak: 3 }))).toBe(true)
-        expect(CARD_BACKS.find(s => s.id === 'ice')!.unlocked(inputs({ earned: new Set(['stack_16']) }))).toBe(true)
-        expect(CARD_BACKS.find(s => s.id === 'hazard')!.unlocked(inputs({ earned: new Set(['ten_wins']) }))).toBe(true)
+        expect(CARD_BACKS.find(s => s.id === 'ice')!.unlocked(inputs({ maxStackSurvived: 16 }))).toBe(true)
+        expect(CARD_BACKS.find(s => s.id === 'hazard')!.unlocked(inputs({ wins: 10 }))).toBe(true)
         expect(CARD_BACKS.find(s => s.id === 'royal')!.unlocked(inputs({ wins: 30 }))).toBe(true)
         expect(CARD_BACKS.find(s => s.id === 'gold')!.unlocked(inputs({ wins: 100 }))).toBe(true)
         expect(CARD_BACKS.find(s => s.id === 'gold')!.unlocked(inputs({ wins: 99 }))).toBe(false)

@@ -5,7 +5,7 @@
  * the document root with no prop threading.
  *
  * Unlocks are pure functions of the player's record (wins, best streak,
- * earned achievements): ownership can never desync from history. Only the
+ * biggest stack survived): ownership can never desync from history. Only the
  * EQUIP choice is state, persisted locally; server-side inventory sync is
  * the follow-up when cosmetics grow beyond derivables.
  */
@@ -13,7 +13,7 @@
 export interface UnlockInputs {
     wins: number
     longestStreak: number
-    earned: Set<string>
+    maxStackSurvived: number
 }
 
 export interface CardBackSkin {
@@ -28,8 +28,8 @@ export interface CardBackSkin {
 export const CARD_BACKS: CardBackSkin[] = [
     { id: 'ember', title: 'Ember', unlock: 'Default', accent: '#ff3333', stripe: '#ffcc00', unlocked: () => true },
     { id: 'toxic', title: 'Toxic', unlock: '3-day streak', accent: '#39ff14', stripe: '#a4ff78', unlocked: u => u.longestStreak >= 3 },
-    { id: 'ice', title: 'Cold Blood', unlock: 'Survive a +16 stack', accent: '#00e5ff', stripe: '#9ff3ff', unlocked: u => u.earned.has('stack_16') },
-    { id: 'hazard', title: 'Hazard', unlock: 'Win 10 games', accent: '#ffcc00', stripe: '#ff3333', unlocked: u => u.earned.has('ten_wins') },
+    { id: 'ice', title: 'Cold Blood', unlock: 'Survive a +16 stack', accent: '#00e5ff', stripe: '#9ff3ff', unlocked: u => u.maxStackSurvived >= 16 },
+    { id: 'hazard', title: 'Hazard', unlock: 'Win 10 games', accent: '#ffcc00', stripe: '#ff3333', unlocked: u => u.wins >= 10 },
     { id: 'royal', title: 'Royal', unlock: 'Reach Savage (30 wins)', accent: '#b26bff', stripe: '#e3c7ff', unlocked: u => u.wins >= 30 },
     { id: 'gold', title: 'Midas', unlock: 'Reach Overlord (100 wins)', accent: '#ffd700', stripe: '#fff3b0', unlocked: u => u.wins >= 100 },
 ]

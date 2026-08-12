@@ -13,7 +13,7 @@
  * (applyDecay) so the tier table lives in exactly one place — here.
  */
 
-import type { ResultRow } from './achievements'
+import type { ResultRow } from './gameStats'
 
 export interface Badge {
     /** 1-10, also the emblem facet/rank count. */
