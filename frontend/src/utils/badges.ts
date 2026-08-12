@@ -1,0 +1,169 @@
+/**
+ * Badge ladder — the points-based evolution of the win-only rank ladder
+ * (utils/ranks.ts). One number (points) drives one badge, shown on every
+ * player everywhere they appear.
+ *
+ * Points are a weighted sum over stats we already record per game. The badge
+ * is cumulative and permanent: once earned, a tier can never be lost. What
+ * bleeds during inactivity is only the surplus above your current tier — the
+ * progress toward the NEXT badge — floored so a badge never demotes.
+ *
+ * The weighted sum is mirrored by supabase/badges.sql's player_points(), which
+ * returns the same `points` plus `days_idle`; the client applies the decay
+ * (applyDecay) so the tier table lives in exactly one place — here.
+ */
+
+import type { ResultRow } from './achievements'
+
+export interface Badge {
+    /** 1-10, also the emblem facet/rank count. */
+    tier: number
+    threshold: number
+    title: string
+    color: string
+}
+
+/** Escalating heat, culminating in gold. Steepening thresholds toward the top
+ *  so the apex is genuinely months of sustained play (decay makes it harder). */
+export const BADGES: Badge[] = [
+    { tier: 1, threshold: 0, title: 'Recruit', color: '#8a8f98' },
+    { tier: 2, threshold: 250, title: 'Scrapper', color: '#5ed17c' },
+    { tier: 3, threshold: 600, title: 'Enforcer', color: '#22d3ee' },
+    { tier: 4, threshold: 1_300, title: 'Savage', color: '#f59e0b' },
+    { tier: 5, threshold: 2_700, title: 'Brute', color: '#f97316' },
+    { tier: 6, threshold: 5_500, title: 'Warlord', color: '#ef4444' },
+    { tier: 7, threshold: 11_000, title: 'Overlord', color: '#ec4899' },
+    { tier: 8, threshold: 22_000, title: 'Executioner', color: '#a855f7' },
+    { tier: 9, threshold: 45_000, title: 'Merciless', color: '#7c3aed' },
+    { tier: 10, threshold: 100_000, title: 'No Mercy King', color: '#ffd700' },
+]
+
+export function badgeFor(points: number): Badge {
+    let current = BADGES[0]!
+    for (const b of BADGES) {
+        if (points >= b.threshold) current = b
+    }
+    return current
+}
+
+/** The canonical aggregate the points formula runs on. supabase/badges.sql
+ *  computes the identical arithmetic server-side for any user id. */
+export interface PointsInput {
+    wins: number
+    completedLosses: number
+    drawCardsPlayed: number
+    stackSurvivedTotal: number
+    unoCalls: number
+    daysPlayed: number
+}
+
+export const POINT_WEIGHTS = {
+    win: 100,
+    completedLoss: 12,
+    drawCard: 2,
+    stackSurvived: 3,
+    unoCall: 4,
+    dayPlayed: 25,
+} as const
+
+export function earnedPoints(input: PointsInput): number {
+    return (
+        input.wins * POINT_WEIGHTS.win +
+        input.completedLosses * POINT_WEIGHTS.completedLoss +
+        input.drawCardsPlayed * POINT_WEIGHTS.drawCard +
+        input.stackSurvivedTotal * POINT_WEIGHTS.stackSurvived +
+        input.unoCalls * POINT_WEIGHTS.unoCall +
+        input.daysPlayed * POINT_WEIGHTS.dayPlayed
+    )
+}
+
+/** Walkover games (every opponent left) record near-zero plays; the same
+ *  `cards_played_total >= 5` guard the achievements/records use keeps a
+ *  quitter from minting win or loss points. Mirrored in badges.sql. */
+const MIN_PLAYS = 5
+
+export function aggregateRows(rows: ResultRow[]): PointsInput {
+    const days = new Set<string>()
+    let wins = 0
+    let completedLosses = 0
+    let drawCardsPlayed = 0
+    let stackSurvivedTotal = 0
+    let unoCalls = 0
+    for (const r of rows) {
+        const real = r.cards_played_total >= MIN_PLAYS
+        if (r.result === 'won' && real) wins++
+        else if ((r.result === 'lost' || r.result === 'eliminated') && real) completedLosses++
+        drawCardsPlayed += r.draw_cards_played
+        stackSurvivedTotal += r.biggest_stack_survived
+        unoCalls += r.uno_calls
+        // UTC date portion — matches badges.sql's date() (Supabase runs UTC).
+        if (r.played_at) days.add(r.played_at.slice(0, 10))
+    }
+    return { wins, completedLosses, drawCardsPlayed, stackSurvivedTotal, unoCalls, daysPlayed: days.size }
+}
+
+/** Cumulative earned points from the player's own game history. */
+export function pointsFromRows(rows: ResultRow[]): number {
+    return earnedPoints(aggregateRows(rows))
+}
+
+/** Inactivity decay: the surplus above your current tier bleeds while you're
+ *  away, floored at the tier threshold so a badge never demotes. */
+export const DECAY = {
+    /** Days since last game before any decay starts. */
+    graceDays: 4,
+    /** Fraction of surplus retained per day past grace (geometric, self-limiting). */
+    dailyRetention: 0.95,
+} as const
+
+export function decayFactor(daysIdle: number): number {
+    if (daysIdle <= DECAY.graceDays) return 1
+    return Math.pow(DECAY.dailyRetention, daysIdle - DECAY.graceDays)
+}
+
+/** Apply floored decay to earned points. Result is never below the earned
+ *  tier's threshold, so badgeFor(applyDecay(...)) === badgeFor(earned). */
+export function applyDecay(earned: number, daysIdle: number): number {
+    const floor = badgeFor(earned).threshold
+    const surplus = earned - floor
+    return Math.round(floor + surplus * decayFactor(daysIdle))
+}
+
+const MS_PER_DAY = 1000 * 60 * 60 * 24
+
+/** Whole days since the newest row's played_at, for the own-player decay path. */
+export function daysIdleFromRows(rows: ResultRow[], nowMs: number): number {
+    let newest = 0
+    for (const r of rows) {
+        const t = r.played_at ? Date.parse(r.played_at) : NaN
+        if (!Number.isNaN(t) && t > newest) newest = t
+    }
+    if (newest === 0) return 0
+    return Math.max(0, Math.floor((nowMs - newest) / MS_PER_DAY))
+}
+
+/** Cosmetic badge for a single-player bot, tied to its ladder rung (1-based).
+ *  Caps below the apex so No Mercy King stays a human-only achievement. */
+export function botBadge(rung: number): Badge {
+    const idx = Math.min(Math.max(Math.round(rung), 1), BADGES.length - 2)
+    return BADGES[idx]!
+}
+
+export interface Progress {
+    current: Badge
+    next: Badge | null
+    have: number
+    needed: number
+    pct: number
+}
+
+/** Progress within the current tier toward the next — drives the nudge. */
+export function progressToNext(points: number): Progress {
+    const current = badgeFor(points)
+    const idx = BADGES.findIndex(b => b.tier === current.tier)
+    const next = idx < BADGES.length - 1 ? BADGES[idx + 1]! : null
+    if (!next) return { current, next: null, have: 0, needed: 0, pct: 1 }
+    const span = next.threshold - current.threshold
+    const have = points - current.threshold
+    return { current, next, have, needed: Math.max(0, next.threshold - points), pct: span > 0 ? have / span : 1 }
+}
