@@ -24,6 +24,16 @@ describe('dirCodes', () => {
         expect(codes).toEqual(['OLD', 'MID', 'NEW'])
     })
 
+    it('sorts on connected players, not abandoned roster seats', () => {
+        // Roster entries outlive closed tabs until GC; a room with one live
+        // player and three ghosts must not outrank a room of three people.
+        const codes = dirCodes({
+            GHOSTS: { at: NOW, players: 4, connected: 1, status: 'lobby' as const },
+            LIVE: { at: NOW + 1000, players: 3, connected: 3, status: 'lobby' as const },
+        })
+        expect(codes).toEqual(['LIVE', 'GHOSTS'])
+    })
+
     it('fills the fullest room first so players concentrate', () => {
         // One player per room is the failure mode: three lonely lobbies
         // instead of one game about to start.

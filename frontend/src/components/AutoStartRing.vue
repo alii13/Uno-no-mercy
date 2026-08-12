@@ -21,7 +21,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { gsap } from 'gsap'
+import { useMotion } from '../composables/useMotion'
 
 const props = defineProps<{
   /** Local-clock epoch ms when the room deals itself. */
@@ -30,25 +30,34 @@ const props = defineProps<{
   paused: boolean
 }>()
 
+const motion = useMotion()
 const remainingMs = ref(Math.max(0, props.deadline - Date.now()))
 const numEl = ref<HTMLElement | null>(null)
 let raf = 0
+let slow: ReturnType<typeof setTimeout> | null = null
 
 function tick() {
   remainingMs.value = Math.max(0, props.deadline - Date.now())
-  raf = requestAnimationFrame(tick)
+  // Reduced motion: a seconds readout needs 4Hz, not a 60fps ring sweep.
+  if (motion.reduced) slow = setTimeout(tick, 250)
+  else raf = requestAnimationFrame(tick)
+}
+
+function stopTick() {
+  cancelAnimationFrame(raf)
+  if (slow) { clearTimeout(slow); slow = null }
 }
 
 function sync() {
-  cancelAnimationFrame(raf)
-  remainingMs.value = Math.max(0, props.deadline - Date.now())
+  stopTick()
   // While paused the number holds; the next presence frame moves it.
-  if (!props.paused) raf = requestAnimationFrame(tick)
+  if (props.paused) remainingMs.value = Math.max(0, props.deadline - Date.now())
+  else tick()
 }
 
 onMounted(sync)
 watch(() => [props.deadline, props.paused], sync)
-onUnmounted(() => cancelAnimationFrame(raf))
+onUnmounted(stopTick)
 
 const secondsLeft = computed(() => Math.ceil(remainingMs.value / 1000))
 const label = computed(() =>
@@ -64,10 +73,11 @@ const dashOffset = computed(() => {
   return CIRCUMFERENCE * (1 - fraction)
 })
 
-// The last five seconds land with a pop per tick.
+// The last five seconds land with a pop per tick (skipped under reduced
+// motion — useMotion also honours the in-app override).
 watch(secondsLeft, (s, prev) => {
-  if (props.paused || s === prev || s > 5 || s < 0 || !numEl.value) return
-  gsap.fromTo(numEl.value, { scale: 1.3 }, { scale: 1, duration: 0.3, ease: 'back.out(2)' })
+  if (props.paused || s === prev || s > 5 || s < 0 || !numEl.value || motion.reduced) return
+  motion.bounce(numEl.value, { scale: 1, startAt: { scale: 1.3 } })
 })
 </script>
 

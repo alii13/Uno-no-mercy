@@ -21,6 +21,10 @@ export interface DirEntry {
     /** Last snapshot refresh. */
     updatedAt?: number
     players?: number
+    /** Sockets actually open right now. `players` is the roster, which keeps
+     *  abandoned seats until GC — sorting on it funnels quick-matchers into
+     *  ghost towns. */
+    connected?: number
     seatsFree?: number
     inProgress?: boolean
     mode?: string
@@ -83,9 +87,10 @@ export function normalizeDir(raw: Record<string, DirEntry | number> | undefined)
  */
 export function dirCodes(raw: Record<string, DirEntry | number> | undefined): string[] {
     const dir = normalizeDir(raw)
+    const filling = (e: DirEntry) => e.connected ?? e.players ?? 0
     return Object.entries(dir)
         .filter(([, e]) => entryStatus(e) === 'lobby')
-        .sort((a, b) => (b[1].players ?? 0) - (a[1].players ?? 0) || a[1].at - b[1].at)
+        .sort((a, b) => filling(b[1]) - filling(a[1]) || a[1].at - b[1].at)
         .map(([code]) => code)
 }
 
