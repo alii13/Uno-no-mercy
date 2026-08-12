@@ -16,6 +16,7 @@
     "@mcp-b/webmcp-ts-sdk": "^3.0.0",
     "@supabase/supabase-js": "^2.90.1",
     "@vueuse/core": "^14.1.0",
+    "chart.js": "4.5.1",
     "gsap": "^3.14.2",
     "lucide-vue-next": "^1.0.0",
     "pinia": "^3.0.4",
@@ -23,6 +24,7 @@
     "three": "0.185.1",
     "uuid": "^13.0.0",
     "vue": "^3.5.24",
+    "vue-chartjs": "5.3.4",
     "zod": "^3.25.76",
     "zod-to-json-schema": "^3.25.2"
   },

@@ -88,6 +88,15 @@
         </div>
       </section>
 
+      <!-- Points climb over time -->
+      <section class="record-section">
+        <PointsClimb v-if="results.length" :rows="results" :color="badge.color" />
+        <div v-else class="climb-signin">
+          <h3 class="section-title">YOUR CLIMB</h3>
+          <p class="climb-signin-text">Sign in to track your points climbing over time.</p>
+        </div>
+      </section>
+
       <!-- Battle record bar + key splits -->
       <section class="record-section">
         <h3 class="section-title">BATTLE RECORD</h3>
@@ -260,6 +269,7 @@ import { useAuthStore } from '../stores/authStore'
 import { navigate } from '../utils/routes'
 import Button from './ui/Button.vue'
 import Badge from './Badge.vue'
+import PointsClimb from './PointsClimb.vue'
 
 defineEmits<{
   (e: 'back'): void
@@ -280,6 +290,7 @@ const {
   totalUnoCalls, biggestStackSurvived,
   peakCardsEver, ruthlessness,
   badge, badgePoints, badgeProgress, recentGames, avgGameDuration,
+  results,
 } = usePlayerStats()
 
 const retention = useRetentionStore()
@@ -682,6 +693,13 @@ function copyShareLink() {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
+}
+
+.climb-signin-text {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
 }
 
 .section-title {
