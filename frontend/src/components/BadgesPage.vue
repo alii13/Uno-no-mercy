@@ -70,15 +70,13 @@
 import { computed } from 'vue'
 import { BADGES, POINT_WEIGHTS } from '../utils/badges'
 import { usePlayerStats } from '../composables/usePlayerStats'
-import { useAuthStore } from '../stores/authStore'
 import Badge from './Badge.vue'
 import SiteFooter from './SiteFooter.vue'
 
 defineEmits<{ (e: 'back'): void }>()
 
-const authStore = useAuthStore()
-const { badge, badgePoints, badgeProgress, gamesPlayed } = usePlayerStats()
-const showOwn = computed(() => authStore.isAuthenticated && gamesPlayed.value > 0)
+const { badge, badgePoints, badgeProgress } = usePlayerStats()
+const showOwn = computed(() => badgePoints.value > 0)
 
 const FEEL = [
   'Everyone starts here',

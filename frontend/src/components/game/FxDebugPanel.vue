@@ -25,6 +25,8 @@
       <button @click="camReveal">cam reveal</button>
       <button @click="fx.emit('ko', {})">ko flash</button>
       <button @click="fx.emit('confetti', { originEl: null })">confetti</button>
+      <button @click="fx.emit('badgeUp', { name: 'You', tier: magnitude, self: true })">badge up (self)</button>
+      <button @click="fx.emit('badgeUp', { name: 'RogueFox81', tier: magnitude, self: false })">badge up (other)</button>
     </div>
 
     <div class="fx-row">

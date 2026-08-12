@@ -29,6 +29,7 @@ export type ClientMsg =
     | { t: 'kick'; userId: string }
     | { t: 'start'; stackingMode?: StackingMode }
     | { t: 'voice-join' }
+    | { t: 'badge-up'; tier: number }
     | { t: 'intent'; id: string; action: IntentAction }
 
 // --- Game events: animation-grade facts, personalized per viewer ---
@@ -93,4 +94,5 @@ export type ServerMsg =
     | { t: 'snapshot'; seq: number; game: PersonalView }
     | { t: 'event'; seq: number; ev: GameEvent; intentId?: string }
     | { t: 'voice-token'; token: string; meetingId: string }
+    | { t: 'badge-up'; userId: string; tier: number }
     | { t: 'error'; code: 'unauthorized' | 'bad-message' | 'room-not-found' | 'room-full' | 'not-host' | 'not-started' | 'already-started' | 'need-players' | 'not-in-lobby' | 'invalid-intent' | 'voice-unavailable'; intentId?: string }

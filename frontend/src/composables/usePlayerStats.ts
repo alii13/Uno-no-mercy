@@ -1,7 +1,15 @@
 import { ref, computed, onMounted } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
-import { badgeFor, pointsFromRows, applyDecay, daysIdleFromRows, progressToNext } from '../utils/badges'
+import { useRetentionStore } from '../stores/retentionStore'
+import { badgeFor, pointsFromRows, pointsFromRetention, applyDecay, daysIdleFromRows, progressToNext } from '../utils/badges'
+
+function daysIdleFromDate(dateStr: string | null): number {
+  if (!dateStr) return 0
+  const then = Date.parse(`${dateStr}T00:00:00`)
+  if (Number.isNaN(then)) return 0
+  return Math.max(0, Math.floor((Date.now() - then) / 86_400_000))
+}
 
 interface GameResult {
   id: string
@@ -28,6 +36,7 @@ interface GameResult {
 
 export function usePlayerStats() {
   const authStore = useAuthStore()
+  const retention = useRetentionStore()
   const results = ref<GameResult[]>([])
   const loading = ref(false)
 
@@ -117,10 +126,20 @@ export function usePlayerStats() {
   // Total damage dealt (sum of all draw card values played)
   const totalDamageDealt = computed(() => results.value.reduce((sum, r) => sum + r.draw_cards_played, 0))
 
-  // Badge — cumulative points with floored inactivity decay, from own history.
-  const badgePoints = computed(() =>
-    applyDecay(pointsFromRows(results.value), daysIdleFromRows(results.value, Date.now())),
-  )
+  // Badge — cumulative points with floored inactivity decay. Signed-in players
+  // read their real server history; guests fall back to the local estimate so
+  // their badge still climbs (and jumps up when they claim an account).
+  const badgePoints = computed(() => {
+    if (authStore.user?.id) {
+      return applyDecay(pointsFromRows(results.value), daysIdleFromRows(results.value, Date.now()))
+    }
+    const earned = pointsFromRetention({
+      gamesPlayed: retention.gamesPlayed,
+      gamesWon: retention.gamesWon,
+      unoCalls: retention.totalUnos,
+    })
+    return applyDecay(earned, daysIdleFromDate(retention.lastPlayedDate))
+  })
   const badge = computed(() => badgeFor(badgePoints.value))
   const badgeProgress = computed(() => progressToNext(badgePoints.value))
 

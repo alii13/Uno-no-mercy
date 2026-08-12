@@ -34,6 +34,9 @@ describe('STACK_EATEN signal', () => {
       ],
       'official',
     )
+    // Pin the no-stack case: startGame's random opening discard can itself be
+    // a draw card, which would leave a penalty stack for seat 0 to eat.
+    game.engine.drawStack = 0
     const player = game.engine.players[game.engine.currentPlayerIndex]!.id
     const res = applyIntent(game, player, { kind: 'DRAW' })
 
