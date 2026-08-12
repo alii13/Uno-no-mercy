@@ -35,6 +35,9 @@ export interface FxEventMap {
   ko: Record<string, never>
   /** Victory — celebratory confetti from the winner's card (or screen centre). */
   confetti: { originEl: HTMLElement | null }
+  /** A player crossed into a new badge — an in-room banner everyone at the
+   *  table sees. `self` gets the bigger treatment. */
+  badgeUp: { name: string; tier: number; self: boolean }
 }
 
 export type FxEvent = keyof FxEventMap

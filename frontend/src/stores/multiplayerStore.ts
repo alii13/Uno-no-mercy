@@ -119,6 +119,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     // The monotonic `n` makes the view's watcher fire even on identical repeats.
     const lastStackEaten = ref<{ playerId: string; amount: number; n: number } | null>(null)
     const lastMercyCall = ref<{ playerId: string; n: number } | null>(null)
+    // Another seat crossed into a new badge — drives the in-room banner.
+    const lastBadgeUp = ref<{ name: string; tier: number; n: number } | null>(null)
+    let badgeUpN = 0
     let actionN = 0
     let playN = 0
     let intentN = 0
@@ -253,6 +256,14 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             case 'presence':
                 presence.value = msg.players
                 break
+
+            case 'badge-up': {
+                const name = view.value?.players.find(p => p.userId === msg.userId)?.name
+                    ?? presence.value.find(p => p.userId === msg.userId)?.name
+                    ?? 'A player'
+                lastBadgeUp.value = { name, tier: msg.tier, n: ++badgeUpN }
+                break
+            }
 
             case 'snapshot':
                 if (msg.seq < lastSeq) break
@@ -478,6 +489,10 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
     function sendMsg(msg: ClientMsg) {
         if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg))
+    }
+
+    function sendBadgeUp(tier: number) {
+        sendMsg({ t: 'badge-up', tier })
     }
 
     function sendIntent(action: IntentAction, opts: { optimistic?: (v: PersonalView) => void } = {}) {
@@ -789,6 +804,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         lastRemotePlay,
         lastStackEaten,
         lastMercyCall,
+        lastBadgeUp,
+        sendBadgeUp,
         eliminationOrder,
         catchableUserId,
         catchPlayer,
