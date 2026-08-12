@@ -29,24 +29,17 @@
     <div v-else-if="p" ref="contentEl" class="pp-content">
       <!-- Identity hero: their skin, name, rank ladder position -->
       <section class="pp-hero">
-        <CardBack
-          class="pp-skin"
-          :size="{ width: 74, height: 104 }"
-          :accent="skinColors(p.skin ?? undefined).accent"
-          :stripe="skinColors(p.skin ?? undefined).stripe"
-          aria-hidden="true"
+        <Badge
+          v-if="badgeInfo"
+          :badge="badgeInfo.badge"
+          :points="badgeInfo.points"
+          :progress="badgeInfo.progress"
+          size="mark"
+          link
+          class="pp-emblem"
         />
         <div class="pp-identity">
           <div class="pp-name-row">
-            <Badge
-              v-if="badgeInfo"
-              :badge="badgeInfo.badge"
-              :points="badgeInfo.points"
-              :progress="badgeInfo.progress"
-              size="mark"
-              link
-              class="pp-name-badge"
-            />
             <h1 class="pp-name">{{ p.username }}</h1>
             <span v-if="flagEmoji(p.country)" class="pp-flag" :title="p.country ?? ''">{{ flagEmoji(p.country) }}</span>
           </div>
@@ -154,13 +147,11 @@ import gsap from 'gsap'
 import { useProfile } from '../composables/useProfile'
 import { useMotion } from '../composables/useMotion'
 import { useAuthStore } from '../stores/authStore'
-import { skinColors } from '../utils/cosmetics'
 import { flagEmoji } from '../utils/country'
 import { shareProfile } from '../utils/share'
 import { track } from '../utils/analytics'
 import { useBadges } from '../composables/useBadges'
 import ActivityHeatmap from './ActivityHeatmap.vue'
-import CardBack from './game/CardBack.vue'
 import SiteFooter from './SiteFooter.vue'
 import Button from './ui/Button.vue'
 import Badge from './Badge.vue'
@@ -360,7 +351,8 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
   border-radius: var(--radius-md);
 }
 
-.pp-skin { flex-shrink: 0; }
+.pp-emblem { flex: none; }
+.pp-emblem :deep(.badge-emblem) { width: 88px; height: 88px; }
 
 .pp-identity {
   display: flex;
@@ -388,9 +380,6 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
 }
 
 .pp-flag { font-size: 1.1rem; line-height: 1; flex-shrink: 0; }
-
-.pp-name-badge { flex: none; }
-.pp-name-badge :deep(.badge-emblem) { width: 30px; height: 33px; }
 
 .pp-chips {
   display: flex;

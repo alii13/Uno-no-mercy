@@ -356,6 +356,8 @@
               <Badge
                 v-if="seatBadges[player.user_id]"
                 :badge="seatBadges[player.user_id]!.badge"
+                :points="seatBadges[player.user_id]!.points"
+                :progress="seatBadges[player.user_id]!.progress"
                 size="chip"
                 class="seat-badge"
               />

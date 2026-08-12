@@ -15,9 +15,17 @@
     @keydown.enter.prevent="isSelectable && $emit('click')"
     @keydown.space.prevent="isSelectable && $emit('click')"
   >
-    <div class="avatar" :class="{ 'avatar-active': isActive, speaking: isSpeaking }">{{ name.charAt(0).toUpperCase() }}</div>
+    <Badge
+      v-if="badge"
+      :badge="badge"
+      :points="badgePoints"
+      :progress="badgeProgress"
+      size="mark"
+      class="seat-avatar"
+    />
+    <div v-else class="avatar" :class="{ 'avatar-active': isActive, speaking: isSpeaking }">{{ name.charAt(0).toUpperCase() }}</div>
     <div class="opponent-info">
-      <span class="name"><Badge v-if="badge" :badge="badge" :points="badgePoints" :progress="badgeProgress" size="mark" class="seat-emblem" />{{ name }}
+      <span class="name">{{ name }}
         <span v-if="inVoice" class="voice-dot" :class="{ speaking: isSpeaking }" title="In voice"></span>
       </span>
       <span v-if="isDisconnected && !isEliminated" class="card-count dc-text">DISCONNECTED</span>
