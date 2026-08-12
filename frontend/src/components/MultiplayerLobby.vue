@@ -1037,8 +1037,11 @@ const WAIT_TIPS = [
 const tipIndex = ref(0)
 let tipTimer: ReturnType<typeof setInterval> | null = null
 
+// Connected players, not roster size: a joiner who closed the tab leaves a
+// disconnected seat behind, and someone with only ghosts for company is
+// exactly who needs the invite CTA.
 const soloWaiting = computed(() =>
-  mpStore.gameStatus === 'waiting' && mpStore.gamePlayers.length === 1)
+  mpStore.gameStatus === 'waiting' && mpStore.presentUserIds.length === 1)
 
 watch(soloWaiting, (solo) => {
   if (solo && !tipTimer) {
@@ -1065,9 +1068,10 @@ async function shareInvite() {
         url: inviteUrl(),
       })
       return
-    } catch {
-      // Share sheet dismissed - nothing to do.
-      return
+    } catch (e) {
+      // Dismissing the sheet is a choice; any other failure (no share
+      // target, unsupported payload) still deserves the copy fallback.
+      if ((e as Error)?.name === 'AbortError') return
     }
   }
   copyLink()
