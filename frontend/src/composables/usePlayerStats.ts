@@ -1,7 +1,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
-import { RANKS, rankFor } from '../utils/ranks'
+import { badgeFor, pointsFromRows, applyDecay, daysIdleFromRows, progressToNext } from '../utils/badges'
 
 interface GameResult {
   id: string
@@ -117,16 +117,12 @@ export function usePlayerStats() {
   // Total damage dealt (sum of all draw card values played)
   const totalDamageDealt = computed(() => results.value.reduce((sum, r) => sum + r.draw_cards_played, 0))
 
-  // Rank
-  const rank = computed(() => rankFor(gamesWon.value))
-
-  const nextRank = computed(() => {
-    const wins = gamesWon.value
-    for (const r of RANKS) {
-      if (wins < r.threshold) return { ...r, winsNeeded: r.threshold - wins }
-    }
-    return null
-  })
+  // Badge — cumulative points with floored inactivity decay, from own history.
+  const badgePoints = computed(() =>
+    applyDecay(pointsFromRows(results.value), daysIdleFromRows(results.value, Date.now())),
+  )
+  const badge = computed(() => badgeFor(badgePoints.value))
+  const badgeProgress = computed(() => progressToNext(badgePoints.value))
 
   // Recent games (last 10)
   const recentGames = computed(() => results.value.slice(0, 10))
@@ -165,10 +161,10 @@ export function usePlayerStats() {
     avgCardsRemainingOnLoss,
     ruthlessness,
     totalDamageDealt,
-    rank,
-    nextRank,
+    badge,
+    badgePoints,
+    badgeProgress,
     recentGames,
     avgGameDuration,
-    RANKS
   }
 }

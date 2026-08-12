@@ -343,14 +343,12 @@
                 <Pencil class="seat-edit-icon" :stroke-width="2" aria-hidden="true" />
               </button>
               <span v-else class="player-name">{{ player.name }}</span>
-              <span
-                v-if="seatRanks[player.user_id]"
-                class="rank-chip"
-                :style="{ color: seatRanks[player.user_id]!.color, borderColor: seatRanks[player.user_id]!.color }"
-                :title="`Rank: ${seatRanks[player.user_id]!.title}`"
-              >
-                {{ seatRanks[player.user_id]!.title.toUpperCase() }}
-              </span>
+              <Badge
+                v-if="seatBadges[player.user_id]"
+                :badge="seatBadges[player.user_id]!.badge"
+                size="chip"
+                class="seat-badge"
+              />
               <span
                 v-if="voiceStore.voiceUserIds.has(player.user_id)"
                 class="voice-dot"
@@ -530,9 +528,10 @@ import { nextBot, ladderProgress, isLadderComplete } from '../utils/botLadder'
 import { navigate } from '../utils/routes'
 import { track } from '../utils/analytics'
 import { isRoomCode, normalizeRoomCode, roomCodeProblem } from '@roomCode'
-import { useRanks } from '../composables/useRanks'
+import { useBadges } from '../composables/useBadges'
 import { skinColors } from '../utils/cosmetics'
 import CardBack from './game/CardBack.vue'
+import Badge from './Badge.vue'
 import { vFocusRing } from '../directives/focusRing'
 import { preloadCardImages } from '../utils/preloadCardImages'
 import { useAuthStore } from '../stores/authStore'
@@ -665,12 +664,12 @@ const seatSkins = computed<Record<string, string | undefined>>(() =>
   Object.fromEntries(mpStore.presence.map(p => [p.userId, p.skin])),
 )
 
-// Rank chips for waiting-room seats. Being seen by rank is the point of
-// having one — feature-detects until supabase/ranks.sql is installed.
-const { ranks: seatRanks, fetchRanks } = useRanks()
+// Badge chips for waiting-room seats. Being seen by badge is the point of
+// having one — feature-detects until supabase/badges.sql is installed.
+const { badges: seatBadges, fetchBadges } = useBadges()
 watch(
   () => mpStore.gamePlayers.map(p => p.user_id),
-  (ids) => { if (ids.length) void fetchRanks(ids) },
+  (ids) => { if (ids.length) void fetchBadges(ids) },
   { immediate: true },
 )
 const voiceStore = useVoiceStore()
@@ -1385,15 +1384,8 @@ function copyLink() {
   box-shadow: none;
 }
 
-.rank-chip {
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  letter-spacing: 0.12em;
-  border: 1px solid;
-  border-radius: 999px;
-  padding: 1px 8px;
-  white-space: nowrap;
-  opacity: 0.85;
+.seat-badge {
+  flex-shrink: 0;
 }
 
 .lb-link {

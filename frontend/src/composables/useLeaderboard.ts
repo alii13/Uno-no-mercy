@@ -15,6 +15,7 @@ import { localDateString } from '../utils/seededRng'
 
 export interface DailyRow {
     rank: number
+    user_id?: string | null
     username: string
     share_code?: string | null
     country?: string | null
@@ -28,6 +29,7 @@ export interface DailyRow {
 
 export interface WeeklyRow {
     rank: number
+    user_id?: string | null
     username: string
     share_code?: string | null
     country?: string | null

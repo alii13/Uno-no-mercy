@@ -3,10 +3,15 @@
 -- Additive only: two SECURITY DEFINER functions + grants. No table changes.
 --
 -- game_results RLS is owner-select-only; a public profile exposes ONE row of
--- aggregates (never row-level history) plus a 10-game W/L form strip.
+-- aggregates (never row-level history) plus a 10-game W/L form strip. It also
+-- returns user_id so the client can look up the profile's badge via
+-- player_points (badges.sql); re-run this (drop + recreate) to pick that up.
+
+drop function if exists public.public_profile(text);
 
 create or replace function public.public_profile(p_share_code text)
 returns table (
+    user_id uuid,
     username text,
     country text,
     skin text,
@@ -67,6 +72,7 @@ as $$
         ) last10
     )
     select
+        t.id as user_id,
         t.username,
         t.country,
         t.equipped_card_back as skin,
@@ -92,7 +98,7 @@ as $$
         (select recent from form) as recent_form
     from target t
     left join results r on true
-    group by t.username, t.country, t.equipped_card_back, t.created_at;
+    group by t.id, t.username, t.country, t.equipped_card_back, t.created_at;
 $$;
 
 grant execute on function public.public_profile to anon, authenticated;

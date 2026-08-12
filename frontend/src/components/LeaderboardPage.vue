@@ -87,13 +87,12 @@
             />
             <span class="lb-name">{{ row.is_me ? 'YOU' : row.username }}</span>
             <span v-if="flagEmoji(row.country)" class="lb-flag" :title="row.country ?? ''">{{ flagEmoji(row.country) }}</span>
-            <span
-              v-if="row.lifetime_wins !== undefined"
-              class="lb-chip"
-              :style="{ color: rankFor(row.lifetime_wins).color, borderColor: rankFor(row.lifetime_wins).color }"
-            >
-              {{ rankFor(row.lifetime_wins).title }}
-            </span>
+            <Badge
+              v-if="row.user_id && badges[row.user_id]"
+              :badge="badges[row.user_id]!.badge"
+              size="chip"
+              class="lb-badge"
+            />
             <span class="lb-score" :class="{ out: metric(row).out }">
               {{ metric(row).main }}<template v-if="metric(row).sub"> · {{ metric(row).sub }}</template>
             </span>
@@ -140,9 +139,10 @@ import { navigate } from '../utils/routes'
 import { formatCountdown, msUntilLocalMidnight } from '../utils/countdown'
 import { skinColors } from '../utils/cosmetics'
 import { flagEmoji } from '../utils/country'
-import { rankFor } from '../utils/ranks'
+import { useBadges } from '../composables/useBadges'
 import CardBack from './game/CardBack.vue'
 import SiteFooter from './SiteFooter.vue'
+import Badge from './Badge.vue'
 
 defineEmits<{ (e: 'back'): void }>()
 
@@ -161,6 +161,14 @@ const podium = computed(() => {
     return [top[1], top[0], top[2]].filter((r): r is Row => !!r)
 })
 const rest = computed(() => rows.value.slice(3))
+
+// Badge chips for every visible row — feature-detects until badges.sql +
+// the user_id-exposing board functions are installed.
+const { badges, fetchBadges } = useBadges()
+watch(rows, (rs) => {
+    const ids = rs.map(r => r.user_id).filter((x): x is string => !!x)
+    if (ids.length) void fetchBadges(ids)
+}, { immediate: true })
 
 function switchTab(next: 'daily' | 'weekly') {
     if (tab.value === next) return
@@ -523,15 +531,7 @@ onUnmounted(() => { if (ticker) clearInterval(ticker) })
   line-height: 1;
 }
 
-.lb-chip {
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  letter-spacing: 0.12em;
-  border: 1px solid;
-  border-radius: 999px;
-  padding: 1px 8px;
-  white-space: nowrap;
-  opacity: 0.85;
+.lb-badge {
   flex-shrink: 0;
 }
 
@@ -621,7 +621,7 @@ onUnmounted(() => { if (ticker) clearInterval(ticker) })
 }
 
 @media (max-width: 480px) {
-  .lb-chip { display: none; }
+  .lb-badge :deep(.badge-label) { display: none; }
   .lb-score { font-size: 0.65rem; }
   .lb-row { gap: var(--spacing-2); padding: var(--spacing-3) var(--spacing-2); }
   .lb-podium { gap: var(--spacing-2); }
