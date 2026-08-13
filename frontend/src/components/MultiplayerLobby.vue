@@ -409,14 +409,35 @@
                 <X class="player-kick-icon" :stroke-width="2.5" aria-hidden="true" />
               </button>
             </div>
-            <div
-              v-if="mpStore.gamePlayers.length < 10"
-              class="player-chip player-chip-empty"
-            >
-              <div class="player-avatar empty">+</div>
-              <span class="player-name muted">Waiting…</span>
-            </div>
+            <template v-if="mpStore.gamePlayers.length < 10">
+              <!-- Solo shows a row of open seats — an empty table reads as an
+                   invitation, one lone chip reads as a dead room. -->
+              <div
+                v-for="i in (soloWaiting ? 3 : 1)"
+                :key="`empty-${i}`"
+                class="player-chip player-chip-empty"
+                :class="{ 'seat-pulse': soloWaiting }"
+                :style="soloWaiting ? { animationDelay: `${(i - 1) * 0.5}s` } : undefined"
+              >
+                <div class="player-avatar empty">+</div>
+                <span class="player-name muted">Waiting…</span>
+              </div>
+            </template>
           </div>
+        </div>
+
+        <!-- Solo: the room's one job is to fill itself. -->
+        <div v-if="soloWaiting" class="solo-wait">
+          <Button variant="primary" size="lg" block @click="shareInvite">
+            <Share2 class="solo-share-icon" :stroke-width="2" aria-hidden="true" />
+            {{ copied ? 'LINK COPIED' : 'INVITE FRIENDS' }}
+          </Button>
+          <Transition name="tip-fade" mode="out-in">
+            <p :key="tipIndex" class="solo-tip">
+              <span class="solo-tip-tag">WHILE YOU WAIT</span>
+              {{ WAIT_TIPS[tipIndex] }}
+            </p>
+          </Transition>
         </div>
 
         <div class="waiting-actions">
@@ -424,12 +445,6 @@
             <VoiceMicCluster :can-moderate="mpStore.isHost" />
             <span class="waiting-voice-hint">Talk while you play</span>
           </div>
-          <p
-            v-if="mpStore.isHost && mpStore.gamePlayers.length < 2"
-            class="waiting-nudge"
-          >
-            Share the code above to bring a friend in — the game starts the moment they join.
-          </p>
           <Button
             v-if="mpStore.isHost"
             variant="primary"
@@ -540,7 +555,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { Copy, Check, Flame, Pencil, X, Zap, Hash, Bot, ChevronRight, Minus, Skull, Users, HelpCircle, ChevronDown } from 'lucide-vue-next'
+import { Copy, Check, Flame, Pencil, X, Zap, Hash, Bot, ChevronRight, Minus, Skull, Users, HelpCircle, ChevronDown, Share2 } from 'lucide-vue-next'
 import { useRetentionStore } from '../stores/retentionStore'
 import {
     getDailyRecord, fetchServerDailyRecord, dailyGridCells, buildDailyShareText,
@@ -1010,6 +1025,58 @@ async function confirmSignOut() {
 }
 
 // Auto-join URL friends tap to drop straight into the room.
+// --- Solo waiter: the room's one job is to fill itself ---
+
+const WAIT_TIPS = [
+  'Stack a draw card on a draw card to pass the pile along - it grows until someone eats the whole thing.',
+  'Down to one card? Call "Mercy!" fast. Get caught silent and you draw 10.',
+  'Hit 25 cards in hand and you are eliminated on the spot. No mercy.',
+  'A 7 lets you swap hands with any player. A 0 rotates every hand around the table.',
+  'Wild Color Roulette makes someone draw until they hit the called color.',
+]
+const tipIndex = ref(0)
+let tipTimer: ReturnType<typeof setInterval> | null = null
+
+// Connected players, not roster size: a joiner who closed the tab leaves a
+// disconnected seat behind, and someone with only ghosts for company is
+// exactly who needs the invite CTA.
+const soloWaiting = computed(() =>
+  mpStore.gameStatus === 'waiting' && mpStore.presentUserIds.length === 1)
+
+watch(soloWaiting, (solo) => {
+  if (solo && !tipTimer) {
+    tipTimer = setInterval(() => {
+      tipIndex.value = (tipIndex.value + 1) % WAIT_TIPS.length
+    }, 6000)
+  } else if (!solo && tipTimer) {
+    clearInterval(tipTimer)
+    tipTimer = null
+  }
+}, { immediate: true })
+
+onUnmounted(() => {
+  if (tipTimer) clearInterval(tipTimer)
+})
+
+/** Native share sheet where it exists (the mobile path); copy-link elsewhere. */
+async function shareInvite() {
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: 'Open Mercy',
+        text: 'Sit down - the game starts the moment you join.',
+        url: inviteUrl(),
+      })
+      return
+    } catch (e) {
+      // Dismissing the sheet is a choice; any other failure (no share
+      // target, unsupported payload) still deserves the copy fallback.
+      if ((e as Error)?.name === 'AbortError') return
+    }
+  }
+  copyLink()
+}
+
 function inviteUrl() {
   const u = new URL(window.location.href)
   u.search = ''
@@ -2247,14 +2314,61 @@ function copyLink() {
   .mode-desc { line-height: 1.8; }
 }
 
-.waiting-nudge {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
+.solo-wait {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-3);
+  width: 100%;
+}
+
+.solo-share-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: var(--spacing-2);
+}
+
+.solo-tip {
+  margin: 0;
+  padding: var(--spacing-3);
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
   color: var(--text-secondary);
-  text-align: center;
   line-height: 1.5;
-  margin: 0 0 var(--spacing-3);
-  max-width: 34ch;
+  text-align: center;
+}
+
+.solo-tip-tag {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  color: var(--color-hazard, #ffcc00);
+  margin-bottom: var(--spacing-1);
+}
+
+.tip-fade-enter-active,
+.tip-fade-leave-active {
+  transition: opacity 0.35s ease;
+}
+.tip-fade-enter-from,
+.tip-fade-leave-to {
+  opacity: 0;
+}
+
+.seat-pulse {
+  animation: seat-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes seat-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.8; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seat-pulse { animation: none; }
 }
 
 .waiting-escape {
