@@ -347,16 +347,6 @@
                   :title="isPlayerConnected(player.user_id) ? 'Connected' : 'Connecting…'"
                 ></span>
               </div>
-              <!-- Their equipped card back — the show-off surface. Explicit
-                   colors so an unset skin reads as the default, never as
-                   the viewer's own. -->
-              <CardBack
-                class="seat-skin"
-                :size="{ width: 20, height: 28 }"
-                :accent="skinColors(seatSkins[player.user_id]).accent"
-                :stripe="skinColors(seatSkins[player.user_id]).stripe"
-                aria-hidden="true"
-              />
               <!-- My own seat is renamable; others render plain. -->
               <input
                 v-if="player.user_id === authStore.user?.id && editingName && editTarget === 'room'"
@@ -465,9 +455,10 @@
           <p v-else class="waiting-text">
             {{ mpStore.isHost ? 'Waiting for players…' : 'Waiting for the host to start the game…' }}
           </p>
+          <!-- One voice message at a time: the discovery nudge takes the
+               row's place; dismissing it swaps the button back in. -->
           <div v-if="voiceStore.available" class="waiting-voice">
-            <VoiceMicCluster :can-moderate="mpStore.isHost" />
-            <span class="waiting-voice-hint">Talk while you play</span>
+            <VoiceMicCluster :can-moderate="mpStore.isHost" nudge-inline hint="Talk while you play" />
           </div>
           <div class="waiting-escape">
             <button class="leave-link" @click="showLeaveConfirm = true">LEAVE ROOM</button>
@@ -580,8 +571,6 @@ import { navigate } from '../utils/routes'
 import { track } from '../utils/analytics'
 import { isRoomCode, normalizeRoomCode, roomCodeProblem } from '@roomCode'
 import { useBadges } from '../composables/useBadges'
-import { skinColors } from '../utils/cosmetics'
-import CardBack from './game/CardBack.vue'
 import Badge from './Badge.vue'
 import AutoStartRing from './AutoStartRing.vue'
 import QuickChat from './QuickChat.vue'
@@ -710,12 +699,6 @@ function openProfile(row: { share_code?: string | null }) {
 // Eager availability probe: until the SQL functions exist on the project the
 // rpc fails and the VIEW LEADERBOARD link never renders.
 onMounted(() => { void lb.fetchBoards() })
-
-// Equipped skins per seat, straight from live presence (server echoes what
-// each client reported at auth).
-const seatSkins = computed<Record<string, string | undefined>>(() =>
-  Object.fromEntries(mpStore.presence.map(p => [p.userId, p.skin])),
-)
 
 // Badge chips for waiting-room seats. Being seen by badge is the point of
 // having one — feature-detects until supabase/badges.sql is installed.
@@ -1508,12 +1491,6 @@ function copyLink() {
 .daily-result {
   color: rgba(255, 204, 0, 0.85);
   letter-spacing: 0.06em;
-}
-
-.seat-skin {
-  flex-shrink: 0;
-  border-radius: 3px;
-  box-shadow: none;
 }
 
 .lb-link {
@@ -2423,28 +2400,6 @@ function copyLink() {
   display: flex;
   align-items: center;
   gap: var(--spacing-3);
-}
-
-/* The discovery nudge is right-anchored for the in-game top bar; here the
-   button sits mid-page, so anchor it left instead of letting it clip
-   off-screen. */
-.waiting-voice :deep(.voice-nudge) {
-  right: auto;
-  left: 0;
-}
-
-/* The nudge is an overlay hung below the mic button. Over the game board
-   that's free space; in this column it lands exactly on the nudge text and
-   button below, so reserve its footprint for the one render it's visible. */
-.waiting-voice:has(.voice-nudge) {
-  margin-bottom: 64px;
-}
-
-.waiting-voice-hint {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  letter-spacing: 0.1em;
-  color: var(--text-secondary);
 }
 
 .seat-voice-btn {
