@@ -121,6 +121,10 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     const lastMercyCall = ref<{ playerId: string; n: number } | null>(null)
     // Another seat crossed into a new badge — drives the in-room banner.
     const lastBadgeUp = ref<{ name: string; tier: number; n: number } | null>(null)
+    // Public-lobby auto-start countdown, mirrored from presence frames. The
+    // server sends a duration; anchoring it to the local clock here makes the
+    // deadline immune to client clock skew.
+    const autoStart = ref<{ deadline: number; paused: boolean } | null>(null)
     let badgeUpN = 0
     let actionN = 0
     let playN = 0
@@ -265,6 +269,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
             case 'presence':
                 presence.value = msg.players
+                autoStart.value = typeof msg.autoStartInMs === 'number'
+                    ? { deadline: Date.now() + msg.autoStartInMs, paused: !!msg.autoStartPaused }
+                    : null
                 break
 
             case 'badge-up': {
@@ -301,6 +308,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 const ev = msg.ev
                 switch (ev.t) {
                     case 'STARTED':
+                        autoStart.value = null
                         // Fresh deal (first game or a rematch) — stats are per game.
                         mpStats.value = {
                             peakCards: 0, drawCardsPlayed: 0, wildCardsPlayed: 0, cardsPlayedTotal: 0,
@@ -570,6 +578,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         lastRemotePlay.value = null
         lastStackEaten.value = null
         lastMercyCall.value = null
+        autoStart.value = null
         error.value = null
         mpStats.value = {
             peakCards: 0, drawCardsPlayed: 0, wildCardsPlayed: 0, cardsPlayedTotal: 0,
@@ -869,6 +878,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         lastStackEaten,
         lastMercyCall,
         lastBadgeUp,
+        autoStart,
         sendBadgeUp,
         eliminationOrder,
         ghostInFinishedGame,

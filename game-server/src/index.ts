@@ -8,6 +8,7 @@ import { addParticipant, createMeeting, deactivateMeeting, voiceConfigured, type
 import { gcWindowMs } from './roomGc'
 import { ROOM_CODE_ALPHABET, isRoomCode, normalizeRoomCode } from '../../shared/roomCode'
 import { canSeat, MAX_PLAYERS } from './seats'
+import { autoStartTick, AUTO_START_MIN_PLAYERS, type AutoStartState } from './autoStart'
 import type { StackingMode } from '../../shared/engine'
 
 interface Env extends AuthEnv, VoiceEnv {
@@ -230,13 +231,17 @@ interface RosterEntry {
     skin?: string
 }
 
-// One DO alarm serves three clocks; the earliest due time is armed.
+// One DO alarm serves four clocks; the earliest due time is armed.
 interface RoomTimers {
     gcAt: number
     graceAt?: number
     graceSeat?: string
     catchAt?: number
     catchFor?: string
+    // Auto-start for public lobbies (see autoStart.ts for the transitions).
+    startAt?: number
+    startLeftMs?: number
+    startSeen?: number
 }
 
 type SocketTag = { echo: true } | { userId: string } | null
@@ -279,7 +284,7 @@ export class GameRoomDO {
 
     private async putTimers(t: RoomTimers): Promise<void> {
         await this.ctx.storage.put('timers', t)
-        const due = [t.gcAt, t.graceAt, t.catchAt].filter((x): x is number => !!x)
+        const due = [t.gcAt, t.graceAt, t.catchAt, t.startAt].filter((x): x is number => !!x)
         if (due.length) await this.ctx.storage.setAlarm(Math.min(...due))
     }
 
@@ -656,6 +661,17 @@ export class GameRoomDO {
                 }
                 const { game, events } = startGame(seated, msg.stackingMode ?? (roomRec.stackingMode as StackingMode) ?? 'official')
                 this.game = game
+                {
+                    // A manual start beats the countdown to the punch —
+                    // disarm it so the alarm doesn't fire into a running game.
+                    const t = await this.getTimers()
+                    if (t.startAt !== undefined || t.startLeftMs !== undefined) {
+                        delete t.startAt
+                        delete t.startLeftMs
+                        delete t.startSeen
+                        await this.putTimers(t)
+                    }
+                }
                 if (roomRec.isPublic) {
                     // A started room stays in the directory but flips to
                     // inProgress: the landing strip wants to show a live game,
@@ -733,6 +749,9 @@ export class GameRoomDO {
         const graceSeat = t.graceSeat
         if (graceDue) { delete t.graceAt; delete t.graceSeat }
 
+        const startDue = !!t.startAt && t.startAt <= now
+        if (startDue) { delete t.startAt; delete t.startLeftMs; delete t.startSeen }
+
         const gcDue = !!t.gcAt && t.gcAt <= now
         if (gcDue) t.gcAt = now + gcWindowMs(await this.isRoomPublic())
         await this.putTimers(t)
@@ -752,6 +771,22 @@ export class GameRoomDO {
                 && s.players[s.currentPlayerIndex]?.id === graceSeat
                 && !connected.has(graceSeat)) {
                 const events = autoResolveAbsentTurn(this.game, graceSeat)
+                await this.broadcastGame(events)
+            }
+        }
+
+        if (startDue) {
+            // The lobby countdown hit zero — deal, exactly as a host start
+            // would, if the room still qualifies. If it no longer does, the
+            // next presence change re-arms a fresh clock.
+            await this.loadGame()
+            const roomRec = await this.ctx.storage.get<RoomRecord>('room')
+            const connected = new Set(this.roomSockets().map(x => x.userId))
+            const seated = (await this.rosterList()).filter(r => connected.has(r.userId))
+            if (roomRec?.isPublic && this.roomStatus() === 'lobby' && seated.length >= AUTO_START_MIN_PLAYERS) {
+                const { game, events } = startGame(seated, roomRec.stackingMode as StackingMode)
+                this.game = game
+                await this.refreshDirectory(await this.ctx.storage.get<Record<string, RosterEntry>>('roster') ?? {})
                 await this.broadcastGame(events)
             }
         }
@@ -793,11 +828,41 @@ export class GameRoomDO {
         const players: PresencePlayer[] = Object.entries(roster)
             .sort((a, b) => a[1].joinedAt - b[1].joinedAt)
             .map(([userId, entry]) => ({ userId, name: entry.name, connected: connectedIds.has(userId), skin: entry.skin }))
-        const frame: ServerMsg = { t: 'presence', players }
+        // Presence changes are exactly when the auto-start clock moves, so the
+        // frame carries it and the clients never need to poll.
+        const auto = await this.tickAutoStart(connectedIds.size, Object.keys(roster).length)
+        const frame: ServerMsg = { t: 'presence', players, ...auto }
         for (const { ws } of sockets) {
             this.send(ws, frame)
         }
-        await this.refreshDirectory(roster)
+        // Pass the connected count: this path runs from close handlers where
+        // the closing socket is excluded, and roomSockets() would recount it.
+        await this.refreshDirectory(roster, connectedIds.size)
+    }
+
+    /** Advance the auto-start clock; returns the presence-frame fields. */
+    private async tickAutoStart(connected: number, seated: number): Promise<{ autoStartInMs?: number; autoStartPaused?: boolean }> {
+        if (!(await this.isRoomPublic())) return {}
+        await this.loadGame()
+        const t = await this.getTimers()
+        const prev: AutoStartState = { at: t.startAt, leftMs: t.startLeftMs, seen: t.startSeen }
+        const now = Date.now()
+        const next = autoStartTick(prev, {
+            isPublic: true,
+            phase: this.roomStatus(),
+            connected,
+            seatsFree: Math.max(0, MAX_PLAYERS - seated),
+            now,
+        })
+        if (next.at !== prev.at || next.leftMs !== prev.leftMs || next.seen !== prev.seen) {
+            if (next.at === undefined) delete t.startAt; else t.startAt = next.at
+            if (next.leftMs === undefined) delete t.startLeftMs; else t.startLeftMs = next.leftMs
+            if (next.seen === undefined) delete t.startSeen; else t.startSeen = next.seen
+            await this.putTimers(t)
+        }
+        if (next.at !== undefined) return { autoStartInMs: Math.max(0, next.at - now) }
+        if (next.leftMs !== undefined) return { autoStartInMs: next.leftMs, autoStartPaused: true }
+        return {}
     }
 
     /**
@@ -808,11 +873,12 @@ export class GameRoomDO {
      * Never allowed to fail loudly: the directory is a shop window, and a
      * window that will not update must not take the game down with it.
      */
-    private async refreshDirectory(roster: Record<string, RosterEntry>): Promise<void> {
+    private async refreshDirectory(roster: Record<string, RosterEntry>, connected?: number): Promise<void> {
         try {
             if (!(await this.isRoomPublic())) return
             const room = await this.ctx.storage.get<RoomRecord>('room')
             if (!room) return
+            connected ??= this.roomSockets().length
             // A hibernated DO wakes with `game` unloaded and roomStatus()
             // reads it directly — without this, the presence broadcast a
             // backgrounded phone triggers would report a playing or finished
@@ -826,6 +892,7 @@ export class GameRoomDO {
                     code: room.code,
                     snapshot: {
                         players,
+                        connected,
                         seatsFree: Math.max(0, MAX_PLAYERS - players),
                         // Kept alongside status so a rollback still reads sane entries.
                         inProgress: this.roomStatus() === 'playing',
