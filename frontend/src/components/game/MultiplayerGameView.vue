@@ -536,7 +536,7 @@ const statusMessage = computed(() => {
     return isMyTurn.value ? `DANGER: SEEKING ${target}` : `${currentPlayerName.value} SEEKING ${target}...`
   }
   if (drawStack.value > 0 && isMyTurn.value) return `WARNING: DRAW ${drawStack.value} OR STACK HIGHER!`
-  if (drawStack.value > 0 && !isMyTurn.value) return `DRAW STACK: +${drawStack.value} PENDING`
+  // No off-turn stack ticker: the +N STACK centerpiece already says it.
   return ''
 })
 

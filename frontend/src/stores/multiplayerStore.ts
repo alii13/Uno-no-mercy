@@ -473,6 +473,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             ws = socket
             let settled = false
             const timer = setTimeout(() => {
+                // Same guard as onclose: a superseded socket whose closing
+                // handshake stalls must not resolve its old caller as failed.
+                if (ws !== socket) { settle('superseded'); return }
                 connectFailReason ??= 'timeout'
                 try { socket.close() } catch { /* noop */ }
                 settle(false)
@@ -717,6 +720,10 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 .then(res => (res.ok ? (res.json() as Promise<string[]>) : []))
                 .catch(() => [] as string[])
             for (const code of codes) {
+                // Each candidate is a fresh attempt — a rejected one (full,
+                // vanished) must not leave its verdict on screen over the
+                // room we do get into.
+                error.value = null
                 const res = await connect(code)
                 // Another flow (a restore, a second tap) took over — stand down.
                 if (res === 'superseded') return null
@@ -732,6 +739,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 }
             }
             // Nothing open — host a public room and wait for company.
+            error.value = null
             const code = await createRoom(mode, true)
             if (!code) return null
             stackingMode.value = mode

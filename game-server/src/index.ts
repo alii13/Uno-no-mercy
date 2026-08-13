@@ -243,7 +243,9 @@ interface RoomTimers {
     // Auto-start for public lobbies (see autoStart.ts for the transitions).
     startAt?: number
     startLeftMs?: number
-    startSeen?: number
+    // User ids counted into the clock. Rooms that armed a clock under the
+    // build that stored a count hold a number here - readers must tolerate it.
+    startSeen?: string[] | number
 }
 
 type SocketTag = { echo: true } | { userId: string } | null
@@ -858,7 +860,7 @@ export class GameRoomDO {
             .map(([userId, entry]) => ({ userId, name: entry.name, connected: connectedIds.has(userId), skin: entry.skin }))
         // Presence changes are exactly when the auto-start clock moves, so the
         // frame carries it and the clients never need to poll.
-        const auto = await this.tickAutoStart(connectedIds.size, Object.keys(roster).length)
+        const auto = await this.tickAutoStart([...connectedIds], Object.keys(roster).length)
         const frame: ServerMsg = { t: 'presence', players, ...auto }
         for (const { ws } of sockets) {
             this.send(ws, frame)
@@ -869,20 +871,27 @@ export class GameRoomDO {
     }
 
     /** Advance the auto-start clock; returns the presence-frame fields. */
-    private async tickAutoStart(connected: number, seated: number): Promise<{ autoStartInMs?: number; autoStartPaused?: boolean }> {
+    private async tickAutoStart(connectedIds: string[], seated: number): Promise<{ autoStartInMs?: number; autoStartPaused?: boolean }> {
         if (!(await this.isRoomPublic())) return {}
         await this.loadGame()
         const t = await this.getTimers()
-        const prev: AutoStartState = { at: t.startAt, leftMs: t.startLeftMs, seen: t.startSeen }
+        const prev: AutoStartState = {
+            at: t.startAt,
+            leftMs: t.startLeftMs,
+            // A clock armed by the count-storing build holds a number - drop
+            // it and let identity tracking rebuild from this tick.
+            seen: Array.isArray(t.startSeen) ? t.startSeen : undefined,
+        }
         const now = Date.now()
         const next = autoStartTick(prev, {
             isPublic: true,
             phase: this.roomStatus(),
-            connected,
+            connectedIds,
             seatsFree: Math.max(0, MAX_PLAYERS - seated),
             now,
         })
-        if (next.at !== prev.at || next.leftMs !== prev.leftMs || next.seen !== prev.seen) {
+        const seenChanged = (next.seen ?? []).join(',') !== (prev.seen ?? []).join(',')
+        if (next.at !== prev.at || next.leftMs !== prev.leftMs || seenChanged || typeof t.startSeen === 'number') {
             if (next.at === undefined) delete t.startAt; else t.startAt = next.at
             if (next.leftMs === undefined) delete t.startLeftMs; else t.startLeftMs = next.leftMs
             if (next.seen === undefined) delete t.startSeen; else t.startSeen = next.seen
