@@ -269,7 +269,7 @@ const props = defineProps<{
   initialMode?: 'login' | 'signup' | 'claim'
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'back'): void
 }>()
 
@@ -395,11 +395,21 @@ async function handleSubmit() {
         // so the message is set after switching to the sign-in tab.
         setMode('login')
         successMsg.value = 'Account created. Check your email to confirm, then sign in.'
+      } else {
+        // Instant session (confirmations off): close before the parent's
+        // signed-out branch dies, or the signed-in fallback AuthView mounts
+        // in claim mode and greets a fresh account with "ACCOUNT CLAIMED".
+        emit('back')
       }
     } else {
       const result = await authStore.signIn(email.value, password.value)
       if (!result.success) {
         error.value = result.error || 'Login failed'
+      } else {
+        // Same trap as above: success flips isAuthenticated, the signed-out
+        // branch unmounts this view, and a still-true showAuthView would
+        // mount the claim-mode fallback over a plain sign-in.
+        emit('back')
       }
     }
   } finally {
