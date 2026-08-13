@@ -381,6 +381,12 @@ export class GameRoomDO {
         }
         if (this.game && roomRec && events.some(e => e.t === 'GAME_OVER')) {
             await persistResults(this.game, roomRec.code, this.env)
+            // The room just left the joinable pool. Tell the directory now —
+            // waiting for the next presence change would leave a window where
+            // a finished room (inProgress: false) re-enters quick match.
+            if (roomRec.isPublic) {
+                await this.refreshDirectory(await this.ctx.storage.get<Record<string, RosterEntry>>('roster') ?? {})
+            }
         }
         await this.saveGame()
         await this.armTurnGrace()
@@ -807,6 +813,11 @@ export class GameRoomDO {
             if (!(await this.isRoomPublic())) return
             const room = await this.ctx.storage.get<RoomRecord>('room')
             if (!room) return
+            // A hibernated DO wakes with `game` unloaded and roomStatus()
+            // reads it directly — without this, the presence broadcast a
+            // backgrounded phone triggers would report a playing or finished
+            // room as a fresh lobby and hand it back to quick match.
+            await this.loadGame()
             const players = Object.keys(roster).length
             const skins = Object.values(roster).map(e => e.skin).filter(Boolean) as string[]
             await directoryStub(this.env).fetch('https://do/dir-register', {
@@ -816,7 +827,9 @@ export class GameRoomDO {
                     snapshot: {
                         players,
                         seatsFree: Math.max(0, MAX_PLAYERS - players),
+                        // Kept alongside status so a rollback still reads sane entries.
                         inProgress: this.roomStatus() === 'playing',
+                        status: this.roomStatus(),
                         mode: room.stackingMode,
                         skins,
                     },

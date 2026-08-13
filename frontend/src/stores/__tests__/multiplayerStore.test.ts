@@ -554,6 +554,150 @@ describe('elimination and spectating', () => {
     })
 })
 
+/**
+ * The insta-defeat bug: the public-rooms pool could serve a room whose game
+ * had already ended. The joiner was seated with no seat in the dead game and
+ * instantly rendered someone else's game-over. These tests pin every client
+ * layer of the fix; the directory filter is the server layer.
+ */
+describe('quick match never sits down in a finished room', () => {
+    function finishedGhostView(): PersonalView {
+        // A finished game between two strangers — 'me' has no seat in it.
+        return playingView({
+            status: 'finished',
+            you: null,
+            currentPlayerId: null,
+            winnerId: 'opp',
+            players: [
+                { userId: 'opp', name: 'RIVAL', seat: 0, handCount: 0, isEliminated: false, connected: true, calledUno: false },
+                { userId: 'opp2', name: 'THIRD', seat: 1, handCount: 9, isEliminated: true, connected: true, calledUno: false },
+            ],
+        })
+    }
+
+    async function socketAt(n: number) {
+        for (let i = 0; i < 60 && FakeWebSocket.instances.length < n; i++) await Promise.resolve()
+        expect(FakeWebSocket.instances.length).toBeGreaterThanOrEqual(n)
+        return FakeWebSocket.instances[n - 1]!
+    }
+
+    it('skips a dead room and joins the next open one', async () => {
+        vi.stubGlobal('fetch', async () => ({ ok: true, json: async () => ['DEAD01', 'OPEN02'] }))
+        const mp = useMultiplayerStore()
+        const matching = mp.quickMatch('official')
+
+        // First room in the pool: game already over, I was never in it.
+        const dead = await socketAt(1)
+        dead.open()
+        dead.receive({ t: 'hello', roomCode: 'DEAD01', userId: 'me', hostUserId: 'opp' })
+        dead.receive({ t: 'snapshot', seq: 40, game: finishedGhostView() })
+
+        // The store walks away and tries the next code.
+        const open = await socketAt(2)
+        open.open()
+        open.receive({ t: 'hello', roomCode: 'OPEN02', userId: 'me', hostUserId: 'opp' })
+        open.receive({ t: 'presence', players: [{ userId: 'me', name: 'TESTER', connected: true }] })
+        open.receive({ t: 'snapshot', seq: 0, game: playingView({ status: 'lobby', you: null, currentPlayerId: null, players: [] }) })
+
+        expect(await matching).toBe('OPEN02')
+        expect(dead.readyState).toBe(3)
+        expect(mp.roomCode).toBe('OPEN02')
+        expect(mp.currentGame?.status).toBe('waiting')
+        expect(JSON.parse(localStorage.getItem('uno_mp_room')!).code).toBe('OPEN02')
+    })
+
+    it('renders the waiting room, never the game-over, for a seatless joiner', async () => {
+        const mp = useMultiplayerStore()
+        const ws = await joinRoom(mp)
+        ws.receive({ t: 'presence', players: [
+            { userId: 'me', name: 'TESTER', connected: true },
+            { userId: 'opp', name: 'RIVAL', connected: true },
+        ] })
+        ws.receive({ t: 'snapshot', seq: 41, game: finishedGhostView() })
+
+        // Ghost in a finished game → treat the room as its waiting room; the
+        // next deal seats everyone connected, ghost included.
+        expect(mp.currentGame?.status).toBe('waiting')
+        expect(mp.gamePlayers.map(p => p.name).sort()).toEqual(['RIVAL', 'TESTER'])
+    })
+
+    it('a player who actually sat in the finished game still sees its result', async () => {
+        const mp = useMultiplayerStore()
+        const ws = await joinRoom(mp)
+        ws.receive({ t: 'snapshot', seq: 42, game: playingView({ status: 'finished', winnerId: 'opp', currentPlayerId: null }) })
+
+        expect(mp.currentGame?.status).toBe('finished')
+    })
+
+    it('a restore that lands in a finished game it never sat in forgets the room', async () => {
+        fakeStorage.store['uno_mp_room'] = JSON.stringify({ code: 'DEAD01', at: Date.now() })
+        const mp = useMultiplayerStore()
+        const restoring = mp.restoreActiveGame()
+
+        const ws = await socketAt(1)
+        ws.open()
+        ws.receive({ t: 'hello', roomCode: 'DEAD01', userId: 'me', hostUserId: 'opp' })
+        ws.receive({ t: 'snapshot', seq: 40, game: finishedGhostView() })
+        await restoring
+
+        expect(mp.currentGame).toBeNull()
+        expect(mp.roomCode).toBe('')
+        expect(fakeStorage.store['uno_mp_room']).toBeUndefined()
+        expect(ws.readyState).toBe(3)
+    })
+
+    it('a superseded restore attempt does not wipe the room that superseded it', async () => {
+        fakeStorage.store['uno_mp_room'] = JSON.stringify({ code: 'OLDRM1', at: Date.now() })
+        const mp = useMultiplayerStore()
+        const restoring = mp.restoreActiveGame()
+        for (let i = 0; i < 60 && FakeWebSocket.instances.length === 0; i++) await Promise.resolve()
+
+        // The user out-clicks the slow restore and joins a fresh room.
+        const joining = mp.joinGame('FRESH2')
+        for (let i = 0; i < 20 && FakeWebSocket.instances.length < 2; i++) await Promise.resolve()
+        const fresh = FakeWebSocket.instances[1]!
+        fresh.open()
+        fresh.receive({ t: 'hello', roomCode: 'FRESH2', userId: 'me', hostUserId: 'me' })
+        fresh.receive({ t: 'presence', players: [{ userId: 'me', name: 'TESTER', connected: true }] })
+        fresh.receive({ t: 'snapshot', seq: 0, game: playingView({ status: 'lobby', you: null, currentPlayerId: null, players: [] }) })
+        await joining
+        await restoring
+
+        // The restore resolved as superseded: no reset, no phantom failure,
+        // and the fresh room's stored code survives.
+        expect(mp.roomCode).toBe('FRESH2')
+        expect(mp.currentGame?.status).toBe('waiting')
+        expect(JSON.parse(fakeStorage.store['uno_mp_room']!).code).toBe('FRESH2')
+        expect(track).not.toHaveBeenCalledWith('mp_join_failed', expect.objectContaining({ method: 'restore' }))
+    })
+
+    it('frames from a superseded socket cannot poison the new room', async () => {
+        const mp = useMultiplayerStore()
+        const stale = await joinRoom(mp)
+
+        // A second join supersedes the first socket entirely.
+        const joining = mp.joinGame('FRESH2')
+        for (let i = 0; i < 20 && FakeWebSocket.instances.length < 2; i++) await Promise.resolve()
+        const fresh = FakeWebSocket.instances[1]!
+        fresh.open()
+        fresh.receive({ t: 'hello', roomCode: 'FRESH2', userId: 'me', hostUserId: 'me' })
+        fresh.receive({ t: 'presence', players: [{ userId: 'me', name: 'TESTER', connected: true }] })
+        fresh.receive({ t: 'snapshot', seq: 0, game: playingView({ status: 'lobby', you: null, currentPlayerId: null, players: [] }) })
+        await joining
+
+        expect(stale.readyState).toBe(3)
+
+        // The old room's high-seq finished snapshot arrives late — it must
+        // neither replace the view nor outrank the new room's low seq.
+        stale.receive({ t: 'snapshot', seq: 99, game: playingView({ status: 'finished', winnerId: 'opp' }) })
+        expect(mp.roomCode).toBe('FRESH2')
+        expect(mp.currentGame?.status).toBe('waiting')
+
+        fresh.receive({ t: 'snapshot', seq: 1, game: playingView({ status: 'lobby', you: null, currentPlayerId: null, players: [] }) })
+        expect(mp.currentGame?.status).toBe('waiting')
+    })
+})
+
 describe('leaving', () => {
     it('clears state and the stored room', async () => {
         const mp = useMultiplayerStore()

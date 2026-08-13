@@ -39,6 +39,24 @@ describe('dirCodes', () => {
         expect(dirCodes(dir)).toEqual(['OPEN'])
     })
 
+    it('never offers a finished room to quick match', () => {
+        // A finished game reports inProgress: false, so before `status`
+        // existed the room re-entered the pool at the head of the list and
+        // every quick-matcher landed in someone else's game-over.
+        const dir = {
+            DEAD: { at: NOW, players: 2, inProgress: false, status: 'finished' as const },
+            OPEN: { at: NOW + 10, players: 1, inProgress: false, status: 'lobby' as const },
+        }
+        expect(dirCodes(dir)).toEqual(['OPEN'])
+    })
+
+    it('filters a playing room by status even when inProgress lags', () => {
+        const dir = {
+            RUNNING: { at: NOW, players: 4, inProgress: false, status: 'playing' as const },
+        }
+        expect(dirCodes(dir)).toEqual([])
+    })
+
     it('treats a legacy entry with no flag as joinable', () => {
         expect(dirCodes({ OLD: NOW })).toEqual(['OLD'])
     })
@@ -85,7 +103,7 @@ describe('liveTables', () => {
         const out = liveTables({ AAAA: room({ skins: ['neon'] }) }, NOW)
         const keys = Object.keys(out[0]!)
         expect(keys.sort()).toEqual(
-            ['code', 'inProgress', 'mode', 'players', 'seatsFree', 'skins'].sort(),
+            ['code', 'inProgress', 'mode', 'players', 'seatsFree', 'skins', 'status'].sort(),
         )
         // 'players' is a legitimate key, so match only the words that would
         // actually mean a leak. No /i with a [A-Z] class — the flag cancels it.
@@ -96,5 +114,22 @@ describe('liveTables', () => {
         // Bare-number entries have no player count, so they are not "live"
         // until their room reports one. Better an empty strip than a lie.
         expect(liveTables({ OLD: NOW }, NOW)).toEqual([])
+    })
+
+    it('hides finished rooms — a dead game is not an invitation', () => {
+        const out = liveTables({
+            DEAD: room({ status: 'finished' as const }),
+            LIVE: room({ status: 'lobby' as const }),
+        }, NOW)
+        expect(out.map((t) => t.code)).toEqual(['LIVE'])
+    })
+
+    it('derives status for a legacy entry that predates the field', () => {
+        const out = liveTables({
+            WAITING: room(),
+            RUNNING: room({ players: 4, inProgress: true }),
+        }, NOW)
+        expect(out.find((t) => t.code === 'WAITING')?.status).toBe('lobby')
+        expect(out.find((t) => t.code === 'RUNNING')?.status).toBe('playing')
     })
 })

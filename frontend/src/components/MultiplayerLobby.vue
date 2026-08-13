@@ -282,6 +282,11 @@
 
       <!-- Waiting room — after creating, before starting -->
       <div v-else-if="mpStore.gameStatus === 'waiting'" class="waiting-room">
+        <!-- Joined right as a game here ended: no seat in that game, so the
+             room reads as its waiting room and the next deal includes us. -->
+        <p v-if="mpStore.ghostInFinishedGame" class="just-ended-note">
+          A game just ended here - you're in for the next one.
+        </p>
         <div class="room-code-card">
           <span class="room-code-label">ROOM CODE</span>
           <span class="room-code-value">{{ mpStore.roomCode }}</span>
@@ -1948,6 +1953,17 @@ function copyLink() {
   flex-direction: column;
   gap: var(--spacing-6);
   align-items: center;
+}
+
+.just-ended-note {
+  margin: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  text-align: center;
 }
 
 .room-code-card {

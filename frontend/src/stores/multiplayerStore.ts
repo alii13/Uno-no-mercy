@@ -159,13 +159,23 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         }))
     }
 
+    // A joiner with no seat in a finished game (a stale invite link, or a
+    // directory race serving a room right as its game ended) must not stare
+    // at someone else's game-over. Treat the room as its waiting room — the
+    // next deal seats everyone connected, this joiner included.
+    const ghostInFinishedGame = computed(() => {
+        const v = view.value
+        const me = myUserId.value
+        return !!v && v.status === 'finished' && !!me && !v.players.some(p => p.userId === me)
+    })
+
     const currentGame = computed<GameRow | null>(() => {
         const v = view.value
         if (!v || !roomCodeRef.value) return null
         return {
             id: v.gameId ?? roomCode.value,
             room_code: roomCode.value,
-            status: v.status === 'lobby' ? 'waiting' : v.status,
+            status: v.status === 'lobby' || ghostInFinishedGame.value ? 'waiting' : v.status,
             host_id: v.hostUserId ?? hostUserId.value ?? '',
             current_player_id: v.currentPlayerId,
             direction: v.direction,
@@ -187,7 +197,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
     const gamePlayers = computed<GamePlayerRow[]>(() => {
         const v = view.value
-        if (v && v.status !== 'lobby') {
+        if (v && v.status !== 'lobby' && !ghostInFinishedGame.value) {
             return v.players.map(p => ({
                 id: p.userId,
                 game_id: roomCodeRef.value ?? '',
@@ -414,15 +424,25 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         return authStore.username || 'PLAYER'
     }
 
-    /** Open + authenticate a socket to a room. Resolves on hello, rejects on refusal. */
-    async function connect(code: string): Promise<boolean> {
+    /** Open + authenticate a socket to a room. Resolves true on the first
+     *  snapshot, false on refusal/transport failure, and 'superseded' when a
+     *  newer connect() replaced this attempt mid-flight (callers must treat
+     *  that as "stand down", never as a failure to clean up after). */
+    async function connect(code: string): Promise<boolean | 'superseded'> {
         const token = await accessToken()
         if (!token) { error.value = 'You must be logged in to play online'; return false }
 
         closedByUs = false
         connectFailReason = null
         realtimeStatus.value = 'CONNECTING'
-        return new Promise<boolean>((resolve) => {
+        // Supersede any previous socket. Null the ref first so its close
+        // handler sees itself replaced and neither reconnects nor touches
+        // shared state — a late restore socket racing a quick match used to
+        // overwrite the new room's state with the old room's game-over.
+        const prev = ws
+        ws = null
+        try { prev?.close() } catch { /* noop */ }
+        return new Promise<boolean | 'superseded'>((resolve) => {
             const socket = new WebSocket(wsUrl(code))
             ws = socket
             let settled = false
@@ -431,12 +451,14 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 try { socket.close() } catch { /* noop */ }
                 settle(false)
             }, CONNECT_TIMEOUT_MS)
-            const settle = (ok: boolean) => { if (!settled) { settled = true; clearTimeout(timer); resolve(ok) } }
+            const settle = (result: boolean | 'superseded') => { if (!settled) { settled = true; clearTimeout(timer); resolve(result) } }
 
             socket.onopen = () => {
                 socket.send(JSON.stringify({ t: 'auth', token, name: myNickname(), skin: getEquippedId() } satisfies ClientMsg))
             }
             socket.onmessage = (e) => {
+                // Only the current socket may drive the store.
+                if (ws !== socket) return
                 const msg = JSON.parse(e.data) as ServerMsg
                 if (msg.t === 'hello') {
                     roomCodeRef.value = code
@@ -456,9 +478,16 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             // No settle on error: the close event that always follows carries the code,
             // and settling early would read the failure before the code arrives.
             socket.onclose = (e) => {
+                if (ws !== socket) {
+                    // A newer connect() took over mid-flight. This attempt is
+                    // void, not failed — its caller must not run failure
+                    // cleanup against the room that superseded it, and it must
+                    // not pollute connectFailReason for the newer attempt.
+                    settle('superseded')
+                    return
+                }
                 if (!settled && !error.value) connectFailReason ??= `ws_closed_${e?.code ?? 'unknown'}`
                 settle(false)
-                if (ws !== socket) return
                 realtimeStatus.value = 'CLOSED'
                 if (e?.reason === 'kicked') {
                     // Being removed ends the whole session — voice included.
@@ -483,12 +512,25 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             reconnectTimer = null
             if (closedByUs || !roomCodeRef.value) return
             const ok = await connect(roomCodeRef.value)
-            if (!ok && !closedByUs && roomCodeRef.value) scheduleReconnect()
+            if (ok === false && !closedByUs && roomCodeRef.value) scheduleReconnect()
         }, delay)
     }
 
     function sendMsg(msg: ClientMsg) {
         if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg))
+    }
+
+    /** Drop the socket and forget the room, without the leave ceremony —
+     *  for backing out of a room we should never have sat down in. */
+    function quietDisconnect() {
+        closedByUs = true
+        if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
+        const prev = ws
+        ws = null
+        try { prev?.close() } catch { /* noop */ }
+        realtimeStatus.value = 'CLOSED'
+        try { localStorage.removeItem(STORED_ROOM_KEY) } catch { /* noop */ }
+        resetState()
     }
 
     function sendBadgeUp(tier: number) {
@@ -580,10 +622,12 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             if (!code) return null
             stackingMode.value = mode
             track('mp_room_created', { rules: mode, visibility: 'private' })
-            if (!(await connect(code))) {
+            const res = await connect(code)
+            if (res !== true) {
                 // Room exists server-side but we couldn't reach it — a host-side
-                // failure that was previously invisible to analytics.
-                trackJoinFailed('created', 1)
+                // failure that was previously invisible to analytics. A
+                // superseded attempt is not a failure; another flow took over.
+                if (res === false) trackJoinFailed('created', 1)
                 return null
             }
             trackJoined('created')
@@ -600,14 +644,14 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         try {
             const target = code.trim().toUpperCase()
             let ok = await connect(target)
-            if (!ok) {
+            if (ok === false) {
                 trackJoinFailed(via, 1)
                 // A transport failure with no server verdict (handshake drop,
                 // timeout) gets one retry; server refusals are final.
                 if (!error.value) {
                     await new Promise(r => setTimeout(r, JOIN_RETRY_BACKOFF_MS))
                     ok = await connect(target)
-                    if (!ok) {
+                    if (ok === false) {
                         trackJoinFailed(via, 2)
                         // Transport failures carry no server message — leave the
                         // user an actionable one instead of a silent reset.
@@ -615,7 +659,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     }
                 }
             }
-            if (!ok) return null
+            if (ok !== true) return null
             trackJoined(via)
             return currentGame.value
         } finally {
@@ -632,9 +676,18 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 .then(res => (res.ok ? (res.json() as Promise<string[]>) : []))
                 .catch(() => [] as string[])
             for (const code of codes) {
-                if (await connect(code)) {
-                    trackJoined('quick_match')
-                    return code
+                const res = await connect(code)
+                // Another flow (a restore, a second tap) took over — stand down.
+                if (res === 'superseded') return null
+                if (res === true) {
+                    // Directory races aside, never sit down in a room whose
+                    // game is not in its lobby — a finished room renders
+                    // someone else's game-over on arrival.
+                    if (view.value?.status === 'lobby') {
+                        trackJoined('quick_match')
+                        return code
+                    }
+                    quietDisconnect()
                 }
             }
             // Nothing open — host a public room and wait for company.
@@ -642,8 +695,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             if (!code) return null
             stackingMode.value = mode
             track('mp_room_created', { rules: mode, visibility: 'public' })
-            if (!(await connect(code))) {
-                trackJoinFailed('quick_match', 1)
+            const hosted = await connect(code)
+            if (hosted !== true) {
+                if (hosted === false) trackJoinFailed('quick_match', 1)
                 return null
             }
             trackJoined('quick_match')
@@ -658,12 +712,22 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         const code = storedRoom()
         if (!code) return
         const ok = await connect(code)
+        // The user out-clicked the restore (quick match, a code join) and a
+        // newer connect superseded it: the new room's state must survive.
+        if (ok === 'superseded') return
         if (!ok) {
             // Refresh into a room that's since closed — track before resetState
             // wipes the reason. Previously silent.
             trackJoinFailed('restore', 1)
             try { localStorage.removeItem(STORED_ROOM_KEY) } catch { /* noop */ }
             resetState()
+            return
+        }
+        // A restore that lands in a finished game this user never sat in is
+        // the ghost trap, not a resume — forget the room. A finished game
+        // they DID sit in keeps its game-over (and the rematch button).
+        if (ghostInFinishedGame.value) {
+            quietDisconnect()
             return
         }
         // A restored game keeps its identity so a rematch isn't miscounted
@@ -807,6 +871,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         lastBadgeUp,
         sendBadgeUp,
         eliminationOrder,
+        ghostInFinishedGame,
         catchableUserId,
         catchPlayer,
         mpStats,
