@@ -9,6 +9,7 @@ import { getEquippedId } from '../utils/cosmetics'
 import { useAuthStore } from './authStore'
 import { useVoiceStore } from './voiceStore'
 import type { ClientMsg, IntentAction, PersonalView, PresencePlayer, ServerMsg } from '@protocol'
+import { quickChatPhrase } from '@quickChat'
 
 // The authoritative game server (Cloudflare Worker + one Durable Object per
 // room). The client is a thin mirror: it sends intents and renders the
@@ -125,6 +126,13 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     // server sends a duration; anchoring it to the local clock here makes the
     // deadline immune to client clock skew.
     const autoStart = ref<{ deadline: number; paused: boolean } | null>(null)
+    // Quick chat: newest frame (drives bubbles) + a capped per-match log.
+    // Mutes are client-side and room-scoped — a muted sender's frames are
+    // dropped at receive, instantly and without a server round trip.
+    const lastChat = ref<{ userId: string; name: string; text: string; n: number } | null>(null)
+    const chatLog = ref<{ userId: string; name: string; text: string; n: number }[]>([])
+    const mutedChatIds = ref<Set<string>>(new Set())
+    let chatN = 0
     let badgeUpN = 0
     let actionN = 0
     let playN = 0
@@ -279,6 +287,16 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     ?? presence.value.find(p => p.userId === msg.userId)?.name
                     ?? 'A player'
                 lastBadgeUp.value = { name, tier: msg.tier, n: ++badgeUpN }
+                break
+            }
+
+            case 'chat': {
+                if (mutedChatIds.value.has(msg.userId)) break
+                const phrase = quickChatPhrase(msg.phraseId)
+                if (!phrase) break
+                const entry = { userId: msg.userId, name: playerName(msg.userId), text: phrase.text, n: ++chatN }
+                chatLog.value = [...chatLog.value.slice(-49), entry]
+                lastChat.value = entry
                 break
             }
 
@@ -545,6 +563,17 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         sendMsg({ t: 'badge-up', tier })
     }
 
+    function sendChat(phraseId: string) {
+        sendMsg({ t: 'chat', phraseId })
+    }
+
+    function toggleChatMute(userId: string) {
+        const next = new Set(mutedChatIds.value)
+        if (next.has(userId)) next.delete(userId)
+        else next.add(userId)
+        mutedChatIds.value = next
+    }
+
     function sendIntent(action: IntentAction, opts: { optimistic?: (v: PersonalView) => void } = {}) {
         const id = `i${++intentN}`
         if (opts.optimistic && view.value) {
@@ -579,6 +608,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         lastStackEaten.value = null
         lastMercyCall.value = null
         autoStart.value = null
+        lastChat.value = null
+        chatLog.value = []
+        mutedChatIds.value = new Set()
         error.value = null
         mpStats.value = {
             peakCards: 0, drawCardsPlayed: 0, wildCardsPlayed: 0, cardsPlayedTotal: 0,
@@ -879,6 +911,11 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         lastMercyCall,
         lastBadgeUp,
         autoStart,
+        lastChat,
+        chatLog,
+        mutedChatIds,
+        sendChat,
+        toggleChatMute,
         sendBadgeUp,
         eliminationOrder,
         ghostInFinishedGame,

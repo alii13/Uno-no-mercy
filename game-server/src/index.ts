@@ -9,6 +9,8 @@ import { gcWindowMs } from './roomGc'
 import { ROOM_CODE_ALPHABET, isRoomCode, normalizeRoomCode } from '../../shared/roomCode'
 import { canSeat, MAX_PLAYERS } from './seats'
 import { autoStartTick, AUTO_START_MIN_PLAYERS, type AutoStartState } from './autoStart'
+import { chatAllowed } from './chatLimit'
+import { quickChatPhrase } from '../../shared/quickChat'
 import type { StackingMode } from '../../shared/engine'
 
 interface Env extends AuthEnv, VoiceEnv {
@@ -255,6 +257,9 @@ export class GameRoomDO {
     // Cached room visibility so the GC clock picks its window without a storage
     // read per activity; hydrated at activate and lazily on a fresh wake.
     private roomIsPublic: boolean | undefined
+    // Per-user quick-chat timestamps. In-memory: hibernation clears it, which
+    // is acceptable for a best-effort spam guard.
+    private chatTimes = new Map<string, number[]>()
 
     constructor(private ctx: DurableObjectState, private env: Env) {}
 
@@ -615,6 +620,29 @@ export class GameRoomDO {
                 if (!Number.isFinite(tier) || tier < 1 || tier > 10) return
                 for (const s of this.roomSockets()) {
                     if (s.userId !== tag.userId) this.send(s.ws, { t: 'badge-up', userId: tag.userId, tier })
+                }
+                return
+            }
+
+            case 'chat': {
+                // Id-only quick chat: relay nothing outside the shared
+                // catalog, and echo to everyone including the sender so one
+                // frame drives every client's bubbles.
+                const phrase = quickChatPhrase(String(msg.phraseId))
+                if (!phrase) {
+                    this.send(ws, { t: 'error', code: 'bad-message' })
+                    return
+                }
+                const times = this.chatTimes.get(tag.userId) ?? []
+                // Over the limit: drop silently — an error per spam tap is
+                // itself spam.
+                if (!chatAllowed(times, Date.now())) return
+                this.chatTimes.set(tag.userId, times)
+                for (const s of this.roomSockets()) {
+                    // Relay the canonical id, never the raw payload — a value
+                    // that merely stringifies to a valid id must not ride to
+                    // every socket in the room.
+                    this.send(s.ws, { t: 'chat', userId: tag.userId, phraseId: phrase.id })
                 }
                 return
             }

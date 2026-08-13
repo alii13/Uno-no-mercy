@@ -134,6 +134,9 @@
     <!-- Badge-up: in-room banner when any player crosses into a new badge -->
     <BadgeUpBanner />
 
+    <!-- Quick chat: preset phrases relayed by the room, bubbles over seats -->
+    <QuickChat />
+
     <!-- Color Picker Modal (for regular Wild cards) -->
     <ColorPickerModal 
       v-if="showColorPicker"
@@ -289,6 +292,7 @@ import ConfirmDialog from '../ConfirmDialog.vue'
 import FxLayer from './FxLayer.vue'
 import StackCam from './StackCam.vue'
 import BadgeUpBanner from './BadgeUpBanner.vue'
+import QuickChat from '../QuickChat.vue'
 import { useBadgeUp } from '../../composables/useBadgeUp'
 import type { Card, CardColor } from '../../types/card'
 import { canPlayCard } from '../../utils/gameRules'
