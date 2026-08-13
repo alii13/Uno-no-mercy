@@ -291,10 +291,13 @@
           <span class="room-code-label">ROOM CODE</span>
           <span class="room-code-value">{{ mpStore.roomCode }}</span>
           <div class="room-code-actions">
-            <button class="code-action-btn" @click="copyLink">
-              <Copy v-if="!copied" class="code-action-icon" :stroke-width="2" aria-hidden="true" />
-              <Check v-else class="code-action-icon" :stroke-width="2.5" aria-hidden="true" />
-              {{ copied ? 'LINK COPIED' : 'COPY LINK' }}
+            <!-- The one invite affordance: the native share sheet where it
+                 exists (phones), the clipboard elsewhere. -->
+            <button class="code-action-btn" @click="shareInvite">
+              <Check v-if="copied" class="code-action-icon" :stroke-width="2.5" aria-hidden="true" />
+              <Share2 v-else-if="canNativeShare" class="code-action-icon" :stroke-width="2" aria-hidden="true" />
+              <Copy v-else class="code-action-icon" :stroke-width="2" aria-hidden="true" />
+              {{ copied ? 'LINK COPIED' : canNativeShare ? 'SHARE LINK' : 'COPY LINK' }}
             </button>
           </div>
           <!-- Same content, structured: the rule set is card metadata, so it
@@ -306,20 +309,14 @@
           </div>
         </div>
 
-        <!-- Public rooms deal themselves once two players are seated; the
-             server owns the clock, this only renders it. -->
-        <AutoStartRing
-          v-if="mpStore.autoStart"
-          :deadline="mpStore.autoStart.deadline"
-          :paused="mpStore.autoStart.paused"
-        />
-
-        <div class="players-section">
-          <div class="players-count">
+        <!-- The table: who is here, who is missing, and when it deals - one
+             surface, cyan-zoned like every multiplayer element. -->
+        <section class="table-card">
+          <div class="table-head">
+            <span class="table-label">AT THE TABLE</span>
             <!-- Connected players, matching the solo CTA and the server's
                  own start gate - roster ghosts are seats, not people. -->
-            <span class="players-count-num">{{ mpStore.presentUserIds.length }}</span>
-            <span class="players-count-of">of 20 players</span>
+            <span class="table-count">{{ mpStore.presentUserIds.length }}<span class="table-count-cap"> / 20</span></span>
           </div>
 
           <div class="players-list">
@@ -328,24 +325,28 @@
               :key="player.id"
               class="player-chip"
             >
-              <div class="player-avatar">
-                {{ player.name?.charAt(0) }}
+              <!-- The tier shield is the avatar (the shared Badge carries the
+                   hover tooltip); the letter circle is only the no-data
+                   fallback, same contract as the in-game seats. -->
+              <div class="seat-avatar-wrap">
+                <Badge
+                  v-if="seatBadges[player.user_id]"
+                  :badge="seatBadges[player.user_id]!.badge"
+                  :points="seatBadges[player.user_id]!.points"
+                  :progress="seatBadges[player.user_id]!.progress"
+                  size="mark"
+                  link
+                  class="seat-avatar"
+                />
+                <div v-else class="player-avatar">
+                  {{ player.name?.charAt(0) }}
+                </div>
                 <span
                   class="presence-dot"
                   :class="{ connected: isPlayerConnected(player.user_id) }"
                   :title="isPlayerConnected(player.user_id) ? 'Connected' : 'Connecting…'"
                 ></span>
               </div>
-              <!-- Their equipped card back — the show-off surface. Explicit
-                   colors so an unset skin reads as the default, never as
-                   the viewer's own. -->
-              <CardBack
-                class="seat-skin"
-                :size="{ width: 20, height: 28 }"
-                :accent="skinColors(seatSkins[player.user_id]).accent"
-                :stripe="skinColors(seatSkins[player.user_id]).stripe"
-                aria-hidden="true"
-              />
               <!-- My own seat is renamable; others render plain. -->
               <input
                 v-if="player.user_id === authStore.user?.id && editingName && editTarget === 'room'"
@@ -368,14 +369,6 @@
                 <Pencil class="seat-edit-icon" :stroke-width="2" aria-hidden="true" />
               </button>
               <span v-else class="player-name">{{ player.name }}</span>
-              <Badge
-                v-if="seatBadges[player.user_id]"
-                :badge="seatBadges[player.user_id]!.badge"
-                :points="seatBadges[player.user_id]!.points"
-                :progress="seatBadges[player.user_id]!.progress"
-                size="chip"
-                class="seat-badge"
-              />
               <span
                 v-if="voiceStore.voiceUserIds.has(player.user_id)"
                 class="voice-dot"
@@ -426,44 +419,47 @@
               </div>
             </template>
           </div>
-        </div>
 
-        <!-- Solo: the room's one job is to fill itself. -->
-        <div v-if="soloWaiting" class="solo-wait">
-          <Button variant="primary" size="lg" block @click="shareInvite">
-            <Share2 class="solo-share-icon" :stroke-width="2" aria-hidden="true" />
-            {{ copied ? 'LINK COPIED' : 'INVITE FRIENDS' }}
-          </Button>
+          <!-- Public rooms deal themselves once two players are seated; the
+               server owns the clock, this only renders it. -->
+          <AutoStartRing
+            v-if="mpStore.autoStart"
+            class="table-ring"
+            :deadline="mpStore.autoStart.deadline"
+            :paused="mpStore.autoStart.paused"
+          />
+
+          <!-- The wait teaches the game; the tip lives with the table. -->
           <Transition name="tip-fade" mode="out-in">
-            <p :key="tipIndex" class="solo-tip">
+            <p v-if="soloWaiting" :key="tipIndex" class="solo-tip">
               <span class="solo-tip-tag">WHILE YOU WAIT</span>
               {{ WAIT_TIPS[tipIndex] }}
             </p>
           </Transition>
-        </div>
+        </section>
 
         <div class="waiting-actions">
-          <div v-if="voiceStore.available" class="waiting-voice">
-            <VoiceMicCluster :can-moderate="mpStore.isHost" />
-            <span class="waiting-voice-hint">Talk while you play</span>
-          </div>
+          <!-- Exactly one primary at a time: the room's next action. A state
+               you cannot act on is a status line, never a dead red slab.
+               Inviting lives on the room card's share button - not a second
+               CTA down here. -->
           <Button
-            v-if="mpStore.isHost"
+            v-if="mpStore.isHost && mpStore.presentUserIds.length >= 2"
             variant="primary"
             size="lg"
             block
-            :disabled="mpStore.presentUserIds.length < 2"
             @click="startGame"
           >
-            {{
-              mpStore.presentUserIds.length < 2
-                ? 'WAITING FOR PLAYERS…'
-                : `START GAME (${mpStore.presentUserIds.length})`
-            }}
+            START GAME ({{ mpStore.presentUserIds.length }})
           </Button>
           <p v-else class="waiting-text">
-            Waiting for host to start the game…
+            {{ mpStore.isHost ? 'Waiting for players…' : 'Waiting for the host to start the game…' }}
           </p>
+          <!-- One voice message at a time: the discovery nudge takes the
+               row's place; dismissing it swaps the button back in. -->
+          <div v-if="voiceStore.available" class="waiting-voice">
+            <VoiceMicCluster :can-moderate="mpStore.isHost" nudge-inline hint="Talk while you play" />
+          </div>
           <div class="waiting-escape">
             <button class="leave-link" @click="showLeaveConfirm = true">LEAVE ROOM</button>
             <span class="waiting-sep">·</span>
@@ -575,8 +571,6 @@ import { navigate } from '../utils/routes'
 import { track } from '../utils/analytics'
 import { isRoomCode, normalizeRoomCode, roomCodeProblem } from '@roomCode'
 import { useBadges } from '../composables/useBadges'
-import { skinColors } from '../utils/cosmetics'
-import CardBack from './game/CardBack.vue'
 import Badge from './Badge.vue'
 import AutoStartRing from './AutoStartRing.vue'
 import QuickChat from './QuickChat.vue'
@@ -705,12 +699,6 @@ function openProfile(row: { share_code?: string | null }) {
 // Eager availability probe: until the SQL functions exist on the project the
 // rpc fails and the VIEW LEADERBOARD link never renders.
 onMounted(() => { void lb.fetchBoards() })
-
-// Equipped skins per seat, straight from live presence (server echoes what
-// each client reported at auth).
-const seatSkins = computed<Record<string, string | undefined>>(() =>
-  Object.fromEntries(mpStore.presence.map(p => [p.userId, p.skin])),
-)
 
 // Badge chips for waiting-room seats. Being seen by badge is the point of
 // having one — feature-detects until supabase/badges.sql is installed.
@@ -1063,6 +1051,8 @@ watch(soloWaiting, (solo) => {
 onUnmounted(() => {
   if (tipTimer) clearInterval(tipTimer)
 })
+
+const canNativeShare = typeof navigator !== 'undefined' && !!navigator.share
 
 /** Native share sheet where it exists (the mobile path); copy-link elsewhere. */
 async function shareInvite() {
@@ -1501,16 +1491,6 @@ function copyLink() {
 .daily-result {
   color: rgba(255, 204, 0, 0.85);
   letter-spacing: 0.06em;
-}
-
-.seat-skin {
-  flex-shrink: 0;
-  border-radius: 3px;
-  box-shadow: none;
-}
-
-.seat-badge {
-  flex-shrink: 0;
 }
 
 .lb-link {
@@ -2142,26 +2122,52 @@ function copyLink() {
   letter-spacing: 0.2em;
 }
 
-.players-section {
+/* The table: one surface for seats, clock and tips - cyan-zoned, the
+   multiplayer color, mirroring the hazard-zoned room-code card above it. */
+.table-card {
   width: 100%;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
+  /* Extra air above: the boundary between the room card and the table is
+     the page's one big seam - it gets double the row rhythm (24px gap +
+     24px margin), matching the approved wireframe. */
+  margin-top: var(--spacing-6);
+  padding: var(--spacing-4);
+  background: rgba(0, 243, 255, 0.03);
+  border: 1px solid rgba(0, 243, 255, 0.16);
+  border-radius: var(--radius-md);
 }
 
-.players-count {
-  text-align: center;
+.table-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.table-label {
   font-family: var(--font-mono);
-  color: var(--text-muted);
-  letter-spacing: 0.2em;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
+  letter-spacing: 0.3em;
+  color: var(--color-neon-blue);
 }
 
-.players-count-num {
-  color: var(--text-primary);
+.table-count {
   font-family: var(--font-display);
   font-size: var(--text-lg);
-  margin-right: var(--spacing-2);
+  color: var(--text-primary);
+}
+
+.table-count-cap {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+}
+
+.table-ring {
+  align-self: center;
+  padding-top: var(--spacing-2);
 }
 
 .players-list {
@@ -2295,8 +2301,15 @@ function copyLink() {
   max-width: 60ch;
 }
 
-.player-avatar {
+.seat-avatar-wrap {
   position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.seat-avatar :deep(.badge-emblem) {
+  width: 28px;
+  height: 28px;
 }
 
 .presence-dot {
@@ -2320,26 +2333,13 @@ function copyLink() {
   .mode-desc { line-height: 1.8; }
 }
 
-.solo-wait {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-3);
-  width: 100%;
-}
-
-.solo-share-icon {
-  width: 16px;
-  height: 16px;
-  margin-right: var(--spacing-2);
-}
-
+/* Rides inside the table card: a hairline-separated footer, not another
+   floating box (same treatment as the room card's rules footer). */
 .solo-tip {
   margin: 0;
-  padding: var(--spacing-3);
+  padding: var(--spacing-3) 0 0;
   width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--radius-md);
+  border-top: 1px solid rgba(0, 243, 255, 0.12);
   font-size: var(--text-sm);
   color: var(--text-secondary);
   line-height: 1.5;
@@ -2400,28 +2400,6 @@ function copyLink() {
   display: flex;
   align-items: center;
   gap: var(--spacing-3);
-}
-
-/* The discovery nudge is right-anchored for the in-game top bar; here the
-   button sits mid-page, so anchor it left instead of letting it clip
-   off-screen. */
-.waiting-voice :deep(.voice-nudge) {
-  right: auto;
-  left: 0;
-}
-
-/* The nudge is an overlay hung below the mic button. Over the game board
-   that's free space; in this column it lands exactly on the nudge text and
-   button below, so reserve its footprint for the one render it's visible. */
-.waiting-voice:has(.voice-nudge) {
-  margin-bottom: 64px;
-}
-
-.waiting-voice-hint {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  letter-spacing: 0.1em;
-  color: var(--text-secondary);
 }
 
 .seat-voice-btn {

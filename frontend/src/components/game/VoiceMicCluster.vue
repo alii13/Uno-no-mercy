@@ -5,6 +5,7 @@
        A once-ever nudge points at the button so nobody misses that voice
        exists (on phones the button is icon-only). -->
   <span v-if="voice.available" class="voice-wrap">
+  <template v-if="!(nudgeInline && showNudge)">
   <button
     class="hud-voice"
     :class="{
@@ -49,8 +50,10 @@
       <line x1="21" y1="9" x2="15" y2="15" />
     </svg>
   </button>
+  <span v-if="hint" class="voice-hint">{{ hint }}</span>
+  </template>
   <Transition name="nudge">
-    <span v-if="showNudge" class="voice-nudge" role="status">
+    <span v-if="showNudge" class="voice-nudge" :class="{ inline: nudgeInline }" role="status">
       <span class="nudge-text">Talk with everyone in this room</span>
       <button class="nudge-join" @click="acceptNudge">JOIN VOICE</button>
       <button class="nudge-x" aria-label="Dismiss voice prompt" @click="dismissNudge">×</button>
@@ -66,6 +69,11 @@ import { useVoiceStore } from '../../stores/voiceStore'
 defineProps<{
   /** Room host: shows the mute-everyone control while mics are open. */
   canModerate?: boolean
+  /** The discovery nudge takes the button's place instead of hanging under
+   *  it as an overlay - one voice message at a time (the waiting room). */
+  nudgeInline?: boolean
+  /** Short helper text after the button (hidden while the nudge shows). */
+  hint?: string
 }>()
 
 const voice = useVoiceStore()
@@ -128,6 +136,14 @@ function handleClick() {
   color: var(--color-alert);
 }
 
+.voice-hint {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+  align-self: center;
+}
+
 /* Once-ever discovery nudge anchored under the mic button. */
 .voice-nudge {
   position: absolute;
@@ -173,6 +189,11 @@ function handleClick() {
   line-height: 1;
   padding: 0 0.15rem;
   cursor: pointer;
+}
+
+/* Inline mode: the nudge IS the row, not an overlay hung beneath it. */
+.voice-nudge.inline {
+  position: static;
 }
 
 .nudge-enter-active,
