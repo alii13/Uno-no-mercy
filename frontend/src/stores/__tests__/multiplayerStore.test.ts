@@ -671,6 +671,60 @@ describe('quick match never sits down in a finished room', () => {
         expect(track).not.toHaveBeenCalledWith('mp_join_failed', expect.objectContaining({ method: 'restore' }))
     })
 
+    it('the connect timeout on a superseded socket stands down too', async () => {
+        vi.useFakeTimers()
+        try {
+            fakeStorage.store['uno_mp_room'] = JSON.stringify({ code: 'OLDRM1', at: Date.now() })
+            const mp = useMultiplayerStore()
+            const restoring = mp.restoreActiveGame()
+            for (let i = 0; i < 60 && FakeWebSocket.instances.length === 0; i++) await Promise.resolve()
+            const stale = FakeWebSocket.instances[0]!
+            // A stalled closing handshake: close() never delivers the event,
+            // so the 10s connect timeout is what settles this socket.
+            stale.close = () => { stale.readyState = 2 }
+
+            const joining = mp.joinGame('FRESH2')
+            for (let i = 0; i < 20 && FakeWebSocket.instances.length < 2; i++) await Promise.resolve()
+            const fresh = FakeWebSocket.instances[1]!
+            fresh.open()
+            fresh.receive({ t: 'hello', roomCode: 'FRESH2', userId: 'me', hostUserId: 'me' })
+            fresh.receive({ t: 'presence', players: [{ userId: 'me', name: 'TESTER', connected: true }] })
+            fresh.receive({ t: 'snapshot', seq: 0, game: playingView({ status: 'lobby', you: null, currentPlayerId: null, players: [] }) })
+            await joining
+
+            await vi.advanceTimersByTimeAsync(10_000)
+            await restoring
+
+            // The timeout resolved the restore as superseded, not failed.
+            expect(mp.roomCode).toBe('FRESH2')
+            expect(mp.currentGame?.status).toBe('waiting')
+            expect(JSON.parse(fakeStorage.store['uno_mp_room']!).code).toBe('FRESH2')
+            expect(track).not.toHaveBeenCalledWith('mp_join_failed', expect.objectContaining({ method: 'restore' }))
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it('a rejected candidate does not leave its error over the room we join', async () => {
+        vi.stubGlobal('fetch', async () => ({ ok: true, json: async () => ['FULLRM', 'GOODRM'] }))
+        const mp = useMultiplayerStore()
+        const matching = mp.quickMatch('official')
+
+        const full = await socketAt(1)
+        full.open()
+        full.receive({ t: 'error', code: 'room-full' })
+
+        const good = await socketAt(2)
+        good.open()
+        good.receive({ t: 'hello', roomCode: 'GOODRM', userId: 'me', hostUserId: 'opp' })
+        good.receive({ t: 'presence', players: [{ userId: 'me', name: 'TESTER', connected: true }] })
+        good.receive({ t: 'snapshot', seq: 0, game: playingView({ status: 'lobby', you: null, currentPlayerId: null, players: [] }) })
+
+        expect(await matching).toBe('GOODRM')
+        // Sitting in a healthy lobby under "Game is full" is a lie.
+        expect(mp.error).toBeNull()
+    })
+
     it('frames from a superseded socket cannot poison the new room', async () => {
         const mp = useMultiplayerStore()
         const stale = await joinRoom(mp)

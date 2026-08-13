@@ -316,7 +316,9 @@
 
         <div class="players-section">
           <div class="players-count">
-            <span class="players-count-num">{{ mpStore.gamePlayers.length }}</span>
+            <!-- Connected players, matching the solo CTA and the server's
+                 own start gate - roster ghosts are seats, not people. -->
+            <span class="players-count-num">{{ mpStore.presentUserIds.length }}</span>
             <span class="players-count-of">of 20 players</span>
           </div>
 
@@ -450,13 +452,13 @@
             variant="primary"
             size="lg"
             block
-            :disabled="mpStore.gamePlayers.length < 2"
+            :disabled="mpStore.presentUserIds.length < 2"
             @click="startGame"
           >
             {{
-              mpStore.gamePlayers.length < 2
+              mpStore.presentUserIds.length < 2
                 ? 'WAITING FOR PLAYERS…'
-                : `START GAME (${mpStore.gamePlayers.length})`
+                : `START GAME (${mpStore.presentUserIds.length})`
             }}
           </Button>
           <p v-else class="waiting-text">

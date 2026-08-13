@@ -1,6 +1,6 @@
 <template>
   <!-- Trigger: one thumb, one tap -->
-  <button class="qc-trigger" aria-label="Quick chat" @click="toggleSheet">
+  <button ref="triggerEl" class="qc-trigger" aria-label="Quick chat" @click="toggleSheet">
     <MessageCircle class="qc-trigger-icon" :stroke-width="2" aria-hidden="true" />
     <span v-if="unread" class="qc-dot" aria-hidden="true"></span>
   </button>
@@ -28,7 +28,7 @@
   <Teleport to="body">
     <Transition name="qc-sheet">
       <div v-if="open" class="qc-backdrop" @click.self="open = false">
-        <div class="qc-sheet" role="dialog" aria-modal="true" aria-label="Quick chat">
+        <div ref="sheetEl" class="qc-sheet" role="dialog" aria-modal="true" aria-label="Quick chat" tabindex="-1">
           <div ref="logEl" class="qc-log">
             <p v-if="!mpStore.chatLog.length" class="qc-log-empty">
               Say something - the whole table sees it.
@@ -68,6 +68,14 @@
   </Teleport>
 </template>
 
+<script lang="ts">
+// Module scope: the send window must outlive an instance. QuickChat unmounts
+// when the waiting room hands over to the table, but the server's per-user
+// rate window keeps running - a remount must not re-offer taps the relay
+// would silently drop.
+const sendTimes: number[] = []
+</script>
+
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { MessageCircle, VolumeX } from 'lucide-vue-next'
@@ -88,6 +96,8 @@ function byGroup(group: QuickChatGroup) {
 
 const open = ref(false)
 const logEl = ref<HTMLElement | null>(null)
+const sheetEl = ref<HTMLElement | null>(null)
+const triggerEl = ref<HTMLElement | null>(null)
 let seenN = 0
 const unread = ref(false)
 
@@ -102,20 +112,25 @@ function onKeydown(e: KeyboardEvent) {
 watch(open, (o) => {
   if (!o) {
     document.removeEventListener('keydown', onKeydown)
+    // aria-modal promised a modal; give focus back where it came from.
+    triggerEl.value?.focus()
     return
   }
   document.addEventListener('keydown', onKeydown)
   unread.value = false
   seenN = mpStore.lastChat?.n ?? seenN
-  // Newest message in view when the sheet opens.
-  void nextTick(() => { logEl.value?.scrollTo({ top: logEl.value.scrollHeight }) })
+  // Focus moves into the dialog; newest message in view when it opens.
+  void nextTick(() => {
+    sheetEl.value?.focus()
+    logEl.value?.scrollTo({ top: logEl.value.scrollHeight })
+  })
 })
 
 // Mirror the server's limits (1s gap, 3 per 5s window) so taps the relay
-// would silently drop are never offered.
+// would silently drop are never offered. The window itself is module-scoped
+// above so it survives the lobby-to-table remount.
 const coolingDown = ref(false)
 let coolTimer: ReturnType<typeof setTimeout> | null = null
-const sendTimes: number[] = []
 
 function send(phraseId: string) {
   if (coolingDown.value) return
