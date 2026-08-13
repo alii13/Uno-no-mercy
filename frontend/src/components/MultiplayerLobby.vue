@@ -232,7 +232,7 @@
             <span class="mode-glyph mode-glyph--cyan"><Zap :size="17" :stroke-width="2.25" aria-hidden="true" /></span>
             <span class="mode-text">
               <span class="mode-name">{{ mpStore.loading ? 'Matching…' : 'Quick match' }}</span>
-              <span class="mode-hint">Dropped into a room with a stranger</span>
+              <span class="mode-hint">Join an open table - the game starts itself</span>
             </span>
             <ChevronRight class="mode-chev" :size="16" aria-hidden="true" />
           </button>
