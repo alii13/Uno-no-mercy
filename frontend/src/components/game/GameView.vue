@@ -170,7 +170,6 @@
       :opponent-name="opponentDisplayName"
       :stats="gameStats"
       :is-anonymous="authStore.isAnonymous"
-      :kill="shareableKill"
       :daily="dailyNudge"
       mode="sp"
       @rematch="restart"
@@ -228,7 +227,6 @@ import FxLayer from './FxLayer.vue'
 import StackCam from './StackCam.vue'
 import BadgeUpBanner from './BadgeUpBanner.vue'
 import { useBadgeUp } from '../../composables/useBadgeUp'
-import { isBragworthy } from '../../utils/killCard'
 import { getDailyRecord } from '../../utils/dailyChallenge'
 
 const emit = defineEmits<{ (e: 'claim-account'): void; (e: 'play-daily'): void }>()
@@ -238,14 +236,6 @@ const fx = useGameFx()
 // Wire stack-chain escalation — vignette + shake when drawStack grows
 useStackEscalation(toRef(store, 'drawStack'))
 
-// Only offer the kill link when the human dealt the game's biggest stack.
-// Eating one is not a brag, and a bot-on-bot stack is nobody's story.
-const shareableKill = computed(() => {
-  const k = store.biggestKill
-  if (!k || !isBragworthy(k.amount)) return null
-  const human = store.players.find(p => !p.isBot)
-  return human && k.dealer === human.name ? k : null
-})
 const authStore = useAuthStore()
 const { animateFlyingCard, animateDrawCardsStaggered, killAllFlyingCards } = useCardAnimations()
 

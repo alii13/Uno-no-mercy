@@ -18,11 +18,9 @@
  *   sp_game_finished   { result: won|lost, duration_seconds, rules }
  *   voice_joined       {}
  *   voice_left         { duration_seconds }
- *   share              { method: whatsapp|x|kill_link|image|native|clipboard,
- *                        content_type: sp_win|mp_win|sp_kill|mp_kill|daily }
+ *   share              { method: whatsapp|x|image|native|clipboard,
+ *                        content_type: sp_win|mp_win|daily }
  *   profile_shared     {}
- *   kill_card_viewed   {}
- *   kill_card_cta      {}
  *   daily_started      { source: lobby|game_over }
  *   daily_finished     { result: won|lost|eliminated, turns }
  *   bot_defeated       { bot_id, rung: 1..8 }

@@ -35,16 +35,3 @@ describe('routePath', () => {
     })
 })
 
-describe('kill card route', () => {
-    it('parses a shared kill link', () => {
-        expect(parseRoute('/k/095a277c03c2')).toEqual({ name: 'kill', code: '095a277c03c2' })
-    })
-
-    it('falls back home for a malformed code', () => {
-        expect(parseRoute('/k/x')).toEqual({ name: 'home' })
-    })
-
-    it('round-trips back to its path', () => {
-        expect(routePath({ name: 'kill', code: 'abcd1234' })).toBe('/k/abcd1234')
-    })
-})
