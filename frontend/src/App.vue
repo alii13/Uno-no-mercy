@@ -189,6 +189,17 @@ const localGameStore = useGameStore()
 
 const showAuthView = ref(false)
 const authMode = ref<'login' | 'signup' | 'claim'>('signup')
+
+// A signed-out → signed-in transition means an auth flow just finished, so the
+// auth view has no reason to stay up. AuthView's own back-emit can't be trusted
+// for this: login flips isAuthenticated, which unmounts the signed-out branch
+// hosting the view, and an emit from an unmounted component never reaches this
+// parent — the stale flag would mount the signed-in fallback AuthView (claim
+// mode) and greet a plain sign-in with "ACCOUNT CLAIMED". Guest claims are
+// untouched: a guest is already signed in, so claiming never transitions here.
+watch(() => authStore.isAuthenticated, (is, was) => {
+  if (is && !was) showAuthView.value = false
+})
 const showDashboard = ref(false)
 const showPasswordReset = ref(false)
 const newPassword = ref('')
