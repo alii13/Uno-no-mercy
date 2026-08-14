@@ -8,7 +8,7 @@ import { addParticipant, createMeeting, deactivateMeeting, voiceConfigured, type
 import { gcWindowMs } from './roomGc'
 import { ROOM_CODE_ALPHABET, isRoomCode, normalizeRoomCode } from '../../shared/roomCode'
 import { canSeat, MAX_PLAYERS } from './seats'
-import { autoStartTick, AUTO_START_MIN_PLAYERS, type AutoStartState } from './autoStart'
+import { autoStartTick, autoStartBump, autoStartBumpsLeft, AUTO_START_MIN_PLAYERS, type AutoStartState } from './autoStart'
 import { chatAllowed } from './chatLimit'
 import { quickChatPhrase } from '../../shared/quickChat'
 import type { StackingMode } from '../../shared/engine'
@@ -246,6 +246,8 @@ interface RoomTimers {
     // User ids counted into the clock. Rooms that armed a clock under the
     // build that stored a count hold a number here - readers must tolerate it.
     startSeen?: string[] | number
+    /** Extensions the room has already bought. */
+    startBumps?: number
 }
 
 type SocketTag = { echo: true } | { userId: string } | null
@@ -699,6 +701,7 @@ export class GameRoomDO {
                         delete t.startAt
                         delete t.startLeftMs
                         delete t.startSeen
+                        delete t.startBumps
                         await this.putTimers(t)
                     }
                 }
@@ -709,6 +712,26 @@ export class GameRoomDO {
                     await this.refreshDirectory(await this.ctx.storage.get<Record<string, RosterEntry>>('roster') ?? {})
                 }
                 await this.broadcastGame(events)
+                return
+            }
+
+            case 'extend-start': {
+                // Anyone at the table can hold the lobby open; the allowance
+                // is the room's, so the second press is refused for everyone.
+                await this.loadGame()
+                if (this.roomStatus() !== 'lobby') return
+                const t = await this.getTimers()
+                // A private room never arms this clock, so the bump is a
+                // no-op there and needs no visibility check of its own.
+                const prev: AutoStartState = { at: t.startAt, bumps: t.startBumps }
+                const next = autoStartBump(prev, Date.now())
+                if (next.at === prev.at) return
+                t.startAt = next.at
+                t.startBumps = next.bumps
+                await this.putTimers(t)
+                await this.touchGc()
+                // One ring, one deadline: everybody's clock moves together.
+                await this.broadcastPresence()
                 return
             }
 
@@ -780,7 +803,7 @@ export class GameRoomDO {
         if (graceDue) { delete t.graceAt; delete t.graceSeat }
 
         const startDue = !!t.startAt && t.startAt <= now
-        if (startDue) { delete t.startAt; delete t.startLeftMs; delete t.startSeen }
+        if (startDue) { delete t.startAt; delete t.startLeftMs; delete t.startSeen; delete t.startBumps }
 
         const gcDue = !!t.gcAt && t.gcAt <= now
         if (gcDue) t.gcAt = now + gcWindowMs(await this.isRoomPublic())
@@ -871,7 +894,7 @@ export class GameRoomDO {
     }
 
     /** Advance the auto-start clock; returns the presence-frame fields. */
-    private async tickAutoStart(connectedIds: string[], seated: number): Promise<{ autoStartInMs?: number; autoStartPaused?: boolean }> {
+    private async tickAutoStart(connectedIds: string[], seated: number): Promise<{ autoStartInMs?: number; autoStartPaused?: boolean; autoStartBumpsLeft?: number }> {
         if (!(await this.isRoomPublic())) return {}
         await this.loadGame()
         const t = await this.getTimers()
@@ -881,6 +904,7 @@ export class GameRoomDO {
             // A clock armed by the count-storing build holds a number - drop
             // it and let identity tracking rebuild from this tick.
             seen: Array.isArray(t.startSeen) ? t.startSeen : undefined,
+            bumps: t.startBumps,
         }
         const now = Date.now()
         const next = autoStartTick(prev, {
@@ -891,13 +915,16 @@ export class GameRoomDO {
             now,
         })
         const seenChanged = (next.seen ?? []).join(',') !== (prev.seen ?? []).join(',')
-        if (next.at !== prev.at || next.leftMs !== prev.leftMs || seenChanged || typeof t.startSeen === 'number') {
+        if (next.at !== prev.at || next.leftMs !== prev.leftMs || next.bumps !== prev.bumps || seenChanged || typeof t.startSeen === 'number') {
             if (next.at === undefined) delete t.startAt; else t.startAt = next.at
             if (next.leftMs === undefined) delete t.startLeftMs; else t.startLeftMs = next.leftMs
             if (next.seen === undefined) delete t.startSeen; else t.startSeen = next.seen
+            if (next.bumps === undefined) delete t.startBumps; else t.startBumps = next.bumps
             await this.putTimers(t)
         }
-        if (next.at !== undefined) return { autoStartInMs: Math.max(0, next.at - now) }
+        if (next.at !== undefined) {
+            return { autoStartInMs: Math.max(0, next.at - now), autoStartBumpsLeft: autoStartBumpsLeft(next) }
+        }
         if (next.leftMs !== undefined) return { autoStartInMs: next.leftMs, autoStartPaused: true }
         return {}
     }

@@ -28,6 +28,9 @@ export type ClientMsg =
     | { t: 'rename'; name: string }
     | { t: 'kick'; userId: string }
     | { t: 'start'; stackingMode?: StackingMode }
+    // Hold the public lobby open a minute longer. Anyone at the table may
+    // press it; the allowance is the room's, not the player's.
+    | { t: 'extend-start' }
     | { t: 'voice-join' }
     | { t: 'badge-up'; tier: number }
     // Quick chat is id-only (see shared/quickChat.ts) — no free text crosses
@@ -95,7 +98,8 @@ export type ServerMsg =
     // autoStartInMs: countdown remaining for a public lobby, sent as a
     // duration so client clock skew cannot bend it; absent = no countdown.
     // autoStartPaused: the room dipped below the minimum and the clock froze.
-    | { t: 'presence'; players: PresencePlayer[]; autoStartInMs?: number; autoStartPaused?: boolean }
+    // autoStartBumpsLeft: extensions the room can still buy; 0 hides the button.
+    | { t: 'presence'; players: PresencePlayer[]; autoStartInMs?: number; autoStartPaused?: boolean; autoStartBumpsLeft?: number }
     | { t: 'pong'; now: number }
     | { t: 'snapshot'; seq: number; game: PersonalView }
     | { t: 'event'; seq: number; ev: GameEvent; intentId?: string }

@@ -429,6 +429,19 @@
             :paused="mpStore.autoStart.paused"
           />
 
+          <!-- Waiting for a friend who is nearly here: the room can hold the
+               door open one extra minute, once, and then it deals. -->
+          <button
+            v-if="mpStore.autoStart && !mpStore.autoStart.paused && mpStore.autoStart.bumpsLeft > 0"
+            class="hold-row"
+            type="button"
+            title="Hold the room open one more minute"
+            @click="mpStore.extendAutoStart()"
+          >
+            <Clock class="hold-glyph" :size="14" :stroke-width="2.25" aria-hidden="true" />
+            WAIT LONGER
+          </button>
+
           <!-- The wait teaches the game; the tip lives with the table. -->
           <Transition name="tip-fade" mode="out-in">
             <p v-if="soloWaiting" :key="tipIndex" class="solo-tip">
@@ -572,7 +585,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { Copy, Check, Flame, Pencil, X, Zap, Hash, Bot, ChevronRight, Minus, Skull, Users, HelpCircle, ChevronDown, Share2 } from 'lucide-vue-next'
+import { Copy, Check, Flame, Pencil, X, Zap, Hash, Bot, ChevronRight, Minus, Skull, Users, HelpCircle, ChevronDown, Share2, Clock } from 'lucide-vue-next'
 import { useRetentionStore } from '../stores/retentionStore'
 import {
     getDailyRecord, fetchServerDailyRecord, dailyGridCells, buildDailyShareText,
@@ -2210,6 +2223,31 @@ function copyLink() {
   align-self: center;
   padding-top: var(--spacing-2);
 }
+
+.hold-row {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-3);
+  background: transparent;
+  border: 1px solid rgba(0, 243, 255, 0.22);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.hold-row:hover {
+  background: rgba(0, 243, 255, 0.08);
+  border-color: rgba(0, 243, 255, 0.45);
+  color: var(--text-primary);
+}
+
+.hold-glyph { color: var(--color-neon-blue); flex-shrink: 0; }
 
 .players-list {
   display: flex;
