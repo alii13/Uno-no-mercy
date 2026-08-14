@@ -96,6 +96,22 @@
           </button>
         </div>
 
+        <!-- Daily nudge — the game-over screen is the one surface every
+             player reads, so today's deal earns its comeback pitch here.
+             The parent decides eligibility (solo game, deal not yet played,
+             and never after the daily itself); this just renders. -->
+        <div v-if="daily" class="daily-nudge">
+          <div class="daily-nudge-text">
+            <span class="daily-nudge-title">
+              <Flame :size="14" :stroke-width="2.5" aria-hidden="true" />
+              TODAY'S DEAL
+              <span v-if="daily.streak > 0" class="daily-nudge-streak">{{ daily.streak }}-day streak</span>
+            </span>
+            <span class="daily-nudge-sub">The same shuffle for the whole world. One scored attempt.</span>
+          </div>
+          <button class="daily-nudge-btn" type="button" @click="$emit('play-daily')">PLAY</button>
+        </div>
+
         <!-- Footer: small dismissible links, not heavy CTAs -->
         <div class="footer-links">
           <button v-if="mode === 'sp' || canRematch" class="link-btn" @click="$emit('back-to-lobby')">Back to menu</button>
@@ -109,7 +125,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import gsap from 'gsap'
-import { ImageDown, Skull } from 'lucide-vue-next'
+import { ImageDown, Skull, Flame } from 'lucide-vue-next'
 import { siX, siWhatsapp } from 'simple-icons'
 import { generateShareImage, shareOrDownload } from '../../utils/shareImage'
 import { killTier, newKillCode } from '../../utils/killCard'
@@ -146,10 +162,16 @@ const props = defineProps<{
    * component just mints and shares the link.
    */
   kill?: { dealer: string; victim: string; amount: number } | null
+  /**
+   * Today's-deal nudge. The parent decides eligibility (solo game, deal not
+   * yet played today, never after the daily itself); null hides the strip.
+   */
+  daily?: { streak: number } | null
 }>()
 
 defineEmits<{
   (e: 'rematch'): void
+  (e: 'play-daily'): void
   (e: 'back-to-lobby'): void
   (e: 'upgrade-account'): void
 }>()
@@ -612,6 +634,67 @@ function confettiStyle(i: number) {
 .share-image:disabled { opacity: 0.5; cursor: wait; }
 
 /* Footer links — minimal, doesn't compete with the primary */
+/* Daily nudge — hazard yellow, the daily/streak color zone */
+.daily-nudge {
+  margin-top: 0.85rem;
+  padding: 0.65rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: linear-gradient(180deg, rgba(255, 204, 0, 0.05), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 204, 0, 0.14);
+  border-radius: var(--radius-md);
+  text-align: left;
+}
+.daily-nudge-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.daily-nudge-title {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  color: #ffcc00;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.daily-nudge-streak {
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 204, 0, 0.75);
+  border: 1px solid rgba(255, 204, 0, 0.25);
+  border-radius: 999px;
+  padding: 0.05rem 0.45rem;
+}
+.daily-nudge-sub {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+.daily-nudge-btn {
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  padding: 0.55rem 1rem;
+  background: transparent;
+  color: #ffcc00;
+  border: 1px solid rgba(255, 204, 0, 0.4);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.daily-nudge-btn:hover {
+  border-color: rgba(255, 204, 0, 0.8);
+  color: #ffe066;
+}
+
 .footer-links {
   margin-top: 1.5rem;
   padding-top: 0.85rem;

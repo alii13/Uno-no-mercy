@@ -23,7 +23,7 @@
  *   profile_shared     {}
  *   kill_card_viewed   {}
  *   kill_card_cta      {}
- *   daily_started      {}
+ *   daily_started      { source: lobby|game_over }
  *   daily_finished     { result: won|lost|eliminated, turns }
  *   bot_defeated       { bot_id, rung: 1..8 }
  *   play_clicked       { method: guest }

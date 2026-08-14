@@ -235,7 +235,9 @@ export const useGameStore = defineStore('game', () => {
     // date-seeded PRNG so shuffle, deals, and bot decisions replay
     // identically for every player in the world on the same day.
     let hostRng: () => number = Math.random
-    let dailyDate: string | null = null
+    // Ref, not a local: views need to know the game on screen is the daily
+    // (the game-over nudge must not offer today's deal after the daily itself).
+    const dailyDate = ref<string | null>(null)
     /** Personality per bot seat, keyed by player id. */
     const botProfiles = ref<Record<string, BotProfile>>({})
     function profileFor(p: Player): BotProfile {
@@ -247,8 +249,8 @@ export const useGameStore = defineStore('game', () => {
         mode?: StackingMode,
         opts?: { dailySeed?: string; botIds?: string[] },
     ) {
-        dailyDate = opts?.dailySeed ?? null
-        hostRng = dailyDate ? seededRng(`uno-daily-${dailyDate}`) : Math.random
+        dailyDate.value = opts?.dailySeed ?? null
+        hostRng = dailyDate.value ? seededRng(`uno-daily-${dailyDate.value}`) : Math.random
         dealGeneration++
         closeCatchWindow()
         if (mode) setStackingMode(mode)
@@ -267,7 +269,7 @@ export const useGameStore = defineStore('game', () => {
         botProfiles.value = Object.fromEntries(
             players.value.filter(p => p.isBot).map((p, i) => [
                 p.id,
-                dailyDate ? dailyBot() : botById(opts?.botIds?.[i] ?? BOT_LADDER[0]!.id),
+                dailyDate.value ? dailyBot() : botById(opts?.botIds?.[i] ?? BOT_LADDER[0]!.id),
             ]),
         )
 
@@ -756,7 +758,7 @@ export const useGameStore = defineStore('game', () => {
             // Ladder progress is solo-only and never from the daily: the daily
             // pins its own opponent, so clearing it would otherwise unlock the
             // hardest rung without ever facing the ones below it.
-            if (!dailyDate && human && winnerId.value === human.id) {
+            if (!dailyDate.value && human && winnerId.value === human.id) {
                 const beaten = players.value.find(pl => pl.isBot)
                 if (beaten) {
                     const prof = botProfiles.value[beaten.id]
@@ -771,14 +773,14 @@ export const useGameStore = defineStore('game', () => {
                     }
                 }
             }
-            if (dailyDate) {
+            if (dailyDate.value) {
                 const humanStats = human ? playerStats.value[human.id] : null
                 const dailyResult = human && winnerId.value === human.id
                     ? 'won'
                     : (human?.isEliminated ? 'eliminated' : 'lost')
                 const dailyTurns = humanStats ? humanStats.cardsPlayedTotal + humanStats.drawsTaken : 0
                 markDailyDone({
-                    date: dailyDate,
+                    date: dailyDate.value,
                     result: dailyResult,
                     turns: dailyTurns,
                     log: turnLog.value.join(''),
@@ -806,7 +808,7 @@ export const useGameStore = defineStore('game', () => {
         if (winnerId.value === humanPlayer.id) result = 'won'
         else if (humanPlayer.isEliminated) result = 'eliminated'
 
-        const gameId = dailyDate ? `daily-${dailyDate}` : `bot-${Date.now()}`
+        const gameId = dailyDate.value ? `daily-${dailyDate.value}` : `bot-${Date.now()}`
 
         await supabase.from('game_results').insert({
             game_id: gameId,
@@ -838,6 +840,7 @@ export const useGameStore = defineStore('game', () => {
         currentPlayerIndex,
         direction,
         drawStack,
+        dailyDate,
         biggestKill,
         botProfiles,
         turnLog,

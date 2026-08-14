@@ -67,7 +67,7 @@
     </template>
 
     <!-- Playing local game vs bot (works without auth for guest play) -->
-    <GameView v-else-if="localGameStore.gameState !== 'LOBBY'" @claim-account="handleShowAuth('claim')" />
+    <GameView v-else-if="localGameStore.gameState !== 'LOBBY'" @claim-account="handleShowAuth('claim')" @play-daily="startDailyGame('game_over')" />
 
     <!-- Shareable leaderboard page (/leaderboard) — works signed in or out.
          An active multiplayer match always wins over the route. -->
@@ -128,7 +128,7 @@
     <MultiplayerLobby
       v-else
       @playLocal="startLocalGame"
-      @playDaily="startDailyGame"
+      @playDaily="startDailyGame('lobby')"
       @showAuth="handleShowAuth('claim')"
       @showStats="showDashboard = true"
     />
@@ -348,9 +348,10 @@ function startLocalGame(mode?: 'official' | 'house' | 'casual') {
 }
 
 // The daily challenge: official rules, date-seeded so the whole world gets
-// the same deal today.
-function startDailyGame() {
-  track('daily_started', {})
+// the same deal today. `source` says which surface converted — the lobby card
+// or the game-over nudge — so adoption per surface is measurable.
+function startDailyGame(source: 'lobby' | 'game_over') {
+  track('daily_started', { source })
   localGameStore.initializeGame(['You', 'Terminator'], 'official', { dailySeed: localDateString() })
 }
 </script>
