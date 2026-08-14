@@ -90,13 +90,6 @@
       @dashboard="showDashboard = true; navigate({ name: 'home' })"
     />
 
-    <!-- Shared kill card (/k/<code>) — the screen someone lands on after
-         clicking a link whose preview promised them a specific brag. Works
-         signed out; the read goes through a definer granted to anon. -->
-    <KillCardPage
-      v-else-if="currentRoute.name === 'kill' && !inMpMatch"
-      :code="currentRoute.code"
-    />
 
     <!-- Not authenticated -->
     <template v-else-if="!authStore.isAuthenticated">
@@ -161,7 +154,6 @@ import { nextBot } from './utils/botLadder'
 import { adoptProfileEquip, applyEquipped } from './utils/cosmetics'
 import { currentRoute, navigate } from './utils/routes'
 import { isRoomCode } from '@roomCode'
-import KillCardPage from './components/KillCardPage.vue'
 import { syncCountryToProfile } from './utils/country'
 import LandingPage from './components/LandingPage.vue'
 import AuthView from './components/AuthView.vue'
@@ -222,7 +214,6 @@ const currentScreen = computed(() => {
   if (localGameStore.gameState !== 'LOBBY') return 'sp_game'
   if (currentRoute.value.name === 'leaderboard' && !inMpMatch.value) return 'leaderboard'
   if (currentRoute.value.name === 'profile' && !inMpMatch.value) return 'profile'
-  if (currentRoute.value.name === 'kill' && !inMpMatch.value) return 'kill_card'
   if (!authStore.isAuthenticated) return showAuthView.value ? 'auth' : 'landing'
   if (inMpMatch.value) return 'mp_game'
   if (showAuthView.value) return 'claim_account'

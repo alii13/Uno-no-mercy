@@ -82,19 +82,6 @@
           </button>
         </div>
 
-        <!-- Kill link — shown whether you won or lost, because dealing the
-             biggest stack of the game is the brag either way. -->
-        <div v-if="kill" class="kill-row">
-          <button
-            class="share-btn share-kill"
-            type="button"
-            :disabled="mintingKill"
-            @click="onShareKill"
-          >
-            <Skull class="share-icon-svg" :stroke-width="1.75" aria-hidden="true" />
-            {{ killLabel }}
-          </button>
-        </div>
 
         <!-- Footer: small dismissible links, not heavy CTAs -->
         <div class="footer-links">
@@ -109,12 +96,9 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import gsap from 'gsap'
-import { ImageDown, Skull } from 'lucide-vue-next'
+import { ImageDown } from 'lucide-vue-next'
 import { siX, siWhatsapp } from 'simple-icons'
 import { generateShareImage, shareOrDownload } from '../../utils/shareImage'
-import { killTier, newKillCode } from '../../utils/killCard'
-import { supabase } from '../../lib/supabase'
-import { useAuthStore } from '../../stores/authStore'
 import { track } from '../../utils/analytics'
 
 interface Stats {
@@ -140,12 +124,6 @@ const props = defineProps<{
   /** Knock-out placement, e.g. 3 of totalPlayers = "OUT 3RD OF 5". */
   placement?: number | null
   totalPlayers?: number
-  /**
-   * The biggest stack this player dealt, when it's worth bragging about. The
-   * parent decides eligibility (dealer must be the local player); this
-   * component just mints and shares the link.
-   */
-  kill?: { dealer: string; victim: string; amount: number } | null
 }>()
 
 defineEmits<{
@@ -200,81 +178,6 @@ function sharePayload() {
     unosCalled: props.stats?.unosCalled ?? 0,
     peakHand: props.stats?.peakHand ?? 0,
     siteUrl: 'open-mercy.com',
-  }
-}
-
-// --- Kill link -------------------------------------------------------------
-// Minted lazily: a row is only written when someone actually taps share, so an
-// unshared game costs nothing. The code is reused if they tap twice.
-const authStore = useAuthStore()
-const mintingKill = ref(false)
-const killUrl = ref<string | null>(null)
-const killShared = ref(false)
-
-const killLabel = computed(() => {
-  if (mintingKill.value) return '…'
-  if (killShared.value) return 'Link copied'
-  return `Share the +${props.kill?.amount ?? 0}`
-})
-
-async function mintKillUrl(): Promise<string | null> {
-  if (killUrl.value) return killUrl.value
-  const k = props.kill
-  if (!k) return null
-
-  const { data: userData } = await supabase.auth.getUser()
-  const userId = userData.user?.id
-  if (!userId) return null
-
-  // No .select() on purpose — see newKillCode(). The code is ours already, and
-  // asking for it back would need a SELECT policy the table deliberately lacks.
-  const code = newKillCode()
-  // In solo the human's seat is literally named "You", which reads as the
-  // reader in a shared link ("You stacked +22 on Scrap"). Swap in the actual
-  // profile name so the brag names the person who earned it.
-  const dealerName = k.dealer === 'You' ? authStore.username : k.dealer
-  const { error } = await supabase
-    .from('kill_cards')
-    .insert({
-      code,
-      dealer: dealerName.slice(0, 40),
-      victim: k.victim.slice(0, 40),
-      amount: k.amount,
-      tier: killTier(k.amount),
-      cards_played: props.stats?.cardsPlayed ?? 0,
-      user_id: userId,
-    })
-
-  if (error) return null
-  killUrl.value = `https://open-mercy.com/k/${code}`
-  return killUrl.value
-}
-
-async function onShareKill() {
-  if (mintingKill.value || !props.kill) return
-  mintingKill.value = true
-  try {
-    const url = await mintKillUrl()
-    if (!url) return
-    const text = `+${props.kill.amount} on ${props.kill.victim}. One turn. Beat that.`
-    track('share', { method: 'kill_link', content_type: props.mode === 'mp' ? 'mp_kill' : 'sp_kill' })
-
-    if (preferNativeShare() && navigator.share) {
-      try {
-        await navigator.share({ text: `${text}\n\n${url}` })
-        return
-      } catch {
-        // Dismissed the sheet on purpose — don't also copy behind their back.
-        return
-      }
-    }
-    await navigator.clipboard.writeText(`${text} ${url}`)
-    killShared.value = true
-  } catch {
-    // Offline, RLS refusal, clipboard denied — the modal stays usable and the
-    // button just doesn't confirm.
-  } finally {
-    mintingKill.value = false
   }
 }
 
@@ -567,18 +470,6 @@ function confettiStyle(i: number) {
   display: flex;
   gap: 0.5rem;
   margin-top: 0.85rem;
-}
-.kill-row {
-  display: flex;
-  margin-top: 0.5rem;
-}
-.share-kill {
-  border-color: rgba(255, 42, 42, 0.35);
-  color: rgba(255, 120, 120, 0.9);
-}
-.share-kill:hover:not(:disabled) {
-  border-color: rgba(255, 42, 42, 0.7);
-  color: #ff6b6b;
 }
 .share-btn {
   flex: 1;
