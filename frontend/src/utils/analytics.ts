@@ -8,9 +8,15 @@
  *   mp_room_created    { rules, visibility }
  *   mp_room_joined     { method: created|code|link|quick_match|restore }
  *   mp_join_failed     { reason: <server message>|ws_closed_<code>|timeout|unknown, attempt: 1|2 }
+ *   mp_restore_expired {}  — a stored room was gone on reload. Expected, not a
+ *                            failure: rooms are GC'd once empty. Kept out of
+ *                            mp_join_failed so that metric means "a join the
+ *                            player asked for did not work".
  *   mp_game_started    { players, rules, rematch }
  *   mp_game_finished   { players, result: won|lost, duration_seconds, rules }
  *   mp_room_left       { phase: lobby|playing|finished, seconds_in_room }
+ *   mp_lobby_rescue_taken { players }  — a solo waiter moved to a room that
+ *                            already had company, instead of leaving
  *   mp_spectate_start  {}
  *   mp_spectate_end    { seconds }
  *   mp_spectate_rematch_joined {}
@@ -46,6 +52,26 @@ export function track(event: string, params?: Params): void {
     if (typeof g !== 'function') return
     try {
         g('event', event, params)
+    } catch { /* analytics never breaks the game */ }
+}
+
+/**
+ * Attach the Supabase user id to every subsequent event.
+ *
+ * Without this GA4 identifies people by its own cookie, which Safari caps at
+ * seven days — a returning Safari player is counted as a brand new one, so
+ * D7 and D30 cohort retention read near zero no matter how the game performs.
+ * Guests get an id too: anonymous sign-in mints one and claiming an account
+ * keeps it, so a player's history survives the conversion.
+ *
+ * Pass null on sign-out, or GA keeps stitching the next player to the last one.
+ */
+export function setAnalyticsUser(userId: string | null): void {
+    if (typeof window === 'undefined') return
+    const g = (window as unknown as { gtag?: (...args: unknown[]) => void }).gtag
+    if (typeof g !== 'function') return
+    try {
+        g('set', { user_id: userId })
     } catch { /* analytics never breaks the game */ }
 }
 

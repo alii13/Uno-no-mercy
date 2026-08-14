@@ -92,6 +92,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     let connectFailReason: string | null = null
     const CONNECT_TIMEOUT_MS = 10_000
     const JOIN_RETRY_BACKOFF_MS = 2_000
+    /** The server's verdict for a room that no longer exists. */
+    const ROOM_GONE = 'Room not found'
 
     // --- Host/UI concerns ---
     const loading = ref(false)
@@ -494,7 +496,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                     storeRoom(code)
                 }
                 if (msg.t === 'error' && (msg.code === 'unauthorized' || msg.code === 'room-not-found' || msg.code === 'room-full')) {
-                    error.value = msg.code === 'room-not-found' ? 'Room not found'
+                    error.value = msg.code === 'room-not-found' ? ROOM_GONE
                         : msg.code === 'room-full' ? 'Game is full (max 20 players)'
                         : 'Could not authenticate'
                     settle(false)
@@ -657,6 +659,28 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         track('mp_join_failed', { reason: error.value ?? connectFailReason ?? 'unknown', attempt, method })
     }
 
+    /**
+     * Connect, retrying once when the failure carried no server verdict — a
+     * dropped handshake or a cold Durable Object. A refusal the server spelled
+     * out (room gone, room full, unauthorized) is final and retrying it just
+     * doubles the wait before the same answer.
+     */
+    async function connectWithRetry(code: string, method: JoinMethod): Promise<boolean | 'superseded'> {
+        const first = await connect(code)
+        if (first !== false) return first
+        trackJoinFailed(method, 1)
+        if (error.value) return false
+        await new Promise(r => setTimeout(r, JOIN_RETRY_BACKOFF_MS))
+        const second = await connect(code)
+        if (second === false) {
+            trackJoinFailed(method, 2)
+            // Transport failures carry no server message — leave the user an
+            // actionable one instead of a silent reset.
+            if (!error.value) error.value = 'Could not reach the game server'
+        }
+        return second
+    }
+
     async function createGame(mode: StackingMode = DEFAULT_STACKING_MODE) {
         loading.value = true
         error.value = null
@@ -666,14 +690,11 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             if (!code) return null
             stackingMode.value = mode
             track('mp_room_created', { rules: mode, visibility: 'private' })
-            const res = await connect(code)
-            if (res !== true) {
-                // Room exists server-side but we couldn't reach it — a host-side
-                // failure that was previously invisible to analytics. A
-                // superseded attempt is not a failure; another flow took over.
-                if (res === false) trackJoinFailed('created', 1)
-                return null
-            }
+            // Room exists server-side but we couldn't reach it — a host-side
+            // failure that was previously invisible to analytics, and until now
+            // had no retry either. A superseded attempt is not a failure.
+            const res = await connectWithRetry(code, 'created')
+            if (res !== true) return null
             trackJoined('created')
             return currentGame.value
         } finally {
@@ -686,23 +707,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         error.value = null
         resetState()
         try {
-            const target = code.trim().toUpperCase()
-            let ok = await connect(target)
-            if (ok === false) {
-                trackJoinFailed(via, 1)
-                // A transport failure with no server verdict (handshake drop,
-                // timeout) gets one retry; server refusals are final.
-                if (!error.value) {
-                    await new Promise(r => setTimeout(r, JOIN_RETRY_BACKOFF_MS))
-                    ok = await connect(target)
-                    if (ok === false) {
-                        trackJoinFailed(via, 2)
-                        // Transport failures carry no server message — leave the
-                        // user an actionable one instead of a silent reset.
-                        if (!error.value) error.value = 'Could not reach the game server'
-                    }
-                }
-            }
+            const ok = await connectWithRetry(code.trim().toUpperCase(), via)
             if (ok !== true) return null
             trackJoined(via)
             return currentGame.value
@@ -744,11 +749,8 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             if (!code) return null
             stackingMode.value = mode
             track('mp_room_created', { rules: mode, visibility: 'public' })
-            const hosted = await connect(code)
-            if (hosted !== true) {
-                if (hosted === false) trackJoinFailed('quick_match', 1)
-                return null
-            }
+            const hosted = await connectWithRetry(code, 'quick_match')
+            if (hosted !== true) return null
             trackJoined('quick_match')
             return currentGame.value
         } finally {
@@ -766,8 +768,15 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         if (ok === 'superseded') return
         if (!ok) {
             // Refresh into a room that's since closed — track before resetState
-            // wipes the reason. Previously silent.
-            trackJoinFailed('restore', 1)
+            // wipes the reason.
+            //
+            // A GC'd room is the normal end of a room's life, not a join the
+            // player asked for and lost. Counting it as one made restore the
+            // single largest bucket in mp_join_failed (214 of 449 "Room not
+            // found" events in the 30 days to 2026-08-14) and hid the real
+            // failures behind it. A transport failure here is still genuine.
+            if (error.value === ROOM_GONE) track('mp_restore_expired')
+            else trackJoinFailed('restore', 1)
             try { localStorage.removeItem(STORED_ROOM_KEY) } catch { /* noop */ }
             resetState()
             return

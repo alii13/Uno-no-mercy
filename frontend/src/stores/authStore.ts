@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase, type UserProfile } from '../lib/supabase'
-import { track } from '../utils/analytics'
+import { track, setAnalyticsUser } from '../utils/analytics'
 import { readOAuthError, urlWithoutOAuthError, type OAuthRedirectError } from '../utils/oauthRedirect'
 import type { OAuthResponse, User } from '@supabase/supabase-js'
 
@@ -29,6 +29,7 @@ export const useAuthStore = defineStore('auth', () => {
             if (session?.user) {
                 user.value = session.user
                 accessToken.value = session.access_token
+                setAnalyticsUser(session.user.id)
                 // Resume a claim that was pending before a refresh, so its
                 // completion still gets counted when the confirmation lands.
                 if (session.user.is_anonymous && session.user.new_email) markClaimPending('email')
@@ -46,6 +47,7 @@ export const useAuthStore = defineStore('auth', () => {
                 // Always sync user and token state immediately (non-async)
                 user.value = session?.user || null
                 accessToken.value = session?.access_token || null
+                setAnalyticsUser(session?.user?.id ?? null)
 
                 // A pending claim completing = the confirmed session arriving
                 // with is_anonymous off. Analytics-only latch; UI state derives
