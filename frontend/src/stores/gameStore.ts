@@ -56,13 +56,6 @@ export const useGameStore = defineStore('game', () => {
     const direction = ref<1 | -1>(1)
 
     const drawStack = ref(0)
-    // The single biggest stack that landed on anyone this game, and who dealt
-    // it. Feeds the shareable kill card. Distinct from playerStats
-    // .biggestStackSurvived, which is per-player and has no dealer.
-    const biggestKill = ref<{ dealer: string; victim: string; amount: number } | null>(null)
-    // Who last added to the live draw stack. In a stacked chain the dealer is
-    // whoever played last before it landed, not whoever started it.
-    let lastStackerName: string | null = null
     // One character per human turn: played / drew / ate a stack. Drives the
     // daily's share grid, and is the substrate a replay would need later.
     const turnLog = ref<string[]>([])
@@ -280,8 +273,6 @@ export const useGameStore = defineStore('game', () => {
         currentPlayerIndex.value = 0
         direction.value = 1
         drawStack.value = 0
-        biggestKill.value = null
-        lastStackerName = null
         turnLog.value = []
         gameState.value = 'PLAYING'
         winnerId.value = null
@@ -454,10 +445,6 @@ export const useGameStore = defineStore('game', () => {
         const res = engine.playCard(engineState, playerId, card.id, { selectedColor, discardAllTopPickId, rng: hostRng })
         if (!res.ok) return
 
-        // Roulette carries no draw value, so it never makes anyone the dealer.
-        if (getDrawValue(card) > 0 && card.type !== 'wildColorRoulette') {
-            lastStackerName = player.name
-        }
         if (!player.isBot) turnLog.value.push('p')
 
         // Apply events before setting lastPlay: its watcher is flush:'sync'
@@ -511,12 +498,6 @@ export const useGameStore = defineStore('game', () => {
                     ps.biggestStackSurvived = cardsToDraw
                 }
             }
-            // A reverse can bounce a stack back onto its own stacker in a
-            // two-player game; "X stacked +8 on X" is not a brag.
-            if (lastStackerName && lastStackerName !== p.name && cardsToDraw > (biggestKill.value?.amount ?? 0)) {
-                biggestKill.value = { dealer: lastStackerName, victim: p.name, amount: cardsToDraw }
-            }
-            lastStackerName = null
             drawStack.value = 0
             let drawnCount = 0
             function drawNext() {
@@ -838,7 +819,6 @@ export const useGameStore = defineStore('game', () => {
         currentPlayerIndex,
         direction,
         drawStack,
-        biggestKill,
         botProfiles,
         turnLog,
         currentColor,
