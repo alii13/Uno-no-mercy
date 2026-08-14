@@ -460,6 +460,22 @@
           <div v-if="voiceStore.available" class="waiting-voice">
             <VoiceMicCluster :can-moderate="mpStore.isHost" nudge-inline hint="Talk while you play" />
           </div>
+          <!-- Alone, but people are waiting elsewhere: offer the fullest room
+               rather than making "leave" or "play a bot" the only ways out. -->
+          <button
+            v-if="rescueTable"
+            class="rescue-row"
+            type="button"
+            :disabled="mpStore.loading"
+            @click="joinRescueTable"
+          >
+            <Users class="rescue-glyph" :size="15" :stroke-width="2.25" aria-hidden="true" />
+            <span class="rescue-text">
+              {{ rescueTable.players === 1 ? '1 player is' : `${rescueTable.players} players are` }}
+              waiting in another room
+            </span>
+            <span class="rescue-cta">JOIN THEM</span>
+          </button>
           <div class="waiting-escape">
             <button class="leave-link" @click="showLeaveConfirm = true">LEAVE ROOM</button>
             <span class="waiting-sep">·</span>
@@ -1036,6 +1052,31 @@ let tipTimer: ReturnType<typeof setInterval> | null = null
 // exactly who needs the invite CTA.
 const soloWaiting = computed(() =>
   mpStore.gameStatus === 'waiting' && mpStore.presentUserIds.length === 1)
+
+// Someone alone in a waiting room leaves after about half a minute (GA, 30 days
+// to 2026-08-14: 207 players left from the lobby phase, 31s average in room).
+// The lobby is already polling which public rooms have people in them, so the
+// dead end can offer company instead of only the exits. This room is excluded —
+// quick match hosts publicly, so we would otherwise offer the player their own
+// empty table.
+const rescueTable = computed(() => {
+  if (!soloWaiting.value) return null
+  return [...live.joinable.value]
+    .filter(t => t.code !== mpStore.roomCode && t.players > 0)
+    .sort((a, b) => b.players - a.players)[0] ?? null
+})
+
+// Leave before sitting down elsewhere, or the abandoned room lingers in the
+// directory advertising a player who is no longer in it.
+async function joinRescueTable() {
+  const target = rescueTable.value
+  if (!target || mpStore.loading) return
+  track('mp_lobby_rescue_taken', { players: target.players })
+  await mpStore.leaveGame()
+  const joined = await mpStore.joinGame(target.code, 'live')
+  // It may have filled or started between the poll and the tap.
+  if (!joined) await live.refresh()
+}
 
 watch(soloWaiting, (solo) => {
   if (solo && !tipTimer) {
@@ -2375,6 +2416,44 @@ function copyLink() {
 
 @media (prefers-reduced-motion: reduce) {
   .seat-pulse { animation: none; }
+}
+
+/* Neon cyan: this is a multiplayer action, same zone as quick match. */
+.rescue-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  margin-top: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: rgba(0, 243, 255, 0.06);
+  border: 1px solid rgba(0, 243, 255, 0.22);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.rescue-row:hover:not(:disabled) {
+  background: rgba(0, 243, 255, 0.1);
+  border-color: rgba(0, 243, 255, 0.45);
+}
+
+.rescue-row:disabled { opacity: 0.6; cursor: default; }
+
+.rescue-glyph { color: var(--color-neon-blue); flex-shrink: 0; }
+
+.rescue-text { flex: 1; min-width: 0; }
+
+.rescue-cta {
+  color: var(--color-neon-blue);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .waiting-escape {

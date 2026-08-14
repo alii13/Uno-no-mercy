@@ -89,8 +89,8 @@ vi.mock('../../lib/supabase', () => ({
     },
 }))
 
-const { track } = vi.hoisted(() => ({ track: vi.fn() }))
-vi.mock('../../utils/analytics', () => ({ track }))
+const { track, setAnalyticsUser } = vi.hoisted(() => ({ track: vi.fn(), setAnalyticsUser: vi.fn() }))
+vi.mock('../../utils/analytics', () => ({ track, setAnalyticsUser }))
 
 vi.stubGlobal('window', {
     location: Object.assign(h.state.loc, {
@@ -128,6 +128,22 @@ describe('authStore init + guest robustness', () => {
 
         // App.vue is gated on this — it must never stay true after init.
         expect(auth.loading).toBe(false)
+    })
+
+    // Without this GA4 falls back to its own cookie, which Safari caps at seven
+    // days — every returning Safari player reads as a new one and D7/D30 cohort
+    // retention is pinned near zero regardless of how the game actually does.
+    it('gives GA4 the user id on an existing session, and clears it on sign-out', async () => {
+        h.state.getSession = async () => ({ data: { session: { user: { id: 'u-123' }, access_token: 't' } } })
+        const auth = useAuthStore()
+
+        await auth.initialize()
+
+        expect(setAnalyticsUser).toHaveBeenCalledWith('u-123')
+
+        // Guests count too: anonymous sign-in mints an id and claiming keeps it.
+        h.state.authCallback?.('SIGNED_OUT', null)
+        expect(setAnalyticsUser).toHaveBeenLastCalledWith(null)
     })
 
     it('reuses an existing session instead of minting a new anonymous user', async () => {
