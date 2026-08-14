@@ -21,7 +21,7 @@
  *   share              { method: whatsapp|x|image|native|clipboard,
  *                        content_type: sp_win|mp_win|daily }
  *   profile_shared     {}
- *   daily_started      {}
+ *   daily_started      { source: lobby|game_over }
  *   daily_finished     { result: won|lost|eliminated, turns }
  *   bot_defeated       { bot_id, rung: 1..8 }
  *   play_clicked       { method: guest }

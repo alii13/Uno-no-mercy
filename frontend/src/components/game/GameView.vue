@@ -170,8 +170,10 @@
       :opponent-name="opponentDisplayName"
       :stats="gameStats"
       :is-anonymous="authStore.isAnonymous"
+      :daily="dailyNudge"
       mode="sp"
       @rematch="restart"
+      @play-daily="emit('play-daily')"
       @back-to-lobby="store.returnToLobby()"
       @upgrade-account="handleUpgrade"
     />
@@ -225,8 +227,9 @@ import FxLayer from './FxLayer.vue'
 import StackCam from './StackCam.vue'
 import BadgeUpBanner from './BadgeUpBanner.vue'
 import { useBadgeUp } from '../../composables/useBadgeUp'
+import { getDailyRecord } from '../../utils/dailyChallenge'
 
-const emit = defineEmits<{ (e: 'claim-account'): void }>()
+const emit = defineEmits<{ (e: 'claim-account'): void; (e: 'play-daily'): void }>()
 
 const store = useGameStore()
 const fx = useGameFx()
@@ -374,6 +377,18 @@ onUnmounted(() => {
 // Duck the music when the game ends so the modal entrance + win/loss
 // sting can cut through; restore on rematch.
 const retention = useRetentionStore()
+
+// Today's-deal nudge on game over. Gated on gameState so getDailyRecord()
+// (plain localStorage, not reactive) is re-read fresh each time the modal
+// appears. Hidden after the daily itself and once today's deal is played on
+// this device — the rare played-elsewhere case is caught by the server's
+// unique index, not here.
+const dailyNudge = computed(() => {
+  if (store.gameState !== 'GAME_OVER') return null
+  if (store.dailyDate || getDailyRecord()) return null
+  return { streak: retention.effectiveStreak }
+})
+
 const badgeUp = useBadgeUp()
 // KO beat: white flash + board desaturation each time a player is knocked out.
 watch(() => store.players.filter(p => p.isEliminated).length, (now, prev) => {

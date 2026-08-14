@@ -261,6 +261,15 @@ describe('daily challenge seeding', () => {
     it('unseeded games stay random', () => {
         expect(deckIds()).not.toEqual(deckIds())
     })
+
+    it('exposes dailyDate during a daily and clears it for a normal game', () => {
+        setActivePinia(createPinia())
+        const store = useGameStore()
+        store.initializeGame(['You', 'Terminator'], 'official', { dailySeed: '2026-08-14' })
+        expect(store.dailyDate).toBe('2026-08-14')
+        store.initializeGame(['You', 'Terminator'], 'official')
+        expect(store.dailyDate).toBeNull()
+    })
 })
 
 describe('daily turn log', () => {
