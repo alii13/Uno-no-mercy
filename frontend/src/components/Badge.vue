@@ -18,6 +18,9 @@
         <span class="badge-emblem" aria-hidden="true">
             <img class="badge-art" :src="art" alt="" draggable="false" />
             <span class="badge-sheen"></span>
+            <!-- Bottom-left of the shield, sized with it. The badge's own
+                 tooltip carries the words, so the dot itself is silent. -->
+            <PresenceDot v-if="presence !== undefined" :last-seen-at="presence" mute class="badge-presence" />
         </span>
         <span v-if="showLabel" class="badge-label">{{ badge.title }}</span>
         <span v-if="size === 'full' && progress && progress.next" class="badge-progress">
@@ -37,6 +40,7 @@
                 @mouseleave="scheduleClose"
             >
                 <span class="badge-tip-name">{{ badge.title }}</span>
+                <span v-if="presence !== undefined" class="badge-tip-presence" :class="`badge-tip-presence--${presenceState(presence)}`">{{ presenceLabel(presence) }}</span>
                 <span class="badge-tip-rank">Rank {{ badge.tier }} of 10</span>
                 <span v-if="points != null" class="badge-tip-line">{{ points.toLocaleString() }} points</span>
                 <span v-if="progress && progress.next" class="badge-tip-line">{{ needed }} to {{ progress.next.title }}</span>
@@ -52,6 +56,8 @@ import { computed, ref, onUnmounted } from 'vue'
 import type { Badge, Progress } from '../utils/badges'
 import { BADGE_ART } from '../utils/badgeArt'
 import { navigate } from '../utils/routes'
+import PresenceDot from './PresenceDot.vue'
+import { presenceLabel, presenceState } from '../utils/relativeTime'
 
 const props = withDefaults(
     defineProps<{
@@ -67,6 +73,13 @@ const props = withDefaults(
         dormant?: boolean
         /** Make the badge a button that opens the /badges explainer. */
         link?: boolean
+        /**
+         * Last-seen timestamp for the badge's owner, or null for someone who
+         * never checked in. Undefined renders no dot at all, which is what a
+         * surface with no presence data should do rather than marking
+         * everybody offline.
+         */
+        presence?: string | null
     }>(),
     { size: 'chip', label: undefined, points: undefined, progress: undefined, dormant: false, link: false },
 )
@@ -158,6 +171,23 @@ onUnmounted(cancelClose)
 .badge--mark { --emblem-size: 22px; }
 .badge--chip { --emblem-size: 24px; }
 .badge--full { --emblem-size: 72px; }
+
+/* Sits on the shield's lower-left corner, overlapping it slightly so it reads
+   as attached to the badge rather than floating beside it. */
+.badge-presence {
+    position: absolute;
+    /* Percentages, so it hugs the art at every size the surfaces ask for.
+       The shield tapers at the bottom, so a corner-anchored dot floats in
+       empty space. */
+    left: 6%;
+    bottom: 10%;
+    z-index: 1;
+    /* A quarter of the shield, floored so a 22px row mark stays legible and
+       capped so an 88px profile shield does not wear a headlight. Callers
+       resize .badge-emblem directly, so reading the prop would miss most of
+       them. */
+    --pdot-size: clamp(8px, 22%, 20px);
+}
 
 .badge-art {
     position: absolute;
@@ -282,6 +312,16 @@ onUnmounted(cancelClose)
     color: var(--badge-color);
     text-transform: uppercase;
 }
+.badge-tip-presence {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    color: var(--text-secondary);
+}
+
+.badge-tip-presence--online { color: var(--color-neon-green); }
+.badge-tip-presence--recent { color: #ffab2e; }
+
 .badge-tip-rank {
     font-size: 0.58rem;
     letter-spacing: 0.1em;

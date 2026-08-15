@@ -4,7 +4,7 @@
     :class="`pdot--${state}`"
     role="img"
     :aria-label="label"
-    :title="label"
+    :title="mute ? undefined : label"
   />
 </template>
 
@@ -16,6 +16,9 @@ import { useNow } from '../composables/useClock'
 const props = defineProps<{
   /** ISO timestamp from players_presence / my_friends. Null renders grey. */
   lastSeenAt?: string | null
+  /** Drop the hover tooltip when a parent already shows the words - two
+   *  tooltips on the same 10px target is one too many. */
+  mute?: boolean
 }>()
 
 // The dot ages on the app's one clock. A page left open for an hour must stop
@@ -31,11 +34,12 @@ const label = computed(() => presenceLabel(props.lastSeenAt, now.value))
 .pdot {
   display: inline-block;
   flex: none;
-  width: 7px;
-  height: 7px;
+  /* Parents set --pdot-size; the shield scales it with the emblem. */
+  width: var(--pdot-size, 10px);
+  height: var(--pdot-size, 10px);
   border-radius: 50%;
   /* A ring keeps the dot legible on both the dark chrome and the card art. */
-  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 0 0 2px rgba(6, 8, 10, 0.9);
 }
 
 .pdot--online {

@@ -28,6 +28,9 @@ export interface RoomInvite {
     from_user: string
     from_username: string
     room_code: string
+    /** How many were in the room when the invite was sent, and its rules. */
+    players: number | null
+    mode: string | null
     created_at: string
 }
 

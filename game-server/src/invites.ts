@@ -29,6 +29,8 @@ export async function sendRoomInvite(
     fromUserId: string,
     toUserId: string,
     roomCode: string,
+    /** What the room looks like right now - the receiver decides on this. */
+    room: { players: number; mode: string },
 ): Promise<InviteResult> {
     // No secret bound (a local dev run, or a fresh deploy) - the caller shows
     // "try again", which is truer than a silent failure.
@@ -42,7 +44,10 @@ export async function sendRoomInvite(
                 Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
                 'content-type': 'application/json',
             },
-            body: JSON.stringify({ p_from: fromUserId, p_user: toUserId, p_code: roomCode }),
+            body: JSON.stringify({
+                p_from: fromUserId, p_user: toUserId, p_code: roomCode,
+                p_players: room.players, p_mode: room.mode,
+            }),
         })
         if (!res.ok) {
             console.log('send_room_invite failed', res.status, (await res.text()).slice(0, 200))

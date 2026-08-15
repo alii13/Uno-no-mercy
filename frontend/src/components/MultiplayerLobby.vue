@@ -156,6 +156,7 @@
                 :badge="dailyBadgeFor(row)!.badge"
                 :points="dailyBadgeFor(row)!.points"
                 :progress="dailyBadgeFor(row)!.progress"
+                :presence="row.user_id ? presence[row.user_id] ?? null : undefined"
                 size="mark"
                 link
                 class="board-badge"
@@ -612,6 +613,7 @@ import { flagEmoji } from '../utils/country'
 import { useLiveTables } from '../composables/useLiveTables'
 import { useOnlineCount } from '../composables/useOnlineCount'
 import { useSocialStore } from '../stores/socialStore'
+import { usePresence } from '../composables/usePresence'
 import InviteFriends from './InviteFriends.vue'
 import { nextBot, ladderProgress, isLadderComplete } from '../utils/botLadder'
 import { navigate } from '../utils/routes'
@@ -638,6 +640,7 @@ const emit = defineEmits<{
   (e: 'playDaily'): void
   (e: 'showAuth'): void
   (e: 'showStats'): void
+  (e: 'showFriends'): void
 }>()
 
 const authStore = useAuthStore()
@@ -762,7 +765,10 @@ watch(
   () => lb.daily.value.map(r => r.user_id),
   (ids) => {
     const real = ids.filter((x): x is string => !!x)
-    if (real.length) void fetchDailyBadges(real)
+    if (real.length) {
+      void fetchDailyBadges(real)
+      void fetchPresence(real)
+    }
   },
   { immediate: true },
 )
@@ -916,11 +922,13 @@ const online = useOnlineCount()
 // Read once on the lobby so a waiting friend request can announce itself
 // here, rather than only inside a screen nobody opens on purpose.
 const social = useSocialStore()
+// The daily board on the lobby shows shields, so it shows presence too.
+const { presence, fetchPresence } = usePresence()
 onMounted(() => { if (authStore.isAuthenticated) void social.refresh() })
 
 function openFriends() {
     closeAccount()
-    emit('showStats')
+    emit('showFriends')
 }
 onMounted(() => live.start())
 
@@ -2458,20 +2466,23 @@ function copyLink() {
   height: 28px;
 }
 
+/* Same green, same size as PresenceDot elsewhere. This one means "socket is
+   live in this room", which is a stricter fact than last-seen, but a player
+   should not have to learn two marks that both mean "here". */
 .presence-dot {
   position: absolute;
   bottom: -1px;
   right: -1px;
-  width: 9px;
-  height: 9px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: var(--text-muted);
+  background: rgba(255, 255, 255, 0.22);
   border: 2px solid var(--bg-concrete);
   transition: background var(--duration-snap) var(--ease-snap);
 }
 
 .presence-dot.connected {
-  background: #00ff66;
+  background: var(--color-neon-green);
 }
 
 @media (max-width: 560px) {

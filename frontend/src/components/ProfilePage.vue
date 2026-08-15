@@ -34,6 +34,7 @@
           :badge="badgeInfo.badge"
           :points="badgeInfo.points"
           :progress="badgeInfo.progress"
+          :presence="lastSeen"
           size="mark"
           link
           class="pp-emblem"
@@ -41,7 +42,6 @@
         <div class="pp-identity">
           <div class="pp-name-row">
             <h1 class="pp-name">{{ p.username }}</h1>
-            <PresenceDot :last-seen-at="lastSeen" class="pp-dot" />
             <span v-if="flagEmoji(p.country)" class="pp-flag" :title="p.country ?? ''">{{ flagEmoji(p.country) }}</span>
           </div>
           <div class="pp-chips">
@@ -164,7 +164,6 @@ import { useProfile } from '../composables/useProfile'
 import { useMotion } from '../composables/useMotion'
 import { useAuthStore } from '../stores/authStore'
 import { flagEmoji } from '../utils/country'
-import PresenceDot from './PresenceDot.vue'
 import { usePresence } from '../composables/usePresence'
 import { useNow } from '../composables/useClock'
 import { isOnline, relativeTime } from '../utils/relativeTime'
@@ -476,10 +475,6 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
 .pp-chip--live {
   color: var(--color-neon-green);
   border-color: rgba(0, 255, 102, 0.35);
-}
-
-.pp-dot {
-  align-self: center;
 }
 
 .pp-progress {

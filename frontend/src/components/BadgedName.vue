@@ -1,5 +1,8 @@
 <template>
     <span class="badged-name">
+        <!-- Presence rides on the shield, so one component puts the same mark
+             in every place a badge appears. Without a badge there is nothing
+             to sit on, and the dot stands beside the name instead. -->
         <Badge
             v-if="badge"
             :badge="badge"
@@ -7,12 +10,11 @@
             :points="points"
             :progress="progress"
             :link="link"
+            :presence="presence"
             class="bn-badge"
         />
+        <PresenceDot v-else-if="presence !== undefined" :last-seen-at="presence" class="bn-dot" />
         <span class="bn-name"><slot>{{ name }}</slot></span>
-        <!-- Presence rides with the name everywhere the name goes, so a
-             player learns one mark instead of one per screen. -->
-        <PresenceDot v-if="presence !== undefined" :last-seen-at="presence" class="bn-dot" />
     </span>
 </template>
 

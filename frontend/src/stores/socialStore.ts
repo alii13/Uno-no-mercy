@@ -105,6 +105,14 @@ export const useSocialStore = defineStore('social', () => {
         await refresh()
     }
 
+    /** Unfriend. Blocking was the only exit, and it says something much
+     *  stronger than "we do not play any more". */
+    async function remove(userId: string): Promise<void> {
+        rows.value = rows.value.filter(r => r.user_id !== userId)
+        await call('remove_friend', { p_user: userId })
+        await refresh()
+    }
+
     async function block(userId: string): Promise<void> {
         await call('block_player', { p_user: userId })
         await refresh()
@@ -129,6 +137,6 @@ export const useSocialStore = defineStore('social', () => {
     return {
         rows, loading, unavailable, pendingIds,
         friends, incoming, outgoing, blocked, knownIds,
-        refresh, sendRequest, respond, block, unblock, reset,
+        refresh, sendRequest, respond, remove, block, unblock, reset,
     }
 })

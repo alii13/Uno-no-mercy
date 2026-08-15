@@ -5,6 +5,7 @@
       <span class="invite-text">
         <strong class="invite-who">{{ showing.from_username }}</strong>
         wants you at their table
+        <span v-if="roomLine" class="invite-room">{{ roomLine }}</span>
       </span>
       <button class="invite-join" :disabled="joining" @click="join">
         {{ joining ? 'JOINING…' : 'JOIN' }}
@@ -17,11 +18,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { Users, X } from 'lucide-vue-next'
 import { useInviteStore } from '../stores/inviteStore'
 import { useMultiplayerStore } from '../stores/multiplayerStore'
 import { usePoll } from '../composables/useClock'
+import { soundEffects } from '../composables/useSoundEffects'
 
 const invitesStore = useInviteStore()
 const mpStore = useMultiplayerStore()
@@ -42,6 +44,37 @@ const inMatch = computed(() => {
 usePoll(() => { void invitesStore.refresh() }, 60_000)
 
 const showing = computed(() => (inMatch.value ? null : invitesStore.current))
+
+// A ten-minute invite that arrives silently on a background tab is an invite
+// that expires. One cue, and the title carries it while the tab is hidden -
+// no new asset, and nothing that fires twice for the same invite.
+const TITLE = typeof document !== 'undefined' ? document.title : ''
+let announced: string | null = null
+
+watch(showing, (invite) => {
+  if (typeof document === 'undefined') return
+  if (!invite) { document.title = TITLE; return }
+  if (invite.id !== announced) {
+    announced = invite.id
+    // Reusing the loudest cue the game already ships rather than adding one.
+    try { soundEffects.playSpecialCard() } catch { /* audio is a garnish */ }
+  }
+  document.title = document.visibilityState === 'visible' ? TITLE : `(1) ${invite.from_username} wants to play`
+})
+
+onUnmounted(() => { if (typeof document !== 'undefined') document.title = TITLE })
+
+// A bare name makes the receiver guess whether they are joining a full
+// table, an empty one, or a rules set they dislike.
+const roomLine = computed(() => {
+  const invite = showing.value
+  if (!invite) return ''
+  const people = invite.players && invite.players > 0
+    ? `${invite.players} in the room`
+    : ''
+  const rules = invite.mode ? invite.mode.toUpperCase() : ''
+  return [people, rules].filter(Boolean).join(' · ')
+})
 
 async function join() {
   const invite = showing.value
@@ -99,6 +132,14 @@ async function join() {
 .invite-who {
   color: var(--text-primary);
   font-weight: 600;
+}
+
+.invite-room {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
 }
 
 .invite-join {

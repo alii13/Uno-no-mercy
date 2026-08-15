@@ -3,7 +3,7 @@
        "invite your friends" box in a room you are already sitting alone in
        is a reminder that nobody is there. -->
   <section v-if="online.length" class="inv">
-    <span class="inv-label">FRIENDS ONLINE</span>
+    <span class="inv-label">FRIENDS AROUND</span>
     <ul class="inv-list">
       <li v-for="f in online" :key="f.user_id" class="inv-row">
         <PresenceDot :last-seen-at="f.last_seen_at" />
@@ -23,7 +23,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useSocialStore } from '../stores/socialStore'
 import { useInviteStore } from '../stores/inviteStore'
 import { useMultiplayerStore } from '../stores/multiplayerStore'
-import { isOnline } from '../utils/relativeTime'
+import { byPresence, presenceState } from '../utils/relativeTime'
 import PresenceDot from './PresenceDot.vue'
 
 const social = useSocialStore()
@@ -34,13 +34,15 @@ const pending = ref<Set<string>>(new Set())
 
 onMounted(() => { void social.refresh() })
 
-// Only friends who could actually answer. An invite to someone who left an
-// hour ago is a notification they will read tomorrow, in a room that GC'd
-// ten minutes after it was sent.
+// Green and amber, not green alone. An invite lives ten minutes, so someone
+// who stepped away six minutes ago is exactly who it is for - filtering on
+// "online" threw away half the point of having a middle state. Someone last
+// seen an hour ago still gets nothing: that is a notification they would read
+// tomorrow, in a room that died ten minutes after it was sent.
 const online = computed(() =>
   social.unavailable || invitesStore.unavailable
     ? []
-    : social.friends.filter(f => isOnline(f.last_seen_at)).slice(0, 5),
+    : byPresence(social.friends).filter(f => presenceState(f.last_seen_at) !== 'offline').slice(0, 6),
 )
 
 async function invite(userId: string) {

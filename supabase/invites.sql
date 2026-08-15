@@ -17,11 +17,19 @@ create table if not exists room_invites (
     from_user uuid not null references auth.users(id) on delete cascade,
     to_user uuid not null references auth.users(id) on delete cascade,
     room_code text not null,
+    -- What the room looked like when the invite was sent. A name alone makes
+    -- the receiver guess whether they are joining a full table, an empty one,
+    -- or a rules set they dislike.
+    players smallint,
+    mode text,
     created_at timestamptz not null default now(),
     -- Set when the recipient answers or dismisses. Keeps an answered invite
     -- from returning on the next page load.
     seen_at timestamptz
 );
+
+alter table room_invites add column if not exists players smallint;
+alter table room_invites add column if not exists mode text;
 
 create index if not exists room_invites_to_idx on room_invites (to_user, created_at desc);
 create index if not exists room_invites_from_idx on room_invites (from_user, created_at desc);
@@ -59,8 +67,9 @@ $$;
 -- sender's conduct: is this pair blocked, is it too soon, is it too many.
 
 drop function if exists public.send_room_invite(uuid, text);
+drop function if exists public.send_room_invite(uuid, uuid, text);
 
-create or replace function public.send_room_invite(p_from uuid, p_user uuid, p_code text)
+create or replace function public.send_room_invite(p_from uuid, p_user uuid, p_code text, p_players int default null, p_mode text default null)
 returns text
 language plpgsql
 security definer
@@ -101,15 +110,15 @@ begin
     -- activity rather than to the age of the feature.
     delete from room_invites where created_at < now() - interval '1 day';
 
-    insert into room_invites (from_user, to_user, room_code)
-    values (me, p_user, upper(p_code));
+    insert into room_invites (from_user, to_user, room_code, players, mode)
+    values (me, p_user, upper(p_code), greatest(0, least(coalesce(p_players, 0), 20)), left(coalesce(p_mode, ''), 16));
     return 'sent';
 end;
 $$;
 
 -- No client path at all: the worker calls this with the service key.
-revoke execute on function public.send_room_invite(uuid, uuid, text) from public, anon, authenticated;
-grant execute on function public.send_room_invite(uuid, uuid, text) to service_role;
+revoke execute on function public.send_room_invite(uuid, uuid, text, int, text) from public, anon, authenticated;
+grant execute on function public.send_room_invite(uuid, uuid, text, int, text) to service_role;
 
 -- --- Reads ------------------------------------------------------------------
 
@@ -117,12 +126,16 @@ grant execute on function public.send_room_invite(uuid, uuid, text) to service_r
 -- probably still there. Ten minutes matches the public-room GC window in
 -- game-server/src/roomGc.ts.
 
+drop function if exists public.my_invites();
+
 create or replace function public.my_invites()
 returns table (
     id uuid,
     from_user uuid,
     from_username text,
     room_code text,
+    players smallint,
+    mode text,
     created_at timestamptz
 )
 language sql
@@ -130,7 +143,7 @@ security definer
 set search_path = public
 stable
 as $$
-    select i.id, i.from_user, p.username, i.room_code, i.created_at
+    select i.id, i.from_user, p.username, i.room_code, i.players, i.mode, i.created_at
     from room_invites i
     join profiles p on p.id = i.from_user
     where i.to_user = auth.uid()
