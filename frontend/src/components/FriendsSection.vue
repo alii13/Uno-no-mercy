@@ -220,7 +220,10 @@ onUnmounted(() => { if (armed) clearTimeout(armed) })
   color: var(--color-neon-blue);
 }
 
-.friend-btn--danger {
+/* :hover on .friend-btn is one class deeper, so the armed state has to match
+   it or the confirm reads plain white under the pointer that just armed it. */
+.friend-btn--danger,
+.friend-btn--danger:hover {
   border-color: rgba(255, 68, 68, 0.6);
   color: #ff6666;
   opacity: 1;
