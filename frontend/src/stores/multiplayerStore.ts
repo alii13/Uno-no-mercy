@@ -582,6 +582,12 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     function extendAutoStart() {
         if (!autoStart.value?.bumpsLeft) return
         sendMsg({ t: 'extend-start' })
+        // Spend the allowance locally too. It belongs to the room, so a
+        // second press can only ever be refused - and the server refuses it
+        // silently, which used to leave a live-looking button on screen until
+        // some other presence change happened to arrive. Two players pressing
+        // together is exactly when that bites.
+        autoStart.value = { ...autoStart.value, bumpsLeft: 0 }
     }
 
     function toggleChatMute(userId: string) {
