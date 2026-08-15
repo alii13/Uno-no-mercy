@@ -10,14 +10,15 @@
 -- directly. Every path goes through the functions below, which is the only
 -- place a rate limit or a block check can actually live.
 --
--- On the revokes below: Postgres grants EXECUTE to PUBLIC on a new function
--- and Supabase grants it to anon on top. A role can only revoke what it
--- granted, so if the editor's role is not the grantor the statement succeeds
--- and changes nothing - verified against this project, where an anonymous
--- caller can still reach every function. That is why the auth.uid() check at
--- the top of each body is the guard that actually holds: an unauthenticated
--- call returns 'unauthorized', reads nothing and writes nothing. The revokes
--- stay because they do bite on a project where the grantor lines up.
+-- On the revokes below: a new function is granted EXECUTE to PUBLIC by
+-- Postgres and to anon by the project's default privileges, so both have to
+-- be named. Revoking PUBLIC alone leaves anon holding its own grant - the
+-- state this project was briefly in, where an unauthenticated caller could
+-- still reach every function.
+--
+-- The auth.uid() check at the top of each body is the belt to that pair of
+-- braces: even when a call gets through, it returns 'unauthorized', reads
+-- nothing and writes nothing.
 
 create table if not exists friendships (
     requester_id uuid not null references auth.users(id) on delete cascade,
