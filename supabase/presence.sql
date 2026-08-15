@@ -40,7 +40,14 @@ $$;
 
 -- Signed in only, and it writes exactly one row - the caller's own. Guests
 -- count: an anonymous Supabase user is authenticated.
-grant execute on function public.touch_presence to authenticated;
+--
+-- Both PUBLIC and anon have to be named: a new function is granted EXECUTE
+-- to PUBLIC by Postgres and to anon by the project's default privileges, and
+-- revoking one leaves the other. Even so, a call that got through would
+-- update zero rows, because auth.uid() is null. The two reads below keep
+-- their open grants deliberately.
+revoke execute on function public.touch_presence() from public, anon;
+grant execute on function public.touch_presence() to authenticated;
 
 -- Two minutes, not one: the heartbeat runs every 60s, so one missed beat must
 -- not flip a present player to offline. Keep this in step with

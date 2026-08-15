@@ -125,6 +125,17 @@
 
       <!-- The growth loop: visitors get the challenge, the owner gets tools -->
       <section v-if="!isOwn" class="pp-cta">
+        <!-- Only for a signed-in visitor: a friend request needs an account
+             to come from, and a guest account counts. -->
+        <button
+          v-if="canAddFriend"
+          class="pp-add-friend"
+          :disabled="social.pendingIds.has(p.user_id!)"
+          @click="addFriend"
+        >
+          <UserPlus :size="15" :stroke-width="2.25" aria-hidden="true" />
+          {{ addLabel }}
+        </button>
         <p class="pp-cta-line">Think you can beat {{ p.username }}?</p>
         <Button variant="primary" size="lg" block @click="$emit('back')">PLAY OPEN MERCY — FREE</Button>
       </section>
@@ -147,7 +158,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick, type FunctionalComponent } from 'vue'
 import {
-    Trophy, Swords, Target, Flame, Zap, Shield, Layers, SkipForward, Plus,
+    Trophy, Swords, Target, Flame, Zap, Shield, Layers, SkipForward, Plus, UserPlus,
 } from 'lucide-vue-next'
 import gsap from 'gsap'
 import { useProfile } from '../composables/useProfile'
@@ -155,6 +166,7 @@ import { useMotion } from '../composables/useMotion'
 import { useAuthStore } from '../stores/authStore'
 import { flagEmoji } from '../utils/country'
 import { isOnline, relativeTime } from '../utils/relativeTime'
+import { useSocialStore, type SendResult } from '../stores/socialStore'
 import { shareProfile } from '../utils/share'
 import { track } from '../utils/analytics'
 import { useBadges } from '../composables/useBadges'
@@ -196,6 +208,41 @@ const presenceNow = ref(Date.now())
 let presenceTimer: ReturnType<typeof setInterval> | null = null
 onMounted(() => { presenceTimer = setInterval(() => { presenceNow.value = Date.now() }, 30_000) })
 onUnmounted(() => { if (presenceTimer) clearInterval(presenceTimer) })
+
+// Friends. The list is read once so the button can say what it already is,
+// rather than offering ADD to someone you asked yesterday.
+const social = useSocialStore()
+const sendResult = ref<SendResult | null>(null)
+onMounted(() => { if (authStore.isAuthenticated) void social.refresh() })
+
+const canAddFriend = computed(() =>
+    !!p.value?.user_id && authStore.isAuthenticated && !social.unavailable && !isOwn.value,
+)
+
+const addLabel = computed(() => {
+    const id = p.value?.user_id
+    const known = id ? social.rows.find(r => r.user_id === id) : undefined
+    if (known?.status === 'accepted') return 'FRIENDS'
+    if (known?.status === 'blocked') return 'BLOCKED'
+    if (known?.status === 'pending') return known.incoming ? 'ACCEPT REQUEST' : 'REQUEST SENT'
+    if (sendResult.value === 'rate_limited') return 'TRY AGAIN TOMORROW'
+    if (sendResult.value === 'declined') return 'ASK LATER'
+    if (sendResult.value === 'failed') return 'TRY AGAIN'
+    return 'ADD FRIEND'
+})
+
+async function addFriend() {
+    const id = p.value?.user_id
+    if (!id) return
+    const known = social.rows.find(r => r.user_id === id)
+    // Their request is already waiting: the same button accepts it.
+    if (known?.status === 'pending' && known.incoming) {
+        await social.respond(id, true)
+        return
+    }
+    if (known) return
+    sendResult.value = await social.sendRequest(id)
+}
 
 const presenceOnline = computed(() => isOnline(pp.lastSeenAt.value, presenceNow.value))
 const lastSeenLabel = computed(() => relativeTime(pp.lastSeenAt.value, presenceNow.value).toUpperCase())
@@ -631,6 +678,33 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
   font-size: var(--text-sm);
   color: var(--text-secondary);
   margin: 0;
+}
+
+.pp-add-friend {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  align-self: center;
+  padding: var(--spacing-2) var(--spacing-4);
+  background: transparent;
+  border: 1px solid rgba(0, 243, 255, 0.35);
+  border-radius: var(--radius-sm);
+  color: var(--color-neon-blue);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.pp-add-friend:hover:not(:disabled) {
+  background: rgba(0, 243, 255, 0.08);
+  border-color: rgba(0, 243, 255, 0.6);
+}
+
+.pp-add-friend:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .pp-own-link {

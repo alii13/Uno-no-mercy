@@ -233,6 +233,7 @@
       :is-spectator="amEliminated"
       :placement="mpStore.myPlacement"
       :total-players="mpStore.gamePlayers.length"
+      :opponents="finishedOpponents"
       @rematch="handleGameOverPrimary"
       @back-to-lobby="leaveFromGameOver"
       @upgrade-account="handleUpgrade"
@@ -485,6 +486,16 @@ const opponentDisplayName = computed(() => {
     : winnerId
   const other = mpStore.gamePlayers.find(p => p.user_id === otherId)
   return other?.name || 'opponent'
+})
+
+// Everyone at the table except you, for the game-over ADD chips. Names come
+// from the same roster the scoreboard uses, so a rename mid-match is honoured.
+const finishedOpponents = computed(() => {
+  const meId = authStore.user?.id
+  if (!meId) return []
+  return mpStore.gamePlayers
+    .filter(p => p.user_id !== meId && !!p.user_id)
+    .map(p => ({ userId: p.user_id, name: p.name || 'PLAYER' }))
 })
 
 const isMpWinner = computed(() => currentGame.value?.winner_id === authStore.user?.id)

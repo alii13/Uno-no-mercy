@@ -46,6 +46,22 @@
         <p v-if="notice" class="rematch-hint rematch-notice">{{ notice }}</p>
         <p v-else-if="mode === 'mp' && !canRematch" class="rematch-hint">The host can start a rematch — stay put.</p>
 
+        <!-- The highest-intent moment in the app: you have just played these
+             people, so the ask needs no search and no share code. -->
+        <div v-if="addableOpponents.length" class="add-row">
+          <span class="add-label">ADD</span>
+          <button
+            v-for="o in addableOpponents"
+            :key="o.userId"
+            class="add-chip"
+            :disabled="social.pendingIds.has(o.userId) || FINAL_ADD_STATES.has(addState[o.userId] ?? '')"
+            @click="addOpponent(o.userId)"
+          >
+            <UserPlus :size="13" :stroke-width="2.5" aria-hidden="true" />
+            {{ addState[o.userId] ?? o.name }}
+          </button>
+        </div>
+
         <!-- Share row (win only — sharing a loss is tone-deaf) -->
         <div v-if="isWinner" class="share-row">
           <button
@@ -112,8 +128,9 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import gsap from 'gsap'
-import { ImageDown, Flame } from 'lucide-vue-next'
+import { ImageDown, Flame, UserPlus } from 'lucide-vue-next'
 import { siX, siWhatsapp } from 'simple-icons'
+import { useSocialStore } from '../../stores/socialStore'
 import { generateShareImage, shareOrDownload } from '../../utils/shareImage'
 import { track } from '../../utils/analytics'
 
@@ -145,6 +162,8 @@ const props = defineProps<{
    * yet played today, never after the daily itself); null hides the strip.
    */
   daily?: { streak: number } | null
+  /** Multiplayer: the humans you just played, for one-tap friend requests. */
+  opponents?: { userId: string; name: string }[]
 }>()
 
 defineEmits<{
@@ -153,6 +172,40 @@ defineEmits<{
   (e: 'back-to-lobby'): void
   (e: 'upgrade-account'): void
 }>()
+
+// Friend requests straight from the result screen. The store is read once on
+// mount so someone you are already connected to never shows an ADD chip.
+const social = useSocialStore()
+const addState = ref<Record<string, string>>({})
+onMounted(() => { if (props.mode === 'mp' && props.opponents?.length && !social.unavailable) void social.refresh() })
+
+// Guests are included on purpose: an anonymous player has a durable profile
+// and can hold friends, and asking them to claim first is how a friends list
+// stays empty.
+const addableOpponents = computed(() => {
+    if (props.mode !== 'mp' || social.unavailable) return []
+    // Someone already connected to you gets no chip - but one you just
+    // pressed keeps its place, or the chip would vanish on success and the
+    // tap would read as nothing happening.
+    return (props.opponents ?? []).filter(o => !social.knownIds.has(o.userId) || addState.value[o.userId])
+})
+
+/** Outcomes a second press cannot improve. TRY AGAIN is deliberately absent:
+ *  it is an instruction, and a disabled instruction is a dead end. */
+const FINAL_ADD_STATES = new Set(['REQUEST SENT', 'FRIENDS', 'ALREADY ASKED', 'TOO MANY TODAY', 'ASK LATER'])
+
+async function addOpponent(userId: string) {
+    const result = await social.sendRequest(userId)
+    addState.value = {
+        ...addState.value,
+        [userId]: result === 'sent' ? 'REQUEST SENT'
+            : result === 'accepted' ? 'FRIENDS'
+            : result === 'rate_limited' ? 'TOO MANY TODAY'
+            : result === 'already' ? 'ALREADY ASKED'
+            : result === 'declined' ? 'ASK LATER'
+            : 'TRY AGAIN',
+    }
+}
 
 const modalRef = ref<HTMLElement | null>(null)
 const generatingImage = ref(false)
@@ -602,6 +655,52 @@ function confettiStyle(i: number) {
   letter-spacing: 0.06em;
   color: rgba(255, 255, 255, 0.45);
   text-align: center;
+}
+
+.add-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.add-label {
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 0.58rem;
+  letter-spacing: 0.22em;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.add-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 12rem;
+  padding: 0.25rem 0.6rem;
+  background: transparent;
+  border: 1px solid rgba(0, 243, 255, 0.3);
+  border-radius: 999px;
+  color: rgba(0, 243, 255, 0.9);
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.add-chip:hover:not(:disabled) {
+  background: rgba(0, 243, 255, 0.1);
+  border-color: rgba(0, 243, 255, 0.55);
+}
+
+.add-chip:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .rematch-notice {
