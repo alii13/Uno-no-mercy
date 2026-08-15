@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-    relativeTime, isOnline, presenceState, presenceLabel,
+    relativeTime, isOnline, presenceState, presenceLabel, byPresence,
     ONLINE_WINDOW_MS, RECENT_WINDOW_MS,
 } from '../relativeTime'
 
@@ -59,6 +59,36 @@ describe('presenceLabel', () => {
 
     it('does not invent a time for a player who never checked in', () => {
         expect(presenceLabel(null, NOW)).toBe('Offline')
+    })
+})
+
+describe('byPresence', () => {
+    const row = (username: string, ms: number | null) =>
+        ({ username, last_seen_at: ms === null ? null : ago(ms) })
+
+    it('puts whoever can play now at the top', () => {
+        const ordered = byPresence([
+            row('GONE', 3 * 86_400_000),
+            row('NEVER', null),
+            row('HERE', 10_000),
+            row('JUST LEFT', 6 * 60_000),
+        ], NOW)
+        expect(ordered.map(r => r.username)).toEqual(['HERE', 'JUST LEFT', 'GONE', 'NEVER'])
+    })
+
+    it('breaks ties on who was seen most recently', () => {
+        const ordered = byPresence([
+            row('OLDER', 4 * 86_400_000),
+            row('NEWER', 1 * 86_400_000),
+        ], NOW)
+        expect(ordered.map(r => r.username)).toEqual(['NEWER', 'OLDER'])
+    })
+
+    it('leaves the caller\'s array alone', () => {
+        const rows = [row('HERE', 10_000), row('GONE', 86_400_000)]
+        const before = rows.map(r => r.username)
+        byPresence(rows, NOW)
+        expect(rows.map(r => r.username)).toEqual(before)
     })
 })
 

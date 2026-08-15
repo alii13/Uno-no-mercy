@@ -56,32 +56,27 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useSocialStore, type FriendRow } from '../stores/socialStore'
-import { isOnline, relativeTime, presenceState } from '../utils/relativeTime'
+import { isOnline, relativeTime, byPresence } from '../utils/relativeTime'
+import { useNow, usePoll } from '../composables/useClock'
 import PresenceDot from './PresenceDot.vue'
 import { navigate } from '../utils/routes'
 
 const social = useSocialStore()
 
-// Presence ages while the panel is open, so the labels tick on their own.
-const now = ref(Date.now())
-let timer: ReturnType<typeof setInterval> | null = null
+// Labels age on the shared clock; the list itself re-reads while it is on
+// screen, because a friend coming online is the whole point of this panel and
+// the clock alone can only ever grey someone out.
+const now = useNow()
+onMounted(() => { void social.refresh() })
+usePoll(() => { void social.refresh() }, 60_000)
 
-onMounted(() => {
-  void social.refresh()
-  timer = setInterval(() => { now.value = Date.now() }, 30_000)
-})
-onUnmounted(() => { if (timer) clearInterval(timer) })
-
-// Whoever can play right now, first. A list ordered by when the friendship
-// was made answers a question nobody is asking.
-const RANK: Record<string, number> = { online: 0, recent: 1, offline: 2 }
-const sortedFriends = computed(() => [...social.friends].sort((a, b) => {
-  const byState = RANK[presenceState(a.last_seen_at, now.value)]! - RANK[presenceState(b.last_seen_at, now.value)]!
-  if (byState !== 0) return byState
-  return (b.last_seen_at ?? '').localeCompare(a.last_seen_at ?? '')
-}))
+// Ordered when the data changes, not when the clock moves: these rows carry
+// ACCEPT, DECLINE and BLOCK, and a list that reshuffles on a timer is how
+// someone declines the request they meant to accept.
+const sortedFriends = ref<FriendRow[]>([])
+watch(() => social.friends, (rows) => { sortedFriends.value = byPresence(rows) }, { immediate: true })
 
 function seenLabel(f: FriendRow): string {
   if (isOnline(f.last_seen_at, now.value)) return 'ONLINE'

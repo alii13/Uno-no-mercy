@@ -17,14 +17,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Users, X } from 'lucide-vue-next'
 import { useInviteStore } from '../stores/inviteStore'
 import { useMultiplayerStore } from '../stores/multiplayerStore'
-
-/** Matches the ten-minute window in my_invites, which matches the public-room
- *  GC window - an invite must never outlive the room it points at. */
-const INVITE_LIFE_MS = 10 * 60 * 1000
+import { usePoll } from '../composables/useClock'
 
 const invitesStore = useInviteStore()
 const mpStore = useMultiplayerStore()
@@ -38,19 +35,13 @@ const inMatch = computed(() => {
   return s === 'playing' || s === 'finished'
 })
 
-// An invite outlives its room after ten minutes, and a tab left open all
-// afternoon would otherwise still be offering it. The clock ticks so the
-// toast retires itself without a reload.
-const now = ref(Date.now())
-let tick: ReturnType<typeof setInterval> | null = null
-onMounted(() => { tick = setInterval(() => { now.value = Date.now() }, 30_000) })
-onUnmounted(() => { if (tick) clearInterval(tick) })
+// The ten-minute window lives in my_invites and nowhere else. Re-reading on a
+// minute is what retires a toast on a tab left open all afternoon: the row
+// simply stops coming back. One clock, in the place that also matches the
+// room's GC window.
+usePoll(() => { void invitesStore.refresh() }, 60_000)
 
-const showing = computed(() => {
-  const invite = invitesStore.current
-  if (!invite || inMatch.value) return null
-  return now.value - new Date(invite.created_at).getTime() < INVITE_LIFE_MS ? invite : null
-})
+const showing = computed(() => (inMatch.value ? null : invitesStore.current))
 
 async function join() {
   const invite = showing.value

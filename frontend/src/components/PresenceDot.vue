@@ -9,20 +9,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed } from 'vue'
 import { presenceLabel, presenceState } from '../utils/relativeTime'
+import { useNow } from '../composables/useClock'
 
 const props = defineProps<{
   /** ISO timestamp from players_presence / my_friends. Null renders grey. */
   lastSeenAt?: string | null
 }>()
 
-// The dot ages on its own. A profile left open for an hour would otherwise
-// still claim the player is here, which is the one thing presence must not do.
-const now = ref(Date.now())
-let timer: ReturnType<typeof setInterval> | null = null
-onMounted(() => { timer = setInterval(() => { now.value = Date.now() }, 30_000) })
-onUnmounted(() => { if (timer) clearInterval(timer) })
+// The dot ages on the app's one clock. A page left open for an hour must stop
+// claiming the player is here, which is the one thing presence must not do -
+// but fifty dots do not need fifty timers to notice it.
+const now = useNow()
 
 const state = computed(() => presenceState(props.lastSeenAt, now.value))
 const label = computed(() => presenceLabel(props.lastSeenAt, now.value))

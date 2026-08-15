@@ -82,3 +82,19 @@ export function isOnline(lastSeenAt: string | number | Date | null | undefined, 
     if (!Number.isFinite(seen)) return false
     return now - seen < ONLINE_WINDOW_MS
 }
+
+/**
+ * Whoever can play right now, first. Ordering is deliberately computed from
+ * the data rather than from a live clock: rows carry ACCEPT, DECLINE and
+ * BLOCK, and a list that reshuffles under a moving finger is how somebody
+ * declines the request they meant to accept.
+ */
+const PRESENCE_RANK: Record<PresenceState, number> = { online: 0, recent: 1, offline: 2 }
+
+export function byPresence<T extends { last_seen_at: string | null }>(rows: T[], now = Date.now()): T[] {
+    return [...rows].sort((a, b) => {
+        const byState = PRESENCE_RANK[presenceState(a.last_seen_at, now)] - PRESENCE_RANK[presenceState(b.last_seen_at, now)]
+        if (byState !== 0) return byState
+        return (b.last_seen_at ?? '').localeCompare(a.last_seen_at ?? '')
+    })
+}

@@ -155,7 +155,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick, type FunctionalComponent } from 'vue'
+import { ref, computed, onMounted, watch, nextTick, type FunctionalComponent } from 'vue'
 import {
     Trophy, Swords, Target, Flame, Zap, Shield, Layers, SkipForward, Plus, UserPlus,
 } from 'lucide-vue-next'
@@ -166,6 +166,7 @@ import { useAuthStore } from '../stores/authStore'
 import { flagEmoji } from '../utils/country'
 import PresenceDot from './PresenceDot.vue'
 import { usePresence } from '../composables/usePresence'
+import { useNow } from '../composables/useClock'
 import { isOnline, relativeTime } from '../utils/relativeTime'
 import { useSocialStore, type SendResult } from '../stores/socialStore'
 import { shareProfile } from '../utils/share'
@@ -203,12 +204,9 @@ const memberSince = computed(() => {
         .toUpperCase()
 })
 
-// Presence ticks on its own clock: the page can sit open for an hour, and a
-// chip that still reads ONLINE NOW after the player left is a small lie.
-const presenceNow = ref(Date.now())
-let presenceTimer: ReturnType<typeof setInterval> | null = null
-onMounted(() => { presenceTimer = setInterval(() => { presenceNow.value = Date.now() }, 30_000) })
-onUnmounted(() => { if (presenceTimer) clearInterval(presenceTimer) })
+// The page can sit open for an hour, and a chip that still reads ONLINE after
+// the player left is a small lie.
+const presenceNow = useNow()
 
 // Friends. The list is read once so the button can say what it already is,
 // rather than offering ADD to someone you asked yesterday.
