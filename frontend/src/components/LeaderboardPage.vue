@@ -84,6 +84,7 @@
               :badge="badgeInfoFor(row)?.badge"
               :points="badgeInfoFor(row)?.points"
               :progress="badgeInfoFor(row)?.progress"
+              :presence="row.user_id ? presence[row.user_id] ?? null : undefined"
               link
               class="lb-ident"
             >
@@ -136,6 +137,7 @@ import { navigate } from '../utils/routes'
 import { formatCountdown, msUntilLocalMidnight } from '../utils/countdown'
 import { flagEmoji } from '../utils/country'
 import { useBadges } from '../composables/useBadges'
+import { usePresence } from '../composables/usePresence'
 import SiteFooter from './SiteFooter.vue'
 import Badge from './Badge.vue'
 import BadgedName from './BadgedName.vue'
@@ -161,9 +163,15 @@ const rest = computed(() => rows.value.slice(3))
 // Badge chips for every visible row — feature-detects until badges.sql +
 // the user_id-exposing board functions are installed.
 const { badges, fetchBadges } = useBadges()
+// Presence rides along in the same pass: one batched call per board, and the
+// dot answers "could I play them right now" without opening a profile.
+const { presence, fetchPresence } = usePresence()
 watch(rows, (rs) => {
     const ids = rs.map(r => r.user_id).filter((x): x is string => !!x)
-    if (ids.length) void fetchBadges(ids)
+    if (ids.length) {
+        void fetchBadges(ids)
+        void fetchPresence(ids)
+    }
 }, { immediate: true })
 
 function badgeInfoFor(row: Row) {

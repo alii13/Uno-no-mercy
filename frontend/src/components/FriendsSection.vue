@@ -20,8 +20,8 @@
     </ul>
 
     <ul v-if="social.friends.length" class="friend-list">
-      <li v-for="f in social.friends" :key="f.user_id" class="friend-row">
-        <span class="friend-dot" :class="{ 'is-online': isOnline(f.last_seen_at, now) }" aria-hidden="true" />
+      <li v-for="f in sortedFriends" :key="f.user_id" class="friend-row">
+        <PresenceDot :last-seen-at="f.last_seen_at" />
         <button class="friend-name friend-name--link" @click="openProfile(f)">{{ f.username }}</button>
         <span class="friend-seen">{{ seenLabel(f) }}</span>
         <!-- Two taps, no dialog. Blocking deletes the friendship, and the
@@ -56,9 +56,10 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useSocialStore, type FriendRow } from '../stores/socialStore'
-import { isOnline, relativeTime } from '../utils/relativeTime'
+import { isOnline, relativeTime, presenceState } from '../utils/relativeTime'
+import PresenceDot from './PresenceDot.vue'
 import { navigate } from '../utils/routes'
 
 const social = useSocialStore()
@@ -72,6 +73,15 @@ onMounted(() => {
   timer = setInterval(() => { now.value = Date.now() }, 30_000)
 })
 onUnmounted(() => { if (timer) clearInterval(timer) })
+
+// Whoever can play right now, first. A list ordered by when the friendship
+// was made answers a question nobody is asking.
+const RANK: Record<string, number> = { online: 0, recent: 1, offline: 2 }
+const sortedFriends = computed(() => [...social.friends].sort((a, b) => {
+  const byState = RANK[presenceState(a.last_seen_at, now.value)]! - RANK[presenceState(b.last_seen_at, now.value)]!
+  if (byState !== 0) return byState
+  return (b.last_seen_at ?? '').localeCompare(a.last_seen_at ?? '')
+}))
 
 function seenLabel(f: FriendRow): string {
   if (isOnline(f.last_seen_at, now.value)) return 'ONLINE'
@@ -148,18 +158,6 @@ onUnmounted(() => { if (armed) clearTimeout(armed) })
 .friend-row--request {
   border-color: rgba(0, 243, 255, 0.28);
   flex-wrap: wrap;
-}
-
-.friend-dot {
-  flex: none;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.friend-dot.is-online {
-  background: var(--color-neon-green);
 }
 
 .friend-name {

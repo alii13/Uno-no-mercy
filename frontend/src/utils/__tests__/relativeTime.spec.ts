@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { relativeTime, isOnline, ONLINE_WINDOW_MS } from '../relativeTime'
+import {
+    relativeTime, isOnline, presenceState, presenceLabel,
+    ONLINE_WINDOW_MS, RECENT_WINDOW_MS,
+} from '../relativeTime'
 
 const NOW = new Date('2026-08-15T12:00:00Z').getTime()
 const ago = (ms: number) => new Date(NOW - ms).toISOString()
@@ -28,6 +31,34 @@ describe('relativeTime', () => {
         expect(relativeTime(null, NOW)).toBe('')
         expect(relativeTime(undefined, NOW)).toBe('')
         expect(relativeTime('not a date', NOW)).toBe('')
+    })
+})
+
+describe('presenceState', () => {
+    it('separates here, just left, and gone', () => {
+        expect(presenceState(ago(0), NOW)).toBe('online')
+        expect(presenceState(ago(ONLINE_WINDOW_MS - 1_000), NOW)).toBe('online')
+        // The middle state is the point: five minutes ago is still worth an invite.
+        expect(presenceState(ago(5 * 60_000), NOW)).toBe('recent')
+        expect(presenceState(ago(RECENT_WINDOW_MS - 1_000), NOW)).toBe('recent')
+        expect(presenceState(ago(RECENT_WINDOW_MS + 1_000), NOW)).toBe('offline')
+    })
+
+    it('treats a player who never checked in as offline', () => {
+        expect(presenceState(null, NOW)).toBe('offline')
+        expect(presenceState('not a date', NOW)).toBe('offline')
+    })
+})
+
+describe('presenceLabel', () => {
+    it('says one word when they are here, and when otherwise', () => {
+        expect(presenceLabel(ago(30_000), NOW)).toBe('Online')
+        expect(presenceLabel(ago(6 * 60_000), NOW)).toBe('Last seen 6 minutes ago')
+        expect(presenceLabel(ago(3 * 3_600_000), NOW)).toBe('Last seen 3 hours ago')
+    })
+
+    it('does not invent a time for a player who never checked in', () => {
+        expect(presenceLabel(null, NOW)).toBe('Offline')
     })
 })
 

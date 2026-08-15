@@ -6,7 +6,7 @@
     <span class="inv-label">FRIENDS ONLINE</span>
     <ul class="inv-list">
       <li v-for="f in online" :key="f.user_id" class="inv-row">
-        <span class="inv-dot" aria-hidden="true" />
+        <PresenceDot :last-seen-at="f.last_seen_at" />
         <span class="inv-name">{{ f.username }}</span>
         <button
           class="inv-btn"
@@ -24,6 +24,7 @@ import { useSocialStore } from '../stores/socialStore'
 import { useInviteStore } from '../stores/inviteStore'
 import { useMultiplayerStore } from '../stores/multiplayerStore'
 import { isOnline } from '../utils/relativeTime'
+import PresenceDot from './PresenceDot.vue'
 
 const social = useSocialStore()
 const invitesStore = useInviteStore()
@@ -109,14 +110,6 @@ async function invite(userId: string) {
   border-radius: var(--radius-sm);
   font-family: 'Chakra Petch', sans-serif;
   font-size: 0.8rem;
-}
-
-.inv-dot {
-  flex: none;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-neon-green);
 }
 
 .inv-name {
