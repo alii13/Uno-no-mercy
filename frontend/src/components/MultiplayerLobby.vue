@@ -31,10 +31,15 @@
             @click="accountOpen = !accountOpen"
           >
             {{ authStore.username }}
+            <span v-if="social.incoming.length" class="chip-badge" :title="`${social.incoming.length} friend request${social.incoming.length > 1 ? 's' : ''}`">{{ social.incoming.length }}</span>
             <ChevronDown class="chip-edit-icon" :stroke-width="2" aria-hidden="true" />
           </button>
           <div v-if="accountOpen" class="account-menu" role="menu">
             <button class="account-item" role="menuitem" @click="viewProfile">View profile</button>
+            <button v-if="!social.unavailable" class="account-item" role="menuitem" @click="openFriends">
+              Friends
+              <span v-if="social.incoming.length" class="account-count">{{ social.incoming.length }}</span>
+            </button>
             <button class="account-item" role="menuitem" @click="editNameFromMenu">Edit name</button>
             <button class="account-item account-item--out" role="menuitem" @click="signOutFromMenu">Sign out</button>
           </div>
@@ -216,7 +221,7 @@
             <!-- Hidden below a floor on purpose: a true small number reads as
                  an empty game and sends the reader away. See useOnlineCount. -->
             <span v-if="online.show.value" class="mode-online">
-              <span class="live-dot" aria-hidden="true" />{{ online.count.value }} PLAYING NOW
+              <span class="live-dot" aria-hidden="true" />{{ online.count.value }} ONLINE
             </span>
           </div>
           <!-- Only rendered when a public room with a free seat actually
@@ -606,6 +611,7 @@ import { useLeaderboard } from '../composables/useLeaderboard'
 import { flagEmoji } from '../utils/country'
 import { useLiveTables } from '../composables/useLiveTables'
 import { useOnlineCount } from '../composables/useOnlineCount'
+import { useSocialStore } from '../stores/socialStore'
 import InviteFriends from './InviteFriends.vue'
 import { nextBot, ladderProgress, isLadderComplete } from '../utils/botLadder'
 import { navigate } from '../utils/routes'
@@ -907,6 +913,15 @@ const ladderHint = computed(() =>
 
 const live = useLiveTables()
 const online = useOnlineCount()
+// Read once on the lobby so a waiting friend request can announce itself
+// here, rather than only inside a screen nobody opens on purpose.
+const social = useSocialStore()
+onMounted(() => { if (authStore.isAuthenticated) void social.refresh() })
+
+function openFriends() {
+    closeAccount()
+    emit('showStats')
+}
 onMounted(() => live.start())
 
 const liveHeadline = computed(() => {
@@ -1832,6 +1847,27 @@ function copyLink() {
   font-size: var(--text-xs);
   color: var(--text-muted);
   padding: var(--spacing-1) var(--spacing-2) var(--spacing-2);
+}
+
+.chip-badge,
+.account-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--color-neon-blue);
+  color: #04252a;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.account-count {
+  margin-left: auto;
 }
 
 .mode-online {

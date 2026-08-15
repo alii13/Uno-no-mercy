@@ -20,8 +20,8 @@
     </ul>
 
     <ul v-if="social.friends.length" class="friend-list">
-      <li v-for="f in social.friends" :key="f.user_id" class="friend-row">
-        <span class="friend-dot" :class="{ 'is-online': isOnline(f.last_seen_at, now) }" aria-hidden="true" />
+      <li v-for="f in sortedFriends" :key="f.user_id" class="friend-row">
+        <PresenceDot :last-seen-at="f.last_seen_at" />
         <button class="friend-name friend-name--link" @click="openProfile(f)">{{ f.username }}</button>
         <span class="friend-seen">{{ seenLabel(f) }}</span>
         <!-- Two taps, no dialog. Blocking deletes the friendship, and the
@@ -56,22 +56,27 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useSocialStore, type FriendRow } from '../stores/socialStore'
-import { isOnline, relativeTime } from '../utils/relativeTime'
+import { isOnline, relativeTime, byPresence } from '../utils/relativeTime'
+import { useNow, usePoll } from '../composables/useClock'
+import PresenceDot from './PresenceDot.vue'
 import { navigate } from '../utils/routes'
 
 const social = useSocialStore()
 
-// Presence ages while the panel is open, so the labels tick on their own.
-const now = ref(Date.now())
-let timer: ReturnType<typeof setInterval> | null = null
+// Labels age on the shared clock; the list itself re-reads while it is on
+// screen, because a friend coming online is the whole point of this panel and
+// the clock alone can only ever grey someone out.
+const now = useNow()
+onMounted(() => { void social.refresh() })
+usePoll(() => { void social.refresh() }, 60_000)
 
-onMounted(() => {
-  void social.refresh()
-  timer = setInterval(() => { now.value = Date.now() }, 30_000)
-})
-onUnmounted(() => { if (timer) clearInterval(timer) })
+// Ordered when the data changes, not when the clock moves: these rows carry
+// ACCEPT, DECLINE and BLOCK, and a list that reshuffles on a timer is how
+// someone declines the request they meant to accept.
+const sortedFriends = ref<FriendRow[]>([])
+watch(() => social.friends, (rows) => { sortedFriends.value = byPresence(rows) }, { immediate: true })
 
 function seenLabel(f: FriendRow): string {
   if (isOnline(f.last_seen_at, now.value)) return 'ONLINE'
@@ -148,18 +153,6 @@ onUnmounted(() => { if (armed) clearTimeout(armed) })
 .friend-row--request {
   border-color: rgba(0, 243, 255, 0.28);
   flex-wrap: wrap;
-}
-
-.friend-dot {
-  flex: none;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.friend-dot.is-online {
-  background: var(--color-neon-green);
 }
 
 .friend-name {

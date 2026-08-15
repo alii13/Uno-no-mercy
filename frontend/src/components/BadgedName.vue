@@ -10,11 +10,15 @@
             class="bn-badge"
         />
         <span class="bn-name"><slot>{{ name }}</slot></span>
+        <!-- Presence rides with the name everywhere the name goes, so a
+             player learns one mark instead of one per screen. -->
+        <PresenceDot v-if="presence !== undefined" :last-seen-at="presence" class="bn-dot" />
     </span>
 </template>
 
 <script setup lang="ts">
 import Badge from './Badge.vue'
+import PresenceDot from './PresenceDot.vue'
 import type { Badge as BadgeType, Progress } from '../utils/badges'
 
 withDefaults(
@@ -26,8 +30,15 @@ withDefaults(
         progress?: Progress
         /** Emblem opens the /badges explainer on click. */
         link?: boolean
+        /**
+         * Last-seen timestamp, or null for a player who never checked in.
+         * Leave it undefined to render no dot at all - which is what a
+         * surface without presence data should do, rather than showing
+         * everyone as offline.
+         */
+        presence?: string | null
     }>(),
-    { name: '', badge: undefined, points: undefined, progress: undefined, link: true },
+    { name: '', badge: undefined, points: undefined, progress: undefined, link: true, presence: undefined },
 )
 </script>
 
@@ -40,6 +51,9 @@ withDefaults(
 }
 .bn-badge {
     flex: none;
+}
+.bn-dot {
+    margin-left: 0.15em;
 }
 .bn-name {
     min-width: 0;

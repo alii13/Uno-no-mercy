@@ -41,14 +41,13 @@
         <div class="pp-identity">
           <div class="pp-name-row">
             <h1 class="pp-name">{{ p.username }}</h1>
+            <PresenceDot :last-seen-at="lastSeen" class="pp-dot" />
             <span v-if="flagEmoji(p.country)" class="pp-flag" :title="p.country ?? ''">{{ flagEmoji(p.country) }}</span>
           </div>
           <div class="pp-chips">
             <!-- Presence answers the only question a visitor has here: can I
                  play this person now, or is it worth leaving an invite? -->
-            <span v-if="presenceOnline" class="pp-chip pp-chip--live">
-              <span class="pp-live-dot" aria-hidden="true" />ONLINE NOW
-            </span>
+            <span v-if="presenceOnline" class="pp-chip pp-chip--live">ONLINE</span>
             <span v-else-if="lastSeenLabel" class="pp-chip">LAST SEEN {{ lastSeenLabel }}</span>
             <span class="pp-chip">{{ p.wins }} WINS</span>
             <span class="pp-chip">SINCE {{ memberSince }}</span>
@@ -156,7 +155,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick, type FunctionalComponent } from 'vue'
+import { ref, computed, onMounted, watch, nextTick, type FunctionalComponent } from 'vue'
 import {
     Trophy, Swords, Target, Flame, Zap, Shield, Layers, SkipForward, Plus, UserPlus,
 } from 'lucide-vue-next'
@@ -165,6 +164,9 @@ import { useProfile } from '../composables/useProfile'
 import { useMotion } from '../composables/useMotion'
 import { useAuthStore } from '../stores/authStore'
 import { flagEmoji } from '../utils/country'
+import PresenceDot from './PresenceDot.vue'
+import { usePresence } from '../composables/usePresence'
+import { useNow } from '../composables/useClock'
 import { isOnline, relativeTime } from '../utils/relativeTime'
 import { useSocialStore, type SendResult } from '../stores/socialStore'
 import { shareProfile } from '../utils/share'
@@ -202,12 +204,9 @@ const memberSince = computed(() => {
         .toUpperCase()
 })
 
-// Presence ticks on its own clock: the page can sit open for an hour, and a
-// chip that still reads ONLINE NOW after the player left is a small lie.
-const presenceNow = ref(Date.now())
-let presenceTimer: ReturnType<typeof setInterval> | null = null
-onMounted(() => { presenceTimer = setInterval(() => { presenceNow.value = Date.now() }, 30_000) })
-onUnmounted(() => { if (presenceTimer) clearInterval(presenceTimer) })
+// The page can sit open for an hour, and a chip that still reads ONLINE after
+// the player left is a small lie.
+const presenceNow = useNow()
 
 // Friends. The list is read once so the button can say what it already is,
 // rather than offering ADD to someone you asked yesterday.
@@ -244,8 +243,14 @@ async function addFriend() {
     sendResult.value = await social.sendRequest(id)
 }
 
-const presenceOnline = computed(() => isOnline(pp.lastSeenAt.value, presenceNow.value))
-const lastSeenLabel = computed(() => relativeTime(pp.lastSeenAt.value, presenceNow.value).toUpperCase())
+// Same batched lookup and same cache the leaderboard and the friends list
+// use - one presence path, so the dot cannot disagree with itself.
+const { presence, fetchPresence } = usePresence()
+watch(() => p.value?.user_id, (id) => { if (id) void fetchPresence([id]) }, { immediate: true })
+const lastSeen = computed(() => (p.value?.user_id ? presence.value[p.value.user_id] ?? null : null))
+
+const presenceOnline = computed(() => isOnline(lastSeen.value, presenceNow.value))
+const lastSeenLabel = computed(() => relativeTime(lastSeen.value, presenceNow.value).toUpperCase())
 
 function clock(secs: number): string {
     return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
@@ -473,22 +478,8 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
   border-color: rgba(0, 255, 102, 0.35);
 }
 
-.pp-live-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-neon-green);
-  animation: pp-live-pulse 2s ease-in-out infinite;
-}
-
-@keyframes pp-live-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pp-live-dot { animation: none; }
+.pp-dot {
+  align-self: center;
 }
 
 .pp-progress {

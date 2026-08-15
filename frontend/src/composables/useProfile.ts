@@ -27,16 +27,12 @@ export function useProfile() {
     const profile = ref<PublicProfile | null>(null)
     // Empty until profile-activity.sql is run — the heatmap hides itself.
     const activity = ref<ActivityDay[]>([])
-    // Null until presence.sql is run, or for a profile that never checked in —
-    // the header chip hides itself either way.
-    const lastSeenAt = ref<string | null>(null)
 
     async function fetchProfile(code: string) {
         loading.value = true
         notFound.value = false
         unavailable.value = false
         activity.value = []
-        lastSeenAt.value = null
         try {
             const [{ data, error }, act] = await Promise.all([
                 supabase.rpc('public_profile', { p_share_code: code }),
@@ -56,20 +52,6 @@ export function useProfile() {
                 return
             }
             profile.value = row
-            // Presence needs the user id the row just returned, so it cannot
-            // ride the parallel pair above.
-            //
-            // Its own try block, deliberately: this catch is what the outer
-            // one would otherwise do, and the outer one sets `unavailable`,
-            // which renders the "warming up" state INSTEAD of the profile
-            // that has already loaded. A decorative chip must never be able
-            // to blank the page behind it.
-            if (row.user_id) {
-                try {
-                    const { data: seen } = await supabase.rpc('players_presence', { ids: [row.user_id] })
-                    lastSeenAt.value = (seen as { last_seen_at: string | null }[] | null)?.[0]?.last_seen_at ?? null
-                } catch { /* no chip, still a profile */ }
-            }
         } catch {
             unavailable.value = true
         } finally {
@@ -77,5 +59,5 @@ export function useProfile() {
         }
     }
 
-    return { loading, notFound, unavailable, profile, activity, lastSeenAt, fetchProfile }
+    return { loading, notFound, unavailable, profile, activity, fetchProfile }
 }

@@ -14,6 +14,38 @@
  *  window in supabase/presence.sql - change both together. */
 export const ONLINE_WINDOW_MS = 2 * 60 * 1000
 
+/**
+ * Still worth inviting. Someone who closed the tab five minutes ago is a
+ * different person, to a player deciding who to ask, than someone last seen on
+ * Tuesday - and a two-state dot cannot tell you which one you are looking at.
+ */
+export const RECENT_WINDOW_MS = 15 * 60 * 1000
+
+export type PresenceState = 'online' | 'recent' | 'offline'
+
+export function presenceState(
+    lastSeenAt: string | number | Date | null | undefined,
+    now = Date.now(),
+): PresenceState {
+    if (lastSeenAt === null || lastSeenAt === undefined) return 'offline'
+    const seen = new Date(lastSeenAt).getTime()
+    if (!Number.isFinite(seen)) return 'offline'
+    const age = now - seen
+    if (age < ONLINE_WINDOW_MS) return 'online'
+    if (age < RECENT_WINDOW_MS) return 'recent'
+    return 'offline'
+}
+
+/** What the dot says when you hover it. Sentence case: it is a sentence. */
+export function presenceLabel(
+    lastSeenAt: string | number | Date | null | undefined,
+    now = Date.now(),
+): string {
+    if (presenceState(lastSeenAt, now) === 'online') return 'Online'
+    const rel = relativeTime(lastSeenAt, now)
+    return rel ? `Last seen ${rel}` : 'Offline'
+}
+
 const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
     ['second', 60],
     ['minute', 60],
@@ -49,4 +81,20 @@ export function isOnline(lastSeenAt: string | number | Date | null | undefined, 
     const seen = new Date(lastSeenAt).getTime()
     if (!Number.isFinite(seen)) return false
     return now - seen < ONLINE_WINDOW_MS
+}
+
+/**
+ * Whoever can play right now, first. Ordering is deliberately computed from
+ * the data rather than from a live clock: rows carry ACCEPT, DECLINE and
+ * BLOCK, and a list that reshuffles under a moving finger is how somebody
+ * declines the request they meant to accept.
+ */
+const PRESENCE_RANK: Record<PresenceState, number> = { online: 0, recent: 1, offline: 2 }
+
+export function byPresence<T extends { last_seen_at: string | null }>(rows: T[], now = Date.now()): T[] {
+    return [...rows].sort((a, b) => {
+        const byState = PRESENCE_RANK[presenceState(a.last_seen_at, now)] - PRESENCE_RANK[presenceState(b.last_seen_at, now)]
+        if (byState !== 0) return byState
+        return (b.last_seen_at ?? '').localeCompare(a.last_seen_at ?? '')
+    })
 }
