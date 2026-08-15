@@ -127,7 +127,9 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
     // Public-lobby auto-start countdown, mirrored from presence frames. The
     // server sends a duration; anchoring it to the local clock here makes the
     // deadline immune to client clock skew.
-    const autoStart = ref<{ deadline: number; paused: boolean } | null>(null)
+    // bumpsLeft is the room's remaining allowance to hold the lobby open; an
+    // older worker sends none, so the button simply never shows.
+    const autoStart = ref<{ deadline: number; paused: boolean; bumpsLeft: number } | null>(null)
     // Quick chat: newest frame (drives bubbles) + a capped per-match log.
     // Mutes are client-side and room-scoped — a muted sender's frames are
     // dropped at receive, instantly and without a server round trip.
@@ -280,7 +282,11 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
             case 'presence':
                 presence.value = msg.players
                 autoStart.value = typeof msg.autoStartInMs === 'number'
-                    ? { deadline: Date.now() + msg.autoStartInMs, paused: !!msg.autoStartPaused }
+                    ? {
+                        deadline: Date.now() + msg.autoStartInMs,
+                        paused: !!msg.autoStartPaused,
+                        bumpsLeft: msg.autoStartBumpsLeft ?? 0,
+                    }
                     : null
                 break
 
@@ -570,6 +576,12 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
     function sendChat(phraseId: string) {
         sendMsg({ t: 'chat', phraseId })
+    }
+
+    /** Ask the room to wait a minute longer before it deals itself. */
+    function extendAutoStart() {
+        if (!autoStart.value?.bumpsLeft) return
+        sendMsg({ t: 'extend-start' })
     }
 
     function toggleChatMute(userId: string) {
@@ -928,6 +940,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         lastMercyCall,
         lastBadgeUp,
         autoStart,
+        extendAutoStart,
         lastChat,
         chatLog,
         mutedChatIds,

@@ -32,12 +32,20 @@ const props = defineProps<{
 
 const motion = useMotion()
 const remainingMs = ref(Math.max(0, props.deadline - Date.now()))
+const windowMs = ref(Math.max(1_000, remainingMs.value))
 const numEl = ref<HTMLElement | null>(null)
 let raf = 0
 let slow: ReturnType<typeof setTimeout> | null = null
 
-function tick() {
+function readClock() {
   remainingMs.value = Math.max(0, props.deadline - Date.now())
+  // The sweep is the longest remainder this ring has seen, so a bought minute
+  // refills the arc instead of overflowing it.
+  if (remainingMs.value > windowMs.value) windowMs.value = remainingMs.value
+}
+
+function tick() {
+  readClock()
   // Reduced motion: a seconds readout needs 4Hz, not a 60fps ring sweep.
   if (motion.reduced) slow = setTimeout(tick, 250)
   else raf = requestAnimationFrame(tick)
@@ -51,7 +59,7 @@ function stopTick() {
 function sync() {
   stopTick()
   // While paused the number holds; the next presence frame moves it.
-  if (props.paused) remainingMs.value = Math.max(0, props.deadline - Date.now())
+  if (props.paused) readClock()
   else tick()
 }
 
@@ -66,10 +74,10 @@ const label = computed(() =>
   : 'MATCH STARTS IN',
 )
 
-// Ring geometry: fraction of the full 30s window still on the clock.
+// Ring geometry: fraction of the window still on the clock.
 const CIRCUMFERENCE = 2 * Math.PI * 52
 const dashOffset = computed(() => {
-  const fraction = Math.min(1, Math.max(0, remainingMs.value / 30_000))
+  const fraction = Math.min(1, Math.max(0, remainingMs.value / windowMs.value))
   return CIRCUMFERENCE * (1 - fraction)
 })
 
