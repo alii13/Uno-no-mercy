@@ -9,6 +9,15 @@
 -- RLS is on and the table has no policies, so no client can read or write it
 -- directly. Every path goes through the functions below, which is the only
 -- place a rate limit or a block check can actually live.
+--
+-- On the revokes below: Postgres grants EXECUTE to PUBLIC on a new function
+-- and Supabase grants it to anon on top. A role can only revoke what it
+-- granted, so if the editor's role is not the grantor the statement succeeds
+-- and changes nothing - verified against this project, where an anonymous
+-- caller can still reach every function. That is why the auth.uid() check at
+-- the top of each body is the guard that actually holds: an unauthenticated
+-- call returns 'unauthorized', reads nothing and writes nothing. The revokes
+-- stay because they do bite on a project where the grantor lines up.
 
 create table if not exists friendships (
     requester_id uuid not null references auth.users(id) on delete cascade,
@@ -102,8 +111,6 @@ begin
 end;
 $$;
 
--- Postgres grants EXECUTE to PUBLIC by default, and Supabase grants it to
--- anon explicitly on top - revoking PUBLIC alone leaves anon holding it.
 revoke execute on function public.send_friend_request(uuid) from public, anon;
 grant execute on function public.send_friend_request(uuid) to authenticated;
 
@@ -138,8 +145,6 @@ begin
 end;
 $$;
 
--- Postgres grants EXECUTE to PUBLIC by default, and Supabase grants it to
--- anon explicitly on top - revoking PUBLIC alone leaves anon holding it.
 revoke execute on function public.respond_friend_request(uuid, boolean) from public, anon;
 grant execute on function public.respond_friend_request(uuid, boolean) to authenticated;
 
@@ -168,8 +173,6 @@ begin
 end;
 $$;
 
--- Postgres grants EXECUTE to PUBLIC by default, and Supabase grants it to
--- anon explicitly on top - revoking PUBLIC alone leaves anon holding it.
 revoke execute on function public.block_player(uuid) from public, anon;
 grant execute on function public.block_player(uuid) to authenticated;
 
@@ -195,8 +198,6 @@ begin
 end;
 $$;
 
--- Postgres grants EXECUTE to PUBLIC by default, and Supabase grants it to
--- anon explicitly on top - revoking PUBLIC alone leaves anon holding it.
 revoke execute on function public.unblock_player(uuid) from public, anon;
 grant execute on function public.unblock_player(uuid) to authenticated;
 
@@ -241,7 +242,5 @@ as $$
     order by f.created_at desc
 $$;
 
--- Postgres grants EXECUTE to PUBLIC by default, and Supabase grants it to
--- anon explicitly on top - revoking PUBLIC alone leaves anon holding it.
 revoke execute on function public.my_friends() from public, anon;
 grant execute on function public.my_friends() to authenticated;

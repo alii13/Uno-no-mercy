@@ -41,10 +41,11 @@ $$;
 -- Signed in only, and it writes exactly one row - the caller's own. Guests
 -- count: an anonymous Supabase user is authenticated.
 --
--- The revoke is the part that makes "signed in only" true. Postgres grants
--- EXECUTE to PUBLIC on a new function, and Supabase grants it to anon on top,
--- so the grant below adds nothing without it. The two reads keep their open
--- grants on purpose - see the note at the top of this file.
+-- The revoke is best-effort: a role can only revoke what it granted, and on
+-- this project the anon grant survives it, so an unauthenticated call still
+-- reaches the function. It updates zero rows - auth.uid() is null, so the
+-- where clause matches nothing - and that is the guarantee to rely on. The
+-- two reads keep their open grants deliberately.
 revoke execute on function public.touch_presence() from public, anon;
 grant execute on function public.touch_presence() to authenticated;
 
