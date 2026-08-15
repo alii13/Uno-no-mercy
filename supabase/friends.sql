@@ -13,7 +13,7 @@
 create table if not exists friendships (
     requester_id uuid not null references auth.users(id) on delete cascade,
     addressee_id uuid not null references auth.users(id) on delete cascade,
-    status text not null check (status in ('pending', 'accepted', 'blocked')),
+    status text not null check (status in ('pending', 'accepted', 'blocked', 'declined')),
     -- Who pressed block. Null unless status is 'blocked'; without it the row
     -- cannot say which side is unwelcome.
     blocked_by uuid references auth.users(id) on delete cascade,
@@ -26,6 +26,12 @@ create unique index if not exists friendships_pair_idx
     on friendships (least(requester_id, addressee_id), greatest(requester_id, addressee_id));
 
 create index if not exists friendships_addressee_idx on friendships (addressee_id, status);
+
+-- Idempotent, so a database that ran an earlier copy of this file picks up
+-- 'declined' instead of failing every refusal on the old check.
+alter table friendships drop constraint if exists friendships_status_check;
+alter table friendships add constraint friendships_status_check
+    check (status in ('pending', 'accepted', 'blocked', 'declined'));
 
 alter table friendships enable row level security;
 
@@ -50,13 +56,27 @@ begin
     if me is null then return 'unauthorized'; end if;
     if p_user is null or p_user = me then return 'self'; end if;
 
+    if not exists (select 1 from profiles where id = p_user) then return 'not_found'; end if;
+
     select * into existing from friendships
     where least(requester_id, addressee_id) = least(me, p_user)
       and greatest(requester_id, addressee_id) = greatest(me, p_user);
 
-    if found then
+    -- Tested on the row, not on FOUND: FOUND belongs to the last statement
+    -- that set it, and anything added above this line would silently move it.
+    if existing.requester_id is not null then
         if existing.status = 'blocked' then return 'blocked'; end if;
         if existing.status = 'accepted' then return 'already'; end if;
+        if existing.status = 'declined' then
+            -- A refusal holds for a week. Long enough that DECLINE means
+            -- something, short enough that it is not a life sentence.
+            if existing.responded_at > now() - interval '7 days' then return 'declined'; end if;
+            update friendships
+            set requester_id = me, addressee_id = p_user, status = 'pending',
+                created_at = now(), responded_at = null
+            where requester_id = existing.requester_id and addressee_id = existing.addressee_id;
+            return 'sent';
+        end if;
         -- Pending: theirs to me becomes friendship, mine to them stays put.
         if existing.addressee_id = me then
             update friendships set status = 'accepted', responded_at = now()
@@ -68,6 +88,10 @@ begin
 
     -- A cap on strangers asked per day. The number is deliberately generous:
     -- it is here to stop a script, not a sociable player.
+    --
+    -- Declined rows count. They used to be deleted, which meant a burst of
+    -- refusals handed the sender their slots straight back - the cap only
+    -- ever bit someone nobody had answered yet.
     select count(*) into sent_today from friendships
     where requester_id = me and created_at > now() - interval '24 hours';
     if sent_today >= 20 then return 'rate_limited'; end if;
@@ -78,11 +102,15 @@ begin
 end;
 $$;
 
-grant execute on function public.send_friend_request to authenticated;
+-- Postgres grants EXECUTE to PUBLIC by default, and PUBLIC includes anon.
+revoke execute on function public.send_friend_request(uuid) from public;
+grant execute on function public.send_friend_request(uuid) to authenticated;
 
--- Answer a request addressed to me. Declining deletes the row rather than
--- remembering the refusal: the daily cap and block already bound a pest, and
--- a permanent "declined" record is a grudge the product does not need.
+-- Answer a request addressed to me. Declining keeps the row as 'declined'
+-- rather than deleting it: a deleted refusal let the same person ask again
+-- immediately, and handed their daily cap a free slot. The refusal expires
+-- after a week in send_friend_request, so it bounds a pest without being a
+-- permanent grudge.
 
 create or replace function public.respond_friend_request(p_user uuid, p_accept boolean)
 returns text
@@ -102,14 +130,16 @@ begin
         return 'accepted';
     end if;
 
-    delete from friendships
+    update friendships set status = 'declined', responded_at = now()
     where requester_id = p_user and addressee_id = me and status = 'pending';
     if not found then return 'not_found'; end if;
     return 'declined';
 end;
 $$;
 
-grant execute on function public.respond_friend_request to authenticated;
+-- Postgres grants EXECUTE to PUBLIC by default, and PUBLIC includes anon.
+revoke execute on function public.respond_friend_request(uuid, boolean) from public;
+grant execute on function public.respond_friend_request(uuid, boolean) to authenticated;
 
 -- Block. Overwrites whatever the pair had, including an accepted friendship,
 -- and send_friend_request refuses both directions afterwards.
@@ -136,7 +166,9 @@ begin
 end;
 $$;
 
-grant execute on function public.block_player to authenticated;
+-- Postgres grants EXECUTE to PUBLIC by default, and PUBLIC includes anon.
+revoke execute on function public.block_player(uuid) from public;
+grant execute on function public.block_player(uuid) to authenticated;
 
 -- Undo my own block. A block placed by the other side stays.
 
@@ -160,7 +192,9 @@ begin
 end;
 $$;
 
-grant execute on function public.unblock_player to authenticated;
+-- Postgres grants EXECUTE to PUBLIC by default, and PUBLIC includes anon.
+revoke execute on function public.unblock_player(uuid) from public;
+grant execute on function public.unblock_player(uuid) to authenticated;
 
 -- --- Read -------------------------------------------------------------------
 
@@ -198,8 +232,11 @@ as $$
     join profiles p
       on p.id = case when f.requester_id = auth.uid() then f.addressee_id else f.requester_id end
     where (f.requester_id = auth.uid() or f.addressee_id = auth.uid())
+      and f.status <> 'declined'
       and (f.status <> 'blocked' or f.blocked_by = auth.uid())
     order by f.created_at desc
 $$;
 
-grant execute on function public.my_friends to authenticated;
+-- Postgres grants EXECUTE to PUBLIC by default, and PUBLIC includes anon.
+revoke execute on function public.my_friends() from public;
+grant execute on function public.my_friends() to authenticated;

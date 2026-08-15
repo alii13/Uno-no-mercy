@@ -226,6 +226,7 @@ const addLabel = computed(() => {
     if (known?.status === 'blocked') return 'BLOCKED'
     if (known?.status === 'pending') return known.incoming ? 'ACCEPT REQUEST' : 'REQUEST SENT'
     if (sendResult.value === 'rate_limited') return 'TRY AGAIN TOMORROW'
+    if (sendResult.value === 'declined') return 'ASK LATER'
     if (sendResult.value === 'failed') return 'TRY AGAIN'
     return 'ADD FRIEND'
 })

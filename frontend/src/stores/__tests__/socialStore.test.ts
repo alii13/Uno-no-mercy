@@ -1,10 +1,12 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { nextTick } from 'vue'
 
 const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }))
 vi.mock('../../lib/supabase', () => ({ supabase: { rpc } }))
 
 import { useSocialStore, type FriendRow } from '../socialStore'
+import { useAuthStore } from '../authStore'
 
 const row = (over: Partial<FriendRow> = {}): FriendRow => ({
     user_id: 'u2',
@@ -101,6 +103,20 @@ describe('social store', () => {
         release({ data: 'sent', error: null })
         expect(await first).toBe('sent')
         expect(social.pendingIds.has('u2')).toBe(false)
+    })
+
+    it('drops one account\'s list when another signs in on the same device', async () => {
+        listReturns([row({ user_id: 'friend' })])
+        const social = useSocialStore()
+        const auth = useAuthStore()
+        auth.user = { id: 'first' } as never
+        await social.refresh()
+        expect(social.friends).toHaveLength(1)
+
+        // A store outlives a sign-out; nothing reloads the page.
+        auth.user = { id: 'second' } as never
+        await nextTick()
+        expect(social.rows).toHaveLength(0)
     })
 
     it('drops an answered request from the list immediately', async () => {

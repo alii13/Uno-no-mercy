@@ -54,7 +54,7 @@
             v-for="o in addableOpponents"
             :key="o.userId"
             class="add-chip"
-            :disabled="social.pendingIds.has(o.userId) || !!addState[o.userId]"
+            :disabled="social.pendingIds.has(o.userId) || FINAL_ADD_STATES.has(addState[o.userId] ?? '')"
             @click="addOpponent(o.userId)"
           >
             <UserPlus :size="13" :stroke-width="2.5" aria-hidden="true" />
@@ -190,6 +190,10 @@ const addableOpponents = computed(() => {
     return (props.opponents ?? []).filter(o => !social.knownIds.has(o.userId) || addState.value[o.userId])
 })
 
+/** Outcomes a second press cannot improve. TRY AGAIN is deliberately absent:
+ *  it is an instruction, and a disabled instruction is a dead end. */
+const FINAL_ADD_STATES = new Set(['REQUEST SENT', 'FRIENDS', 'ALREADY ASKED', 'TOO MANY TODAY', 'ASK LATER'])
+
 async function addOpponent(userId: string) {
     const result = await social.sendRequest(userId)
     addState.value = {
@@ -198,6 +202,7 @@ async function addOpponent(userId: string) {
             : result === 'accepted' ? 'FRIENDS'
             : result === 'rate_limited' ? 'TOO MANY TODAY'
             : result === 'already' ? 'ALREADY ASKED'
+            : result === 'declined' ? 'ASK LATER'
             : 'TRY AGAIN',
     }
 }

@@ -14,8 +14,9 @@
  */
 
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { supabase } from '../lib/supabase'
+import { useAuthStore } from './authStore'
 import { isFatalSchemaError } from '../utils/supabaseErrors'
 
 export interface FriendRow {
@@ -33,7 +34,8 @@ export interface FriendRow {
 /** What send_friend_request answers. Every one is a normal outcome, not an
  *  error: two people can press ADD at the same moment. */
 export type SendResult =
-    | 'sent' | 'accepted' | 'already' | 'blocked' | 'self' | 'rate_limited' | 'unauthorized' | 'failed'
+    | 'sent' | 'accepted' | 'already' | 'blocked' | 'declined' | 'self'
+    | 'rate_limited' | 'not_found' | 'unauthorized' | 'failed'
 
 export const useSocialStore = defineStore('social', () => {
     const rows = ref<FriendRow[]>([])
@@ -117,6 +119,12 @@ export const useSocialStore = defineStore('social', () => {
         rows.value = []
         pendingIds.value = new Set()
     }
+
+    // A Pinia store outlives a sign-out, because nothing reloads the page.
+    // Without this, signing in as someone else on the same device shows the
+    // previous account's friends, requests and block list until a read
+    // returns - another person's social graph on a stranger's screen.
+    watch(() => useAuthStore().user?.id, reset)
 
     return {
         rows, loading, unavailable, pendingIds,

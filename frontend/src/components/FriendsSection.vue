@@ -24,7 +24,14 @@
         <span class="friend-dot" :class="{ 'is-online': isOnline(f.last_seen_at, now) }" aria-hidden="true" />
         <button class="friend-name friend-name--link" @click="openProfile(f)">{{ f.username }}</button>
         <span class="friend-seen">{{ seenLabel(f) }}</span>
-        <button class="friend-btn friend-btn--quiet" :title="`Block ${f.username}`" @click="social.block(f.user_id)">BLOCK</button>
+        <!-- Two taps, no dialog. Blocking deletes the friendship, and the
+             button now sits in reach of every thumb on a touch device. -->
+        <button
+          class="friend-btn friend-btn--quiet"
+          :class="{ 'friend-btn--danger': confirming === f.user_id }"
+          :title="`Block ${f.username}`"
+          @click="onBlock(f.user_id)"
+        >{{ confirming === f.user_id ? 'CONFIRM?' : 'BLOCK' }}</button>
       </li>
     </ul>
 
@@ -75,6 +82,24 @@ function seenLabel(f: FriendRow): string {
 function openProfile(f: FriendRow): void {
   if (f.share_code) navigate({ name: 'profile', code: f.share_code })
 }
+
+// Block asks once. The armed state clears itself, so a stray tap does not
+// leave a loaded button sitting there for the next visit to this screen.
+const confirming = ref<string | null>(null)
+let armed: ReturnType<typeof setTimeout> | null = null
+
+function onBlock(userId: string): void {
+  if (armed) { clearTimeout(armed); armed = null }
+  if (confirming.value === userId) {
+    confirming.value = null
+    void social.block(userId)
+    return
+  }
+  confirming.value = userId
+  armed = setTimeout(() => { confirming.value = null }, 4000)
+}
+
+onUnmounted(() => { if (armed) clearTimeout(armed) })
 </script>
 
 <style scoped>
@@ -193,6 +218,12 @@ function openProfile(f: FriendRow): void {
 .friend-btn--yes {
   border-color: rgba(0, 243, 255, 0.45);
   color: var(--color-neon-blue);
+}
+
+.friend-btn--danger {
+  border-color: rgba(255, 68, 68, 0.6);
+  color: #ff6666;
+  opacity: 1;
 }
 
 .friend-btn--quiet {
