@@ -101,29 +101,6 @@ describe('invite store', () => {
 
         store.start('me')
         expect(channelFor).not.toHaveBeenCalled()
-        expect(await store.send('u2', 'ABC123')).toBe('failed')
-    })
-
-    it('passes the server outcome through rather than guessing', async () => {
-        rpcReturns([], 'too_soon')
-        const store = useInviteStore()
-        expect(await store.send('u2', 'ABC123')).toBe('too_soon')
-        expect(rpc).toHaveBeenCalledWith('send_room_invite', { p_user: 'u2', p_code: 'ABC123' })
-    })
-
-    it('refuses a second send to the same player while one is in flight', async () => {
-        let release: (v: unknown) => void = () => {}
-        rpc.mockImplementationOnce(() => new Promise(res => { release = res }))
-            .mockResolvedValue({ data: [], error: null })
-        const store = useInviteStore()
-
-        const first = store.send('u2', 'ABC123')
-        expect(store.sending.has('u2')).toBe(true)
-        expect(await store.send('u2', 'ABC123')).toBe('failed')
-
-        release({ data: 'sent', error: null })
-        expect(await first).toBe('sent')
-        expect(store.sending.has('u2')).toBe(false)
     })
 
     it('reads again when the tab comes back', async () => {

@@ -1,5 +1,9 @@
 /**
- * Room invites: the live channel, the list, and sending one.
+ * Room invites, receiving side: the live channel, the list, and dismissing.
+ *
+ * Sending lives in multiplayerStore, on the room socket. Only the room can
+ * confirm the sender is sitting in it, and an invite nobody can vouch for is
+ * a claim rather than a fact - see game-server/src/invites.ts.
  *
  * Separate from socialStore because this owns a subscription. A player on the
  * home screen holds no game socket, so the invite arrives over Supabase
@@ -27,16 +31,9 @@ export interface RoomInvite {
     created_at: string
 }
 
-export type InviteResult =
-    | 'sent' | 'blocked' | 'self' | 'too_soon' | 'rate_limited'
-    | 'not_found' | 'bad_code' | 'unauthorized' | 'failed'
-
 export const useInviteStore = defineStore('invites', () => {
     const invites = ref<RoomInvite[]>([])
     const unavailable = ref(false)
-    /** Recipients with a send in flight, so a row can disable its button. */
-    const sending = ref<Set<string>>(new Set())
-
     let channel: { unsubscribe: () => void } | null = null
 
     /** The one the toast shows: newest first, and only one at a time. */
@@ -53,25 +50,6 @@ export const useInviteStore = defineStore('invites', () => {
             invites.value = (data ?? []) as RoomInvite[]
         } catch {
             /* transient - keep whatever is on screen */
-        }
-    }
-
-    async function send(userId: string, roomCode: string): Promise<InviteResult> {
-        if (unavailable.value || sending.value.has(userId)) return 'failed'
-        sending.value = new Set(sending.value).add(userId)
-        try {
-            const { data, error } = await supabase.rpc('send_room_invite', { p_user: userId, p_code: roomCode })
-            if (error) {
-                if (isFatalSchemaError(error)) unavailable.value = true
-                return 'failed'
-            }
-            return (typeof data === 'string' ? data : 'failed') as InviteResult
-        } catch {
-            return 'failed'
-        } finally {
-            const next = new Set(sending.value)
-            next.delete(userId)
-            sending.value = next
         }
     }
 
@@ -123,5 +101,5 @@ export const useInviteStore = defineStore('invites', () => {
         else stop()
     }, { immediate: true })
 
-    return { invites, current, unavailable, sending, refresh, send, dismiss, start, stop }
+    return { invites, current, unavailable, refresh, dismiss, start, stop }
 })

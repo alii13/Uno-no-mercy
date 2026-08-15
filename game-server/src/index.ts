@@ -10,6 +10,7 @@ import { ROOM_CODE_ALPHABET, isRoomCode, normalizeRoomCode } from '../../shared/
 import { canSeat, MAX_PLAYERS } from './seats'
 import { autoStartTick, autoStartBump, autoStartBumpsLeft, AUTO_START_MIN_PLAYERS, type AutoStartState } from './autoStart'
 import { chatAllowed } from './chatLimit'
+import { sendRoomInvite } from './invites'
 import { quickChatPhrase } from '../../shared/quickChat'
 import type { StackingMode } from '../../shared/engine'
 
@@ -732,6 +733,26 @@ export class GameRoomDO {
                 await this.touchGc()
                 // One ring, one deadline: everybody's clock moves together.
                 await this.broadcastPresence()
+                return
+            }
+
+            case 'invite': {
+                // The socket is what proves membership: this DO authenticated
+                // it into this room. Nothing else can make that claim, which
+                // is the whole reason the invite does not go straight from
+                // the client to Supabase.
+                await this.loadGame()
+                const target = String(msg.userId ?? '')
+                if (!target) return
+                if (this.roomStatus() !== 'lobby') {
+                    this.send(ws, { t: 'invite-result', userId: target, result: 'not-in-lobby' })
+                    return
+                }
+                const roomRec = await this.ctx.storage.get<RoomRecord>('room')
+                if (!roomRec) return
+                const result = await sendRoomInvite(this.env, tag.userId, target, roomRec.code)
+                this.send(ws, { t: 'invite-result', userId: target, result })
+                await this.touchGc()
                 return
             }
 

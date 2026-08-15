@@ -31,6 +31,10 @@ export type ClientMsg =
     // Hold the public lobby open a minute longer. Anyone at the table may
     // press it; the allowance is the room's, not the player's.
     | { t: 'extend-start' }
+    // Ask a player to this room. It rides the room socket rather than going
+    // to Supabase from the client, because only the room can confirm the
+    // sender is in it - see game-server/src/invites.ts.
+    | { t: 'invite'; userId: string }
     | { t: 'voice-join' }
     | { t: 'badge-up'; tier: number }
     // Quick chat is id-only (see shared/quickChat.ts) — no free text crosses
@@ -106,4 +110,7 @@ export type ServerMsg =
     | { t: 'voice-token'; token: string; meetingId: string }
     | { t: 'badge-up'; userId: string; tier: number }
     | { t: 'chat'; userId: string; phraseId: string }
+    // The outcome of one invite, back to whoever asked. Every value is a
+    // normal answer, including the refusals.
+    | { t: 'invite-result'; userId: string; result: string }
     | { t: 'error'; code: 'unauthorized' | 'bad-message' | 'room-not-found' | 'room-full' | 'not-host' | 'not-started' | 'already-started' | 'need-players' | 'not-in-lobby' | 'invalid-intent' | 'voice-unavailable'; intentId?: string }

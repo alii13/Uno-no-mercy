@@ -47,27 +47,27 @@ $$;
 -- Ask someone to your room. Returns: sent, blocked, self, too_soon,
 -- rate_limited, not_found, bad_code, unauthorized.
 --
--- An invite is a capability - it carries a room code - so the checks are on
--- the sender, not on the room. A code for a room that has died is harmless:
--- joining a dead code already fails gracefully on the client.
+-- The caller is the game server, not the player: p_from is supplied rather
+-- than read from auth.uid(), and only service_role may execute. That is what
+-- makes "X wants you at their table" a fact instead of a claim - the Durable
+-- Object holds the sender's authenticated socket for that room, so it knows
+-- they are actually sitting in it. A definer function reading auth.uid()
+-- could only know who asked, never where they were.
 --
--- Nothing here checks that the sender is IN that room, and that is a decision
--- rather than an oversight. Rooms live in Durable Object storage, not in
--- Postgres, so the database cannot ask; verifying would mean routing invites
--- through the game server. And the power gained is small: a room code is
--- already a shareable capability - the private-room flow is a link carrying
--- exactly this string - so an invite forwards a code faster, it does not
--- forward one that could not be pasted into chat. The block check and the
--- limits below are what bound the abuse.
+-- Membership in the room is checked before this function is reached, by the
+-- Durable Object that holds the sender's socket. What is left here is the
+-- sender's conduct: is this pair blocked, is it too soon, is it too many.
 
-create or replace function public.send_room_invite(p_user uuid, p_code text)
+drop function if exists public.send_room_invite(uuid, text);
+
+create or replace function public.send_room_invite(p_from uuid, p_user uuid, p_code text)
 returns text
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-    me uuid := auth.uid();
+    me uuid := p_from;
     recent int;
 begin
     if me is null then return 'unauthorized'; end if;
@@ -107,8 +107,9 @@ begin
 end;
 $$;
 
-revoke execute on function public.send_room_invite(uuid, text) from public, anon;
-grant execute on function public.send_room_invite(uuid, text) to authenticated;
+-- No client path at all: the worker calls this with the service key.
+revoke execute on function public.send_room_invite(uuid, uuid, text) from public, anon, authenticated;
+grant execute on function public.send_room_invite(uuid, uuid, text) to service_role;
 
 -- --- Reads ------------------------------------------------------------------
 

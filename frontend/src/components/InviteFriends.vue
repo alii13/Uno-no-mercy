@@ -10,7 +10,7 @@
         <span class="inv-name">{{ f.username }}</span>
         <button
           class="inv-btn"
-          :disabled="invitesStore.sending.has(f.user_id) || !!sent[f.user_id]"
+          :disabled="pending.has(f.user_id) || !!sent[f.user_id]"
           @click="invite(f.user_id)"
         >{{ sent[f.user_id] ?? 'INVITE' }}</button>
       </li>
@@ -29,6 +29,7 @@ const social = useSocialStore()
 const invitesStore = useInviteStore()
 const mpStore = useMultiplayerStore()
 const sent = ref<Record<string, string>>({})
+const pending = ref<Set<string>>(new Set())
 
 onMounted(() => { void social.refresh() })
 
@@ -42,9 +43,18 @@ const online = computed(() =>
 )
 
 async function invite(userId: string) {
-  const code = mpStore.roomCode
-  if (!code) return
-  const result = await invitesStore.send(userId, code)
+  if (pending.value.has(userId)) return
+  pending.value = new Set(pending.value).add(userId)
+  // Through the room, not through Supabase: the socket is what proves this
+  // player is actually sitting in the room they are inviting to.
+  let result: string
+  try {
+    result = await mpStore.sendInvite(userId)
+  } finally {
+    const next = new Set(pending.value)
+    next.delete(userId)
+    pending.value = next
+  }
   sent.value = {
     ...sent.value,
     [userId]: result === 'sent' ? 'INVITED'
