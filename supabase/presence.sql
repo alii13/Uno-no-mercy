@@ -9,6 +9,13 @@
 -- What this exposes: a last-seen timestamp per user id, to anyone who already
 -- has that id. Ids are public today through the leaderboards and profile
 -- pages, so this adds a timestamp, not an identity.
+--
+-- The read is granted to `anon` on purpose, and the cost is understood: a
+-- shared profile link shows last-seen to a visitor who is not signed in, and
+-- a script that knows a user id can poll it and learn when that player is
+-- usually around. The invite case won the call - a link that says "online
+-- now" to whoever opens it is the point. Narrowing this to accepted friends
+-- stays available once the friendships table lands.
 
 alter table profiles add column if not exists last_seen_at timestamptz;
 
