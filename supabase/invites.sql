@@ -50,6 +50,15 @@ $$;
 -- An invite is a capability - it carries a room code - so the checks are on
 -- the sender, not on the room. A code for a room that has died is harmless:
 -- joining a dead code already fails gracefully on the client.
+--
+-- Nothing here checks that the sender is IN that room, and that is a decision
+-- rather than an oversight. Rooms live in Durable Object storage, not in
+-- Postgres, so the database cannot ask; verifying would mean routing invites
+-- through the game server. And the power gained is small: a room code is
+-- already a shareable capability - the private-room flow is a link carrying
+-- exactly this string - so an invite forwards a code faster, it does not
+-- forward one that could not be pasted into chat. The block check and the
+-- limits below are what bound the abuse.
 
 create or replace function public.send_room_invite(p_user uuid, p_code text)
 returns text
@@ -85,6 +94,12 @@ begin
     select count(*) into recent from room_invites
     where from_user = me and created_at > now() - interval '1 hour';
     if recent >= 20 then return 'rate_limited'; end if;
+
+    -- Opportunistic sweep on the one path that writes. Both reads are time
+    -- bounded - ten minutes for the toast, an hour for the cap - so nothing
+    -- needs a row older than a day, and the table stays proportional to
+    -- activity rather than to the age of the feature.
+    delete from room_invites where created_at < now() - interval '1 day';
 
     insert into room_invites (from_user, to_user, room_code)
     values (me, p_user, upper(p_code));

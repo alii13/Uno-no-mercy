@@ -85,10 +85,15 @@ export const useInviteStore = defineStore('invites', () => {
         } catch { /* it is already gone from the screen */ }
     }
 
+    function onVisible(): void {
+        if (document.visibilityState === 'visible') void refresh()
+    }
+
     function stop(): void {
         channel?.unsubscribe()
         channel = null
         invites.value = []
+        if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible)
     }
 
     function start(userId: string): void {
@@ -102,7 +107,15 @@ export const useInviteStore = defineStore('invites', () => {
                 { event: 'INSERT', schema: 'public', table: 'room_invites', filter: `to_user=eq.${userId}` },
                 () => { void refresh() },
             )
-            .subscribe()
+            // Read again on a successful join: a row inserted while the socket
+            // was down is never replayed, and a channel that fails to join at
+            // all would otherwise look exactly like a quiet one.
+            .subscribe((status: string) => { if (status === 'SUBSCRIBED') void refresh() })
+
+        // The same reason the heartbeat listens: a phone that slept through an
+        // invite has ten minutes to notice it, and a reload should not be the
+        // only way.
+        if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible)
     }
 
     watch(() => useAuthStore().user?.id, (id) => {

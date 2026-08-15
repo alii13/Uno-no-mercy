@@ -52,6 +52,13 @@ async function join() {
 </script>
 
 <style scoped>
+/* Bottom edge, unlike the sign-in toast at the top. The note on that one -
+   "the landing page owns the bottom edge with its sticky mobile CTA" - does
+   not reach here, because an invite needs an account and never renders on the
+   landing page. Measured on a 390x667 waiting room: it clears LEAVE ROOM and
+   PLAY VS BOT INSTEAD, and covers only the site footer. Bottom wins because
+   JOIN is an action for a thumb, where a sign-in failure is a message to
+   read. */
 .invite {
   position: fixed;
   left: 50%;

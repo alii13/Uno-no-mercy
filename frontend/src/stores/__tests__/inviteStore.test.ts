@@ -19,7 +19,9 @@ vi.mock('../../lib/supabase', () => ({
                 name,
                 handlers,
                 on: (_e: string, _cfg: unknown, cb: (p: unknown) => void) => { handlers.push(cb); return ch },
-                subscribe: () => ch,
+                // Realtime reports the join through this callback; the store
+                // reads again on success.
+                subscribe: (cb?: (status: string) => void) => { cb?.('SUBSCRIBED'); return ch },
                 unsubscribe,
             }
             channelFor(ch)
@@ -122,6 +124,30 @@ describe('invite store', () => {
         release({ data: 'sent', error: null })
         expect(await first).toBe('sent')
         expect(store.sending.has('u2')).toBe(false)
+    })
+
+    it('reads again when the tab comes back', async () => {
+        const listeners: Record<string, () => void> = {}
+        vi.stubGlobal('document', {
+            visibilityState: 'visible',
+            addEventListener: (e: string, cb: () => void) => { listeners[e] = cb },
+            removeEventListener: () => { delete listeners.visibilitychange },
+        })
+        rpcReturns([])
+        const store = useInviteStore()
+        store.start('me')
+        await vi.waitFor(() => expect(rpc).toHaveBeenCalled())
+
+        // An invite inserted while the socket was down is never replayed, so
+        // waking up has to re-read.
+        rpc.mockClear()
+        rpcReturns([invite({ from_username: 'ARRIVED WHILE ASLEEP' })])
+        listeners.visibilitychange!()
+        await vi.waitFor(() => expect(store.current?.from_username).toBe('ARRIVED WHILE ASLEEP'))
+
+        store.stop()
+        expect(listeners.visibilitychange).toBeUndefined()
+        vi.unstubAllGlobals()
     })
 
     it('tears the channel down on sign-out and keeps no invites', async () => {
