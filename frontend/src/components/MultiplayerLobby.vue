@@ -211,7 +211,14 @@
 
         <!-- Other ways in: icon-led list rows, one identity color per mode -->
         <div class="mode-list" role="group" aria-label="Other ways to play">
-          <span class="mode-overline">Or jump in</span>
+          <div class="mode-overline-row">
+            <span class="mode-overline">Or jump in</span>
+            <!-- Hidden below a floor on purpose: a true small number reads as
+                 an empty game and sends the reader away. See useOnlineCount. -->
+            <span v-if="online.show.value" class="mode-online">
+              <span class="live-dot" aria-hidden="true" />{{ online.count.value }} PLAYING NOW
+            </span>
+          </div>
           <!-- Only rendered when a public room with a free seat actually
                exists. An empty "live games" row advertises that nobody is
                playing, which is worse than no row at all. -->
@@ -595,6 +602,7 @@ import { generateDailyShareImage, shareOrDownload } from '../utils/shareImage'
 import { useLeaderboard } from '../composables/useLeaderboard'
 import { flagEmoji } from '../utils/country'
 import { useLiveTables } from '../composables/useLiveTables'
+import { useOnlineCount } from '../composables/useOnlineCount'
 import { nextBot, ladderProgress, isLadderComplete } from '../utils/botLadder'
 import { navigate } from '../utils/routes'
 import { track } from '../utils/analytics'
@@ -894,6 +902,7 @@ const ladderHint = computed(() =>
 )
 
 const live = useLiveTables()
+const online = useOnlineCount()
 onMounted(() => live.start())
 
 const liveHeadline = computed(() => {
@@ -1807,11 +1816,29 @@ function copyLink() {
   padding: var(--spacing-2);
 }
 
+.mode-overline-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+}
+
 .mode-overline {
   font-family: var(--font-body);
   font-size: var(--text-xs);
   color: var(--text-muted);
   padding: var(--spacing-1) var(--spacing-2) var(--spacing-2);
+}
+
+.mode-online {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--spacing-1) var(--spacing-2) var(--spacing-2);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  color: var(--color-neon-green);
+  white-space: nowrap;
 }
 
 .mode-item {

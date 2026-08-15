@@ -174,10 +174,15 @@ import { useAuthStore } from './stores/authStore'
 import { supabase } from './lib/supabase'
 import { useMultiplayerStore } from './stores/multiplayerStore'
 import { useGameStore } from './stores/gameStore'
+import { usePresenceHeartbeat } from './composables/usePresenceHeartbeat'
 
 const authStore = useAuthStore()
 const mpStore = useMultiplayerStore()
 const localGameStore = useGameStore()
+
+// Stamps this player's last-seen while the tab is visible. App-level, so it
+// covers every screen and outlives any single one of them.
+usePresenceHeartbeat()
 
 const showAuthView = ref(false)
 const authMode = ref<'login' | 'signup' | 'claim'>('signup')

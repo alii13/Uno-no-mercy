@@ -44,6 +44,12 @@
             <span v-if="flagEmoji(p.country)" class="pp-flag" :title="p.country ?? ''">{{ flagEmoji(p.country) }}</span>
           </div>
           <div class="pp-chips">
+            <!-- Presence answers the only question a visitor has here: can I
+                 play this person now, or is it worth leaving an invite? -->
+            <span v-if="presenceOnline" class="pp-chip pp-chip--live">
+              <span class="pp-live-dot" aria-hidden="true" />ONLINE NOW
+            </span>
+            <span v-else-if="lastSeenLabel" class="pp-chip">LAST SEEN {{ lastSeenLabel }}</span>
             <span class="pp-chip">{{ p.wins }} WINS</span>
             <span class="pp-chip">SINCE {{ memberSince }}</span>
           </div>
@@ -139,7 +145,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick, type FunctionalComponent } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick, type FunctionalComponent } from 'vue'
 import {
     Trophy, Swords, Target, Flame, Zap, Shield, Layers, SkipForward, Plus,
 } from 'lucide-vue-next'
@@ -148,6 +154,7 @@ import { useProfile } from '../composables/useProfile'
 import { useMotion } from '../composables/useMotion'
 import { useAuthStore } from '../stores/authStore'
 import { flagEmoji } from '../utils/country'
+import { isOnline, relativeTime } from '../utils/relativeTime'
 import { shareProfile } from '../utils/share'
 import { track } from '../utils/analytics'
 import { useBadges } from '../composables/useBadges'
@@ -182,6 +189,16 @@ const memberSince = computed(() => {
         .toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
         .toUpperCase()
 })
+
+// Presence ticks on its own clock: the page can sit open for an hour, and a
+// chip that still reads ONLINE NOW after the player left is a small lie.
+const presenceNow = ref(Date.now())
+let presenceTimer: ReturnType<typeof setInterval> | null = null
+onMounted(() => { presenceTimer = setInterval(() => { presenceNow.value = Date.now() }, 30_000) })
+onUnmounted(() => { if (presenceTimer) clearInterval(presenceTimer) })
+
+const presenceOnline = computed(() => isOnline(pp.lastSeenAt.value, presenceNow.value))
+const lastSeenLabel = computed(() => relativeTime(pp.lastSeenAt.value, presenceNow.value).toUpperCase())
 
 function clock(secs: number): string {
     return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
@@ -400,6 +417,31 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
   border-radius: 999px;
   padding: 2px 10px;
   white-space: nowrap;
+}
+
+/* After .pp-chip, not before: both are one class deep, so source order is
+   what decides the colour. */
+.pp-chip--live {
+  color: var(--color-neon-green);
+  border-color: rgba(0, 255, 102, 0.35);
+}
+
+.pp-live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-neon-green);
+  animation: pp-live-pulse 2s ease-in-out infinite;
+}
+
+@keyframes pp-live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-live-dot { animation: none; }
 }
 
 .pp-progress {
