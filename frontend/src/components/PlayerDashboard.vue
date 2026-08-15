@@ -88,110 +88,6 @@
         </div>
       </section>
 
-      <!-- Battle record bar + key splits -->
-      <section class="record-section">
-        <h3 class="section-title">BATTLE RECORD</h3>
-        <div class="battle-bar">
-          <div
-            class="bar-segment bar-won"
-            :style="{ width: (gamesWon / gamesPlayed * 100) + '%' }"
-          >
-            {{ gamesWon }}W
-          </div>
-          <div
-            class="bar-segment bar-lost"
-            :style="{ width: (gamesLost / gamesPlayed * 100) + '%' }"
-          >
-            {{ gamesLost }}L
-          </div>
-          <div
-            v-if="gamesEliminated > 0"
-            class="bar-segment bar-elim"
-            :style="{ width: (gamesEliminated / gamesPlayed * 100) + '%' }"
-          >
-            {{ gamesEliminated }}E
-          </div>
-        </div>
-        <dl class="splits">
-          <div class="split-row">
-            <dt class="split-label">Best win streak</dt>
-            <dd class="split-value">{{ bestWinStreak }}</dd>
-          </div>
-          <div class="split-row">
-            <dt class="split-label">Bot win rate</dt>
-            <dd class="split-value">{{ botWinRate }}%</dd>
-          </div>
-          <div class="split-row">
-            <dt class="split-label">Multiplayer win rate</dt>
-            <dd class="split-value">{{ mpWinRate }}%</dd>
-          </div>
-          <div class="split-row">
-            <dt class="split-label">Avg game duration</dt>
-            <dd class="split-value">{{ formatDuration(avgGameDuration) }}</dd>
-          </div>
-        </dl>
-      </section>
-
-      <!-- Lifetime record — consolidated. Used to be 3 separate sections
-           (mastery / survival / aggression) competing for attention; merged
-           into one 6-cell grid of the most impressive lifetime numbers. -->
-      <section class="record-section">
-        <h3 class="section-title">LIFETIME RECORD</h3>
-        <div class="lifetime-grid">
-          <div class="lifetime-cell">
-            <div class="lifetime-value">+{{ biggestStackSurvived }}</div>
-            <div class="lifetime-label">Biggest stack survived</div>
-          </div>
-          <div class="lifetime-cell">
-            <div class="lifetime-value">{{ peakCardsEver }}</div>
-            <div class="lifetime-label">Peak cards held</div>
-          </div>
-          <div class="lifetime-cell">
-            <div class="lifetime-value">{{ totalCardsPlayed }}</div>
-            <div class="lifetime-label">Cards played</div>
-          </div>
-          <div class="lifetime-cell">
-            <div class="lifetime-value">{{ totalUnoCalls }}</div>
-            <div class="lifetime-label">MERCY calls</div>
-          </div>
-          <div class="lifetime-cell">
-            <div class="lifetime-value">{{ totalSkipsDealt }}</div>
-            <div class="lifetime-label">Skips dealt</div>
-          </div>
-          <div class="lifetime-cell">
-            <div class="lifetime-value lifetime-danger">{{ gamesEliminated }}</div>
-            <div class="lifetime-label">Eliminations</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Card backs — earn-only skins. Ownership derives from the record;
-           only the equip choice is stored. -->
-      <section class="record-section">
-        <h3 class="section-title">CARD BACKS</h3>
-        <div class="skin-grid">
-          <div
-            v-for="skin in CARD_BACKS"
-            :key="skin.id"
-            class="skin-cell"
-            :class="{ owned: ownedSkinIds.has(skin.id), equipped: equippedId === skin.id }"
-          >
-            <span class="skin-swatch" :style="{ background: skin.accent, boxShadow: `0 0 12px ${skin.accent}55` }"></span>
-            <span class="skin-title">{{ skin.title.toUpperCase() }}</span>
-            <span class="skin-unlock">{{ skin.unlock }}</span>
-            <button
-              v-if="ownedSkinIds.has(skin.id)"
-              class="skin-equip"
-              :disabled="equippedId === skin.id"
-              @click="equipSkin(skin.id)"
-            >
-              {{ equippedId === skin.id ? 'EQUIPPED' : 'EQUIP' }}
-            </button>
-            <span v-else class="skin-locked">LOCKED</span>
-          </div>
-        </div>
-      </section>
-
       <!-- Recent games -->
       <section class="record-section">
         <h3 class="section-title">RECENT GAMES</h3>
@@ -254,8 +150,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { usePlayerStats } from '../composables/usePlayerStats'
-import { CARD_BACKS, equip, getEquippedId } from '../utils/cosmetics'
-import { useRetentionStore } from '../stores/retentionStore'
 import { useAuthStore } from '../stores/authStore'
 import { navigate } from '../utils/routes'
 import Button from './ui/Button.vue'
@@ -275,24 +169,11 @@ const copied = ref(false)
 
 const {
   loading, gamesPlayed, gamesWon, gamesLost, gamesEliminated,
-  winRate, botWinRate, mpWinRate, currentStreak, bestWinStreak,
-  totalCardsPlayed, totalSkipsDealt,
-  totalUnoCalls, biggestStackSurvived,
+  winRate, currentStreak, bestWinStreak,
+  totalCardsPlayed, biggestStackSurvived,
   peakCardsEver, ruthlessness,
-  badge, badgePoints, badgeProgress, recentGames, avgGameDuration,
+  badge, badgePoints, badgeProgress, recentGames,
 } = usePlayerStats()
-
-const retention = useRetentionStore()
-const ownedSkinIds = computed(() => new Set(
-  CARD_BACKS
-    .filter(s => s.unlocked({ wins: gamesWon.value, longestStreak: retention.longestStreak, maxStackSurvived: biggestStackSurvived.value }))
-    .map(s => s.id),
-))
-const equippedId = ref(getEquippedId())
-function equipSkin(id: string) {
-  equip(id)
-  equippedId.value = getEquippedId()
-}
 
 function formatDuration(secs: number): string {
   if (secs < 60) return `${secs}s`
@@ -754,115 +635,21 @@ function copyShareLink() {
 }
 
 /* LIFETIME GRID */
-.lifetime-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--spacing-2);
-}
 
-.lifetime-cell {
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  padding: var(--spacing-3);
-  text-align: center;
-  border-radius: var(--radius-sm);
-}
 
-.lifetime-value {
-  font-family: var(--font-display);
-  font-size: var(--text-xl);
-  color: var(--text-primary);
-  line-height: 1;
-}
 
-.lifetime-value.lifetime-danger {
-  color: var(--color-alert);
-}
 
-.lifetime-label {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  margin-top: var(--spacing-1);
-  letter-spacing: 0.1em;
-}
 
 /* RECENT GAMES */
-.skin-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  gap: var(--spacing-2);
-  margin-top: var(--spacing-3);
-}
 
-.skin-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-1);
-  padding: var(--spacing-3) var(--spacing-2);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--radius-sm);
-  opacity: 0.4;
-  text-align: center;
-}
 
-.skin-cell.owned {
-  opacity: 1;
-}
 
-.skin-cell.equipped {
-  border-color: rgba(255, 204, 0, 0.5);
-  background: rgba(255, 204, 0, 0.04);
-}
 
-.skin-swatch {
-  width: 28px;
-  height: 40px;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
 
-.skin-title {
-  font-family: var(--font-display);
-  font-size: 0.7rem;
-  letter-spacing: 0.1em;
-  color: var(--text-primary);
-}
 
-.skin-unlock {
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  color: var(--text-muted);
-  line-height: 1.3;
-}
 
-.skin-equip {
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  letter-spacing: 0.14em;
-  color: #000;
-  background: var(--color-hazard);
-  border: none;
-  border-radius: var(--radius-sm);
-  padding: 3px 10px;
-  cursor: pointer;
-  margin-top: 2px;
-}
 
-.skin-equip:disabled {
-  background: rgba(255, 204, 0, 0.25);
-  color: var(--text-primary);
-  cursor: default;
-}
 
-.skin-locked {
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  letter-spacing: 0.16em;
-  color: var(--text-muted);
-  margin-top: 2px;
-}
 
 .recent-list {
   list-style: none;
@@ -1052,9 +839,6 @@ function copyShareLink() {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .lifetime-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
 
   .recent-row {
     grid-template-columns: 24px 36px 1fr auto;

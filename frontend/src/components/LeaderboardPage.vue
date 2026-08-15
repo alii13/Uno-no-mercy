@@ -53,6 +53,7 @@
               :badge="badgeInfoFor(row)!.badge"
               :points="badgeInfoFor(row)!.points"
               :progress="badgeInfoFor(row)!.progress"
+              :presence="row.user_id ? presence[row.user_id] ?? null : undefined"
               size="mark"
               link
               class="lb-pod-emblem"

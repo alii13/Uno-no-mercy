@@ -156,6 +156,7 @@
                 :badge="dailyBadgeFor(row)!.badge"
                 :points="dailyBadgeFor(row)!.points"
                 :progress="dailyBadgeFor(row)!.progress"
+                :presence="row.user_id ? presence[row.user_id] ?? null : undefined"
                 size="mark"
                 link
                 class="board-badge"
@@ -612,6 +613,7 @@ import { flagEmoji } from '../utils/country'
 import { useLiveTables } from '../composables/useLiveTables'
 import { useOnlineCount } from '../composables/useOnlineCount'
 import { useSocialStore } from '../stores/socialStore'
+import { usePresence } from '../composables/usePresence'
 import InviteFriends from './InviteFriends.vue'
 import { nextBot, ladderProgress, isLadderComplete } from '../utils/botLadder'
 import { navigate } from '../utils/routes'
@@ -763,7 +765,10 @@ watch(
   () => lb.daily.value.map(r => r.user_id),
   (ids) => {
     const real = ids.filter((x): x is string => !!x)
-    if (real.length) void fetchDailyBadges(real)
+    if (real.length) {
+      void fetchDailyBadges(real)
+      void fetchPresence(real)
+    }
   },
   { immediate: true },
 )
@@ -917,6 +922,8 @@ const online = useOnlineCount()
 // Read once on the lobby so a waiting friend request can announce itself
 // here, rather than only inside a screen nobody opens on purpose.
 const social = useSocialStore()
+// The daily board on the lobby shows shields, so it shows presence too.
+const { presence, fetchPresence } = usePresence()
 onMounted(() => { if (authStore.isAuthenticated) void social.refresh() })
 
 function openFriends() {
