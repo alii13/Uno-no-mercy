@@ -298,6 +298,15 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
                 break
             }
 
+            case 'invite-result': {
+                const settle = invitePending.get(msg.userId)
+                if (settle) {
+                    invitePending.delete(msg.userId)
+                    settle(msg.result)
+                }
+                break
+            }
+
             case 'chat': {
                 if (mutedChatIds.value.has(msg.userId)) break
                 const phrase = quickChatPhrase(msg.phraseId)
@@ -576,6 +585,28 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
 
     function sendChat(phraseId: string) {
         sendMsg({ t: 'chat', phraseId })
+    }
+
+    // One pending invite per target, resolved by the room's answer. The room
+    // owns this rather than the invite store, because only a socket that is
+    // seated in the room can send it - which is exactly what makes the invite
+    // trustworthy at the other end.
+    const invitePending = new Map<string, (result: string) => void>()
+
+    /** Ask a player to this room. Resolves with the room's verdict, or
+     *  'unavailable' if the answer never comes. */
+    function sendInvite(userId: string): Promise<string> {
+        if (!roomCodeRef.value || ws?.readyState !== WebSocket.OPEN) return Promise.resolve('unavailable')
+        invitePending.get(userId)?.('unavailable')
+        return new Promise((resolve) => {
+            const timer = setTimeout(() => {
+                if (invitePending.get(userId) === settle) invitePending.delete(userId)
+                resolve('unavailable')
+            }, 8_000)
+            const settle = (result: string) => { clearTimeout(timer); resolve(result) }
+            invitePending.set(userId, settle)
+            sendMsg({ t: 'invite', userId })
+        })
     }
 
     /** Ask the room to wait a minute longer before it deals itself. */
@@ -947,6 +978,7 @@ export const useMultiplayerStore = defineStore('multiplayer', () => {
         lastBadgeUp,
         autoStart,
         extendAutoStart,
+        sendInvite,
         lastChat,
         chatLog,
         mutedChatIds,

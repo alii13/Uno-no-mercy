@@ -875,6 +875,34 @@ describe('lobby auto-start countdown', () => {
         expect(mp.autoStart?.bumpsLeft).toBe(0)
     })
 
+    it('sends an invite on the room socket and waits for the room to answer', async () => {
+        const mp = useMultiplayerStore()
+        const ws = await joinRoom(mp)
+
+        const pending = mp.sendInvite('friend-1')
+        expect(ws.lastSent()).toEqual({ t: 'invite', userId: 'friend-1' })
+
+        // The verdict is the room's, not a guess: it knows the block list,
+        // the cooldown and whether this socket is even seated here.
+        ws.receive({ t: 'invite-result', userId: 'friend-1', result: 'too_soon' })
+        expect(await pending).toBe('too_soon')
+    })
+
+    it('answers unavailable rather than hanging when there is no room socket', async () => {
+        const mp = useMultiplayerStore()
+        expect(await mp.sendInvite('friend-1')).toBe('unavailable')
+    })
+
+    it('ignores a verdict meant for a different player', async () => {
+        const mp = useMultiplayerStore()
+        const ws = await joinRoom(mp)
+
+        const pending = mp.sendInvite('friend-1')
+        ws.receive({ t: 'invite-result', userId: 'someone-else', result: 'sent' })
+        ws.receive({ t: 'invite-result', userId: 'friend-1', result: 'sent' })
+        expect(await pending).toBe('sent')
+    })
+
     it('reads an old worker frame as no extension on offer', async () => {
         const mp = useMultiplayerStore()
         const ws = await joinRoom(mp)
