@@ -84,7 +84,7 @@
               :badge="badgeInfoFor(row)?.badge"
               :points="badgeInfoFor(row)?.points"
               :progress="badgeInfoFor(row)?.progress"
-              :presence="row.user_id ? presence[row.user_id] ?? null : undefined"
+              :presence="liveOnly(row)"
               link
               class="lb-ident"
             >
@@ -135,6 +135,7 @@ import { useLeaderboard, type DailyRow, type WeeklyRow } from '../composables/us
 import { useMotion } from '../composables/useMotion'
 import { navigate } from '../utils/routes'
 import { formatCountdown, msUntilLocalMidnight } from '../utils/countdown'
+import { presenceState } from '../utils/relativeTime'
 import { flagEmoji } from '../utils/country'
 import { useBadges } from '../composables/useBadges'
 import { usePresence } from '../composables/usePresence'
@@ -166,6 +167,12 @@ const { badges, fetchBadges } = useBadges()
 // Presence rides along in the same pass: one batched call per board, and the
 // dot answers "could I play them right now" without opening a profile.
 const { presence, fetchPresence } = usePresence()
+// The board can sit open on a second monitor; a green dot must go quiet on
+// its own rather than on the next refresh.
+const presenceNow = ref(Date.now())
+let presenceTimer: ReturnType<typeof setInterval> | null = null
+onMounted(() => { presenceTimer = setInterval(() => { presenceNow.value = Date.now() }, 30_000) })
+onUnmounted(() => { if (presenceTimer) clearInterval(presenceTimer) })
 watch(rows, (rs) => {
     const ids = rs.map(r => r.user_id).filter((x): x is string => !!x)
     if (ids.length) {
@@ -173,6 +180,22 @@ watch(rows, (rs) => {
         void fetchPresence(ids)
     }
 }, { immediate: true })
+
+/**
+ * Green and amber only. A public board is where "last seen 4 days ago" turns
+ * into a wall of grey and tells a visitor the game is dead, which is the same
+ * reason the live-tables strip stays off the landing page. Undefined renders
+ * no dot at all, so an absent player is simply not remarked on - while a
+ * present one still is, which is the whole point of putting it here.
+ *
+ * Friends and profiles keep the grey dot: there, when someone was last around
+ * is the question you came to answer.
+ */
+function liveOnly(row: Row): string | null | undefined {
+    if (!row.user_id) return undefined
+    const seen = presence.value[row.user_id] ?? null
+    return presenceState(seen, presenceNow.value) === 'offline' ? undefined : seen
+}
 
 function badgeInfoFor(row: Row) {
     return row.user_id ? badges.value[row.user_id] : undefined
