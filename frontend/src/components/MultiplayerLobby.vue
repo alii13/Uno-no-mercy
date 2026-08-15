@@ -480,6 +480,9 @@
           <div v-if="voiceStore.available" class="waiting-voice">
             <VoiceMicCluster :can-moderate="mpStore.isHost" nudge-inline hint="Talk while you play" />
           </div>
+          <!-- Pull people you already know into the seat that is open. -->
+          <InviteFriends />
+
           <!-- Alone, but people are waiting elsewhere: offer the fullest room
                rather than making "leave" or "play a bot" the only ways out. -->
           <button
@@ -603,6 +606,7 @@ import { useLeaderboard } from '../composables/useLeaderboard'
 import { flagEmoji } from '../utils/country'
 import { useLiveTables } from '../composables/useLiveTables'
 import { useOnlineCount } from '../composables/useOnlineCount'
+import InviteFriends from './InviteFriends.vue'
 import { nextBot, ladderProgress, isLadderComplete } from '../utils/botLadder'
 import { navigate } from '../utils/routes'
 import { track } from '../utils/analytics'

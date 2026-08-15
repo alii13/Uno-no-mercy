@@ -1,0 +1,140 @@
+import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import { nextTick } from 'vue'
+
+const { rpc, channelFor, unsubscribe } = vi.hoisted(() => {
+    const unsubscribe = vi.fn()
+    const channelFor = vi.fn()
+    return { rpc: vi.fn(), channelFor, unsubscribe }
+})
+
+// One fake channel per name, so a test can fire the row event the way
+// Realtime would and assert the subscription is torn down.
+vi.mock('../../lib/supabase', () => ({
+    supabase: {
+        rpc,
+        channel: (name: string) => {
+            const handlers: ((payload: unknown) => void)[] = []
+            const ch = {
+                name,
+                handlers,
+                on: (_e: string, _cfg: unknown, cb: (p: unknown) => void) => { handlers.push(cb); return ch },
+                subscribe: () => ch,
+                unsubscribe,
+            }
+            channelFor(ch)
+            return ch
+        },
+    },
+}))
+
+import { useInviteStore, type RoomInvite } from '../inviteStore'
+import { useAuthStore } from '../authStore'
+
+const invite = (over: Partial<RoomInvite> = {}): RoomInvite => ({
+    id: 'i1',
+    from_user: 'u2',
+    from_username: 'RIVAL',
+    room_code: 'ABC123',
+    created_at: '2026-08-15T12:00:00Z',
+    ...over,
+})
+
+function rpcReturns(rows: RoomInvite[], sendResult = 'sent') {
+    rpc.mockImplementation(async (fn: string) =>
+        fn === 'my_invites' ? { data: rows, error: null } : { data: sendResult, error: null })
+}
+
+describe('invite store', () => {
+    beforeEach(() => {
+        setActivePinia(createPinia())
+        rpc.mockReset()
+        channelFor.mockReset()
+        unsubscribe.mockReset()
+    })
+
+    it('opens a channel for the signed-in player and reads on start', async () => {
+        rpcReturns([invite()])
+        const store = useInviteStore()
+        const auth = useAuthStore()
+        auth.user = { id: 'me' } as never
+        await nextTick()
+
+        expect(channelFor).toHaveBeenCalledWith(expect.objectContaining({ name: 'invites:me' }))
+        await vi.waitFor(() => expect(store.current?.from_username).toBe('RIVAL'))
+    })
+
+    it('re-reads when a row arrives, because the payload carries no name', async () => {
+        rpcReturns([])
+        const store = useInviteStore()
+        const auth = useAuthStore()
+        auth.user = { id: 'me' } as never
+        await nextTick()
+        await vi.waitFor(() => expect(rpc).toHaveBeenCalledWith('my_invites'))
+        expect(store.current).toBeNull()
+
+        rpcReturns([invite({ id: 'i2', from_username: 'NEWCOMER' })])
+        const ch = channelFor.mock.calls[0]![0] as { handlers: ((p: unknown) => void)[] }
+        ch.handlers[0]!({ new: { id: 'i2' } })
+        await vi.waitFor(() => expect(store.current?.from_username).toBe('NEWCOMER'))
+    })
+
+    it('drops the invite from the screen before the server confirms', async () => {
+        rpcReturns([invite()])
+        const store = useInviteStore()
+        await store.refresh()
+        expect(store.current).not.toBeNull()
+
+        // Never resolves: the toast must still clear.
+        rpc.mockImplementation(() => new Promise(() => {}))
+        void store.dismiss('i1')
+        expect(store.current).toBeNull()
+    })
+
+    it('hides itself and opens no channel until the SQL is run', async () => {
+        rpc.mockResolvedValue({ data: null, error: { code: 'PGRST202' } })
+        const store = useInviteStore()
+        await store.refresh()
+        expect(store.unavailable).toBe(true)
+
+        store.start('me')
+        expect(channelFor).not.toHaveBeenCalled()
+        expect(await store.send('u2', 'ABC123')).toBe('failed')
+    })
+
+    it('passes the server outcome through rather than guessing', async () => {
+        rpcReturns([], 'too_soon')
+        const store = useInviteStore()
+        expect(await store.send('u2', 'ABC123')).toBe('too_soon')
+        expect(rpc).toHaveBeenCalledWith('send_room_invite', { p_user: 'u2', p_code: 'ABC123' })
+    })
+
+    it('refuses a second send to the same player while one is in flight', async () => {
+        let release: (v: unknown) => void = () => {}
+        rpc.mockImplementationOnce(() => new Promise(res => { release = res }))
+            .mockResolvedValue({ data: [], error: null })
+        const store = useInviteStore()
+
+        const first = store.send('u2', 'ABC123')
+        expect(store.sending.has('u2')).toBe(true)
+        expect(await store.send('u2', 'ABC123')).toBe('failed')
+
+        release({ data: 'sent', error: null })
+        expect(await first).toBe('sent')
+        expect(store.sending.has('u2')).toBe(false)
+    })
+
+    it('tears the channel down on sign-out and keeps no invites', async () => {
+        rpcReturns([invite()])
+        const store = useInviteStore()
+        const auth = useAuthStore()
+        auth.user = { id: 'me' } as never
+        await nextTick()
+        await vi.waitFor(() => expect(store.current).not.toBeNull())
+
+        auth.user = null
+        await nextTick()
+        expect(unsubscribe).toHaveBeenCalled()
+        expect(store.invites).toHaveLength(0)
+    })
+})

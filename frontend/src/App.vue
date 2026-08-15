@@ -143,6 +143,10 @@
         <button class="signin-toast__dismiss" aria-label="Dismiss" @click="guestError = null">&times;</button>
       </div>
     </Transition>
+
+    <!-- A player on the home screen holds no game socket, so an invite
+         arrives over Realtime and lands here, above every screen. -->
+    <InviteToast />
   </div>
 </template>
 
@@ -175,6 +179,7 @@ import { supabase } from './lib/supabase'
 import { useMultiplayerStore } from './stores/multiplayerStore'
 import { useGameStore } from './stores/gameStore'
 import { usePresenceHeartbeat } from './composables/usePresenceHeartbeat'
+import InviteToast from './components/InviteToast.vue'
 
 const authStore = useAuthStore()
 const mpStore = useMultiplayerStore()
