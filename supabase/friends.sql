@@ -102,8 +102,9 @@ begin
 end;
 $$;
 
--- Postgres grants EXECUTE to PUBLIC by default, and PUBLIC includes anon.
-revoke execute on function public.send_friend_request(uuid) from public;
+-- Postgres grants EXECUTE to PUBLIC by default, and Supabase grants it to
+-- anon explicitly on top - revoking PUBLIC alone leaves anon holding it.
+revoke execute on function public.send_friend_request(uuid) from public, anon;
 grant execute on function public.send_friend_request(uuid) to authenticated;
 
 -- Answer a request addressed to me. Declining keeps the row as 'declined'
@@ -137,8 +138,9 @@ begin
 end;
 $$;
 
--- Postgres grants EXECUTE to PUBLIC by default, and PUBLIC includes anon.
-revoke execute on function public.respond_friend_request(uuid, boolean) from public;
+-- Postgres grants EXECUTE to PUBLIC by default, and Supabase grants it to
+-- anon explicitly on top - revoking PUBLIC alone leaves anon holding it.
+revoke execute on function public.respond_friend_request(uuid, boolean) from public, anon;
 grant execute on function public.respond_friend_request(uuid, boolean) to authenticated;
 
 -- Block. Overwrites whatever the pair had, including an accepted friendship,
@@ -166,8 +168,9 @@ begin
 end;
 $$;
 
--- Postgres grants EXECUTE to PUBLIC by default, and PUBLIC includes anon.
-revoke execute on function public.block_player(uuid) from public;
+-- Postgres grants EXECUTE to PUBLIC by default, and Supabase grants it to
+-- anon explicitly on top - revoking PUBLIC alone leaves anon holding it.
+revoke execute on function public.block_player(uuid) from public, anon;
 grant execute on function public.block_player(uuid) to authenticated;
 
 -- Undo my own block. A block placed by the other side stays.
@@ -192,8 +195,9 @@ begin
 end;
 $$;
 
--- Postgres grants EXECUTE to PUBLIC by default, and PUBLIC includes anon.
-revoke execute on function public.unblock_player(uuid) from public;
+-- Postgres grants EXECUTE to PUBLIC by default, and Supabase grants it to
+-- anon explicitly on top - revoking PUBLIC alone leaves anon holding it.
+revoke execute on function public.unblock_player(uuid) from public, anon;
 grant execute on function public.unblock_player(uuid) to authenticated;
 
 -- --- Read -------------------------------------------------------------------
@@ -237,6 +241,7 @@ as $$
     order by f.created_at desc
 $$;
 
--- Postgres grants EXECUTE to PUBLIC by default, and PUBLIC includes anon.
-revoke execute on function public.my_friends() from public;
+-- Postgres grants EXECUTE to PUBLIC by default, and Supabase grants it to
+-- anon explicitly on top - revoking PUBLIC alone leaves anon holding it.
+revoke execute on function public.my_friends() from public, anon;
 grant execute on function public.my_friends() to authenticated;

@@ -40,7 +40,13 @@ $$;
 
 -- Signed in only, and it writes exactly one row - the caller's own. Guests
 -- count: an anonymous Supabase user is authenticated.
-grant execute on function public.touch_presence to authenticated;
+--
+-- The revoke is the part that makes "signed in only" true. Postgres grants
+-- EXECUTE to PUBLIC on a new function, and Supabase grants it to anon on top,
+-- so the grant below adds nothing without it. The two reads keep their open
+-- grants on purpose - see the note at the top of this file.
+revoke execute on function public.touch_presence() from public, anon;
+grant execute on function public.touch_presence() to authenticated;
 
 -- Two minutes, not one: the heartbeat runs every 60s, so one missed beat must
 -- not flip a present player to offline. Keep this in step with
