@@ -638,6 +638,7 @@ const emit = defineEmits<{
   (e: 'playDaily'): void
   (e: 'showAuth'): void
   (e: 'showStats'): void
+  (e: 'showFriends'): void
 }>()
 
 const authStore = useAuthStore()
@@ -920,7 +921,7 @@ onMounted(() => { if (authStore.isAuthenticated) void social.refresh() })
 
 function openFriends() {
     closeAccount()
-    emit('showStats')
+    emit('showFriends')
 }
 onMounted(() => live.start())
 
@@ -2458,20 +2459,23 @@ function copyLink() {
   height: 28px;
 }
 
+/* Same green, same size as PresenceDot elsewhere. This one means "socket is
+   live in this room", which is a stricter fact than last-seen, but a player
+   should not have to learn two marks that both mean "here". */
 .presence-dot {
   position: absolute;
   bottom: -1px;
   right: -1px;
-  width: 9px;
-  height: 9px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: var(--text-muted);
+  background: rgba(255, 255, 255, 0.22);
   border: 2px solid var(--bg-concrete);
   transition: background var(--duration-snap) var(--ease-snap);
 }
 
 .presence-dot.connected {
-  background: #00ff66;
+  background: var(--color-neon-green);
 }
 
 @media (max-width: 560px) {

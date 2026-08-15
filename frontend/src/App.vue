@@ -111,6 +111,12 @@
       @back="showAuthView = false"
     />
 
+    <!-- Friends: its own screen, reachable from the account menu -->
+    <FriendsPage
+      v-else-if="showFriends"
+      @back="showFriends = false"
+    />
+
     <!-- Player Dashboard -->
     <PlayerDashboard
       v-else-if="showDashboard"
@@ -124,6 +130,7 @@
       @playDaily="startDailyGame('lobby')"
       @showAuth="handleShowAuth('claim')"
       @showStats="showDashboard = true"
+      @showFriends="showFriends = true"
     />
 
     <!-- Always-mounted global settings drawer (Teleport'd to body) -->
@@ -168,6 +175,7 @@ import Button from './components/ui/Button.vue'
 // on demand when the view is first shown.
 const MultiplayerLobby = defineAsyncComponent(() => import('./components/MultiplayerLobby.vue'))
 const PlayerDashboard = defineAsyncComponent(() => import('./components/PlayerDashboard.vue'))
+const FriendsPage = defineAsyncComponent(() => import('./components/FriendsPage.vue'))
 const LeaderboardPage = defineAsyncComponent(() => import('./components/LeaderboardPage.vue'))
 const BadgesPage = defineAsyncComponent(() => import('./components/BadgesPage.vue'))
 const ProfilePage = defineAsyncComponent(() => import('./components/ProfilePage.vue'))
@@ -203,6 +211,7 @@ watch(() => authStore.isAuthenticated, (is, was) => {
   if (is && !was) showAuthView.value = false
 })
 const showDashboard = ref(false)
+const showFriends = ref(false)
 const showPasswordReset = ref(false)
 const newPassword = ref('')
 const confirmPassword = ref('')
@@ -228,6 +237,7 @@ const currentScreen = computed(() => {
   if (inMpMatch.value) return 'mp_game'
   if (showAuthView.value) return 'claim_account'
   if (mpStore.currentGame?.status === 'waiting') return 'waiting_room'
+  if (showFriends.value) return 'friends'
   if (showDashboard.value) return 'dashboard'
   return 'lobby'
 })

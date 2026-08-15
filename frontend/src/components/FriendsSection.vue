@@ -24,6 +24,11 @@
         <PresenceDot :last-seen-at="f.last_seen_at" />
         <button class="friend-name friend-name--link" @click="openProfile(f)">{{ f.username }}</button>
         <span class="friend-seen">{{ seenLabel(f) }}</span>
+        <button
+          class="friend-btn friend-btn--play"
+          :disabled="busy === f.user_id || !!asked[f.user_id]"
+          @click="playWith(f)"
+        >{{ asked[f.user_id] ?? (busy === f.user_id ? '…' : 'PLAY') }}</button>
         <!-- Two taps, no dialog. Blocking deletes the friendship, and the
              button now sits in reach of every thumb on a touch device. -->
         <button
@@ -45,6 +50,7 @@
 
     <details v-if="social.blocked.length" class="friend-blocked">
       <summary>BLOCKED ({{ social.blocked.length }})</summary>
+      <p class="friend-blocked-note">A blocked player cannot invite you or send you a request.</p>
       <ul class="friend-list">
         <li v-for="b in social.blocked" :key="b.user_id" class="friend-row">
           <span class="friend-name">{{ b.username }}</span>
@@ -58,12 +64,52 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useSocialStore, type FriendRow } from '../stores/socialStore'
+import { useMultiplayerStore } from '../stores/multiplayerStore'
 import { isOnline, relativeTime, byPresence } from '../utils/relativeTime'
 import { useNow, usePoll } from '../composables/useClock'
 import PresenceDot from './PresenceDot.vue'
 import { navigate } from '../utils/routes'
 
 const social = useSocialStore()
+const mpStore = useMultiplayerStore()
+const emit = defineEmits<{ (e: 'opened-room'): void }>()
+
+// Sitting in a room already? Just ask them in. Otherwise make one first -
+// "create a game, wait, find the strip, invite" was four steps for the thing
+// this list exists to do.
+const busy = ref<string | null>(null)
+const asked = ref<Record<string, string>>({})
+
+async function playWith(f: FriendRow) {
+  if (busy.value) return
+  busy.value = f.user_id
+  try {
+    if (!mpStore.roomCode) {
+      const code = await mpStore.createGame()
+      if (!code) { asked.value = { ...asked.value, [f.user_id]: 'TRY AGAIN' }; return }
+    }
+    const result = await mpStore.sendInvite(f.user_id)
+    asked.value = {
+      ...asked.value,
+      [f.user_id]: result === 'sent' ? 'INVITED'
+        : result === 'too_soon' ? 'ALREADY ASKED'
+        : result === 'rate_limited' ? 'TOO MANY'
+        : result === 'blocked' ? 'BLOCKED'
+        : 'TRY AGAIN',
+    }
+    // The room is open behind this screen; take them to it.
+    if (result === 'sent') emit('opened-room')
+  } finally {
+    busy.value = null
+    if (asked.value[f.user_id] === 'TRY AGAIN') {
+      setTimeout(() => {
+        const next = { ...asked.value }
+        delete next[f.user_id]
+        asked.value = next
+      }, 2500)
+    }
+  }
+}
 
 // Labels age on the shared clock; the list itself re-reads while it is on
 // screen, because a friend coming online is the whole point of this panel and
@@ -206,6 +252,19 @@ onUnmounted(() => { if (armed) clearTimeout(armed) })
 .friend-btn:hover {
   border-color: rgba(255, 255, 255, 0.4);
   color: var(--text-primary);
+}
+
+.friend-btn--play {
+  border-color: rgba(0, 243, 255, 0.45);
+  color: var(--color-neon-blue);
+}
+
+.friend-blocked-note {
+  margin: var(--spacing-1) 0;
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: normal;
+  color: var(--text-muted);
 }
 
 .friend-btn--yes {

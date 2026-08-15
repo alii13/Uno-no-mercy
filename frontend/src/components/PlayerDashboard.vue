@@ -36,12 +36,6 @@
       </svg>
       <h2 class="state-title">NO DATA YET</h2>
       <p class="state-desc">Play your first game to start tracking stats.</p>
-      <!-- Friends live here too: a request can arrive through a shared
-           profile link before this player has finished a single game, and it
-           must not sit unanswered behind an empty-stats screen. -->
-      <div class="state-friends">
-        <FriendsSection />
-      </div>
     </div>
 
     <div v-else class="dashboard-content">
@@ -92,12 +86,6 @@
           <div class="stat-value stat-hazard">{{ ruthlessness }}</div>
           <div class="stat-label">RUTHLESS</div>
         </div>
-      </section>
-
-      <!-- Friends sit above the stats: a pending request needs an answer,
-           a win rate does not. -->
-      <section class="record-section">
-        <FriendsSection />
       </section>
 
       <!-- Battle record bar + key splits -->
@@ -272,7 +260,6 @@ import { useAuthStore } from '../stores/authStore'
 import { navigate } from '../utils/routes'
 import Button from './ui/Button.vue'
 import Badge from './Badge.vue'
-import FriendsSection from './FriendsSection.vue'
 
 defineEmits<{
   (e: 'back'): void
@@ -538,14 +525,6 @@ function copyShareLink() {
   gap: var(--spacing-3);
   padding: var(--spacing-8);
   color: var(--text-muted);
-}
-
-/* The panel is a list, not a centred message - give it the full width the
-   rest of the dashboard uses. */
-.state-friends {
-  width: 100%;
-  max-width: 30rem;
-  text-align: left;
 }
 
 .state-icon {
