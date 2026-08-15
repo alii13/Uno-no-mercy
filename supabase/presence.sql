@@ -1,10 +1,10 @@
 -- Presence. Run in the Supabase SQL Editor. Additive: one column, one index,
--- two SECURITY DEFINER functions, two grants. No table is dropped.
+-- three SECURITY DEFINER functions, three grants. No table is dropped, and
+-- re-running the whole file is safe.
 --
 -- One column answers three questions - "is this player online?", "when were
--- they last here?", and "how many are playing right now?". The client writes
--- its own row on load and every 60s while its tab is visible; owner-update
--- RLS already allows that, so no function is needed to write.
+-- they last here?", and "how many are playing right now?". The client checks
+-- in through touch_presence() on load and every 60s while its tab is visible.
 --
 -- What this exposes: a last-seen timestamp per user id, to anyone who already
 -- has that id. Ids are public today through the leaderboards and profile
@@ -13,6 +13,27 @@
 alter table profiles add column if not exists last_seen_at timestamptz;
 
 create index if not exists profiles_last_seen_idx on profiles (last_seen_at desc);
+
+-- The check-in. The server supplies the time, so one clock decides both the
+-- write and the two reads below.
+--
+-- The client could update its own row directly - owner-update RLS allows it -
+-- but then the timestamp would be whatever the browser believes, and a device
+-- with a wrong clock would be permanently online or permanently offline. It
+-- would also be settable by hand: a future value reads as ONLINE NOW forever.
+
+create or replace function public.touch_presence()
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+    update profiles set last_seen_at = now() where id = auth.uid()
+$$;
+
+-- Signed in only, and it writes exactly one row - the caller's own. Guests
+-- count: an anonymous Supabase user is authenticated.
+grant execute on function public.touch_presence to authenticated;
 
 -- Two minutes, not one: the heartbeat runs every 60s, so one missed beat must
 -- not flip a present player to offline. Keep this in step with

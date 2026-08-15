@@ -57,11 +57,18 @@ export function useProfile() {
             }
             profile.value = row
             // Presence needs the user id the row just returned, so it cannot
-            // ride the parallel pair above. It is one small read, and a
-            // failure leaves the chip hidden.
+            // ride the parallel pair above.
+            //
+            // Its own try block, deliberately: this catch is what the outer
+            // one would otherwise do, and the outer one sets `unavailable`,
+            // which renders the "warming up" state INSTEAD of the profile
+            // that has already loaded. A decorative chip must never be able
+            // to blank the page behind it.
             if (row.user_id) {
-                const { data: seen } = await supabase.rpc('players_presence', { ids: [row.user_id] })
-                lastSeenAt.value = (seen as { last_seen_at: string | null }[] | null)?.[0]?.last_seen_at ?? null
+                try {
+                    const { data: seen } = await supabase.rpc('players_presence', { ids: [row.user_id] })
+                    lastSeenAt.value = (seen as { last_seen_at: string | null }[] | null)?.[0]?.last_seen_at ?? null
+                } catch { /* no chip, still a profile */ }
             }
         } catch {
             unavailable.value = true

@@ -12,6 +12,7 @@
  */
 
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { isFatalSchemaError } from '../utils/supabaseErrors'
 
 /** Below this the number discourages more than it invites. */
 export const ONLINE_FLOOR = 5
@@ -30,16 +31,22 @@ export function useOnlineCount() {
         try {
             const { supabase } = await import('../lib/supabase')
             const { data, error } = await supabase.rpc('online_now')
-            if (error) { disabled = true; return }
+            // Only a missing function is worth giving up on; a dropped
+            // request gets another go next poll.
+            if (error) { if (isFatalSchemaError(error)) disabled = true; return }
             count.value = typeof data === 'number' ? data : 0
         } catch {
-            disabled = true
+            /* transient - leave the last known number on screen */
         }
     }
 
     onMounted(() => {
         void refresh()
-        timer = setInterval(() => void refresh(), POLL_MS)
+        // A lobby left open in a background tab asks for a number nobody can
+        // see. The heartbeat skips hidden tabs for the same reason.
+        timer = setInterval(() => {
+            if (document.visibilityState === 'visible') void refresh()
+        }, POLL_MS)
     })
 
     onUnmounted(() => {
