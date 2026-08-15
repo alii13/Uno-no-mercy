@@ -119,6 +119,20 @@ describe('social store', () => {
         expect(social.rows).toHaveLength(0)
     })
 
+    it('unfriends without blocking, and the row goes at once', async () => {
+        listReturns([row({ user_id: 'friend', status: 'accepted' })])
+        const social = useSocialStore()
+        await social.refresh()
+        expect(social.friends).toHaveLength(1)
+
+        listReturns([])
+        await social.remove('friend')
+        expect(rpc).toHaveBeenCalledWith('remove_friend', { p_user: 'friend' })
+        // Blocking is a different, heavier thing and must not be involved.
+        expect(rpc).not.toHaveBeenCalledWith('block_player', expect.anything())
+        expect(social.friends).toHaveLength(0)
+    })
+
     it('drops an answered request from the list immediately', async () => {
         listReturns([row({ user_id: 'asked-me', status: 'pending', incoming: true })])
         const social = useSocialStore()

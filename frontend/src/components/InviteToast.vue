@@ -5,6 +5,7 @@
       <span class="invite-text">
         <strong class="invite-who">{{ showing.from_username }}</strong>
         wants you at their table
+        <span v-if="roomLine" class="invite-room">{{ roomLine }}</span>
       </span>
       <button class="invite-join" :disabled="joining" @click="join">
         {{ joining ? 'JOINING…' : 'JOIN' }}
@@ -63,6 +64,18 @@ watch(showing, (invite) => {
 
 onUnmounted(() => { if (typeof document !== 'undefined') document.title = TITLE })
 
+// A bare name makes the receiver guess whether they are joining a full
+// table, an empty one, or a rules set they dislike.
+const roomLine = computed(() => {
+  const invite = showing.value
+  if (!invite) return ''
+  const people = invite.players && invite.players > 0
+    ? `${invite.players} in the room`
+    : ''
+  const rules = invite.mode ? invite.mode.toUpperCase() : ''
+  return [people, rules].filter(Boolean).join(' · ')
+})
+
 async function join() {
   const invite = showing.value
   if (!invite || joining.value) return
@@ -119,6 +132,14 @@ async function join() {
 .invite-who {
   color: var(--text-primary);
   font-weight: 600;
+}
+
+.invite-room {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
 }
 
 .invite-join {

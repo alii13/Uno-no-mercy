@@ -245,3 +245,36 @@ $$;
 
 revoke execute on function public.my_friends() from public, anon;
 grant execute on function public.my_friends() to authenticated;
+
+-- --- Removing a friend ------------------------------------------------------
+
+-- Unfriend. Blocking was the only exit, and it is a much heavier hammer than
+-- "we do not play any more" - it stops invites and requests in both
+-- directions, permanently, and reads as an accusation. This just deletes the
+-- pair row, so either side can ask again later.
+--
+-- Deliberately covers a pending request too: withdrawing one you sent should
+-- not require the other person to answer it first.
+
+create or replace function public.remove_friend(p_user uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+    me uuid := auth.uid();
+begin
+    if me is null then return 'unauthorized'; end if;
+
+    delete from friendships
+    where status in ('accepted', 'pending')
+      and least(requester_id, addressee_id) = least(me, p_user)
+      and greatest(requester_id, addressee_id) = greatest(me, p_user);
+    if not found then return 'not_found'; end if;
+    return 'removed';
+end;
+$$;
+
+revoke execute on function public.remove_friend(uuid) from public, anon;
+grant execute on function public.remove_friend(uuid) to authenticated;

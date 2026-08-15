@@ -750,7 +750,11 @@ export class GameRoomDO {
                 }
                 const roomRec = await this.ctx.storage.get<RoomRecord>('room')
                 if (!roomRec) return
-                const result = await sendRoomInvite(this.env, tag.userId, target, roomRec.code)
+                // Only the room knows how full it is and what rules it deals.
+                const result = await sendRoomInvite(this.env, tag.userId, target, roomRec.code, {
+                    players: this.roomSockets().length,
+                    mode: String(roomRec.stackingMode ?? 'official'),
+                })
                 this.send(ws, { t: 'invite-result', userId: target, result })
                 await this.touchGc()
                 return

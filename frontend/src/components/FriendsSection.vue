@@ -32,11 +32,28 @@
         <!-- Two taps, no dialog. Blocking deletes the friendship, and the
              button now sits in reach of every thumb on a touch device. -->
         <button
-          class="friend-btn friend-btn--quiet"
-          :class="{ 'friend-btn--danger': confirming === f.user_id }"
-          :title="`Block ${f.username}`"
-          @click="onBlock(f.user_id)"
-        >{{ confirming === f.user_id ? 'CONFIRM?' : 'BLOCK' }}</button>
+          class="friend-more"
+          :aria-expanded="menuFor === f.user_id"
+          :aria-label="`More for ${f.username}`"
+          @click="toggleMenu(f.user_id)"
+        >
+          <MoreHorizontal :size="14" :stroke-width="2.5" aria-hidden="true" />
+        </button>
+        <!-- The destructive pair lives behind the toggle: hover cannot carry
+             them on a phone, and keeping them in the row squeezed the name to
+             an ellipsis on a 390px screen. -->
+        <div v-if="menuFor === f.user_id" class="friend-more-row">
+          <button
+            class="friend-btn"
+            :class="{ 'friend-btn--danger': confirming === `remove:${f.user_id}` }"
+            @click="arm(`remove:${f.user_id}`, () => social.remove(f.user_id))"
+          >{{ confirming === `remove:${f.user_id}` ? 'CONFIRM?' : 'REMOVE FRIEND' }}</button>
+          <button
+            class="friend-btn"
+            :class="{ 'friend-btn--danger': confirming === `block:${f.user_id}` }"
+            @click="arm(`block:${f.user_id}`, () => social.block(f.user_id))"
+          >{{ confirming === `block:${f.user_id}` ? 'CONFIRM?' : 'BLOCK' }}</button>
+        </div>
       </li>
     </ul>
 
@@ -68,6 +85,7 @@ import { useMultiplayerStore } from '../stores/multiplayerStore'
 import { isOnline, relativeTime, byPresence } from '../utils/relativeTime'
 import { useNow, usePoll } from '../composables/useClock'
 import PresenceDot from './PresenceDot.vue'
+import { MoreHorizontal } from 'lucide-vue-next'
 import { navigate } from '../utils/routes'
 
 const social = useSocialStore()
@@ -134,23 +152,29 @@ function openProfile(f: FriendRow): void {
   if (f.share_code) navigate({ name: 'profile', code: f.share_code })
 }
 
-// Block asks once. The armed state clears itself, so a stray tap does not
+// Both exits ask once. The armed state clears itself, so a stray tap does not
 // leave a loaded button sitting there for the next visit to this screen.
 const confirming = ref<string | null>(null)
-let armed: ReturnType<typeof setTimeout> | null = null
+const menuFor = ref<string | null>(null)
 
-function onBlock(userId: string): void {
-  if (armed) { clearTimeout(armed); armed = null }
-  if (confirming.value === userId) {
+function toggleMenu(userId: string): void {
+  menuFor.value = menuFor.value === userId ? null : userId
+  confirming.value = null
+}
+let armedTimer: ReturnType<typeof setTimeout> | null = null
+
+function arm(key: string, action: () => void): void {
+  if (armedTimer) { clearTimeout(armedTimer); armedTimer = null }
+  if (confirming.value === key) {
     confirming.value = null
-    void social.block(userId)
+    action()
     return
   }
-  confirming.value = userId
-  armed = setTimeout(() => { confirming.value = null }, 4000)
+  confirming.value = key
+  armedTimer = setTimeout(() => { confirming.value = null }, 4000)
 }
 
-onUnmounted(() => { if (armed) clearTimeout(armed) })
+onUnmounted(() => { if (armedTimer) clearTimeout(armedTimer) })
 </script>
 
 <style scoped>
@@ -187,7 +211,11 @@ onUnmounted(() => { if (armed) clearTimeout(armed) })
 .friend-row {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2);
+  /* Three actions and a name do not fit a 390px row, and a touch device shows
+     all three at once. The name keeps its width and the buttons drop to a
+     second line rather than squeezing it to "Step…". */
+  flex-wrap: wrap;
+  gap: var(--spacing-2) var(--spacing-1);
   padding: var(--spacing-2);
   background: rgba(255, 255, 255, 0.025);
   border: 1px solid rgba(255, 255, 255, 0.07);
@@ -202,7 +230,7 @@ onUnmounted(() => { if (armed) clearTimeout(armed) })
 }
 
 .friend-name {
-  flex: 1;
+  flex: 1 1 9rem;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -281,19 +309,29 @@ onUnmounted(() => { if (armed) clearTimeout(armed) })
   opacity: 1;
 }
 
-.friend-btn--quiet {
-  opacity: 0;
-  transition: opacity 0.15s;
+.friend-more {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
 }
 
-.friend-row:hover .friend-btn--quiet,
-.friend-btn--quiet:focus-visible {
-  opacity: 1;
+.friend-more:hover,
+.friend-more[aria-expanded='true'] {
+  border-color: rgba(255, 255, 255, 0.4);
+  color: var(--text-primary);
 }
 
-/* A touch device never hovers, so hiding behind hover hides it for good. */
-@media (hover: none) {
-  .friend-btn--quiet { opacity: 1; }
+.friend-more-row {
+  flex: 1 0 100%;
+  display: flex;
+  gap: var(--spacing-1);
+  padding-top: var(--spacing-1);
 }
 
 .friend-empty,

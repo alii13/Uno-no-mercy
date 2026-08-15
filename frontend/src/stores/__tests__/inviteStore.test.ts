@@ -38,6 +38,8 @@ const invite = (over: Partial<RoomInvite> = {}): RoomInvite => ({
     from_user: 'u2',
     from_username: 'RIVAL',
     room_code: 'ABC123',
+    players: 2,
+    mode: 'official',
     created_at: '2026-08-15T12:00:00Z',
     ...over,
 })
