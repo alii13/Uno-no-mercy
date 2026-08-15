@@ -862,11 +862,17 @@ describe('lobby auto-start countdown', () => {
         mp.extendAutoStart()
         expect(ws.lastSent()).toEqual({ t: 'extend-start' })
 
-        // Spent: the server says so, and the client stops asking.
-        ws.receive({ t: 'presence', players: seats, autoStartInMs: 118_000, autoStartBumpsLeft: 0 })
+        // The button goes as the press lands, not when the next frame does:
+        // the allowance is the room's, so a second press could only be
+        // refused, and the server refuses it without a word.
+        expect(mp.autoStart?.bumpsLeft).toBe(0)
         const sentBefore = ws.sent.length
         mp.extendAutoStart()
         expect(ws.sent.length).toBe(sentBefore)
+
+        // The server's own count agrees on the next frame.
+        ws.receive({ t: 'presence', players: seats, autoStartInMs: 118_000, autoStartBumpsLeft: 0 })
+        expect(mp.autoStart?.bumpsLeft).toBe(0)
     })
 
     it('reads an old worker frame as no extension on offer', async () => {
