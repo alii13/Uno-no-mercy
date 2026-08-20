@@ -188,14 +188,24 @@
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5481263585202262"
          crossorigin="anonymous"></script>
 
-    <!-- Google Analytics + Google Ads -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-HF9GCTVQ7J"></script>
+    <!-- Google Analytics + Google Ads. Production hostnames only: keeps
+         forks running our measurement id, per-branch previews, and localhost
+         out of the property. gtag stays defined so track() calls are inert
+         no-ops everywhere else. -->
     <script>
+      var GA_HOSTS = ['open-mercy.com', 'www.open-mercy.com', 'uno-no-mercy.com', 'www.uno-no-mercy.com'];
+      var GA_ENABLED = GA_HOSTS.indexOf(location.hostname) !== -1;
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-HF9GCTVQ7J');
-      gtag('config', 'AW-18192424425');
+      if (GA_ENABLED) {
+        var gaLoader = document.createElement('script');
+        gaLoader.async = true;
+        gaLoader.src = 'https://www.googletagmanager.com/gtag/js?id=G-HF9GCTVQ7J';
+        document.head.appendChild(gaLoader);
+        gtag('js', new Date());
+        gtag('config', 'G-HF9GCTVQ7J');
+        gtag('config', 'AW-18192424425');
+      }
 
       // Google Ads conversion tracking on click
       window.gtag_report_conversion = function(url) {
@@ -204,6 +214,7 @@
             window.location = url;
           }
         };
+        if (!GA_ENABLED) { callback(); return false; }
         gtag('event', 'conversion', {
           'send_to': 'AW-18192424425/-S5SCMTPnbQcEOm76eJD',
           'value': 1.0,
