@@ -42,8 +42,17 @@ export const useInviteStore = defineStore('invites', () => {
     /** The one the toast shows: newest first, and only one at a time. */
     const current = computed<RoomInvite | null>(() => invites.value[0] ?? null)
 
-    async function refresh(): Promise<void> {
+    /** Wake-up storms: every app-flip on a phone fires visibilitychange plus
+     *  a channel rejoin, and each one triggered a read - most of the
+     *  my_invites API volume, for a surface where a real invite forces its
+     *  own read through the row event. A read this recent is not repeated. */
+    const REFRESH_GAP_MS = 20_000
+    let lastReadAt = 0
+
+    async function refresh(opts: { force?: boolean } = {}): Promise<void> {
         if (unavailable.value) return
+        if (!opts.force && Date.now() - lastReadAt < REFRESH_GAP_MS) return
+        lastReadAt = Date.now()
         try {
             const { data, error } = await supabase.rpc('my_invites')
             if (error) {
@@ -86,7 +95,7 @@ export const useInviteStore = defineStore('invites', () => {
             .on(
                 'postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'room_invites', filter: `to_user=eq.${userId}` },
-                () => { void refresh() },
+                () => { void refresh({ force: true }) },
             )
             // Read again on a successful join: a row inserted while the socket
             // was down is never replayed, and a channel that fails to join at
