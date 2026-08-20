@@ -103,7 +103,7 @@
              player reads, so today's deal earns its comeback pitch here.
              The parent decides eligibility (solo game, deal not yet played,
              and never after the daily itself); this just renders. -->
-        <div v-if="daily" class="daily-nudge">
+        <div v-if="daily && !claimSpotlight" class="daily-nudge">
           <div class="daily-nudge-text">
             <span class="daily-nudge-title">
               <Flame :size="14" :stroke-width="2.5" aria-hidden="true" />
@@ -115,10 +115,25 @@
           <button class="daily-nudge-btn" type="button" @click="$emit('play-daily')">PLAY</button>
         </div>
 
+        <!-- First win on this device: the claim pitch earns one prominent
+             moment - stats, streak and share card die with the guest session,
+             and right after a first win is when that costs something. Every
+             later game-over falls back to the quiet footer link. -->
+        <div v-if="claimSpotlight" class="claim-nudge">
+          <div class="claim-nudge-text">
+            <span class="claim-nudge-title">
+              <UserPlus :size="14" :stroke-width="2.5" aria-hidden="true" />
+              FIRST WIN LOGGED
+            </span>
+            <span class="claim-nudge-sub">It lives on this guest session only. Sign in to keep your stats, streak and share card.</span>
+          </div>
+          <button class="claim-nudge-btn" type="button" @click="$emit('upgrade-account')">SAVE MY STATS</button>
+        </div>
+
         <!-- Footer: small dismissible links, not heavy CTAs -->
         <div class="footer-links">
           <button v-if="mode === 'sp' || canRematch" class="link-btn" @click="$emit('back-to-lobby')">Back to menu</button>
-          <button v-if="isAnonymous" class="link-btn upgrade-link" @click="$emit('upgrade-account')">Save your stats →</button>
+          <button v-if="isAnonymous && !claimSpotlight" class="link-btn upgrade-link" @click="$emit('upgrade-account')">Save your stats →</button>
         </div>
       </div>
     </div>
@@ -132,6 +147,7 @@ import { ImageDown, Flame, UserPlus } from 'lucide-vue-next'
 import { siX, siWhatsapp } from 'simple-icons'
 import { useSocialStore } from '../../stores/socialStore'
 import { generateShareImage, shareOrDownload } from '../../utils/shareImage'
+import { shouldSpotlightClaim, markClaimSpotlightShown } from '../../utils/claimSpotlight'
 import { track } from '../../utils/analytics'
 
 interface Stats {
@@ -178,6 +194,17 @@ defineEmits<{
 const social = useSocialStore()
 const addState = ref<Record<string, string>>({})
 onMounted(() => { if (props.mode === 'mp' && props.opponents?.length && !social.unavailable) void social.refresh() })
+
+// First win on this device: one game-over where the claim CTA is loud.
+// Marked shown immediately - seen and ignored means quiet from then on.
+const claimSpotlight = ref(false)
+onMounted(() => {
+    claimSpotlight.value = shouldSpotlightClaim(props.isAnonymous, props.isWinner)
+    if (claimSpotlight.value) {
+        markClaimSpotlightShown()
+        track('claim_spotlight_shown', {})
+    }
+})
 
 // Guests are included on purpose: an anonymous player has a durable profile
 // and can hold friends, and asking them to claim first is how a friends list
@@ -637,6 +664,55 @@ function confettiStyle(i: number) {
 .daily-nudge-btn:hover {
   border-color: rgba(255, 204, 0, 0.8);
   color: #ffe066;
+}
+
+.claim-nudge {
+  margin-top: 0.85rem;
+  padding: 0.65rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--radius-md);
+  text-align: left;
+}
+.claim-nudge-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.claim-nudge-title {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.claim-nudge-sub {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+.claim-nudge-btn {
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  padding: 0.55rem 1rem;
+  background: transparent;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.claim-nudge-btn:hover {
+  border-color: rgba(255, 255, 255, 0.85);
 }
 
 .footer-links {
