@@ -121,8 +121,11 @@ describe('invite store', () => {
         // waking up has to re-read.
         rpc.mockClear()
         rpcReturns([invite({ from_username: 'ARRIVED WHILE ASLEEP' })])
+        // Sleep long enough that the wake-up read is outside the coalescing gap.
+        const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(new Date().getTime() + 60_000)
         listeners.visibilitychange!()
         await vi.waitFor(() => expect(store.current?.from_username).toBe('ARRIVED WHILE ASLEEP'))
+        nowSpy.mockRestore()
 
         store.stop()
         expect(listeners.visibilitychange).toBeUndefined()
@@ -141,5 +144,44 @@ describe('invite store', () => {
         await nextTick()
         expect(unsubscribe).toHaveBeenCalled()
         expect(store.invites).toHaveLength(0)
+    })
+
+    it('coalesces wake-up reads inside the gap, and reads again past it', async () => {
+        const listeners: Record<string, () => void> = {}
+        vi.stubGlobal('document', {
+            visibilityState: 'visible',
+            addEventListener: (e: string, cb: () => void) => { listeners[e] = cb },
+            removeEventListener: () => { delete listeners.visibilitychange },
+        })
+        rpcReturns([])
+        const store = useInviteStore()
+        store.start('me')
+        await vi.waitFor(() => expect(rpc).toHaveBeenCalled())
+
+        // Rapid app-flips: every one used to trigger a read.
+        rpc.mockClear()
+        listeners.visibilitychange!()
+        listeners.visibilitychange!()
+        expect(rpc).not.toHaveBeenCalled()
+
+        const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(new Date().getTime() + 60_000)
+        listeners.visibilitychange!()
+        await vi.waitFor(() => expect(rpc).toHaveBeenCalledWith('my_invites'))
+        nowSpy.mockRestore()
+        store.stop()
+        vi.unstubAllGlobals()
+    })
+
+    it('a row event reads immediately even inside the gap', async () => {
+        rpcReturns([])
+        const store = useInviteStore()
+        store.start('me')
+        await vi.waitFor(() => expect(rpc).toHaveBeenCalled())
+
+        rpc.mockClear()
+        rpcReturns([invite({ id: 'i9', from_username: 'INSTANT' })])
+        const ch = channelFor.mock.calls[0]![0] as { handlers: ((p: unknown) => void)[] }
+        ch.handlers[0]!({ new: { id: 'i9' } })
+        await vi.waitFor(() => expect(store.current?.from_username).toBe('INSTANT'))
     })
 })
