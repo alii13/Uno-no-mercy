@@ -21,6 +21,7 @@ const h = vi.hoisted(() => {
         profileRow: null as unknown,
         profileFetches: 0,
         upsertCalls: [] as { row: unknown; opts: unknown }[],
+        upsertResults: [] as unknown[],
         updateUserCalls: [] as { attrs: unknown; opts: unknown }[],
         updateUserResult: { data: { user: null }, error: null } as unknown,
         resendCalls: [] as unknown[],
@@ -40,6 +41,7 @@ const h = vi.hoisted(() => {
             state.profileRow = null
             state.profileFetches = 0
             state.upsertCalls = []
+            state.upsertResults = []
             state.updateUserCalls = []
             state.updateUserResult = { data: { user: null }, error: null }
             state.resendCalls = []
@@ -83,7 +85,10 @@ vi.mock('../../lib/supabase', () => ({
             b.select = () => b
             b.eq = () => b
             b.maybeSingle = async () => { h.state.profileFetches++; return { data: h.state.profileRow, error: null } }
-            b.upsert = async (row: unknown, opts: unknown) => { h.state.upsertCalls.push({ row, opts }); return { error: null } }
+            b.upsert = async (row: unknown, opts: unknown) => {
+                h.state.upsertCalls.push({ row, opts })
+                return (h.state.upsertResults.shift() ?? { error: null }) as { error: unknown }
+            }
             return b
         },
     },
@@ -244,6 +249,9 @@ describe('claiming a guest account (in-place anonymous conversion)', () => {
 
     it('USER_UPDATED refreshes the profile through the auth listener', async () => {
         const auth = useAuthStore()
+        // A present row keeps the missing-profile self-heal out of this test:
+        // the assertion is about the listener firing exactly one fetch.
+        h.state.profileRow = { id: 'anon-1', username: 'RecklessShark28', created_at: '' }
         await auth.initialize()
         const fetchesBefore = h.state.profileFetches
 
@@ -505,5 +513,69 @@ describe('signUp with email confirmation pending', () => {
         expect(res.needsConfirmation).toBe(false)
         expect(auth.isAuthenticated).toBe(true)
         expect(auth.user?.id).toBe('reg-2')
+    })
+})
+
+describe('username collision resilience', () => {
+    const collision = { error: { code: '23505', message: 'duplicate key value violates unique constraint "profiles_username_key"' } }
+
+    it('retries the guest profile upsert with a fresh handle on a 23505 collision', async () => {
+        h.state.upsertResults = [collision, { error: null }]
+        const auth = useAuthStore()
+
+        const res = await auth.signInAnonymously()
+
+        expect(res.success).toBe(true)
+        expect(h.state.upsertCalls).toHaveLength(2)
+        const first = (h.state.upsertCalls[0]!.row as { username: string }).username
+        const second = (h.state.upsertCalls[1]!.row as { username: string }).username
+        expect(second).not.toBe(first)
+        expect(second).toMatch(/\d{4}$/)
+    })
+
+    it('does not retry on a non-collision error', async () => {
+        h.state.upsertResults = [{ error: { code: '42501', message: 'permission denied' } }]
+        const auth = useAuthStore()
+
+        const res = await auth.signInAnonymously()
+
+        expect(res.success).toBe(true) // a profile failure never blocks play
+        expect(h.state.upsertCalls).toHaveLength(1)
+    })
+
+    it('self-heals a missing profile row for a returning guest', async () => {
+        h.state.getSession = async () => ({
+            data: { session: { user: { id: 'anon-9', is_anonymous: true, user_metadata: { username: 'GrimViper12' } }, access_token: 't' } },
+        })
+        h.state.profileRow = null
+        const auth = useAuthStore()
+
+        await auth.initialize()
+
+        expect(h.state.upsertCalls).toHaveLength(1)
+        expect(h.state.upsertCalls[0]!.row).toMatchObject({ id: 'anon-9', username: 'GrimViper12' })
+    })
+
+    it('leaves an unconfirmed email signup for the confirmation trigger', async () => {
+        h.state.getSession = async () => ({
+            data: { session: { user: { id: 'reg-9', is_anonymous: false }, access_token: 't' } },
+        })
+        h.state.profileRow = null
+        const auth = useAuthStore()
+
+        await auth.initialize()
+
+        expect(h.state.upsertCalls).toHaveLength(0)
+    })
+
+    it('reports a taken name as taken on rename', async () => {
+        const auth = useAuthStore()
+        await auth.signInAnonymously('Bob')
+        h.state.upsertResults = [collision]
+
+        const res = await auth.updateUsername('Ali')
+
+        expect(res.success).toBe(false)
+        expect(res.error).toBe('That name is already taken')
     })
 })

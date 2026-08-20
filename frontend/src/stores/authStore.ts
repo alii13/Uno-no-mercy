@@ -94,6 +94,25 @@ export const useAuthStore = defineStore('auth', () => {
 
         if (err) {
             console.error('Error fetching profile:', err)
+            profile.value = data
+            return
+        }
+
+        // A guest (or confirmed account) with no row hit the username
+        // collision before this fix - recreate the row instead of leaving
+        // them as "Player" forever. Unconfirmed email signups are skipped:
+        // their row belongs to the confirmation trigger.
+        const u = user.value
+        if (!data && !profileHealed && u && (u.is_anonymous || u.email_confirmed_at)) {
+            const wanted = String(u.user_metadata?.username ?? '') || randomHandle()
+            await ensureProfile(u.id, wanted)
+            const { data: healed } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', u.id)
+                .maybeSingle()
+            profile.value = healed
+            return
         }
 
         profile.value = data
@@ -172,7 +191,36 @@ export const useAuthStore = defineStore('auth', () => {
         const nouns = ['Fox', 'Wolf', 'Viper', 'Hawk', 'Shark', 'Raven', 'Cobra', 'Jackal', 'Reaper', 'Bandit', 'Phantom', 'Joker']
         const a = adjectives[Math.floor(Math.random() * adjectives.length)]
         const n = nouns[Math.floor(Math.random() * nouns.length)]
-        return `${a}${n}${Math.floor(Math.random() * 90 + 10)}`
+        return `${a}${n}${Math.floor(Math.random() * 9000 + 1000)}`
+    }
+
+    // One repair attempt per session: set by ensureProfile so a sign-in that
+    // just ran it does not immediately re-run it from fetchProfile.
+    let profileHealed = false
+
+    /**
+     * Create the profile row, riding out username collisions. The handle
+     * namespace is shared by every guest ever, so profiles_username_key
+     * collisions (23505) are routine as it fills - retry with a fresh suffix
+     * instead of leaving the player with no row (no stats, no share code,
+     * no rank). upsert on id is idempotent against the auth trigger;
+     * ignoreDuplicates keeps an existing username.
+     */
+    async function ensureProfile(id: string, firstChoice: string) {
+        profileHealed = true
+        let name = firstChoice
+        for (let attempt = 0; attempt < 3; attempt++) {
+            const { error: upErr } = await supabase
+                .from('profiles')
+                .upsert({ id, username: name }, { onConflict: 'id', ignoreDuplicates: true })
+            if (!upErr) return
+            if (upErr.code !== '23505') {
+                console.error('profile upsert failed:', upErr)
+                return
+            }
+            name = `${name.replace(/\d+$/, '').slice(0, 15)}${Math.floor(Math.random() * 9000 + 1000)}`
+        }
+        console.error('profile upsert failed: no free username after retries')
     }
 
     async function signInAnonymously(nickname?: string) {
@@ -204,16 +252,9 @@ export const useAuthStore = defineStore('auth', () => {
 
             user.value = data.user
 
-            // Ensure a profile row exists. upsert is idempotent, so it races the
-            // auth trigger safely (no 409 if the trigger already inserted) and
-            // self-heals a missing row; ignoreDuplicates keeps an existing
-            // username. The old select-then-insert both discarded its error
-            // (silent failure → "Player" fallback + lost renames) and 409'd
-            // against the trigger row.
-            const { error: profileErr } = await supabase
-                .from('profiles')
-                .upsert({ id: data.user.id, username: guestName }, { onConflict: 'id', ignoreDuplicates: true })
-            if (profileErr) console.error('guest profile upsert failed:', profileErr)
+            // Ensure a profile row exists, riding out username collisions -
+            // upsert semantics and the retry live in ensureProfile.
+            await ensureProfile(data.user.id, guestName)
 
             await fetchProfile()
             return { success: true }
@@ -399,7 +440,7 @@ export const useAuthStore = defineStore('auth', () => {
             const { error: upErr } = await supabase
                 .from('profiles')
                 .upsert({ id: user.value.id, username: clean }, { onConflict: 'id' })
-            if (upErr) throw upErr
+            if (upErr) throw upErr.code === '23505' ? new Error('That name is already taken') : upErr
             await supabase.auth.updateUser({ data: { username: clean } })
             if (profile.value) profile.value.username = clean
             else profile.value = { id: user.value.id, username: clean, created_at: new Date().toISOString() }
