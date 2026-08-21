@@ -15,7 +15,12 @@
  */
 
 const LEGACY_KEY = 'sb-uno-supabase-proxy-auth-token'
-const CURRENT_KEY = 'sb-djzqoccutacfueuadflw-auth-token'
+
+/** The direct client's session key. Exported so lib/supabase.ts pins it via
+ *  auth.storageKey - one source of truth, and the pin is what stops a future
+ *  URL change from repeating the #162 sign-out. */
+export const DIRECT_SESSION_KEY = 'sb-djzqoccutacfueuadflw-auth-token'
+const CURRENT_KEY = DIRECT_SESSION_KEY
 
 interface KeyValueStorage {
     getItem(key: string): string | null

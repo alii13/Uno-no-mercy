@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { migrateLegacySession } from '../utils/sessionMigration'
+import { migrateLegacySession, DIRECT_SESSION_KEY } from '../utils/sessionMigration'
 
 // Direct connection. The uno-supabase-proxy Worker stays deployed as a parked fallback
 // for ISP-level blocks of supabase.co - restore by preferring VITE_SUPABASE_PROXY_URL here.
@@ -14,7 +14,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // under the direct client's key (see utils/sessionMigration.ts).
 if (typeof localStorage !== 'undefined') migrateLegacySession(localStorage)
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// storageKey pinned: supabase-js otherwise derives it from the URL's first
+// hostname label, so a URL change (proxy re-enabled, custom domain) would
+// silently sign every session out - guests permanently. Never remove the
+// pin; never change its value without a migration like migrateLegacySession.
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { storageKey: DIRECT_SESSION_KEY },
+})
 
 export interface GameRow {
     id: string

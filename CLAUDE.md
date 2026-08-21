@@ -41,6 +41,8 @@ Guidance for working in this repo. Hard-won - read before changing CSS, raising 
 
 ## Supabase
 
+- **supabase-js derives its session storage key from the client URL** (`sb-<first-hostname-label>-auth-token`). Changing `supabaseUrl` - proxy on or off, a custom domain - therefore signs every existing session out silently, and guests are lost permanently because an anonymous identity cannot sign back in. This shipped as the #162 regression and was fixed by #167. The key is now pinned via `auth.storageKey` in `lib/supabase.ts`, sourced from `DIRECT_SESSION_KEY` in `utils/sessionMigration.ts`. Never remove the pin. Never change its value without shipping a key migration like `migrateLegacySession()`.
+- Review rule for any auth- or URL-adjacent diff: list what supabase-js derives from the changed input (storage key from the URL, redirect origin from auth config) before merging - derived state is where silent sign-outs come from.
 - `game_results` RLS is owner-select-only. Any public read (leaderboards, profiles, opponent stats) goes through a `SECURITY DEFINER` function granted to `anon, authenticated` - never widen RLS.
 - Schema changes ship as SQL files in `supabase/` for manual runs in the SQL Editor, additive only. Run order matters when files depend on each other's columns (e.g. `leaderboards-v2.sql` before `profile-pages.sql`).
 - Changing a function's return columns requires `drop function` + recreate - `create or replace` can't do it. The drop triggers the SQL Editor's destructive-operation warning; that's expected.
