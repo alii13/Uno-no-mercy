@@ -1,13 +1,17 @@
 <template>
   <div class="pp-page">
     <header class="pp-topbar">
-      <button class="back-link" @click="$emit('back')">&larr; BACK</button>
+      <button class="back-link" @click="$emit('back')">
+        <ChevronLeft :size="14" :stroke-width="2" aria-hidden="true" />
+        BACK
+      </button>
       <a class="brand-mark" href="#" @click.prevent>
         <span class="brand-mark-uno">OPEN</span>
         <span class="brand-mark-nomercy">MERCY</span>
       </a>
       <button v-if="p" class="share-btn" @click="onShare">
-        {{ shareState === 'copied' ? 'COPIED ✓' : 'SHARE' }}
+        <Check v-if="shareState === 'copied'" :size="14" :stroke-width="2" aria-hidden="true" />
+        {{ shareState === 'copied' ? 'COPIED' : 'SHARE' }}
       </button>
       <span v-else class="pp-topbar-spacer" aria-hidden="true"></span>
     </header>
@@ -97,7 +101,7 @@
           <h3 class="pp-section-title">NO MERCY RECORD</h3>
           <ul class="pp-record-rows">
             <li v-for="r in records" :key="r.label" class="pp-record-row">
-              <component :is="r.icon" class="pp-record-icon" :size="13" aria-hidden="true" />
+              <component :is="r.icon" class="pp-record-icon" :size="14" :stroke-width="2" aria-hidden="true" />
               <span class="pp-record-label">{{ r.label }}</span>
               <span class="pp-record-value">{{ r.value }}</span>
             </li>
@@ -132,7 +136,7 @@
           :disabled="social.pendingIds.has(p.user_id!)"
           @click="addFriend"
         >
-          <UserPlus :size="15" :stroke-width="2.25" aria-hidden="true" />
+          <UserPlus :size="14" :stroke-width="2" aria-hidden="true" />
           {{ addLabel }}
         </button>
         <p class="pp-cta-line">Think you can beat {{ p.username }}?</p>
@@ -143,10 +147,10 @@
         <Button variant="secondary" size="md" block @click="$emit('back')">GO TO LOBBY</Button>
         <!-- Guests own their stats and card back too; withholding the tools
              left them with no route to the dashboard at all. -->
-        <button class="pp-own-link" @click="$emit('dashboard')">EDIT NAME · CHANGE CARD BACK · FULL STATS &rarr;</button>
+        <button class="pp-own-link" @click="$emit('dashboard')">EDIT NAME · CHANGE CARD BACK · FULL STATS <ArrowRight :size="14" :stroke-width="2" aria-hidden="true" /></button>
       </section>
       <section v-else class="pp-cta pp-cta--own">
-        <button class="pp-own-link" @click="$emit('dashboard')">EDIT NAME · CHANGE CARD BACK · FULL STATS &rarr;</button>
+        <button class="pp-own-link" @click="$emit('dashboard')">EDIT NAME · CHANGE CARD BACK · FULL STATS <ArrowRight :size="14" :stroke-width="2" aria-hidden="true" /></button>
       </section>
     </div>
 
@@ -156,9 +160,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick, type FunctionalComponent } from 'vue'
-import {
-    Trophy, Swords, Target, Flame, Zap, Shield, Layers, SkipForward, Plus, UserPlus,
-} from 'lucide-vue-next'
+import { ArrowRight, Check, ChevronLeft, Flame, Layers, Plus, Shield, SkipForward, Swords, Target, Trophy, UserPlus, Zap } from 'lucide-vue-next'
 import gsap from 'gsap'
 import { useProfile } from '../composables/useProfile'
 import { useMotion } from '../composables/useMotion'
@@ -330,6 +332,9 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
 }
 
 .back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
   background: none;
   border: none;
   padding: var(--spacing-2);
@@ -355,6 +360,9 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
 .pp-topbar-spacer { width: 72px; }
 
 .share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
   background: none;
   border: 1px solid var(--color-neon-blue);
   border-radius: var(--radius-sm);
@@ -694,6 +702,9 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
 }
 
 .pp-own-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
   background: none;
   border: none;
   font-family: var(--font-mono);

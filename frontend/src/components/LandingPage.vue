@@ -75,7 +75,7 @@
           New to Open Mercy? See how it works
         </button>
         <button type="button" class="rules-peek" @click="navigate({ name: 'leaderboard' })">
-          Today's leaderboard &rarr;
+          Today's leaderboard <ArrowRight :size="14" :stroke-width="2" aria-hidden="true" />
         </button>
       </div>
 
@@ -109,6 +109,7 @@
 </template>
 
 <script setup lang="ts">
+import { ArrowRight } from 'lucide-vue-next'
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import gsap from 'gsap'
 import LandingScrollSections from './LandingScrollSections.vue'
@@ -661,6 +662,9 @@ function runHeroChoreography() {
 }
 
 .rules-peek {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
   background: none;
   border: none;
   color: var(--text-muted);

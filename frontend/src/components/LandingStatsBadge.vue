@@ -4,7 +4,7 @@
     <div class="cr-head">
       <span class="cr-title">COMBAT RECORD</span>
       <span v-if="retention.effectiveStreak > 0" class="cr-streak">
-        <Flame class="cr-flame" :stroke-width="2.5" aria-hidden="true" />
+        <Flame class="cr-flame" :stroke-width="2" aria-hidden="true" />
         <span class="cr-streak-num">{{ retention.effectiveStreak }}</span>
         <span class="cr-streak-unit">DAY{{ retention.effectiveStreak > 1 ? 'S' : '' }}</span>
       </span>

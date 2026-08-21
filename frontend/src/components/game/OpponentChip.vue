@@ -40,12 +40,8 @@
       :aria-label="voiceMuteTitle"
       @click.stop="$emit('voiceMute')"
     >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" aria-hidden="true">
-        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-        <path v-if="!voiceMuted" d="M15.5 8.5a5 5 0 0 1 0 7" />
-        <line v-if="voiceMuted" x1="15" y1="9" x2="21" y2="15" />
-        <line v-if="voiceMuted" x1="21" y1="9" x2="15" y2="15" />
-      </svg>
+      <VolumeX v-if="voiceMuted" :size="14" :stroke-width="2" aria-hidden="true" />
+      <Volume1 v-else :size="14" :stroke-width="2" aria-hidden="true" />
     </button>
     <button
       v-if="canKick"
@@ -53,12 +49,13 @@
       title="Remove player"
       aria-label="Remove player"
       @click.stop="$emit('kick')"
-    >✕</button>
+    ><X :size="14" :stroke-width="2" aria-hidden="true" /></button>
     <span class="status-indicator" :class="{ active: isActive }"></span>
   </div>
 </template>
 
 <script setup lang="ts">
+import { Volume1, VolumeX, X } from 'lucide-vue-next'
 import { computed } from 'vue'
 import Badge from '../Badge.vue'
 import type { Badge as BadgeType, Progress } from '../../utils/badges'

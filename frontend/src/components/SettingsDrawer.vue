@@ -14,7 +14,7 @@
               type="button"
               @click="settings.close()"
               aria-label="Close settings"
-            >×</button>
+            ><X :size="16" :stroke-width="2" aria-hidden="true" /></button>
           </header>
 
           <div class="settings-body">
@@ -135,6 +135,7 @@
 </template>
 
 <script setup lang="ts">
+import { X } from 'lucide-vue-next'
 import { ref } from 'vue'
 import { useSettingsStore } from '../stores/settingsStore'
 import { soundEffects } from '../composables/useSoundEffects'
@@ -196,6 +197,9 @@ function onMusicVolume(e: Event) {
 }
 
 .close-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
   background: none;
   border: 1px solid rgba(255, 255, 255, 0.15);
   color: #e6e6e6;

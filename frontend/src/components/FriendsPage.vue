@@ -1,7 +1,10 @@
 <template>
   <div class="fp">
     <header class="fp-top">
-      <button class="back-link" @click="$emit('back')">&larr; BACK</button>
+      <button class="back-link" @click="$emit('back')">
+        <ChevronLeft :size="14" :stroke-width="2" aria-hidden="true" />
+        BACK
+      </button>
       <h1 class="fp-title">FRIENDS</h1>
       <span class="fp-spacer" aria-hidden="true" />
     </header>
@@ -21,6 +24,7 @@
 </template>
 
 <script setup lang="ts">
+import { ChevronLeft } from 'lucide-vue-next'
 import FriendsSection from './FriendsSection.vue'
 import SiteFooter from './SiteFooter.vue'
 import { useSocialStore } from '../stores/socialStore'
@@ -55,6 +59,9 @@ const social = useSocialStore()
 }
 
 .back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
   background: none;
   border: none;
   padding: 0;

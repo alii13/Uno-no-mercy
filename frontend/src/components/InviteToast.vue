@@ -1,7 +1,7 @@
 <template>
   <Transition name="invite-toast">
     <div v-if="showing" class="invite" role="status">
-      <Users class="invite-glyph" :size="16" :stroke-width="2.25" aria-hidden="true" />
+      <Users class="invite-glyph" :size="16" :stroke-width="2" aria-hidden="true" />
       <span class="invite-text">
         <strong class="invite-who">{{ showing.from_username }}</strong>
         wants you at their table
@@ -11,7 +11,7 @@
         {{ joining ? 'JOINING…' : 'JOIN' }}
       </button>
       <button class="invite-dismiss" aria-label="Ignore invite" @click="invitesStore.dismiss(showing.id)">
-        <X :size="14" :stroke-width="2.5" aria-hidden="true" />
+        <X :size="14" :stroke-width="2" aria-hidden="true" />
       </button>
     </div>
   </Transition>

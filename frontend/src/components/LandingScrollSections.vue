@@ -108,7 +108,7 @@
           <div class="hud-line" :ref="el => setRef('hud', 6, el)"><span class="hud-prompt accent-green">&gt;</span> play_card(<span class="accent-red">"red-7"</span>)<span class="hud-ok" ref="hudOkEl"> OK</span></div>
         </div>
         <a class="agent-cta" ref="agentCtaEl" href="https://github.com/alii13/Uno-no-mercy#playing-as-an-ai-agent-webmcp" target="_blank" rel="noopener">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          <Code :size="16" :stroke-width="2" aria-hidden="true" />
           HOW AGENTS PLAY
         </a>
       </div>
@@ -118,22 +118,22 @@
       <div class="finale" ref="finaleEl">
         <div class="bubbles">
           <div class="bubble bubble-1" :ref="el => setRef('bubble', 1, el)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <MessageSquare :size="20" :stroke-width="2" aria-hidden="true" />
             <span>Found a bug?</span>
           </div>
           <div class="bubble bubble-2" :ref="el => setRef('bubble', 2, el)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <HelpCircle :size="20" :stroke-width="2" aria-hidden="true" />
             <span>Got an idea?</span>
           </div>
           <div class="bubble bubble-3" :ref="el => setRef('bubble', 3, el)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            <Heart :size="20" :stroke-width="2" aria-hidden="true" />
             <span>Want to say hi?</span>
           </div>
         </div>
         <h2 class="chap-heading">WE'RE <span class="accent-green">LISTENING</span></h2>
         <p class="chap-desc">Every message goes straight to my inbox. We read everything.</p>
         <button class="feedback-cta" @click="$emit('openFeedback')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <MessageSquare :size="16" :stroke-width="2" aria-hidden="true" />
           SEND FEEDBACK
         </button>
       </div>
@@ -142,6 +142,7 @@
 </template>
 
 <script setup lang="ts">
+import { Code, Heart, HelpCircle, MessageSquare } from 'lucide-vue-next'
 /**
  * Pinned scrollytelling — the whole story is ONE timeline on ONE stage.
  * Five protagonist cards persist across chapters: they stack (+penalties),

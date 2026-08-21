@@ -3,7 +3,9 @@
     <div class="rules-card">
       <header class="rules-header">
         <h2 class="rules-title">HOW TO PLAY</h2>
-        <button class="rules-close" aria-label="Close" @click="$emit('close')">✕</button>
+        <button class="rules-close" aria-label="Close" @click="$emit('close')">
+          <X :size="16" :stroke-width="2" aria-hidden="true" />
+        </button>
       </header>
 
       <div class="rules-body">
@@ -55,6 +57,7 @@
 </template>
 
 <script setup lang="ts">
+import { X } from 'lucide-vue-next'
 import Modal from './ui/Modal.vue'
 
 defineEmits<{ close: [] }>()

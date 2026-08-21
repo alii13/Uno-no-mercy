@@ -13,7 +13,7 @@
         :aria-label="title"
       >
         <div class="hud-header" :class="{ 'header-danger': isRoulette }">
-          <svg class="warning-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <TriangleAlert class="warning-icon" :size="16" :stroke-width="2" aria-hidden="true" />
           <span>{{ title }}</span>
         </div>
 
@@ -46,6 +46,7 @@
 </template>
 
 <script setup lang="ts">
+import { TriangleAlert } from 'lucide-vue-next'
 import { onMounted, onUnmounted, ref } from 'vue'
 import type { Card as CardType, CardColor } from '../../types/card'
 import Card from './Card.vue'

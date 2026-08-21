@@ -95,7 +95,7 @@
             :class="{ 'at-risk': !retention.playedToday }"
             role="status"
           >
-            <Flame class="streak-flame" :stroke-width="2.5" aria-hidden="true" />
+            <Flame class="streak-flame" :stroke-width="2" aria-hidden="true" />
             <span class="streak-count">{{ retention.effectiveStreak }}-day streak</span>
             <span v-if="!retention.playedToday" class="streak-state streak-state--warn">Play today to keep it</span>
           </div>
@@ -125,9 +125,9 @@
             <p v-else class="daily-elsewhere">Played on another device — the run isn't stored here.</p>
 
             <div v-if="dailyCells.length" class="daily-legend">
-              <span class="legend-item"><Check :size="13" :stroke-width="2.5" /> played</span>
-              <span class="legend-item"><Minus :size="13" :stroke-width="2.5" /> drew</span>
-              <span class="legend-item"><Skull :size="13" :stroke-width="2.5" /> stacked on</span>
+              <span class="legend-item"><Check :size="14" :stroke-width="2" /> played</span>
+              <span class="legend-item"><Minus :size="14" :stroke-width="2" /> drew</span>
+              <span class="legend-item"><Skull :size="14" :stroke-width="2" /> stacked on</span>
             </div>
 
             <Button variant="ghost" size="sm" block :disabled="sharingDaily" @click="onShareDaily">
@@ -182,7 +182,7 @@
           </ol>
           <p v-else class="board-empty">No scores yet today. Be the first on the board.</p>
           <p v-if="myDailyRank" class="board-mine">{{ myDailyRank }}</p>
-          <button class="lb-link" @click="openLeaderboard">Full leaderboard &rarr;</button>
+          <button class="lb-link" @click="openLeaderboard">Full leaderboard <ArrowRight :size="14" :stroke-width="2" aria-hidden="true" /></button>
         </div>
 
         <!-- Primary action: create a room. The rules choice only applies to
@@ -234,7 +234,7 @@
             :disabled="mpStore.loading"
             @click="handleJoinLive"
           >
-            <span class="mode-glyph mode-glyph--live"><Users :size="17" :stroke-width="2.25" aria-hidden="true" /></span>
+            <span class="mode-glyph mode-glyph--live"><Users :size="16" :stroke-width="2" aria-hidden="true" /></span>
             <span class="mode-text">
               <span class="mode-name"><span class="live-dot" aria-hidden="true" />{{ liveHeadline }}</span>
               <span class="mode-hint">{{ liveHint }}</span>
@@ -242,7 +242,7 @@
             <ChevronRight class="mode-chev" :size="16" aria-hidden="true" />
           </button>
           <button class="mode-item" :disabled="mpStore.loading" @click="handleQuickMatch">
-            <span class="mode-glyph mode-glyph--cyan"><Zap :size="17" :stroke-width="2.25" aria-hidden="true" /></span>
+            <span class="mode-glyph mode-glyph--cyan"><Zap :size="16" :stroke-width="2" aria-hidden="true" /></span>
             <span class="mode-text">
               <span class="mode-name">{{ mpStore.loading ? 'Matching…' : 'Quick match' }}</span>
               <span class="mode-hint">Join a public room - the game starts itself</span>
@@ -250,7 +250,7 @@
             <ChevronRight class="mode-chev" :size="16" aria-hidden="true" />
           </button>
           <button class="mode-item" @click="showJoinModal = true">
-            <span class="mode-glyph mode-glyph--cyan"><Hash :size="17" :stroke-width="2.25" aria-hidden="true" /></span>
+            <span class="mode-glyph mode-glyph--cyan"><Hash :size="16" :stroke-width="2" aria-hidden="true" /></span>
             <span class="mode-text">
               <span class="mode-name">Join with code</span>
               <span class="mode-hint">Enter a friend's six-character room code</span>
@@ -258,13 +258,13 @@
             <ChevronRight class="mode-chev" :size="16" aria-hidden="true" />
           </button>
           <button class="mode-item" @click="$emit('playLocal', selectedStackingMode)">
-            <span class="mode-glyph mode-glyph--dim"><Bot :size="17" :stroke-width="2.25" aria-hidden="true" /></span>
+            <span class="mode-glyph mode-glyph--dim"><Bot :size="16" :stroke-width="2" aria-hidden="true" /></span>
             <span class="mode-text">
               <span class="mode-name">Play vs bot</span>
               <span class="mode-hint">
                 {{ ladderHint }}
                 <span class="mode-help" role="img" :aria-label="LADDER_EXPLAINER">
-                  <HelpCircle :size="13" :stroke-width="2.25" />
+                  <HelpCircle :size="14" :stroke-width="2" />
                   <!-- aria-hidden: the concise aria-label above is what gets
                        read, or the whole panel would be appended to the row's
                        accessible name. -->
@@ -307,7 +307,7 @@
             <!-- The one invite affordance: the native share sheet where it
                  exists (phones), the clipboard elsewhere. -->
             <button class="code-action-btn" @click="shareInvite">
-              <Check v-if="copied" class="code-action-icon" :stroke-width="2.5" aria-hidden="true" />
+              <Check v-if="copied" class="code-action-icon" :stroke-width="2" aria-hidden="true" />
               <Share2 v-else-if="canNativeShare" class="code-action-icon" :stroke-width="2" aria-hidden="true" />
               <Copy v-else class="code-action-icon" :stroke-width="2" aria-hidden="true" />
               {{ copied ? 'LINK COPIED' : canNativeShare ? 'SHARE LINK' : 'COPY LINK' }}
@@ -396,12 +396,8 @@
                 :aria-label="voiceMuteTitle(player.user_id)"
                 @click="handleVoiceMute(player.user_id)"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" aria-hidden="true">
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                  <path v-if="!voiceStore.localMutedUserIds.has(player.user_id)" d="M15.5 8.5a5 5 0 0 1 0 7" />
-                  <line v-if="voiceStore.localMutedUserIds.has(player.user_id)" x1="15" y1="9" x2="21" y2="15" />
-                  <line v-if="voiceStore.localMutedUserIds.has(player.user_id)" x1="21" y1="9" x2="15" y2="15" />
-                </svg>
+                <VolumeX v-if="voiceStore.localMutedUserIds.has(player.user_id)" :size="14" :stroke-width="2" aria-hidden="true" />
+                <Volume1 v-else :size="14" :stroke-width="2" aria-hidden="true" />
               </button>
               <span
                 v-if="player.user_id === mpStore.currentGame?.host_id"
@@ -414,7 +410,7 @@
                 aria-label="Remove player"
                 @click="mpStore.kickPlayer(player.user_id)"
               >
-                <X class="player-kick-icon" :stroke-width="2.5" aria-hidden="true" />
+                <X class="player-kick-icon" :stroke-width="2" aria-hidden="true" />
               </button>
             </div>
             <template v-if="mpStore.gamePlayers.length < 10">
@@ -451,7 +447,7 @@
             title="Hold the room open one more minute"
             @click="mpStore.extendAutoStart()"
           >
-            <Clock class="hold-glyph" :size="14" :stroke-width="2.25" aria-hidden="true" />
+            <Clock class="hold-glyph" :size="14" :stroke-width="2" aria-hidden="true" />
             WAIT LONGER
           </button>
 
@@ -498,7 +494,7 @@
             :disabled="mpStore.loading"
             @click="joinRescueTable"
           >
-            <Users class="rescue-glyph" :size="15" :stroke-width="2.25" aria-hidden="true" />
+            <Users class="rescue-glyph" :size="14" :stroke-width="2" aria-hidden="true" />
             <span class="rescue-text">
               {{ rescueTable.players === 1 ? '1 player is' : `${rescueTable.players} players are` }}
               waiting in another room
@@ -601,7 +597,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { Copy, Check, Flame, Pencil, X, Zap, Hash, Bot, ChevronRight, Minus, Skull, Users, HelpCircle, ChevronDown, Share2, Clock } from 'lucide-vue-next'
+import { ArrowRight, Bot, Check, ChevronDown, ChevronRight, Clock, Copy, Flame, Hash, HelpCircle, Minus, Pencil, Share2, Skull, Users, Volume1, VolumeX, X, Zap } from 'lucide-vue-next'
 import { useRetentionStore } from '../stores/retentionStore'
 import {
     getDailyRecord, fetchServerDailyRecord, dailyGridCells, buildDailyShareText,
@@ -1584,6 +1580,9 @@ function copyLink() {
 }
 
 .lb-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
   align-self: flex-start;
   background: none;
   border: none;

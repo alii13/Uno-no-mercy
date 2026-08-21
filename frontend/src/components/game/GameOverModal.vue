@@ -57,7 +57,7 @@
             :disabled="social.pendingIds.has(o.userId) || FINAL_ADD_STATES.has(addState[o.userId] ?? '')"
             @click="addOpponent(o.userId)"
           >
-            <UserPlus :size="13" :stroke-width="2.5" aria-hidden="true" />
+            <UserPlus :size="14" :stroke-width="2" aria-hidden="true" />
             {{ addState[o.userId] ?? o.name }}
           </button>
         </div>
@@ -93,7 +93,7 @@
             :disabled="generatingImage"
             @click="onShareImage"
           >
-            <ImageDown class="share-icon-svg" :stroke-width="1.75" aria-hidden="true" />
+            <ImageDown class="share-icon-svg" :stroke-width="2" aria-hidden="true" />
             {{ generatingImage ? '…' : 'Image' }}
           </button>
         </div>
@@ -106,7 +106,7 @@
         <div v-if="daily && !claimSpotlight" class="daily-nudge">
           <div class="daily-nudge-text">
             <span class="daily-nudge-title">
-              <Flame :size="14" :stroke-width="2.5" aria-hidden="true" />
+              <Flame :size="14" :stroke-width="2" aria-hidden="true" />
               TODAY'S DEAL
               <span v-if="daily.streak > 0" class="daily-nudge-streak">{{ daily.streak }}-day streak</span>
             </span>
@@ -122,7 +122,7 @@
         <div v-if="claimSpotlight" class="claim-nudge">
           <div class="claim-nudge-text">
             <span class="claim-nudge-title">
-              <UserPlus :size="14" :stroke-width="2.5" aria-hidden="true" />
+              <UserPlus :size="14" :stroke-width="2" aria-hidden="true" />
               FIRST WIN LOGGED
             </span>
             <span class="claim-nudge-sub">It lives on this guest session only. Sign in to keep your stats, streak and share card.</span>
@@ -133,7 +133,7 @@
         <!-- Footer: small dismissible links, not heavy CTAs -->
         <div class="footer-links">
           <button v-if="mode === 'sp' || canRematch" class="link-btn" @click="$emit('back-to-lobby')">Back to menu</button>
-          <button v-if="isAnonymous && !claimSpotlight" class="link-btn upgrade-link" @click="$emit('upgrade-account')">Save your stats →</button>
+          <button v-if="isAnonymous && !claimSpotlight" class="link-btn upgrade-link" @click="$emit('upgrade-account')">Save your stats <ArrowRight :size="14" :stroke-width="2" aria-hidden="true" /></button>
         </div>
       </div>
     </div>
@@ -143,7 +143,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import gsap from 'gsap'
-import { ImageDown, Flame, UserPlus } from 'lucide-vue-next'
+import { ArrowRight, Flame, ImageDown, UserPlus } from 'lucide-vue-next'
 import { siX, siWhatsapp } from 'simple-icons'
 import { useSocialStore } from '../../stores/socialStore'
 import { generateShareImage, shareOrDownload } from '../../utils/shareImage'
@@ -784,6 +784,9 @@ function confettiStyle(i: number) {
 }
 
 .link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   background: none;
   border: none;
   cursor: pointer;

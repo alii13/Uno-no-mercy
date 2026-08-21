@@ -1,7 +1,10 @@
 <template>
   <div class="lb-page">
     <header class="lb-topbar">
-      <button class="back-link" @click="$emit('back')">&larr; BACK</button>
+      <button class="back-link" @click="$emit('back')">
+        <ChevronLeft :size="14" :stroke-width="2" aria-hidden="true" />
+        BACK
+      </button>
       <h1 class="lb-title">LEADERBOARDS</h1>
       <span class="lb-topbar-spacer" aria-hidden="true"></span>
     </header>
@@ -114,7 +117,7 @@
             @click="s.share_code && navigate({ name: 'profile', code: s.share_code })"
           >
             <span class="lb-record-kind">
-              <component :is="SPOT_META[s.kind].icon" :size="11" aria-hidden="true" />
+              <component :is="SPOT_META[s.kind].icon" :size="14" :stroke-width="2" aria-hidden="true" />
               {{ SPOT_META[s.kind].label }}
             </span>
             <span class="lb-record-value">{{ SPOT_META[s.kind].fmt(s.value) }}</span>
@@ -130,7 +133,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
-import { Zap, Shield, Crown } from 'lucide-vue-next'
+import { ChevronLeft, Crown, Shield, Zap } from 'lucide-vue-next'
 import gsap from 'gsap'
 import { useLeaderboard, type DailyRow, type WeeklyRow } from '../composables/useLeaderboard'
 import { useMotion } from '../composables/useMotion'
@@ -285,6 +288,9 @@ onUnmounted(() => { if (ticker) clearInterval(ticker) })
 }
 
 .back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
   background: none;
   border: none;
   padding: var(--spacing-2);

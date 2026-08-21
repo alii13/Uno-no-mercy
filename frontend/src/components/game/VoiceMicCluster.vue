@@ -44,11 +44,7 @@
     aria-label="Mute everyone"
     @click="voice.muteEveryone()"
   >
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true">
-      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-      <line x1="15" y1="9" x2="21" y2="15" />
-      <line x1="21" y1="9" x2="15" y2="15" />
-    </svg>
+    <VolumeX :size="16" :stroke-width="2" aria-hidden="true" />
   </button>
   <span v-if="hint" class="voice-hint">{{ hint }}</span>
   </template>
@@ -63,6 +59,7 @@
 </template>
 
 <script setup lang="ts">
+import { VolumeX } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
 import { useVoiceStore } from '../../stores/voiceStore'
 

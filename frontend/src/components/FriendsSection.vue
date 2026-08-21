@@ -37,7 +37,7 @@
           :aria-label="`More for ${f.username}`"
           @click="toggleMenu(f.user_id)"
         >
-          <MoreHorizontal :size="14" :stroke-width="2.5" aria-hidden="true" />
+          <MoreHorizontal :size="14" :stroke-width="2" aria-hidden="true" />
         </button>
         <!-- The destructive pair lives behind the toggle: hover cannot carry
              them on a phone, and keeping them in the row squeezed the name to

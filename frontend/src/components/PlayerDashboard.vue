@@ -3,9 +3,7 @@
     <!-- Top bar — mirrors landing/lobby pattern -->
     <header class="dashboard-top-bar">
       <button class="back-link" @click="$emit('back')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" aria-hidden="true">
-          <polyline points="15 18 9 12 15 6" />
-        </svg>
+        <ChevronLeft :size="14" :stroke-width="2" aria-hidden="true" />
         BACK
       </button>
 
@@ -29,11 +27,7 @@
     </div>
 
     <div v-else-if="gamesPlayed === 0" class="state-screen">
-      <svg class="state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40">
-        <rect x="3" y="12" width="4" height="9" />
-        <rect x="10" y="7" width="4" height="14" />
-        <rect x="17" y="3" width="4" height="18" />
-      </svg>
+      <BarChart3 class="state-icon" :size="40" :stroke-width="2" aria-hidden="true" />
       <h2 class="state-title">NO DATA YET</h2>
       <p class="state-desc">Play your first game to start tracking stats.</p>
     </div>
@@ -51,14 +45,14 @@
           </div>
           <div v-if="badgeProgress.next" class="identity-progress">
             {{ badgeProgress.needed.toLocaleString() }} points to {{ badgeProgress.next.title }}
-            <button class="identity-how" @click="navigate({ name: 'badges' })">How badges work &rarr;</button>
+            <button class="identity-how" @click="navigate({ name: 'badges' })">How badges work <ArrowRight :size="14" :stroke-width="2" aria-hidden="true" /></button>
           </div>
           <button
             v-if="authStore.profile?.share_code"
             class="public-profile-link"
             @click="navigate({ name: 'profile', code: authStore.profile.share_code })"
           >
-            VIEW PUBLIC PROFILE &rarr;
+            VIEW PUBLIC PROFILE <ArrowRight :size="14" :stroke-width="2" aria-hidden="true" />
           </button>
         </div>
       </section>
@@ -148,6 +142,7 @@
 </template>
 
 <script setup lang="ts">
+import { ArrowRight, BarChart3, ChevronLeft } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { usePlayerStats } from '../composables/usePlayerStats'
 import { useAuthStore } from '../stores/authStore'
@@ -487,7 +482,9 @@ function copyShareLink() {
   letter-spacing: 0.1em;
 }
 .identity-how {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
   margin-top: var(--spacing-1);
   background: none;
   border: none;
@@ -501,6 +498,9 @@ function copyShareLink() {
 .identity-how:hover { color: #ffcc00; }
 
 .public-profile-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
   align-self: flex-start;
   background: none;
   border: none;

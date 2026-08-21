@@ -13,10 +13,7 @@
          stack, and a TALL Mercy thermometer. Desktop only. -->
     <aside class="pit-rail" aria-label="Game state">
       <div ref="railDirectionRef" class="rail-cell rail-direction" :class="{ ccw: direction === -1 }" :title="direction === 1 ? 'Clockwise' : 'Counter-clockwise'">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true">
-          <polyline points="23 4 23 10 17 10" />
-          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-        </svg>
+        <RotateCw :size="16" :stroke-width="2" aria-hidden="true" />
         <span>{{ direction === 1 ? 'CW' : 'CCW' }}</span>
       </div>
 
@@ -66,10 +63,7 @@
     <!-- Mobile HUD: horizontal pill below the table (rail collapses on small screens) -->
     <div class="pit-hud-mobile" v-if="myCardCount !== undefined">
       <div class="hud-cell" ref="hudDirectionRef">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" aria-hidden="true">
-          <polyline points="23 4 23 10 17 10" />
-          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-        </svg>
+        <RotateCw :size="14" :stroke-width="2" aria-hidden="true" />
         <span>{{ direction === 1 ? 'CW' : 'CCW' }}</span>
       </div>
       <div v-if="currentColor && currentColor !== 'wild'" class="hud-cell">
@@ -88,6 +82,7 @@
 </template>
 
 <script setup lang="ts">
+import { RotateCw } from 'lucide-vue-next'
 import { ref, computed, watch } from 'vue'
 import gsap from 'gsap'
 import { useScreenSize } from '../../composables/useScreenSize'
