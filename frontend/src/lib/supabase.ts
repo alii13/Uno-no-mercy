@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { migrateLegacySession } from '../utils/sessionMigration'
 
 // Direct connection. The uno-supabase-proxy Worker stays deployed as a parked fallback
 // for ISP-level blocks of supabase.co - restore by preferring VITE_SUPABASE_PROXY_URL here.
@@ -8,6 +9,10 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables. See frontend/.env.example')
 }
+
+// Must run before createClient reads storage: resumes proxy-era sessions
+// under the direct client's key (see utils/sessionMigration.ts).
+if (typeof localStorage !== 'undefined') migrateLegacySession(localStorage)
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
