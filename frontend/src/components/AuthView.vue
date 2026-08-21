@@ -2,9 +2,7 @@
   <div class="auth-container">
     <div class="auth-card">
       <button class="back-link" @click="$emit('back')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" aria-hidden="true">
-          <polyline points="15 18 9 12 15 6" />
-        </svg>
+        <ChevronLeft :size="14" :stroke-width="2" aria-hidden="true" />
         BACK
       </button>
 
@@ -101,7 +99,8 @@
 
           <p v-if="error" class="msg msg-error">{{ error }}</p>
           <button v-if="emailTaken || googleTaken" class="link" type="button" @click="switchToLoginFromCollision">
-            SIGN IN TO THAT ACCOUNT INSTEAD →
+            SIGN IN TO THAT ACCOUNT INSTEAD
+            <ArrowRight :size="14" :stroke-width="2" aria-hidden="true" />
           </button>
 
           <Button type="submit" variant="primary" size="lg" block :disabled="loading">
@@ -161,7 +160,8 @@
         </Button>
 
         <button class="link" type="button" @click="setMode('login')">
-          ← Back to sign in
+          <ChevronLeft :size="14" :stroke-width="2" aria-hidden="true" />
+          Back to sign in
         </button>
       </form>
 
@@ -260,6 +260,7 @@
 </template>
 
 <script setup lang="ts">
+import { ArrowRight, ChevronLeft } from 'lucide-vue-next'
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '../stores/authStore'
 import { vFocusRing } from '../directives/focusRing'
@@ -611,6 +612,9 @@ async function handleForgotPassword() {
 }
 
 .link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
   background: none;
   border: none;
   color: var(--text-secondary);

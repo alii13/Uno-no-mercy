@@ -3,7 +3,7 @@
     <div class="feedback-card">
       <header class="feedback-header">
         <h3 class="feedback-title">SEND FEEDBACK</h3>
-        <button class="close-btn" @click="$emit('close')" aria-label="Close">×</button>
+        <button class="close-btn" @click="$emit('close')" aria-label="Close"><X :size="16" :stroke-width="2" aria-hidden="true" /></button>
       </header>
 
       <template v-if="!submitted">
@@ -54,10 +54,7 @@
 
       <template v-else>
         <div class="success-state">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="40" height="40">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-            <polyline points="22 4 12 14.01 9 11.01" />
-          </svg>
+          <CircleCheck :size="40" :stroke-width="2" aria-hidden="true" />
           <h4 class="success-title">FEEDBACK SENT</h4>
           <p class="success-desc">Thanks for taking the time. We appreciate it.</p>
           <Button variant="primary" size="md" @click="$emit('close')">CLOSE</Button>
@@ -68,6 +65,7 @@
 </template>
 
 <script setup lang="ts">
+import { CircleCheck, X } from 'lucide-vue-next'
 import { ref } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
@@ -161,6 +159,9 @@ async function submit() {
 }
 
 .close-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
   background: none;
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--text-muted);

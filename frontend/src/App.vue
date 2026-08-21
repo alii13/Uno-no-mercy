@@ -147,7 +147,7 @@
         <button class="signin-toast__retry" :disabled="guestLoading" @click="retryGuestSignin">
           {{ guestLoading ? 'RETRYING...' : 'RETRY' }}
         </button>
-        <button class="signin-toast__dismiss" aria-label="Dismiss" @click="guestError = null">&times;</button>
+        <button class="signin-toast__dismiss" aria-label="Dismiss" @click="guestError = null"><X :size="16" :stroke-width="2" aria-hidden="true" /></button>
       </div>
     </Transition>
 
@@ -158,6 +158,7 @@
 </template>
 
 <script setup lang="ts">
+import { X } from 'lucide-vue-next'
 import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { track, trackScreen } from './utils/analytics'
 import { localDateString } from './utils/seededRng'
@@ -461,6 +462,9 @@ function startDailyGame(source: 'lobby' | 'game_over') {
 }
 
 .signin-toast__dismiss {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
   font-size: 1.1rem;
   line-height: 1;
   color: rgba(255, 255, 255, 0.55);

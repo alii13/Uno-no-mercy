@@ -45,13 +45,14 @@
                 <span v-if="points != null" class="badge-tip-line">{{ points.toLocaleString() }} points</span>
                 <span v-if="progress && progress.next" class="badge-tip-line">{{ needed }} to {{ progress.next.title }}</span>
                 <span v-else-if="points != null" class="badge-tip-line badge-tip-apex">Top rank reached</span>
-                <button v-if="link" type="button" class="badge-tip-cta" @click="goToBadges">How badges work &rarr;</button>
+                <button v-if="link" type="button" class="badge-tip-cta" @click="goToBadges">How badges work <ArrowRight :size="14" :stroke-width="2" aria-hidden="true" /></button>
             </span>
         </Teleport>
     </span>
 </template>
 
 <script setup lang="ts">
+import { ArrowRight } from 'lucide-vue-next'
 import { computed, ref, onUnmounted } from 'vue'
 import type { Badge, Progress } from '../utils/badges'
 import { BADGE_ART } from '../utils/badgeArt'
@@ -334,6 +335,9 @@ onUnmounted(cancelClose)
 }
 .badge-tip-apex { color: var(--badge-color); }
 .badge-tip-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
     margin-top: 3px;
     padding: 0;
     background: none;

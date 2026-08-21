@@ -25,11 +25,7 @@
           aria-label="Leave game"
           title="Leave game"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <polyline points="16 17 21 12 16 7" />
-            <line x1="21" y1="12" x2="9" y2="12" />
-          </svg>
+          <LogOut :size="16" :stroke-width="2" aria-hidden="true" />
         </button>
         <button
           class="hud-audio"
@@ -191,6 +187,7 @@
 </template>
 
 <script setup lang="ts">
+import { LogOut } from 'lucide-vue-next'
 import { computed, ref, provide, watch, onMounted, onUnmounted, toRef } from 'vue'
 import { music } from '../../composables/useMusic'
 import { useStackEscalation } from '../../composables/useStackEscalation'

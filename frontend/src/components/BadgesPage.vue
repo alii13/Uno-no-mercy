@@ -1,7 +1,10 @@
 <template>
   <div class="bp-page">
     <header class="bp-topbar">
-      <button class="back-link" @click="$emit('back')">&larr; BACK</button>
+      <button class="back-link" @click="$emit('back')">
+        <ChevronLeft :size="14" :stroke-width="2" aria-hidden="true" />
+        BACK
+      </button>
       <h1 class="bp-title">BADGES</h1>
       <span class="bp-spacer" aria-hidden="true"></span>
     </header>
@@ -96,6 +99,7 @@
 </template>
 
 <script setup lang="ts">
+import { ChevronLeft } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { BADGES, POINT_WEIGHTS } from '../utils/badges'
 import { usePlayerStats } from '../composables/usePlayerStats'
@@ -149,6 +153,9 @@ const EARN = [
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 .back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
   background: none;
   border: none;
   color: #a1a1aa;
