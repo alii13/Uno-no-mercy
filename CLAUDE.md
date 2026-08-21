@@ -16,6 +16,7 @@ Guidance for working in this repo. Hard-won - read before changing CSS, raising 
 ## PR workflow
 
 - Feature work goes on a branch with a PR into `main`. Cloudflare Pages auto-deploys `main`.
+- **Every PR gets reviewed with the repo skill before merge**: run `.claude/skills/pr-review` (trigger: "review this PR"). The skill's contract is a closed loop - post findings as inline PR comments, fix every blocker and should-fix, push the fixes to the same branch, and resolve each addressed comment thread (reply with what changed, then resolve). A PR with unresolved review threads is not merge-ready.
 - **Stacked-PR merge trap**: GitHub only retargets a stacked PR to `main` when its base branch is deleted after the base PR merges. Merging a stack quickly without deleting branches makes each PR merge into its original base branch - `main` gets only the bottom of the stack and the rest strands on feature branches, silently.
   - Prefer PRs based directly on `main`.
   - If you must stack: delete each branch as its PR merges, and verify `git log origin/main` actually contains the work afterward.
