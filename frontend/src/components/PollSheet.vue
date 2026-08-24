@@ -57,8 +57,12 @@
 
       <div v-else class="poll-done">
         <Check :size="36" />
-        <h4 class="done-title">GOT IT</h4>
-        <p class="done-desc">Thanks — this decides what gets built next.</p>
+        <h4 class="done-title">{{ alreadyAnswered ? 'ALREADY ANSWERED' : 'GOT IT' }}</h4>
+        <p class="done-desc">
+          {{ alreadyAnswered
+            ? 'You answered this one already - your first answer stands.'
+            : 'Thanks - this decides what gets built next.' }}
+        </p>
         <Button variant="primary" size="md" @click="dismiss">CLOSE</Button>
       </div>
     </div>
@@ -95,6 +99,7 @@ const choice = ref('')
 const note = ref('')
 const submitting = ref(false)
 const voted = ref(false)
+const alreadyAnswered = ref(false)
 const error = ref('')
 
 const noteLabel = computed(() => (poll.value?.note_label || 'Anything else').toUpperCase())
@@ -132,14 +137,16 @@ async function submit() {
 
     submitting.value = false
 
-    // 23505: this player already answered on another device. Their first
-    // answer stands - showing the thanks state is honest and ends the ask.
+    // 23505: this player already answered on another device. Their first answer
+    // stands, so do not claim this one was recorded - it was not, and it may
+    // have been a different option.
     if (dbError && dbError.code !== '23505') {
         error.value = 'Could not send that. Try again?'
         return
     }
 
     if (!dbError) track('poll_voted', { poll_id: poll.value.id, choice: choice.value })
+    alreadyAnswered.value = !!dbError
     markDismissed(poll.value.id)
     voted.value = true
 }

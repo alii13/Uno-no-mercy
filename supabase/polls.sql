@@ -65,6 +65,46 @@ create policy "own vote select"
     to anon, authenticated
     using (auth.uid() = user_id);
 
+-- The anon key is public by design, so RLS is the only thing standing between
+-- PostgREST and a hand-written request. It proves who is voting, not what they
+-- voted for: without the check below, `choice` is unauthenticated free text and
+-- a tally meant to inform a pricing decision can be filled with anything. The
+-- primary key caps one vote per user, but anonymous sign-in mints users freely,
+-- so stuffing costs nothing.
+--
+-- This also closes voting on an inactive poll, which the insert policy alone
+-- allows: the row is still insertable after `active` goes false.
+create or replace function public.poll_vote_is_valid()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+    if not exists (
+        select 1
+        from public.polls p
+        where p.id = new.poll_id
+          and p.active
+          and new.choice in (select jsonb_array_elements_text(p.options))
+    ) then
+        raise exception 'invalid choice % for poll %', new.choice, new.poll_id;
+    end if;
+    return new;
+end;
+$$;
+
+drop trigger if exists poll_votes_validate on public.poll_votes;
+create trigger poll_votes_validate
+    before insert on public.poll_votes
+    for each row execute function public.poll_vote_is_valid();
+
+-- The textarea's maxlength is a UI affordance, not validation. A direct
+-- request can store an arbitrarily large string without this.
+alter table public.poll_votes drop constraint if exists poll_votes_note_len;
+alter table public.poll_votes
+    add constraint poll_votes_note_len check (note is null or length(note) <= 500);
+
 -- READING THE RESULTS
 -- Run this in the SQL Editor, where you are the service role. Deliberately
 -- not a view: a view in `public` would be exposed through the API, and a

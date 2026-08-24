@@ -34,6 +34,14 @@
  *   signin_failed      { message }
  *   signin_retry       {}
  *
+ * Active poll (content pushed from the `polls` table, see supabase/polls.sql).
+ * `poll_id` and `choice` must be registered as GA4 custom dimensions before a
+ * poll goes active, or poll_voted lands as a bare count and the winning option
+ * is lost - which is the only thing the poll is for:
+ *   poll_shown         { poll_id }
+ *   poll_voted         { poll_id, choice }
+ *   poll_dismissed     { poll_id }  — closed without answering
+ *
  * Guest claim funnel. `method` on the completion is what makes the email and
  * Google paths comparable — the whole point of instrumenting them:
  *   guest_claim_started        {}                  — email form opened
