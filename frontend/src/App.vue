@@ -133,6 +133,11 @@
       @showFriends="showFriends = true"
     />
 
+    <!-- Active poll, lobby only. Never over a game, and never on the landing
+         page - that renders for signed-out visitors, who have no play history
+         to be asked about. -->
+    <PollSheet v-if="currentScreen === 'lobby'" />
+
     <!-- Always-mounted global settings drawer (Teleport'd to body) -->
     <SettingsDrawer />
 
@@ -168,6 +173,7 @@ import { currentRoute, navigate } from './utils/routes'
 import { isRoomCode } from '@roomCode'
 import { syncCountryToProfile } from './utils/country'
 import LandingPage from './components/LandingPage.vue'
+import PollSheet from './components/PollSheet.vue'
 import AuthView from './components/AuthView.vue'
 import SettingsDrawer from './components/SettingsDrawer.vue'
 import Button from './components/ui/Button.vue'
