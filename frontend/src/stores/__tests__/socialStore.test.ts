@@ -3,7 +3,14 @@ import { createPinia, setActivePinia } from 'pinia'
 import { nextTick } from 'vue'
 
 const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }))
-vi.mock('../../lib/supabase', () => ({ supabase: { rpc } }))
+vi.mock('../../lib/supabase', () => ({
+    supabase: {
+        rpc,
+        // Owner-scoped RPCs are guarded by hasLiveSession(). These suites are
+        // about RPC behaviour, so the session is simply live.
+        auth: { getSession: async () => ({ data: { session: { access_token: 't' } }, error: null }) },
+    },
+}))
 
 import { useSocialStore, type FriendRow } from '../socialStore'
 import { useAuthStore } from '../authStore'
@@ -100,6 +107,10 @@ describe('social store', () => {
         expect(social.pendingIds.has('u2')).toBe(true)
         expect(await social.sendRequest('u2')).toBe('failed')
 
+        // call() checks the session before the RPC, so the hanging promise does
+        // not exist yet on the tick the second press resolves. Wait for the call
+        // rather than assuming it has happened - releasing early released nothing.
+        await vi.waitFor(() => expect(rpc).toHaveBeenCalled())
         release({ data: 'sent', error: null })
         expect(await first).toBe('sent')
         expect(social.pendingIds.has('u2')).toBe(false)

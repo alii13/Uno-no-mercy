@@ -2,10 +2,14 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { nextTick } from 'vue'
 
-const { rpc, channelFor, unsubscribe } = vi.hoisted(() => {
+const { rpc, channelFor, unsubscribe, getSession } = vi.hoisted(() => {
     const unsubscribe = vi.fn()
     const channelFor = vi.fn()
-    return { rpc: vi.fn(), channelFor, unsubscribe }
+    const getSession = vi.fn(async () => ({
+        data: { session: { access_token: 't' } as { access_token: string } | null },
+        error: null as { message: string } | null,
+    }))
+    return { rpc: vi.fn(), channelFor, unsubscribe, getSession }
 })
 
 // One fake channel per name, so a test can fire the row event the way
@@ -13,6 +17,9 @@ const { rpc, channelFor, unsubscribe } = vi.hoisted(() => {
 vi.mock('../../lib/supabase', () => ({
     supabase: {
         rpc,
+        // Owner-scoped RPCs are guarded by hasLiveSession(). Live by default,
+        // so the rest of these tests are about RPC behaviour.
+        auth: { getSession },
         channel: (name: string) => {
             const handlers: ((payload: unknown) => void)[] = []
             const ch = {
@@ -55,6 +62,8 @@ describe('invite store', () => {
         rpc.mockReset()
         channelFor.mockReset()
         unsubscribe.mockReset()
+        getSession.mockReset()
+        getSession.mockResolvedValue({ data: { session: { access_token: 't' } }, error: null })
     })
 
     it('opens a channel for the signed-in player and reads on start', async () => {
@@ -183,5 +192,30 @@ describe('invite store', () => {
         const ch = channelFor.mock.calls[0]![0] as { handlers: ((p: unknown) => void)[] }
         ch.handlers[0]!({ new: { id: 'i9' } })
         await vi.waitFor(() => expect(store.current?.from_username).toBe('INSTANT'))
+    })
+
+    it('sends no read when the session is dead', async () => {
+        getSession.mockResolvedValue({ data: { session: null }, error: { message: 'refresh_token_not_found' } })
+        rpcReturns([invite()])
+        const store = useInviteStore()
+        useAuthStore().user = { id: 'u1' } as never
+        await nextTick()
+        await store.refresh({ force: true })
+        expect(rpc).not.toHaveBeenCalled()
+    })
+
+    it('does not let a guard-blocked attempt consume the refresh gap', async () => {
+        // The gap deduplicates reads. An attempt the guard turned back was not a
+        // read, so the next one must still go out - otherwise invites stay stale
+        // for another 20 s after the token has already recovered.
+        const store = useInviteStore()
+        getSession.mockResolvedValue({ data: { session: null }, error: { message: 'dead' } })
+        await store.refresh({ force: true })
+        expect(rpc).not.toHaveBeenCalled()
+
+        getSession.mockResolvedValue({ data: { session: { access_token: 't' } }, error: null })
+        rpcReturns([invite()])
+        await store.refresh()
+        expect(rpc).toHaveBeenCalledWith('my_invites')
     })
 })
