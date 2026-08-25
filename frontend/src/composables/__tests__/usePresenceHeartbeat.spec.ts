@@ -1,7 +1,11 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 
-const { rpc, auth, doc } = vi.hoisted(() => ({
+const { rpc, auth, doc, getSession } = vi.hoisted(() => ({
     rpc: vi.fn(async () => ({ error: null as { code?: string } | null })),
+    getSession: vi.fn(async () => ({
+        data: { session: { access_token: 't' } as { access_token: string } | null },
+        error: null as { message: string } | null,
+    })),
     auth: { isAuthenticated: true, user: { id: 'u1' } },
     doc: {
         visibilityState: 'visible',
@@ -10,7 +14,14 @@ const { rpc, auth, doc } = vi.hoisted(() => ({
     },
 }))
 
-vi.mock('../../lib/supabase', () => ({ supabase: { rpc } }))
+vi.mock('../../lib/supabase', () => ({
+    supabase: {
+        rpc,
+        // touch_presence is guarded by hasLiveSession(). Live by default, so
+        // the rest of these tests are about beat behaviour.
+        auth: { getSession },
+    },
+}))
 vi.mock('../../stores/authStore', () => ({ useAuthStore: () => auth }))
 
 import { usePresenceHeartbeat } from '../usePresenceHeartbeat'
@@ -33,6 +44,8 @@ describe('presence heartbeat', () => {
         auth.isAuthenticated = true
         rpc.mockReset()
         rpc.mockResolvedValue({ error: null })
+        getSession.mockReset()
+        getSession.mockResolvedValue({ data: { session: { access_token: 't' } }, error: null })
     })
 
     afterEach(() => {
@@ -100,6 +113,19 @@ describe('presence heartbeat', () => {
         auth.isAuthenticated = false
         const hb = usePresenceHeartbeat()
         await hb.beat()
+        expect(rpc).not.toHaveBeenCalled()
+    })
+
+    it('sends no beat when the refresh token is dead, instead of failing every minute', async () => {
+        // A tab left open on a session supabase-js can no longer refresh used to
+        // beat once a minute and collect a 42501 every time - bursts of 22 to 25
+        // an hour in postgres_logs. The guard has to stop the request, not the
+        // logging of it.
+        getSession.mockResolvedValue({ data: { session: null }, error: { message: 'refresh_token_not_found' } })
+
+        usePresenceHeartbeat()
+        await vi.advanceTimersByTimeAsync(180_000)
+
         expect(rpc).not.toHaveBeenCalled()
     })
 })

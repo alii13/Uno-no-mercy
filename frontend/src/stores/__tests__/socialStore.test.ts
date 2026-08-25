@@ -3,7 +3,14 @@ import { createPinia, setActivePinia } from 'pinia'
 import { nextTick } from 'vue'
 
 const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }))
-vi.mock('../../lib/supabase', () => ({ supabase: { rpc } }))
+vi.mock('../../lib/supabase', () => ({
+    supabase: {
+        rpc,
+        // Owner-scoped RPCs are guarded by hasLiveSession(). These suites are
+        // about RPC behaviour, so the session is simply live.
+        auth: { getSession: async () => ({ data: { session: { access_token: 't' } }, error: null }) },
+    },
+}))
 
 import { useSocialStore, type FriendRow } from '../socialStore'
 import { useAuthStore } from '../authStore'

@@ -22,6 +22,7 @@ import { computed, ref, watch } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from './authStore'
 import { isFatalSchemaError } from '../utils/supabaseErrors'
+import { hasLiveSession } from '../utils/liveSession'
 
 export interface RoomInvite {
     id: string
@@ -54,6 +55,7 @@ export const useInviteStore = defineStore('invites', () => {
         if (!opts.force && Date.now() - lastReadAt < REFRESH_GAP_MS) return
         lastReadAt = Date.now()
         try {
+            if (!(await hasLiveSession())) return
             const { data, error } = await supabase.rpc('my_invites')
             if (error) {
                 if (isFatalSchemaError(error)) unavailable.value = true

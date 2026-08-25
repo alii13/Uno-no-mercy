@@ -20,6 +20,7 @@
 import { watch, onUnmounted } from 'vue'
 import { useAuthStore } from '../stores/authStore'
 import { isFatalSchemaError } from '../utils/supabaseErrors'
+import { hasLiveSession } from '../utils/liveSession'
 
 /** One beat a minute. The online window in presence.sql is two, so a single
  *  missed beat never flips a present player to offline. */
@@ -37,6 +38,10 @@ export function usePresenceHeartbeat() {
         if (disabled || inFlight || !visible() || !auth.isAuthenticated) return
         inFlight = true
         try {
+            // touch_presence is granted to `authenticated` only. A beat sent on
+            // a stale token runs as `anon` and answers 42501 every minute for
+            // as long as the tab stays open.
+            if (!(await hasLiveSession())) return
             const { supabase } = await import('../lib/supabase')
             const { error } = await supabase.rpc('touch_presence')
             // Until presence.sql runs, the function does not exist and every

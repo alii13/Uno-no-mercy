@@ -18,6 +18,7 @@ import { computed, ref, watch } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from './authStore'
 import { isFatalSchemaError } from '../utils/supabaseErrors'
+import { hasLiveSession } from '../utils/liveSession'
 
 export interface FriendRow {
     user_id: string
@@ -58,6 +59,7 @@ export const useSocialStore = defineStore('social', () => {
         if (unavailable.value) return
         loading.value = true
         try {
+            if (!(await hasLiveSession())) return
             const { data, error } = await supabase.rpc('my_friends')
             if (error) {
                 if (isFatalSchemaError(error)) unavailable.value = true

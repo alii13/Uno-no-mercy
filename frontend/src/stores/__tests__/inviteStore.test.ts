@@ -13,6 +13,9 @@ const { rpc, channelFor, unsubscribe } = vi.hoisted(() => {
 vi.mock('../../lib/supabase', () => ({
     supabase: {
         rpc,
+        // Owner-scoped RPCs are guarded by hasLiveSession(). These suites are
+        // about RPC behaviour, so the session is simply live.
+        auth: { getSession: async () => ({ data: { session: { access_token: 't' } }, error: null }) },
         channel: (name: string) => {
             const handlers: ((payload: unknown) => void)[] = []
             const ch = {
