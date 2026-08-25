@@ -53,9 +53,12 @@ export const useInviteStore = defineStore('invites', () => {
     async function refresh(opts: { force?: boolean } = {}): Promise<void> {
         if (unavailable.value) return
         if (!opts.force && Date.now() - lastReadAt < REFRESH_GAP_MS) return
-        lastReadAt = Date.now()
         try {
             if (!(await hasLiveSession())) return
+            // Stamped only now: the gap deduplicates reads, and an attempt the
+            // guard turned back was not one. Stamping earlier would keep invites
+            // stale for another gap after the token had already recovered.
+            lastReadAt = Date.now()
             const { data, error } = await supabase.rpc('my_invites')
             if (error) {
                 if (isFatalSchemaError(error)) unavailable.value = true
@@ -73,6 +76,9 @@ export const useInviteStore = defineStore('invites', () => {
         invites.value = invites.value.filter(i => i.id !== id)
         if (unavailable.value) return
         try {
+            // Guarded like the read: on a merely-stale token this refreshes and
+            // the dismiss lands, instead of failing a tap that would have worked.
+            if (!(await hasLiveSession())) return
             await supabase.rpc('dismiss_invite', { p_id: id })
         } catch { /* it is already gone from the screen */ }
     }

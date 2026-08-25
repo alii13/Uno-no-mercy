@@ -74,6 +74,10 @@ export const useSocialStore = defineStore('social', () => {
     }
 
     async function call(fn: string, args: Record<string, unknown>): Promise<string> {
+        // Same guard as the read. The point is not the log line: on a stale
+        // token this refreshes first, so the click succeeds rather than showing
+        // a generic failure for something that would have worked a moment later.
+        if (!(await hasLiveSession())) return 'failed'
         const { data, error } = await supabase.rpc(fn, args)
         if (error) {
             if (isFatalSchemaError(error)) unavailable.value = true

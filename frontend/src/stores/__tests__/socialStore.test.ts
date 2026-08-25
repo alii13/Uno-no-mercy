@@ -107,6 +107,10 @@ describe('social store', () => {
         expect(social.pendingIds.has('u2')).toBe(true)
         expect(await social.sendRequest('u2')).toBe('failed')
 
+        // call() checks the session before the RPC, so the hanging promise does
+        // not exist yet on the tick the second press resolves. Wait for the call
+        // rather than assuming it has happened - releasing early released nothing.
+        await vi.waitFor(() => expect(rpc).toHaveBeenCalled())
         release({ data: 'sent', error: null })
         expect(await first).toBe('sent')
         expect(social.pendingIds.has('u2')).toBe(false)
