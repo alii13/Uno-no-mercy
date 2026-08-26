@@ -451,6 +451,26 @@ export const useAuthStore = defineStore('auth', () => {
         }
     }
 
+    /**
+     * Names like the one they wanted, that are actually free.
+     *
+     * Feature-detected like every definer surface: an empty array until
+     * username-suggestions.sql runs, and the caller renders nothing. A rejected
+     * rename still shows its reason either way.
+     */
+    async function suggestUsernames(base: string): Promise<string[]> {
+        try {
+            const { data, error: rpcErr } = await supabase.rpc('username_suggestions', {
+                p_base: sanitizeName(base) || base,
+                p_count: 3,
+            })
+            if (rpcErr || !Array.isArray(data)) return []
+            return (data as unknown[]).filter((n): n is string => typeof n === 'string' && n.length > 0)
+        } catch {
+            return []
+        }
+    }
+
     async function sendPasswordReset(email: string) {
         try {
             const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
@@ -506,6 +526,7 @@ export const useAuthStore = defineStore('auth', () => {
         clearOAuthError,
         resendClaimEmail,
         updateUsername,
+        suggestUsernames,
         signOut,
         sendPasswordReset,
         updatePassword

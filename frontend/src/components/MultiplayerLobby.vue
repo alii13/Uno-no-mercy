@@ -18,12 +18,23 @@
             aria-label="Edit nickname"
             :aria-invalid="!!nameError"
             aria-describedby="name-error-bar"
-            @input="nameError = ''"
+            @input="nameError = ''; nameSuggestions = []"
             @keyup.enter="saveName"
             @keyup.esc="closeNameEdit"
             @blur="onNameBlur"
           />
           <p v-if="nameError" id="name-error-bar" class="name-error" role="alert">{{ nameError }}</p>
+          <div v-if="nameSuggestions.length" class="name-suggestions">
+            <span class="name-suggestions-label">Free:</span>
+            <button
+              v-for="s in nameSuggestions"
+              :key="s"
+              type="button"
+              class="name-suggestion"
+              @mousedown.prevent
+              @click="applySuggestion(s)"
+            >{{ s }}</button>
+          </div>
         </div>
         <!-- One account surface for guests and signed-in users alike: the name
              is the control, and everything about "you" hangs off it. Stats used
@@ -380,12 +391,23 @@
                   aria-label="Edit nickname"
                   :aria-invalid="!!nameError"
                   aria-describedby="name-error-room"
-                  @input="nameError = ''"
+                  @input="nameError = ''; nameSuggestions = []"
                   @keyup.enter="saveName"
                   @keyup.esc="closeNameEdit"
                   @blur="onNameBlur"
                 />
                 <p v-if="nameError" id="name-error-room" class="name-error" role="alert">{{ nameError }}</p>
+          <div v-if="nameSuggestions.length" class="name-suggestions">
+            <span class="name-suggestions-label">Free:</span>
+            <button
+              v-for="s in nameSuggestions"
+              :key="s"
+              type="button"
+              class="name-suggestion"
+              @mousedown.prevent
+              @click="applySuggestion(s)"
+            >{{ s }}</button>
+          </div>
               </div>
               <button
                 v-else-if="player.user_id === authStore.user?.id"
@@ -798,6 +820,7 @@ const editingName = ref(false)
 const editTarget = ref<'bar' | 'room' | null>(null)
 const nameInput = ref('')
 const nameError = ref('')
+const nameSuggestions = ref<string[]>([])
 const joinCode = ref('')
 const joinCodeError = ref('')
 const copied = ref(false)
@@ -1026,6 +1049,16 @@ function closeNameEdit() {
   editingName.value = false
   editTarget.value = null
   nameError.value = ''
+  nameSuggestions.value = []
+}
+
+/** Tapping a suggestion is the player accepting it, so save straight away
+ *  rather than making them press enter on a name we handed them. */
+function applySuggestion(name: string) {
+  nameInput.value = name
+  nameError.value = ''
+  nameSuggestions.value = []
+  void saveName()
 }
 
 /** A blur after a rejection means the player is walking away from the name,
@@ -1046,6 +1079,9 @@ async function saveName() {
     // already taken' for a 23505; the reason never reached the player, so a
     // taken name read as the app ignoring them.
     nameError.value = res.error || 'Could not save that name'
+    // Offered on failure only. Guessing again is the thing worth removing, and
+    // a player whose first choice was free never needs to see these.
+    nameSuggestions.value = await authStore.suggestUsernames(name)
     return
   }
 
@@ -1338,6 +1374,50 @@ function copyLink() {
   letter-spacing: 0.05em;
   max-width: 20ch;
   line-height: 1.3;
+}
+
+.name-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-1);
+  max-width: 26ch;
+}
+
+.name-suggestions-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+
+.name-suggestion {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-neon-blue);
+  background: rgba(0, 243, 255, 0.08);
+  border: 1px solid rgba(0, 243, 255, 0.35);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-1) var(--spacing-2);
+  cursor: pointer;
+  min-height: 32px;
+  transition:
+    background var(--duration-snap) var(--ease-snap),
+    border-color var(--duration-snap) var(--ease-snap);
+}
+
+.name-suggestion:hover {
+  background: rgba(0, 243, 255, 0.16);
+  border-color: var(--color-neon-blue);
+}
+
+/* A chip is a tap target on a phone, not just a label. 24px was under
+   everything else here - the inputs in this file are 44px. */
+@media (max-width: 768px) {
+  .name-suggestion {
+    min-height: 40px;
+    padding: var(--spacing-2) var(--spacing-3);
+  }
 }
 
 .text-link {

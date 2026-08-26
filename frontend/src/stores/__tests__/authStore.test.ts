@@ -21,6 +21,8 @@ const h = vi.hoisted(() => {
         profileRow: null as unknown,
         profileFetches: 0,
         upsertCalls: [] as { row: unknown; opts: unknown }[],
+        rpcCalls: [] as { fn: string; args: unknown }[],
+        rpcResult: { data: [] as unknown, error: null as unknown },
         upsertResults: [] as unknown[],
         updateUserCalls: [] as { attrs: unknown; opts: unknown }[],
         updateUserResult: { data: { user: null }, error: null } as unknown,
@@ -41,6 +43,8 @@ const h = vi.hoisted(() => {
             state.profileRow = null
             state.profileFetches = 0
             state.upsertCalls = []
+            state.rpcCalls = []
+            state.rpcResult = { data: [], error: null }
             state.upsertResults = []
             state.updateUserCalls = []
             state.updateUserResult = { data: { user: null }, error: null }
@@ -79,6 +83,10 @@ vi.mock('../../lib/supabase', () => ({
             resend: async (opts: unknown) => { h.state.resendCalls.push(opts); return { error: null } },
             linkIdentity: async (creds: unknown) => { h.state.linkIdentityCalls.push(creds); return h.state.oauthResult },
             signInWithOAuth: async (creds: unknown) => { h.state.oauthCalls.push(creds); return h.state.oauthResult },
+        },
+        rpc: async (fn: string, args: unknown) => {
+            h.state.rpcCalls.push({ fn, args })
+            return h.state.rpcResult
         },
         from: () => {
             const b: Record<string, unknown> = {}
@@ -577,5 +585,37 @@ describe('username collision resilience', () => {
 
         expect(res.success).toBe(false)
         expect(res.error).toBe('That name is already taken')
+    })
+
+    describe('suggestUsernames', () => {
+        it('asks for three names built on the rejected one', async () => {
+            h.state.rpcResult = { data: ['Rahul4821', 'Rahul7390', 'Rahul1122'], error: null }
+            const auth = useAuthStore()
+
+            const out = await auth.suggestUsernames('Rahul')
+
+            expect(out).toEqual(['Rahul4821', 'Rahul7390', 'Rahul1122'])
+            expect(h.state.rpcCalls).toEqual([
+                { fn: 'username_suggestions', args: { p_base: 'Rahul', p_count: 3 } },
+            ])
+        })
+
+        it('returns nothing when the SQL has not been run, so the surface just stays hidden', async () => {
+            h.state.rpcResult = { data: null, error: { code: '42883', message: 'no function' } }
+            const auth = useAuthStore()
+            expect(await auth.suggestUsernames('Rahul')).toEqual([])
+        })
+
+        it('drops anything in the payload that is not a usable name', async () => {
+            h.state.rpcResult = { data: ['Rahul4821', '', null, 7, 'Rahul9'], error: null }
+            const auth = useAuthStore()
+            expect(await auth.suggestUsernames('Rahul')).toEqual(['Rahul4821', 'Rahul9'])
+        })
+
+        it('returns nothing rather than throwing when the call itself fails', async () => {
+            h.state.rpcResult = { data: undefined, error: null }
+            const auth = useAuthStore()
+            expect(await auth.suggestUsernames('Rahul')).toEqual([])
+        })
     })
 })
