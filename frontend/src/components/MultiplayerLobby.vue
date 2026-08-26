@@ -8,17 +8,23 @@
       </a>
 
       <div class="top-bar-cta">
-        <input
-          v-if="editingName && editTarget === 'bar'"
-          v-model="nameInput"
-          v-focus-ring
-          class="username-edit-input"
-          maxlength="20"
-          aria-label="Edit nickname"
-          @keyup.enter="saveName"
-          @keyup.esc="editingName = false"
-          @blur="saveName"
-        />
+        <div v-if="editingName && editTarget === 'bar'" class="name-edit">
+          <input
+            v-model="nameInput"
+            v-focus-ring
+            class="username-edit-input"
+            :class="{ 'has-error': nameError }"
+            maxlength="20"
+            aria-label="Edit nickname"
+            :aria-invalid="!!nameError"
+            aria-describedby="name-error-bar"
+            @input="nameError = ''"
+            @keyup.enter="saveName"
+            @keyup.esc="closeNameEdit"
+            @blur="onNameBlur"
+          />
+          <p v-if="nameError" id="name-error-bar" class="name-error" role="alert">{{ nameError }}</p>
+        </div>
         <!-- One account surface for guests and signed-in users alike: the name
              is the control, and everything about "you" hangs off it. Stats used
              to need its own header slot; nesting it here costs no width, which
@@ -361,17 +367,26 @@
                 ></span>
               </div>
               <!-- My own seat is renamable; others render plain. -->
-              <input
+              <div
                 v-if="player.user_id === authStore.user?.id && editingName && editTarget === 'room'"
-                v-model="nameInput"
-                :ref="(el: any) => el && el.focus && el.focus()"
-                class="username-edit-input seat-edit-input"
-                maxlength="20"
-                aria-label="Edit nickname"
-                @keyup.enter="saveName"
-                @keyup.esc="editingName = false"
-                @blur="saveName"
-              />
+                class="name-edit"
+              >
+                <input
+                  v-model="nameInput"
+                  :ref="(el: any) => el && el.focus && el.focus()"
+                  class="username-edit-input seat-edit-input"
+                  :class="{ 'has-error': nameError }"
+                  maxlength="20"
+                  aria-label="Edit nickname"
+                  :aria-invalid="!!nameError"
+                  aria-describedby="name-error-room"
+                  @input="nameError = ''"
+                  @keyup.enter="saveName"
+                  @keyup.esc="closeNameEdit"
+                  @blur="onNameBlur"
+                />
+                <p v-if="nameError" id="name-error-room" class="name-error" role="alert">{{ nameError }}</p>
+              </div>
               <button
                 v-else-if="player.user_id === authStore.user?.id"
                 class="player-name player-name-editable"
@@ -782,6 +797,7 @@ const showSignOutConfirm = ref(false)
 const editingName = ref(false)
 const editTarget = ref<'bar' | 'room' | null>(null)
 const nameInput = ref('')
+const nameError = ref('')
 const joinCode = ref('')
 const joinCodeError = ref('')
 const copied = ref(false)
@@ -999,23 +1015,45 @@ async function confirmLeave() {
 // Rename can be triggered from the top-bar chip ('bar') or the waiting-room
 // seat ('room'); editTarget controls which one shows the inline input.
 function startEditName(target: 'bar' | 'room' = 'bar') {
+  nameError.value = ''
   const current = authStore.username
   nameInput.value = current && current !== 'Player' ? current : ''
   editTarget.value = target
   editingName.value = true
 }
 
-async function saveName() {
-  if (!editingName.value) return
+function closeNameEdit() {
   editingName.value = false
   editTarget.value = null
+  nameError.value = ''
+}
+
+/** A blur after a rejection means the player is walking away from the name,
+ *  not asking again with the same one - retrying would only re-reject it. */
+function onNameBlur() {
+  if (nameError.value) { closeNameEdit(); return }
+  void saveName()
+}
+
+async function saveName() {
+  if (!editingName.value) return
   const name = nameInput.value.trim()
-  if (name && name !== authStore.username) {
-    await authStore.updateUsername(name)
-    // If we're already in a game (e.g. the waiting room), also update our seat
-    // so other players see the new name, not just future games.
-    if (mpStore.currentGame) await mpStore.updateMyName(name)
+  if (!name || name === authStore.username) { closeNameEdit(); return }
+
+  const res = await authStore.updateUsername(name)
+  if (!res.success) {
+    // Stay open and say why. The store has always returned 'That name is
+    // already taken' for a 23505; the reason never reached the player, so a
+    // taken name read as the app ignoring them.
+    nameError.value = res.error || 'Could not save that name'
+    return
   }
+
+  closeNameEdit()
+  // Only once the profile actually took the name. Pushing it to the seat on a
+  // failed rename left the player with two names - the new one on their seat,
+  // the old one on their profile, leaderboard and share page.
+  if (mpStore.currentGame) await mpStore.updateMyName(name)
 }
 
 // --- Account menu ---------------------------------------------------------
@@ -1278,6 +1316,28 @@ function copyLink() {
 
 .username-edit-input:focus {
   outline: none;
+}
+
+/* The input keeps its own width; this only stacks the reason beneath it. */
+.name-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  align-items: flex-start;
+}
+
+.username-edit-input.has-error {
+  border-color: var(--color-alert);
+}
+
+.name-error {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-alert);
+  letter-spacing: 0.05em;
+  max-width: 20ch;
+  line-height: 1.3;
 }
 
 .text-link {
