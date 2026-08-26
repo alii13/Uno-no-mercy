@@ -31,6 +31,11 @@
  *   daily_finished     { result: won|lost|eliminated, turns }
  *   bot_defeated       { bot_id, rung: 1..8 }
  *   play_clicked       { method: guest }
+ *   rename_suggestions_shown { count }  — a rename was refused and free names
+ *                            were offered. Pairs with the next one: the
+ *                            tap-through rate is the only verdict on whether
+ *                            suggesting names beat just reporting the refusal.
+ *   rename_suggestion_taken  {}  — one of them was tapped
  *   signin_failed      { message }
  *   signin_retry       {}
  *
