@@ -1055,6 +1055,7 @@ function closeNameEdit() {
 /** Tapping a suggestion is the player accepting it, so save straight away
  *  rather than making them press enter on a name we handed them. */
 function applySuggestion(name: string) {
+  track('rename_suggestion_taken')
   nameInput.value = name
   nameError.value = ''
   nameSuggestions.value = []
@@ -1082,6 +1083,9 @@ async function saveName() {
     // Offered on failure only. Guessing again is the thing worth removing, and
     // a player whose first choice was free never needs to see these.
     nameSuggestions.value = await authStore.suggestUsernames(name)
+    if (nameSuggestions.value.length) {
+      track('rename_suggestions_shown', { count: nameSuggestions.value.length })
+    }
     return
   }
 

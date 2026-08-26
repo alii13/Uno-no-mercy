@@ -33,7 +33,13 @@ begin
     -- Strip a trailing number so a rejected `Rahul7` suggests variants of
     -- `Rahul`, not of `Rahul7`. Capped at 15 so the 4-digit suffix keeps the
     -- whole name inside the 20 characters the input accepts.
-    base := left(regexp_replace(coalesce(p_base, ''), '[0-9]+$', ''), 15);
+    --
+    -- The inner left() is the important one: this is granted to `anon` and the
+    -- anon key is public, so p_base is whatever a request body carries, not
+    -- something the 20-char input limited. Capping after the regex would let an
+    -- arbitrarily long string be scanned first. 40 leaves room for a long name
+    -- with a trailing number to still strip correctly.
+    base := left(regexp_replace(left(coalesce(p_base, ''), 40), '[0-9]+$', ''), 15);
     if base = '' then
         base := 'Player';
     end if;

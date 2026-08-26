@@ -461,7 +461,10 @@ export const useAuthStore = defineStore('auth', () => {
     async function suggestUsernames(base: string): Promise<string[]> {
         try {
             const { data, error: rpcErr } = await supabase.rpc('username_suggestions', {
-                p_base: sanitizeName(base) || base,
+                // Sanitised only. The `|| base` this replaced fired exactly when
+                // sanitizeName() emptied the string, so its one job was to forward
+                // raw input - and the function already falls back to 'Player'.
+                p_base: sanitizeName(base),
                 p_count: 3,
             })
             if (rpcErr || !Array.isArray(data)) return []
