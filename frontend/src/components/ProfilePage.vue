@@ -88,6 +88,66 @@
           </div>
         </section>
 
+        <!-- Where they stand in the field. Hidden rather than guessed at when
+             profile-dossier.sql has not been run. -->
+        <section v-if="dossier.standing.value" class="pp-standing-section">
+          <h3 class="pp-section-title">STANDING</h3>
+          <div class="pp-standing">
+            <div class="pp-standing-cell">
+              <p class="pp-standing-label">GLOBAL RANK</p>
+              <p class="pp-standing-value pp-standing-value--global">#{{ dossier.standing.value.globalRank!.toLocaleString() }}</p>
+              <p class="pp-standing-sub">
+                of {{ dossier.standing.value.globalTotal.toLocaleString() }}<template v-if="topPercent"> · top {{ topPercent }}%</template>
+              </p>
+            </div>
+            <div v-if="dossier.standing.value.countryRank && flagEmoji(p.country)" class="pp-standing-cell">
+              <p class="pp-standing-label">
+                <span class="pp-standing-flag" aria-hidden="true">{{ flagEmoji(p.country) }}</span> COUNTRY
+              </p>
+              <p class="pp-standing-value">#{{ dossier.standing.value.countryRank.toLocaleString() }}</p>
+              <p class="pp-standing-sub">of {{ dossier.standing.value.countryTotal.toLocaleString() }}</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- The ladder they are climbing, and where they sit on it -->
+        <section v-if="badgeInfo" class="pp-ladder-section">
+          <h3 class="pp-section-title">THE LADDER</h3>
+          <ol class="pp-ladder">
+            <li
+              v-for="tier in BADGES"
+              :key="tier.tier"
+              class="pp-ladder-row"
+              :class="{
+                'pp-ladder-row--current': tier.tier === badgeInfo.badge.tier,
+                'pp-ladder-row--locked': tier.tier > badgeInfo.badge.tier,
+              }"
+            >
+              <Badge class="pp-ladder-mark" :badge="tier" size="mark" aria-hidden="true" />
+              <span class="pp-ladder-name">{{ tier.title }}</span>
+              <span class="pp-ladder-threshold">{{ tier.threshold.toLocaleString() }}</span>
+            </li>
+          </ol>
+        </section>
+
+        <!-- Every badge they have taken, and when -->
+        <section v-if="dossier.promotions.value.length" class="pp-upgrades-section">
+          <h3 class="pp-section-title">UPGRADES</h3>
+          <ol class="pp-upgrades">
+            <li
+              v-for="(promotion, i) in dossier.promotions.value"
+              :key="promotion.badge.tier"
+              class="pp-upgrade"
+              :class="{ 'pp-upgrade--current': promotion.badge.tier === badgeInfo?.badge.tier }"
+            >
+              <span v-if="i > 0" class="pp-upgrade-link" aria-hidden="true"></span>
+              <Badge class="pp-upgrade-mark" :badge="promotion.badge" size="mark" aria-hidden="true" />
+              <span class="pp-upgrade-name">{{ promotion.badge.title }}</span>
+              <span class="pp-upgrade-when">{{ shortDate(promotion.at) }}</span>
+            </li>
+          </ol>
+        </section>
+
         <!-- Play-day calendar: green = win day, red = loss day -->
         <section v-if="pp.activity.value.length" class="pp-activity">
           <h3 class="pp-section-title">
@@ -108,8 +168,25 @@
           </ul>
         </section>
 
-        <!-- Last 10 games, most recent first -->
-        <section v-if="p.recent_form.length" class="pp-form">
+        <!-- Last 10 games. The detailed rows need profile-dossier.sql; without
+             it the page falls back to the W/L strip public_profile returns. -->
+        <section v-if="dossier.games.value.length" class="pp-games">
+          <h3 class="pp-section-title">
+            RECENT GAMES <span class="pp-title-note">LATEST FIRST</span>
+          </h3>
+          <ul class="pp-game-rows">
+            <li v-for="(g, i) in dossier.games.value" :key="i" class="pp-game-row">
+              <span class="pp-game-result" :class="'pp-game-result--' + g.result">
+                {{ g.result.charAt(0).toUpperCase() }}
+              </span>
+              <span class="pp-game-mode">{{ g.is_bot_game ? 'BOT' : 'PVP' }}</span>
+              <span class="pp-game-line">{{ gameSummary(g) }}</span>
+              <span class="pp-game-points" :class="{ 'pp-game-points--win': g.result === 'won' }">+{{ g.points }}</span>
+              <span class="pp-game-date">{{ shortDate(g.played_at) }}</span>
+            </li>
+          </ul>
+        </section>
+        <section v-else-if="p.recent_form.length" class="pp-form">
           <h3 class="pp-section-title">
             RECENT FORM <span class="pp-title-note">LATEST FIRST</span>
           </h3>
@@ -173,6 +250,8 @@ import { useSocialStore, type SendResult } from '../stores/socialStore'
 import { shareProfile } from '../utils/share'
 import { track } from '../utils/analytics'
 import { useBadges } from '../composables/useBadges'
+import { useProfileDossier, type ProfileGame } from '../composables/useProfileDossier'
+import { BADGES } from '../utils/badges'
 import ActivityHeatmap from './ActivityHeatmap.vue'
 import SiteFooter from './SiteFooter.vue'
 import Button from './ui/Button.vue'
@@ -182,6 +261,7 @@ const props = defineProps<{ code: string }>()
 defineEmits<{ (e: 'back'): void; (e: 'dashboard'): void }>()
 
 const pp = useProfile()
+const dossier = useProfileDossier()
 const authStore = useAuthStore()
 const motion = useMotion()
 const contentEl = ref<HTMLElement | null>(null)
@@ -309,8 +389,42 @@ watch(p, async (val) => {
     }
 })
 
-onMounted(() => { void pp.fetchProfile(props.code) })
-watch(() => props.code, (code) => { void pp.fetchProfile(code) })
+/** Rounded up, so the very top of the board never reads "top 0%". */
+const topPercent = computed(() => {
+    const st = dossier.standing.value
+    if (!st?.globalRank || st.globalTotal <= 0) return 0
+    return Math.max(1, Math.ceil((st.globalRank / st.globalTotal) * 100))
+})
+
+function shortDate(iso: string): string {
+    const d = new Date(iso)
+    return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+/** One line on what actually happened, from the fields the row carries. */
+function gameSummary(g: ProfileGame): string {
+    switch (g.result) {
+        case 'won':
+            return g.biggest_stack_survived > 0
+                ? `Beat ${g.opponent_count} players · ate a +${g.biggest_stack_survived} stack`
+                : `Beat ${g.opponent_count} players in ${g.cards_played_total} cards`
+        case 'lost':
+            return `Held ${g.cards_remaining} cards at the buzzer`
+        case 'eliminated':
+            return `Eliminated at ${g.peak_cards} cards`
+        default:
+            return `Walked away after ${g.cards_played_total} cards`
+    }
+}
+
+onMounted(() => {
+    void pp.fetchProfile(props.code)
+    void dossier.fetchDossier(props.code)
+})
+watch(() => props.code, (code) => {
+    void pp.fetchProfile(code)
+    void dossier.fetchDossier(code)
+})
 </script>
 
 <style scoped>
@@ -722,5 +836,254 @@ watch(() => props.code, (code) => { void pp.fetchProfile(code) })
   .pp-hero { flex-direction: column; text-align: center; }
   .pp-name-row { justify-content: center; }
   .pp-progress { width: 100%; }
+}
+
+/* ---- Dossier sections (standing, ladder, upgrades, games) ---------------- */
+
+.pp-standing {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.pp-standing-cell {
+  flex: 1 1 180px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding-right: var(--spacing-6);
+}
+
+.pp-standing-cell + .pp-standing-cell {
+  padding-left: var(--spacing-6);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pp-standing-label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.18em;
+  color: var(--text-muted);
+}
+
+.pp-standing-flag { font-size: 1em; line-height: 1; }
+
+.pp-standing-value {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  line-height: 1;
+  color: var(--text-primary);
+}
+
+/* One cyan moment: the number this panel exists for. */
+.pp-standing-value--global { color: var(--color-neon-blue); }
+
+.pp-standing-sub {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.pp-ladder {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.pp-ladder-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-1) var(--spacing-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.pp-ladder-row--current {
+  border-color: color-mix(in srgb, var(--color-hazard) 35%, transparent);
+  background: rgba(255, 204, 0, 0.08);
+  color: var(--text-primary);
+}
+
+.pp-ladder-row--locked { color: var(--text-muted); }
+.pp-ladder-row--locked .pp-ladder-mark { opacity: 0.4; }
+
+.pp-ladder-mark { flex: none; }
+.pp-ladder-mark :deep(.badge-emblem) { width: 22px; height: 22px; }
+
+.pp-ladder-name { flex: 1; min-width: 0; }
+
+.pp-ladder-threshold {
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* A chain you read left to right, each node joined to the last. */
+.pp-upgrades {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: flex-start;
+}
+
+.pp-upgrade {
+  flex: 1 1 0;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding-top: var(--spacing-4);
+  font-family: var(--font-mono);
+  text-align: center;
+}
+
+.pp-upgrade-link {
+  position: absolute;
+  top: calc(var(--spacing-4) + 11px);
+  right: 50%;
+  width: 100%;
+  height: 1px;
+  background: #27272a;
+}
+
+.pp-upgrade-mark :deep(.badge-emblem) { width: 22px; height: 22px; }
+.pp-upgrade--current .pp-upgrade-mark :deep(.badge-emblem) { width: 30px; height: 30px; }
+
+.pp-upgrade-name {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.pp-upgrade--current .pp-upgrade-name { color: var(--color-hazard); }
+
+.pp-upgrade-when {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.pp-game-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.pp-game-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+}
+
+.pp-game-result {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+}
+
+.pp-game-result--won { background: var(--color-neon-green); color: var(--bg-concrete); }
+.pp-game-result--lost { background: var(--color-alert); color: #ffffff; }
+.pp-game-result--eliminated { background: var(--text-muted); color: #ffffff; }
+.pp-game-result--abandoned { background: rgba(255, 255, 255, 0.1); color: var(--text-muted); }
+
+.pp-game-mode {
+  flex: none;
+  width: 34px;
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+}
+
+.pp-game-line {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pp-game-points {
+  flex: none;
+  width: 56px;
+  text-align: right;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.pp-game-points--win { color: var(--color-hazard); }
+
+.pp-game-date {
+  flex: none;
+  width: 56px;
+  text-align: right;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+@media (max-width: 600px) {
+  .pp-standing-cell { flex: 1 1 100%; padding-right: 0; }
+
+  .pp-standing-cell + .pp-standing-cell {
+    padding-left: 0;
+    padding-top: var(--spacing-3);
+    margin-top: var(--spacing-3);
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* A chain has no room on a phone; the nodes become rows. */
+  .pp-upgrades { flex-direction: column; align-items: stretch; gap: var(--spacing-1); }
+
+  .pp-upgrade {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--spacing-3);
+    padding: var(--spacing-2) var(--spacing-3);
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: var(--radius-sm);
+    text-align: left;
+  }
+
+  .pp-upgrade--current { border-color: color-mix(in srgb, var(--color-hazard) 30%, transparent); }
+  .pp-upgrade-link { display: none; }
+  .pp-upgrade-name { flex: 1; min-width: 0; }
+  .pp-upgrade--current .pp-upgrade-mark :deep(.badge-emblem) { width: 22px; height: 22px; }
+
+  .pp-game-mode { display: none; }
+  .pp-game-line { font-size: var(--text-xs); }
 }
 </style>
