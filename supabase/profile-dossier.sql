@@ -30,6 +30,25 @@
 -- Where this player stands, globally and in their own country.
 -- alltime_my_rank answers this for the CALLER via auth.uid(); a profile page is
 -- about somebody else, so the target comes from the share code instead.
+--
+-- KNOWN COST, accepted deliberately (2026-08-29): this aggregates the whole of
+-- game_results on every call. Measured at 32,912 rows / 3,308 scored players:
+--
+--   GroupAggregate (actual rows=3308) <- Incremental Sort (actual rows=32912)
+--   Execution Time: 449.344 ms
+--
+-- The ranking itself is free; the aggregate is the whole cost, and it grows
+-- with total games played rather than with users. alltime_leaderboard and
+-- alltime_my_rank pay the identical cost, so the site pays it three ways.
+--
+-- The fix, when it starts to hurt: one materialised view of the scored set
+-- (user_id, country, games, points), refreshed on a schedule, with all three
+-- functions reading from it — profile rank becomes a lookup plus a ranking over
+-- ~3k rows. pg_cron 1.6.4 is available on the project but not installed. The
+-- trade is staleness bounded by the refresh interval, which an all-time board
+-- can absorb: it already ignores decay for the same "record of what happened"
+-- reason. A trigger-maintained table is the other option and is rejected here,
+-- because it would put the points arithmetic in a fifth place.
 -- ---------------------------------------------------------------------------
 
 drop function if exists public.profile_rank(text);
