@@ -404,10 +404,13 @@ function shortDate(iso: string): string {
 /** One line on what actually happened, from the fields the row carries. */
 function gameSummary(g: ProfileGame): string {
     switch (g.result) {
-        case 'won':
+        case 'won': {
+            // opponent_count is 1 in a one-bot game, so this cannot be hardcoded plural.
+            const who = g.opponent_count === 1 ? '1 opponent' : `${g.opponent_count} players`
             return g.biggest_stack_survived > 0
-                ? `Beat ${g.opponent_count} players · ate a +${g.biggest_stack_survived} stack`
-                : `Beat ${g.opponent_count} players in ${g.cards_played_total} cards`
+                ? `Beat ${who} · ate a +${g.biggest_stack_survived} stack`
+                : `Beat ${who} in ${g.cards_played_total} cards`
+        }
         case 'lost':
             return `Held ${g.cards_remaining} cards at the buzzer`
         case 'eliminated':

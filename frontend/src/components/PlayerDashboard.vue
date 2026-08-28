@@ -317,10 +317,13 @@ function gamePoints(game: RecentGame): number {
 function gameSummary(game: RecentGame): string {
   const stack = game.biggest_stack_survived
   switch (game.result) {
-    case 'won':
+    case 'won': {
+      // opponent_count is 1 in a one-bot game, so this cannot be hardcoded plural.
+      const who = game.opponent_count === 1 ? '1 opponent' : `${game.opponent_count} players`
       return stack > 0
-        ? `Beat ${game.opponent_count} players · ate a +${stack} stack`
-        : `Beat ${game.opponent_count} players in ${game.cards_played_total} cards`
+        ? `Beat ${who} · ate a +${stack} stack`
+        : `Beat ${who} in ${game.cards_played_total} cards`
+    }
     case 'lost':
       return `Held ${game.cards_remaining} cards at the buzzer`
     case 'eliminated':
