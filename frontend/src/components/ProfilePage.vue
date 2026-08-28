@@ -27,7 +27,7 @@
           ? 'This profile link doesn\'t match any player.'
           : 'Public profiles aren\'t live yet. The game definitely is.' }}
       </p>
-      <Button variant="primary" size="lg" @click="$emit('back')">PLAY OPEN MERCY — FREE</Button>
+      <Button variant="primary" size="lg" @click="$emit('back')">PLAY</Button>
     </div>
 
     <div v-else-if="p" ref="contentEl" class="pp-content">
@@ -46,6 +46,7 @@
         </p>
       </header>
 
+      <div class="pp-side">
       <!-- RAIL — the badge is the hero of this page -->
       <aside class="pp-rail">
         <Badge
@@ -83,6 +84,28 @@
         </ol>
       </aside>
 
+      <!-- The growth loop: visitors get the challenge, the owner gets tools -->
+      <section v-if="!isOwn" class="pp-cta">
+        <div class="pp-cta-head">
+          <span class="pp-cta-title">TAKE THEM ON</span>
+        </div>
+        <p class="pp-cta-line">Think you can beat {{ p.username }}?</p>
+        <Button variant="primary" size="md" block @click="$emit('back')">PLAY</Button>
+      </section>
+      <section v-else class="pp-cta pp-cta--own">
+        <div class="pp-cta-head">
+          <span class="pp-cta-title">YOUR PROFILE</span>
+        </div>
+        <p v-if="authStore.isAnonymous" class="pp-cta-line">This is your guest profile - claim it from the lobby (CLAIM ACCOUNT) and everything here is yours forever.</p>
+        <Button v-if="authStore.isAnonymous" variant="secondary" size="md" block @click="$emit('back')">GO TO LOBBY</Button>
+        <!-- The one owner tool that is not on the page already: a PNG of these
+             numbers, worth posting. Renaming lives in the lobby. -->
+        <button v-if="p.games > 0" class="pp-own-link" @click="showShareCard = true">
+          SHARE A STATS CARD <ArrowRight :size="14" :stroke-width="2" aria-hidden="true" />
+        </button>
+      </section>
+      </div>
+
       <div class="pp-record">
       <div v-if="p.games === 0" class="pp-empty">First game pending. The deck is waiting.</div>
 
@@ -110,29 +133,27 @@
         </section>
 
         <!-- Every badge they have taken, and when -->
-        <section v-if="dossier.promotions.value.length" class="pp-upgrades-section">
+        <section v-if="recentPromotions.length" class="pp-upgrades-section">
           <h3 class="pp-section-title">UPGRADES</h3>
           <ol class="pp-upgrades">
             <li
-              v-for="(promotion, i) in dossier.promotions.value"
+              v-for="(promotion, i) in recentPromotions"
               :key="promotion.badge.tier"
               class="pp-upgrade"
               :class="{ 'pp-upgrade--current': promotion.badge.tier === badgeInfo?.badge.tier }"
             >
               <span v-if="i > 0" class="pp-upgrade-link" aria-hidden="true"></span>
               <Badge class="pp-upgrade-mark" :badge="promotion.badge" size="mark" aria-hidden="true" />
-              <span class="pp-upgrade-name">{{ promotion.badge.title }}</span>
+              <span class="pp-upgrade-name" :style="{ color: promotion.badge.color }">{{ promotion.badge.title }}</span>
               <span class="pp-upgrade-when">{{ shortDate(promotion.at) }}</span>
             </li>
+            <li v-if="badgeInfo?.progress.next" class="pp-upgrade pp-upgrade--next">
+              <span class="pp-upgrade-link pp-upgrade-link--pending" aria-hidden="true"></span>
+              <span class="pp-upgrade-pending" :style="{ borderColor: badgeInfo.progress.next.color }" aria-hidden="true"></span>
+              <span class="pp-upgrade-name" :style="{ color: badgeInfo.progress.next.color }">{{ badgeInfo.progress.next.title }}</span>
+              <span class="pp-upgrade-when">{{ badgeInfo.progress.needed.toLocaleString() }} to go</span>
+            </li>
           </ol>
-        </section>
-
-        <!-- Play-day calendar: green = win day, red = loss day -->
-        <section v-if="pp.activity.value.length" class="pp-activity">
-          <h3 class="pp-section-title">
-            ACTIVITY <span class="pp-title-note">{{ activityTotal }} GAMES · LAST 6 MONTHS</span>
-          </h3>
-          <ActivityHeatmap :activity="pp.activity.value" />
         </section>
 
         <section class="pp-panel">
@@ -180,31 +201,6 @@
 
       </template>
 
-      <!-- The growth loop: visitors get the challenge, the owner gets tools -->
-      <section v-if="!isOwn" class="pp-cta">
-        <!-- Only for a signed-in visitor: a friend request needs an account
-             to come from, and a guest account counts. -->
-        <button
-          v-if="canAddFriend"
-          class="pp-add-friend"
-          :disabled="social.pendingIds.has(p.user_id!)"
-          @click="addFriend"
-        >
-          <UserPlus :size="14" :stroke-width="2" aria-hidden="true" />
-          {{ addLabel }}
-        </button>
-        <p class="pp-cta-line">Think you can beat {{ p.username }}?</p>
-        <Button variant="primary" size="lg" block @click="$emit('back')">PLAY OPEN MERCY — FREE</Button>
-      </section>
-      <section v-else class="pp-cta pp-cta--own">
-        <p v-if="authStore.isAnonymous" class="pp-cta-line">This is your guest profile - claim it from the lobby (CLAIM ACCOUNT) and everything here is yours forever.</p>
-        <Button v-if="authStore.isAnonymous" variant="secondary" size="md" block @click="$emit('back')">GO TO LOBBY</Button>
-        <!-- The one owner tool that is not on the page already: a PNG of these
-             numbers, worth posting. Renaming lives in the lobby. -->
-        <button v-if="p.games > 0" class="pp-own-link" @click="showShareCard = true">
-          SHARE A STATS CARD <ArrowRight :size="14" :stroke-width="2" aria-hidden="true" />
-        </button>
-      </section>
       </div>
     </div>
 
@@ -231,7 +227,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
-import { ArrowRight, Check, ChevronLeft, UserPlus } from 'lucide-vue-next'
+import { ArrowRight, Check, ChevronLeft } from 'lucide-vue-next'
 import gsap from 'gsap'
 import { useProfile } from '../composables/useProfile'
 import { useMotion } from '../composables/useMotion'
@@ -240,13 +236,12 @@ import { flagEmoji } from '../utils/country'
 import { usePresence } from '../composables/usePresence'
 import { useNow } from '../composables/useClock'
 import { isOnline, relativeTime } from '../utils/relativeTime'
-import { useSocialStore, type SendResult } from '../stores/socialStore'
+import { useSocialStore } from '../stores/socialStore'
 import { shareProfile } from '../utils/share'
 import { track } from '../utils/analytics'
 import { useBadges } from '../composables/useBadges'
 import { useProfileDossier, type ProfileGame } from '../composables/useProfileDossier'
 import { BADGES } from '../utils/badges'
-import ActivityHeatmap from './ActivityHeatmap.vue'
 import SiteFooter from './SiteFooter.vue'
 import Button from './ui/Button.vue'
 import Badge from './Badge.vue'
@@ -289,37 +284,7 @@ const presenceNow = useNow()
 // Friends. The list is read once so the button can say what it already is,
 // rather than offering ADD to someone you asked yesterday.
 const social = useSocialStore()
-const sendResult = ref<SendResult | null>(null)
 onMounted(() => { if (authStore.isAuthenticated) void social.refresh() })
-
-const canAddFriend = computed(() =>
-    !!p.value?.user_id && authStore.isAuthenticated && !social.unavailable && !isOwn.value,
-)
-
-const addLabel = computed(() => {
-    const id = p.value?.user_id
-    const known = id ? social.rows.find(r => r.user_id === id) : undefined
-    if (known?.status === 'accepted') return 'FRIENDS'
-    if (known?.status === 'blocked') return 'BLOCKED'
-    if (known?.status === 'pending') return known.incoming ? 'ACCEPT REQUEST' : 'REQUEST SENT'
-    if (sendResult.value === 'rate_limited') return 'TRY AGAIN TOMORROW'
-    if (sendResult.value === 'declined') return 'ASK LATER'
-    if (sendResult.value === 'failed') return 'TRY AGAIN'
-    return 'ADD FRIEND'
-})
-
-async function addFriend() {
-    const id = p.value?.user_id
-    if (!id) return
-    const known = social.rows.find(r => r.user_id === id)
-    // Their request is already waiting: the same button accepts it.
-    if (known?.status === 'pending' && known.incoming) {
-        await social.respond(id, true)
-        return
-    }
-    if (known) return
-    sendResult.value = await social.sendRequest(id)
-}
 
 // Same batched lookup and same cache the leaderboard and the friends list
 // use - one presence path, so the dot cannot disagree with itself.
@@ -356,7 +321,6 @@ const records = computed<RecordRow[]>(() => {
 
 const FORM_LETTER: Record<string, string> = { won: 'W', lost: 'L', eliminated: 'E', abandoned: '–' }
 
-const activityTotal = computed(() => pp.activity.value.reduce((n, d) => n + d.games, 0))
 
 
 const shareState = ref<'idle' | 'copied'>('idle')
@@ -399,6 +363,10 @@ const topPercent = computed(() => {
     if (!st?.globalRank || st.globalTotal <= 0) return 0
     return Math.max(1, Math.ceil((st.globalRank / st.globalTotal) * 100))
 })
+
+/** The chain reads as a run-up to where they are now, so it shows the last few
+ *  tiers rather than all ten - at ten the labels have no room to breathe. */
+const recentPromotions = computed(() => dossier.promotions.value.slice(-5))
 
 function shortDate(iso: string): string {
     const d = new Date(iso)
@@ -612,16 +580,6 @@ watch(() => props.code, (code) => {
   color: var(--text-secondary);
 }
 
-.pp-cta {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-3);
-  padding: var(--spacing-6);
-  text-align: center;
-  background: rgba(0, 229, 255, 0.04);
-  border: 1px solid rgba(0, 229, 255, 0.3);
-  border-radius: var(--radius-md);
-}
 
 .pp-cta--own {
   background: rgba(255, 255, 255, 0.02);
@@ -686,6 +644,9 @@ watch(() => props.code, (code) => {
 .pp-standing {
   display: flex;
   flex-wrap: wrap;
+  padding-block: var(--spacing-6);
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .pp-standing-cell {
@@ -795,29 +756,48 @@ watch(() => props.code, (code) => {
   text-align: center;
 }
 
+/* A short rule in the gap between two emblems, inset so it never runs into
+   either one. */
 .pp-upgrade-link {
   position: absolute;
   top: calc(var(--spacing-4) + 11px);
-  right: 50%;
-  width: 100%;
+  right: calc(50% + 16px);
+  width: calc(100% - 32px);
   height: 1px;
-  background: #27272a;
+  background: #3f3f46;
+}
+
+/* The tier not yet taken: a dashed run-up to a dashed hexagon. */
+.pp-upgrade-link--pending {
+  background: repeating-linear-gradient(to right, #3f3f46 0 4px, transparent 4px 8px);
+}
+
+.pp-upgrade-pending {
+  width: 22px;
+  height: 22px;
+  border: 1.5px dashed currentColor;
+  opacity: 0.75;
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
 }
 
 .pp-upgrade-mark :deep(.badge-emblem) { width: 22px; height: 22px; }
 .pp-upgrade--current .pp-upgrade-mark :deep(.badge-emblem) { width: 30px; height: 30px; }
 
+/* A wrap here shoves the date out of the row and breaks the chain's baseline,
+   so the label never wraps. Capping the chain at five tiers is what buys it
+   the room to stay on one line. */
 .pp-upgrade-name {
   max-width: 100%;
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  overflow-wrap: anywhere;
-  color: var(--text-secondary);
+  white-space: nowrap;
 }
 
-.pp-upgrade--current .pp-upgrade-name { color: var(--color-hazard); }
+.pp-upgrade--current .pp-upgrade-name { font-size: var(--text-xs); }
+.pp-upgrade--current .pp-upgrade-when { color: var(--text-primary); }
+.pp-upgrade--next { opacity: 0.75; }
 
 .pp-upgrade-when {
   font-size: var(--text-xs);
@@ -899,15 +879,19 @@ watch(() => props.code, (code) => {
 }
 
 @media (max-width: 600px) {
-  .pp-standing-cell { flex: 1 1 100%; padding-right: 0; }
+  /* Both ranks stay on one row on a phone: two short numbers side by side read
+     faster than two tall stacked blocks, and they fit. */
+  .pp-standing-cell {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-right: var(--spacing-3);
+  }
 
   .pp-standing-cell + .pp-standing-cell {
-    padding-left: 0;
-    padding-top: var(--spacing-3);
-    margin-top: var(--spacing-3);
-    border-left: none;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-left: var(--spacing-3);
   }
+
+  .pp-standing-value { font-size: var(--text-2xl); }
 
   /* A chain has no room on a phone; the nodes become rows. */
   .pp-upgrades { flex-direction: column; align-items: stretch; gap: var(--spacing-1); }
@@ -950,8 +934,17 @@ watch(() => props.code, (code) => {
 }
 
 .pp-who { grid-area: who; }
-.pp-rail { grid-area: rail; }
 .pp-record { grid-area: record; }
+
+/* The rail is shorter than the record, so the call to action sits in the space
+   under it rather than stranding the column half empty. */
+.pp-side {
+  grid-area: rail;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
 
 .pp-who {
   display: flex;
@@ -1003,7 +996,6 @@ watch(() => props.code, (code) => {
 }
 
 .pp-rail {
-  align-self: start;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1059,14 +1051,14 @@ watch(() => props.code, (code) => {
   align-self: start;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-6);
+  gap: var(--spacing-8);
   min-width: 0;
 }
 
 .pp-panel {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-3);
+  gap: var(--spacing-4);
 }
 
 /* Five cards across, matching the dossier's service record. */
@@ -1076,7 +1068,7 @@ watch(() => props.code, (code) => {
   padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--spacing-2);
+  gap: var(--spacing-3);
 }
 
 .pp-record-card {
@@ -1121,4 +1113,52 @@ watch(() => props.code, (code) => {
   .pp-record-card { flex: 1 1 calc(50% - var(--spacing-2)); }
 }
 
+
+.pp-cta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-4);
+  background: linear-gradient(180deg, rgba(255, 204, 0, 0.05), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 204, 0, 0.14);
+  border-radius: var(--radius-md);
+  text-align: left;
+}
+
+.pp-cta-head {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-wrap: wrap;
+}
+
+.pp-cta-title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 0.12em;
+  color: var(--text-primary);
+}
+
+.pp-cta-line {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+@media (max-width: 900px) {
+  .pp-name { font-size: var(--text-3xl); }
+  .pp-flag { font-size: 0.9em; }
+
+  /* Stacked, the call to action belongs after the record, not wedged between
+     the badge and the stats. `display: contents` drops the side wrapper so its
+     two children can take grid areas of their own. */
+  .pp-content {
+    grid-template-areas: 'who' 'rail' 'record' 'cta';
+  }
+
+  .pp-side { display: contents; }
+  .pp-rail { grid-area: rail; }
+  .pp-cta { grid-area: cta; }
+}
 </style>
