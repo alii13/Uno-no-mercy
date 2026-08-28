@@ -15,7 +15,7 @@ import { useAuthStore } from '../stores/authStore'
 import type { AlltimeContext } from './useLeaderboard'
 
 export interface Standing {
-    rank: number | null
+    rank: number
     total: number
 }
 
@@ -44,7 +44,6 @@ export function useProfileStanding() {
         const iso = authStore.profile?.country ?? null
         const key = `${userId}:${iso ?? ''}`
         if (key === lastKey) return
-        lastKey = key
 
         loading.value = true
         try {
@@ -61,6 +60,9 @@ export function useProfileStanding() {
             available.value = true
             globalRank.value = toStanding(firstRow(g))
             countryRank.value = toStanding(firstRow(c))
+            // Only a success is worth not repeating. Remembering the key before
+            // the call would cache a dropped connection for the whole session.
+            lastKey = key
         } catch {
             // Offline or a missing function — hide the surface, never block the page.
             available.value = false

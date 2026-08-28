@@ -71,6 +71,7 @@
           <span class="rail-points-label">POINTS EARNED</span>
         </div>
 
+        <p class="ladder-title">THE LADDER</p>
         <ol class="ladder">
           <li
             v-for="tier in BADGES"
@@ -81,7 +82,7 @@
               'ladder-row--locked': tier.tier > badge.tier,
             }"
           >
-            <Badge class="ladder-mark" :badge="tier" size="mark" />
+            <Badge class="ladder-mark" :badge="tier" size="mark" aria-hidden="true" />
             <span class="ladder-name">{{ tier.title }}</span>
             <span class="ladder-threshold">{{ tier.threshold.toLocaleString() }}</span>
           </li>
@@ -94,14 +95,14 @@
           <div class="standing">
             <div class="standing-cell">
               <p class="standing-label">GLOBAL RANK</p>
-              <p class="standing-value">#{{ globalRank.rank!.toLocaleString() }}</p>
+              <p class="standing-value standing-value--global">#{{ globalRank.rank.toLocaleString() }}</p>
               <p class="standing-sub">
                 of {{ globalRank.total.toLocaleString() }}<template v-if="topPercent"> · top {{ topPercent }}%</template>
               </p>
             </div>
             <div v-if="countryRank && flag" class="standing-cell">
               <p class="standing-label"><span class="standing-flag" aria-hidden="true">{{ flag }}</span> COUNTRY</p>
-              <p class="standing-value">#{{ countryRank.rank!.toLocaleString() }}</p>
+              <p class="standing-value">#{{ countryRank.rank.toLocaleString() }}</p>
               <p class="standing-sub">of {{ countryRank.total.toLocaleString() }}</p>
             </div>
           </div>
@@ -137,34 +138,44 @@
           <h2 class="panel-title">UPGRADES</h2>
           <ol class="upgrades">
             <li
-              v-for="promotion in promotions"
+              v-for="(promotion, i) in promotions"
               :key="promotion.badge.tier"
               class="upgrade"
               :class="{ 'upgrade--current': promotion.badge.tier === badge.tier }"
             >
-              <Badge class="ladder-mark" :badge="promotion.badge" size="mark" />
+              <span v-if="i > 0" class="upgrade-link" aria-hidden="true"></span>
+              <Badge class="upgrade-mark" :badge="promotion.badge" size="mark" aria-hidden="true" />
               <span class="upgrade-name">{{ promotion.badge.title }}</span>
-              <span class="upgrade-when">{{ formatDate(promotion.at) }} · {{ upgradeGap(promotion) }}</span>
+              <span class="upgrade-when">{{ formatDate(promotion.at) }}</span>
+              <span class="upgrade-gap">{{ upgradeGap(promotion) }}</span>
             </li>
             <li v-if="badgeProgress.next" class="upgrade upgrade--next">
-              <Badge class="ladder-mark ladder-mark--locked" :badge="badgeProgress.next" size="mark" />
+              <span class="upgrade-link upgrade-link--pending" aria-hidden="true"></span>
+              <Badge class="upgrade-mark upgrade-mark--locked" :badge="badgeProgress.next" size="mark" aria-hidden="true" />
               <span class="upgrade-name">{{ badgeProgress.next.title }}</span>
               <span class="upgrade-when">{{ badgeProgress.needed.toLocaleString() }} to go</span>
+              <span class="upgrade-gap">not yet</span>
             </li>
           </ol>
         </section>
 
         <section class="panel">
-          <h2 class="panel-title">ACTIVITY</h2>
+          <h2 class="panel-title">
+            ACTIVITY
+            <span class="panel-aside">LAST {{ recentGames.length }} OF {{ gamesPlayed }}</span>
+          </h2>
           <ul class="activity">
             <li v-for="game in recentGames" :key="game.id" class="activity-row">
               <span class="activity-result" :class="'activity-result--' + game.result">
                 {{ game.result.charAt(0).toUpperCase() }}
               </span>
-              <span class="activity-body">
-                <span class="activity-line">{{ game.cards_played_total }} cards in {{ formatDuration(game.game_duration_secs) }}</span>
-                <span class="activity-sub">{{ game.is_bot_game ? 'BOT' : 'PVP' }} · {{ formatDate(game.played_at) }}</span>
-              </span>
+              <span class="activity-mode">{{ game.is_bot_game ? 'BOT' : 'PVP' }}</span>
+              <span class="activity-line">{{ gameSummary(game) }}</span>
+              <span
+                class="activity-points"
+                :class="{ 'activity-points--win': game.result === 'won' }"
+              >+{{ gamePoints(game) }}</span>
+              <span class="activity-date">{{ formatDate(game.played_at) }}</span>
             </li>
           </ul>
         </section>
@@ -216,7 +227,7 @@ import { usePlayerStats } from '../composables/usePlayerStats'
 import { useProfileStanding } from '../composables/useProfileStanding'
 import { useAuthStore } from '../stores/authStore'
 import { navigate } from '../utils/routes'
-import { BADGES } from '../utils/badges'
+import { BADGES, gameContribution } from '../utils/badges'
 import { flagEmoji } from '../utils/country'
 import { personalRecords } from '../utils/personalRecords'
 import { promotionHistory, type Promotion } from '../utils/promotions'
@@ -284,6 +295,40 @@ const topPercent = computed(() => {
   if (!g?.rank || g.total <= 0) return 0
   return Math.max(1, Math.ceil((g.rank / g.total) * 100))
 })
+
+type RecentGame = (typeof recentGames.value)[number]
+
+/** What this one game was worth. `gameContribution` is the same arithmetic the
+ *  post-game badge check uses, so the number here matches the one the player
+ *  saw on the game-over screen. */
+function gamePoints(game: RecentGame): number {
+  return gameContribution({
+    won: game.result === 'won',
+    completedLoss: game.result === 'lost' || game.result === 'eliminated',
+    cardsPlayedTotal: game.cards_played_total,
+    drawCardsPlayed: game.draw_cards_played,
+    biggestStackSurvived: game.biggest_stack_survived,
+    unoCalls: game.uno_calls,
+  })
+}
+
+/** One line on what actually happened, from the fields the game already
+ *  records — a row that only says "17 cards" tells the player nothing. */
+function gameSummary(game: RecentGame): string {
+  const stack = game.biggest_stack_survived
+  switch (game.result) {
+    case 'won':
+      return stack > 0
+        ? `Beat ${game.opponent_count} players · ate a +${stack} stack`
+        : `Beat ${game.opponent_count} players in ${game.cards_played_total} cards`
+    case 'lost':
+      return `Held ${game.cards_remaining} cards at the buzzer`
+    case 'eliminated':
+      return `Eliminated at ${game.peak_cards} cards`
+    default:
+      return `Walked away after ${game.cards_played_total} cards`
+  }
+}
 
 function upgradeGap(promotion: Promotion): string {
   const days = promotion.daysSincePrevious
@@ -571,7 +616,7 @@ function copyShareLink() {
   gap: var(--spacing-3);
   margin: 0;
   font-family: var(--font-display);
-  font-size: var(--text-3xl);
+  font-size: var(--text-display);
   font-weight: 400;
   line-height: 1.05;
   color: var(--text-primary);
@@ -687,12 +732,22 @@ function copyShareLink() {
 }
 
 /* LADDER — where this badge sits among all ten */
+.ladder-title {
+  width: 100%;
+  margin: 0;
+  padding-top: var(--spacing-4);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.22em;
+  color: var(--text-muted);
+}
+
 .ladder {
   list-style: none;
   width: 100%;
   margin: 0;
-  padding: var(--spacing-4) 0 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-1);
@@ -764,7 +819,18 @@ function copyShareLink() {
   gap: var(--spacing-3);
 }
 
+.panel-aside {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+}
+
 .panel-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-3);
   margin: 0;
   padding-bottom: var(--spacing-2);
   border-bottom: 1px dashed rgba(255, 204, 0, 0.18);
@@ -775,22 +841,23 @@ function copyShareLink() {
   color: var(--color-hazard);
 }
 
-/* STANDING */
+/* STANDING — split by rules rather than boxed, so the numbers carry it */
 .standing {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--spacing-4);
 }
 
 .standing-cell {
-  flex: 1 1 180px;
+  flex: 1 1 200px;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-1);
-  padding: var(--spacing-4);
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(0, 243, 255, 0.16);
-  border-radius: var(--radius-sm);
+  gap: var(--spacing-2);
+  padding-right: var(--spacing-6);
+}
+
+.standing-cell + .standing-cell {
+  padding-left: var(--spacing-6);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .standing-label {
@@ -812,8 +879,13 @@ function copyShareLink() {
 .standing-value {
   margin: 0;
   font-family: var(--font-display);
-  font-size: var(--text-2xl);
+  font-size: var(--text-3xl);
   line-height: 1;
+  color: var(--text-primary);
+}
+
+/* One cyan moment: your global rank is the number this panel exists for. */
+.standing-value--global {
   color: var(--color-neon-blue);
 }
 
@@ -867,52 +939,91 @@ function copyShareLink() {
   color: var(--color-hazard);
 }
 
-/* UPGRADES — the badges taken, and the next one */
+/* UPGRADES — a chain you read left to right, each node joined to the last */
 .upgrades {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
+  align-items: flex-start;
 }
 
 .upgrade {
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--spacing-3);
-  padding: var(--spacing-2) var(--spacing-3);
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: var(--radius-sm);
+  gap: var(--spacing-1);
+  position: relative;
+  padding-top: var(--spacing-4);
   font-family: var(--font-mono);
-  font-size: var(--text-sm);
+  text-align: center;
   color: var(--text-secondary);
 }
 
-.upgrade--current {
-  border-color: color-mix(in srgb, var(--color-hazard) 30%, transparent);
-  background: rgba(255, 204, 0, 0.07);
-  color: var(--text-primary);
+/* The connector reaches back to the previous node, so it never dangles off
+   the first or last one. */
+.upgrade-link {
+  position: absolute;
+  top: calc(var(--spacing-4) + 11px);
+  right: 50%;
+  width: 100%;
+  height: 1px;
+  background: #27272a;
 }
 
-.upgrade--next {
-  color: var(--text-muted);
-  border-style: dashed;
+.upgrade-link--pending {
+  background: repeating-linear-gradient(to right, #3f3f46 0 4px, transparent 4px 8px);
+}
+
+.upgrade-mark {
+  position: relative;
+}
+
+.upgrade-mark :deep(.badge-emblem) {
+  width: 22px;
+  height: 22px;
+}
+
+.upgrade--current .upgrade-mark :deep(.badge-emblem) {
+  width: 30px;
+  height: 30px;
+}
+
+.upgrade-mark--locked {
+  opacity: 0.4;
 }
 
 .upgrade-name {
-  flex: 1;
-  min-width: 0;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
 }
 
-.upgrade-when {
-  flex: none;
+.upgrade--current .upgrade-name {
+  color: var(--color-hazard);
+}
+
+.upgrade--next .upgrade-name {
+  color: var(--color-alert);
+  opacity: 0.75;
+}
+
+.upgrade-when,
+.upgrade-gap {
   font-size: var(--text-xs);
   color: var(--text-muted);
 }
 
-/* ACTIVITY */
+.upgrade-gap {
+  opacity: 0.7;
+}
+
+/* ACTIVITY — one line per game: what happened, and what it was worth.
+   Fixed lanes so the mode, points and dates stack into columns. */
 .activity {
   list-style: none;
   margin: 0;
@@ -930,6 +1041,7 @@ function copyShareLink() {
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.04);
   border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
 }
 
 .activity-result {
@@ -964,23 +1076,42 @@ function copyShareLink() {
   color: var(--text-muted);
 }
 
-.activity-body {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+.activity-mode {
+  flex: none;
+  width: 34px;
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
 }
 
 .activity-line {
-  font-family: var(--font-mono);
+  flex: 1;
+  min-width: 0;
   font-size: var(--text-sm);
   color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.activity-sub {
-  font-family: var(--font-mono);
+.activity-points {
+  flex: none;
+  width: 56px;
+  text-align: right;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.activity-points--win {
+  color: var(--color-hazard);
+}
+
+.activity-date {
+  flex: none;
+  width: 56px;
+  text-align: right;
   font-size: var(--text-xs);
-  letter-spacing: 0.1em;
   color: var(--text-muted);
 }
 
@@ -1103,7 +1234,80 @@ function copyShareLink() {
   }
 
   .who-name {
-    font-size: var(--text-2xl);
+    font-size: var(--text-3xl);
+  }
+
+  /* The chain needs horizontal room it does not have on a phone, so the
+     upgrades become a plain list and the connectors go away. */
+  /* align-items is flex-start for the desktop chain; stacked rows must stretch
+     or each one shrinks to the width of its own label. */
+  .upgrades {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-1);
+  }
+
+  .upgrade {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--spacing-3);
+    padding: var(--spacing-2) var(--spacing-3);
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: var(--radius-sm);
+    text-align: left;
+  }
+
+  .upgrade--current {
+    border-color: color-mix(in srgb, var(--color-hazard) 30%, transparent);
+    background: rgba(255, 204, 0, 0.07);
+  }
+
+  .upgrade-link {
+    display: none;
+  }
+
+  .upgrade-name {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .upgrade--current .upgrade-mark :deep(.badge-emblem) {
+    width: 22px;
+    height: 22px;
+  }
+
+  .upgrade-gap {
+    display: none;
+  }
+
+  /* Stacked, so the vertical rule and its indent become a horizontal one. */
+  .standing-cell {
+    flex: 1 1 100%;
+    padding-right: 0;
+  }
+
+  .standing-cell + .standing-cell {
+    padding-left: 0;
+    padding-top: var(--spacing-3);
+    margin-top: var(--spacing-3);
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* Two per row at 390px; three overflow once the labels wrap. */
+  .record-card {
+    flex: 1 1 calc(50% - var(--spacing-2));
+  }
+
+  /* The narrative line is the first thing to go when the row runs out of
+     width; the result chip, the points and the date all still fit. */
+  .activity-line {
+    font-size: var(--text-xs);
+  }
+
+  .activity-mode {
+    display: none;
   }
 
   /* Three segments wrap to two lines on a phone and strand a separator dot at
@@ -1122,10 +1326,6 @@ function copyShareLink() {
   .rail-badge :deep(.badge-emblem) {
     width: 104px;
     height: 104px;
-  }
-
-  .record-card {
-    flex-basis: 100px;
   }
 
   .upgrade-when {
