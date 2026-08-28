@@ -11,6 +11,9 @@
  * The weighted sum is mirrored by supabase/badges.sql's player_points(), which
  * returns the same `points` plus `days_idle`; the client applies the decay
  * (applyDecay) so the tier table lives in exactly one place — here.
+ *
+ * supabase/leaderboards-alltime.sql repeats the same sum a third time to rank
+ * the whole field. A weight change here must be made in both SQL files too.
  */
 
 import type { ResultRow } from './gameStats'

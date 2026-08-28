@@ -25,6 +25,16 @@ Guidance for working in this repo. Hard-won - read before changing CSS, raising 
   - If you must stack: delete each branch as its PR merges, and verify `git log origin/main` actually contains the work afterward.
 - Run `npm run build` (from `frontend/`) and `npx vitest run` before pushing. Build = `vue-tsc -b && vite build`, not just typecheck.
 
+## Shipping updates to players
+
+- Every user-facing change ships its changelog entry **in the same PR** as the change. `frontend/src/data/changelog.ts` is the single source; the panel, the release card, and `/changelog` all read it. An entry that lands in a later PR announces a feature that is already old.
+- **Ask the human which volume before you open the PR. Never pick it alone.** Two options, and the answer goes in the entry's `level`:
+  - `quiet` - the entry appears in the What's New panel and puts a dot on the top-bar link. This is the default. Use it for anything a player does not need to be told about today.
+  - `loud` - the entry also fires a one-time release card over the lobby. Reserve it for a change that alters what a player does. At most one per quarter. A card on every release trains people to close it unread, which kills the channel for the release that needs it.
+- Entry shape: `{ id, level, tag, title, body, cta? }`. `id` is the ISO date (`2026-08-26`) and must sort. `tag` is `NEW`, `IMPROVED`, or `FIXED`. `title` is verb-first and under 50 characters. `body` is one or two sentences in plain words. `cta` is optional and must route somewhere in `utils/routes.ts` - no link is better than a link to the home page.
+- The dot is driven by the newest `id` against a last-seen id in `localStorage`. Adding an entry is what makes the dot appear, so never add one for a change that has not deployed.
+- Only a card that speaks to the reader about themselves needs signed-out copy. If the `body` names a rank, a streak, or says "your", add `bodySignedOut` — and `ctaSignedOut` when the label assumes an account ("SEE YOUR RANK"). A card that just describes a feature reads the same either way and needs neither; it falls back to `body` and `cta.label`. The optional `stat` field is what fetches a live number, and a card without one simply has no number line.
+
 ## Cloudflare Pages
 
 - **Do not add `/* /index.html 200` to `_redirects`** - Pages flags it as an infinite loop and ignores it. Deep links (`/leaderboard`, `/p/<code>`) work via Pages' automatic SPA fallback, which applies because the build output has no `404.html`.

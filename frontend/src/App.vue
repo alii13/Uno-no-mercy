@@ -82,6 +82,11 @@
       @back="navigate({ name: 'home' })"
     />
 
+    <!-- Full changelog (/changelog) — works signed in or out -->
+    <ChangelogPage
+      v-else-if="currentRoute.name === 'changelog' && !inMpMatch"
+    />
+
     <!-- Shareable public profile (/p/<code>) — works signed in or out -->
     <ProfilePage
       v-else-if="currentRoute.name === 'profile' && !inMpMatch"
@@ -154,6 +159,10 @@
     <!-- A player on the home screen holds no game socket, so an invite
          arrives over Realtime and lands here, above every screen. -->
     <InviteToast />
+
+    <!-- One-time release card. Renders only when a loud changelog entry is
+         unread, and never over a live match. -->
+    <ReleaseCard v-if="!inMpMatch && localGameStore.gameState === 'LOBBY'" />
   </div>
 </template>
 
@@ -180,6 +189,7 @@ const FriendsPage = defineAsyncComponent(() => import('./components/FriendsPage.
 const LeaderboardPage = defineAsyncComponent(() => import('./components/LeaderboardPage.vue'))
 const BadgesPage = defineAsyncComponent(() => import('./components/BadgesPage.vue'))
 const ProfilePage = defineAsyncComponent(() => import('./components/ProfilePage.vue'))
+const ChangelogPage = defineAsyncComponent(() => import('./components/ChangelogPage.vue'))
 const GameView = defineAsyncComponent(() => import('./components/game/GameView.vue'))
 const MultiplayerGameView = defineAsyncComponent(() => import('./components/game/MultiplayerGameView.vue'))
 import { vFocusRing } from './directives/focusRing'
@@ -189,6 +199,7 @@ import { useMultiplayerStore } from './stores/multiplayerStore'
 import { useGameStore } from './stores/gameStore'
 import { usePresenceHeartbeat } from './composables/usePresenceHeartbeat'
 import InviteToast from './components/InviteToast.vue'
+import ReleaseCard from './components/ReleaseCard.vue'
 
 const authStore = useAuthStore()
 const mpStore = useMultiplayerStore()
@@ -234,6 +245,7 @@ const currentScreen = computed(() => {
   if (localGameStore.gameState !== 'LOBBY') return 'sp_game'
   if (currentRoute.value.name === 'leaderboard' && !inMpMatch.value) return 'leaderboard'
   if (currentRoute.value.name === 'profile' && !inMpMatch.value) return 'profile'
+  if (currentRoute.value.name === 'changelog' && !inMpMatch.value) return 'changelog'
   if (!authStore.isAuthenticated) return showAuthView.value ? 'auth' : 'landing'
   if (inMpMatch.value) return 'mp_game'
   if (showAuthView.value) return 'claim_account'

@@ -33,6 +33,20 @@
  *   play_clicked       { method: guest }
  *   signin_failed      { message }
  *   signin_retry       {}
+ *   leaderboard_tab_viewed { tab: daily|weekly|alltime }
+ *   leaderboard_filtered   { country: <ISO-3166 alpha-2>|global }
+ *
+ * What's New. The card trio is the whole evidence base for the loud-or-quiet
+ * call that every release has to make (see "Shipping updates to players" in
+ * CLAUDE.md): shown is the denominator, taken over shown is whether the card
+ * earned the interruption, dismissed over shown is whether it annoyed people.
+ * Without them "at most one loud card per quarter" is a guess, not a rule.
+ *   whatsnew_opened        { unread }        — panel opened, unread at that moment
+ *   whatsnew_entry_clicked { entry_id }      — an entry's deep link was taken
+ *   whatsnew_changelog_opened {}             — "see everything that changed"
+ *   release_card_shown     { entry_id }      — a loud card became visible
+ *   release_card_taken     { entry_id }      — its CTA was pressed
+ *   release_card_dismissed { entry_id }      — X or "not now"
  *
  * Guest claim funnel. `method` on the completion is what makes the email and
  * Google paths comparable — the whole point of instrumenting them:
