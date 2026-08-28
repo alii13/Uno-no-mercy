@@ -60,7 +60,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         title: 'All-time leaderboard is live',
         body: 'Every game you have ever played now counts toward one permanent rank, built on the same points that drive your badge. Filter the board by country, and see the players directly above you.',
         bodySignedOut: 'The all-time board ranks every game a player has ever finished, not just this week. Filter it by country.',
-        cta: { label: 'SEE YOUR RANK', route: { name: 'leaderboard' } },
+        cta: { label: 'SEE YOUR RANK', route: { name: 'leaderboard', tab: 'alltime' } },
         ctaSignedOut: 'SEE THE BOARD',
         stat: 'alltime_rank',
     },

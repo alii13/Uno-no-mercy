@@ -290,9 +290,12 @@ function openProfile(code: string | null | undefined) {
   overflow-wrap: anywhere;
 }
 
+/* 0.61em is measured, not guessed: Black Ops One's caps ink 31.1px at a 48px
+   font, and this emoji inks 51px at 1em, so 31.1/51 makes the flag read the
+   same height as the letters beside it. */
 .at-name-flag {
   flex: none;
-  font-size: 0.38em;
+  font-size: 0.61em;
   line-height: 1;
 }
 

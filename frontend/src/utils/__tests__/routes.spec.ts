@@ -10,6 +10,17 @@ describe('parseRoute', () => {
         expect(parseRoute('/leaderboard')).toEqual({ name: 'leaderboard' })
     })
 
+    it('maps /leaderboard/<tab> to that board', () => {
+        expect(parseRoute('/leaderboard/alltime')).toEqual({ name: 'leaderboard', tab: 'alltime' })
+        expect(parseRoute('/leaderboard/weekly')).toEqual({ name: 'leaderboard', tab: 'weekly' })
+        expect(parseRoute('/leaderboard/daily')).toEqual({ name: 'leaderboard', tab: 'daily' })
+    })
+
+    it('rejects a board name that does not exist', () => {
+        expect(parseRoute('/leaderboard/nonsense')).toEqual({ name: 'home' })
+        expect(parseRoute('/leaderboard/')).toEqual({ name: 'home' })
+    })
+
     it('maps /changelog to the changelog', () => {
         expect(parseRoute('/changelog')).toEqual({ name: 'changelog' })
     })
@@ -36,6 +47,10 @@ describe('routePath', () => {
     it('is the inverse of parseRoute', () => {
         expect(routePath({ name: 'home' })).toBe('/')
         expect(routePath({ name: 'leaderboard' })).toBe('/leaderboard')
+        expect(routePath({ name: 'leaderboard', tab: 'alltime' })).toBe('/leaderboard/alltime')
+        // daily is the default, so it keeps the bare path rather than
+        // minting a second URL for the same board.
+        expect(routePath({ name: 'leaderboard', tab: 'daily' })).toBe('/leaderboard')
         expect(routePath({ name: 'changelog' })).toBe('/changelog')
         expect(routePath({ name: 'profile', code: '9f3ac21b' })).toBe('/p/9f3ac21b')
     })
