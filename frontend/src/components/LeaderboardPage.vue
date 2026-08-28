@@ -30,10 +30,32 @@
           >
             THIS WEEK
           </button>
+          <button
+            v-if="lb.alltimeAvailable.value"
+            class="lb-tab"
+            :class="{ active: tab === 'alltime' }"
+            role="tab"
+            :aria-selected="tab === 'alltime'"
+            @click="switchTab('alltime')"
+          >
+            ALL TIME
+          </button>
         </div>
       </div>
 
-      <p v-if="lb.loading.value" class="lb-empty">LOADING...</p>
+      <AllTimeBoard
+        v-if="tab === 'alltime'"
+        :rows="lb.alltime.value"
+        :context="lb.alltimeContext.value"
+        :champion="lb.champion.value"
+        :countries="lb.countries.value"
+        :country="lb.country.value"
+        :loading="lb.alltimeLoading.value"
+        :my-country="myCountry"
+        @update:country="onCountryChange"
+      />
+
+      <p v-else-if="lb.loading.value" class="lb-empty">LOADING...</p>
 
       <p v-else-if="rows.length === 0" class="lb-empty">
         {{ tab === 'daily' ? "No one has played today's deal yet. Be first." : 'No wins recorded this week yet.' }}
@@ -106,7 +128,7 @@
 
       <!-- Global weekly records: three skill archetypes get famous, not
            just the win grinders. -->
-      <section v-if="lb.spotlights.value.length" class="lb-records">
+      <section v-if="tab !== 'alltime' && lb.spotlights.value.length" class="lb-records">
         <h3 class="lb-records-title">THIS WEEK'S RECORDS</h3>
         <div class="lb-records-strip">
           <button
@@ -143,6 +165,9 @@ import { flagEmoji } from '../utils/country'
 import { useBadges } from '../composables/useBadges'
 import { usePresence } from '../composables/usePresence'
 import SiteFooter from './SiteFooter.vue'
+import AllTimeBoard from './AllTimeBoard.vue'
+import { useAuthStore } from '../stores/authStore'
+import { track } from '../utils/analytics'
 import Badge from './Badge.vue'
 import BadgedName from './BadgedName.vue'
 
@@ -151,11 +176,15 @@ defineEmits<{ (e: 'back'): void }>()
 type Row = DailyRow | WeeklyRow
 
 const lb = useLeaderboard()
-const tab = ref<'daily' | 'weekly'>('daily')
+const authStore = useAuthStore()
+/** Pins the viewer's own country to the top of the board's filter. */
+const myCountry = computed(() => authStore.profile?.country ?? null)
+const tab = ref<'daily' | 'weekly' | 'alltime'>('daily')
 const podiumEl = ref<HTMLElement | null>(null)
 const listEl = ref<HTMLElement | null>(null)
 const motion = useMotion()
 
+// The all-time board renders itself, so `rows` only ever feeds the podium.
 const rows = computed<Row[]>(() => (tab.value === 'daily' ? lb.daily.value : lb.weekly.value))
 // Podium renders 2nd · 1st · 3rd so the champion holds the center.
 const podium = computed(() => {
@@ -182,9 +211,17 @@ function badgeInfoFor(row: Row) {
     return row.user_id ? badges.value[row.user_id] : undefined
 }
 
-function switchTab(next: 'daily' | 'weekly') {
+function switchTab(next: 'daily' | 'weekly' | 'alltime') {
     if (tab.value === next) return
     tab.value = next
+    track('leaderboard_tab_viewed', { tab: next })
+}
+
+// 'global' rather than an absent param: an unset value would be
+// indistinguishable from the event not firing at all in GA4.
+function onCountryChange(next: string | null) {
+    track('leaderboard_filtered', { country: next ?? 'global' })
+    void lb.setCountry(next)
 }
 
 function openProfile(row: Row) {
@@ -262,6 +299,9 @@ watch([tab, () => lb.loading.value], async () => {
 
 onMounted(() => {
     void lb.fetchBoards()
+    // Separate probe: a project without leaderboards-alltime.sql keeps the
+    // other two tabs rather than losing the whole page.
+    void lb.fetchAlltime()
     // Ticks to the second: at 30s with whole-minute display the number sat
     // unchanged for up to a minute and read as static text.
     ticker = window.setInterval(() => { now.value = Date.now() }, 1000)

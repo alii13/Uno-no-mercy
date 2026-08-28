@@ -8,6 +8,7 @@
       </a>
 
       <div class="top-bar-cta">
+        <WhatsNew />
         <div v-if="editingName && editTarget === 'bar'" class="name-edit">
           <input
             v-model="nameInput"
@@ -648,6 +649,7 @@ import { useOnlineCount } from '../composables/useOnlineCount'
 import { useSocialStore } from '../stores/socialStore'
 import { usePresence } from '../composables/usePresence'
 import InviteFriends from './InviteFriends.vue'
+import WhatsNew from './WhatsNew.vue'
 import { nextBot, ladderProgress, isLadderComplete } from '../utils/botLadder'
 import { navigate } from '../utils/routes'
 import { track } from '../utils/analytics'

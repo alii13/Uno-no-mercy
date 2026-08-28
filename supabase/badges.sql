@@ -8,6 +8,8 @@
 -- aggregateRows). The floored inactivity decay is applied client-side
 -- (applyDecay) from `days_idle`, so the tier table lives in one place (TS).
 -- Keep the weights and the walkover guard (cards_played_total >= 5) in sync.
+-- The same arithmetic runs a third time in supabase/leaderboards-alltime.sql,
+-- which ranks the whole field instead of explicit ids. Change all three.
 
 create or replace function public.player_points(ids uuid[])
 returns table (user_id uuid, points bigint, days_idle int)

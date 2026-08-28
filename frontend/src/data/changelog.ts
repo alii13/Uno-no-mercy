@@ -1,0 +1,88 @@
+/**
+ * What's New — the single source for the top-bar panel, the release card, and
+ * /changelog. Shipped in the bundle rather than a table: every announcement is
+ * a deploy anyway, so a table would only add a fetch, a policy, and a way for
+ * the copy to drift from the code it describes.
+ *
+ * Newest first. Ids are ISO dates and must sort — the unread dot compares them
+ * as strings. Never add an entry for a change that has not deployed; adding one
+ * is what makes the dot appear.
+ *
+ * `level` is a per-entry decision the human makes at ship time, not a default
+ * you pick. See "Shipping updates to players" in CLAUDE.md.
+ *   quiet — panel entry and a dot. Almost everything.
+ *   loud  — also fires a one-time card. Roughly one per quarter, for a change
+ *           that alters what a player does. Needs `bodySignedOut` too.
+ */
+
+import type { Route } from '../utils/routes'
+
+export type ChangelogLevel = 'quiet' | 'loud'
+export type ChangelogTag = 'NEW' | 'IMPROVED' | 'FIXED'
+
+export interface ChangelogEntry {
+    /** ISO date, sortable. */
+    id: string
+    level: ChangelogLevel
+    tag: ChangelogTag
+    /** Verb first, under 50 characters. */
+    title: string
+    body: string
+    /**
+     * Only needed when `body` speaks to the reader about themselves — a rank,
+     * a streak, "your". Most updates describe a feature and read the same
+     * signed in or out, and those need nothing here: the card falls back to
+     * `body`.
+     */
+    bodySignedOut?: string
+    /** Optional. No link beats a link to the home page. */
+    cta?: { label: string; route: Route }
+    /**
+     * Overrides the CTA label for a signed-out reader. Same rule as
+     * `bodySignedOut`: only when the normal label assumes an account
+     * ("SEE YOUR RANK" means nothing without one).
+     */
+    ctaSignedOut?: string
+    /**
+     * A live number the card fetches for itself, so the announcement can name
+     * the reader's own standing instead of a figure that goes stale in the
+     * bundle. Declared by the entry because only the entry knows what number
+     * makes its point.
+     */
+    stat?: 'alltime_rank'
+}
+
+export const CHANGELOG: ChangelogEntry[] = [
+    {
+        id: '2026-08-28',
+        level: 'loud',
+        tag: 'NEW',
+        title: 'All-time leaderboard is live',
+        body: 'Every game you have ever played now counts toward one permanent rank, built on the same points that drive your badge. Filter the board by country, and see the players directly above you.',
+        bodySignedOut: 'The all-time board ranks every game a player has ever finished, not just this week. Filter it by country.',
+        cta: { label: 'SEE YOUR RANK', route: { name: 'leaderboard' } },
+        ctaSignedOut: 'SEE THE BOARD',
+        stat: 'alltime_rank',
+    },
+    {
+        id: '2026-08-21',
+        level: 'quiet',
+        tag: 'IMPROVED',
+        title: "Discard-all applies the top card's effect",
+        body: 'Dumping a whole hand of one colour fires the last card you drop, so a discard-all can skip, reverse, or stack a draw. Calling UNO late now costs you a penalty.',
+    },
+    {
+        id: '2026-08-14',
+        level: 'quiet',
+        tag: 'FIXED',
+        title: 'Leaving a solo game actually leaves it',
+        body: 'The exit button in the top bar works from every screen, and the rules modal no longer traps you behind it.',
+    },
+    {
+        id: '2026-08-06',
+        level: 'quiet',
+        tag: 'IMPROVED',
+        title: 'Renaming and invites in the lobby',
+        body: 'Renaming a seat tells you when a name is taken and offers ones you can actually have. The invite link copies in one tap.',
+    },
+]

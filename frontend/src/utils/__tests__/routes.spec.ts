@@ -10,6 +10,10 @@ describe('parseRoute', () => {
         expect(parseRoute('/leaderboard')).toEqual({ name: 'leaderboard' })
     })
 
+    it('maps /changelog to the changelog', () => {
+        expect(parseRoute('/changelog')).toEqual({ name: 'changelog' })
+    })
+
     it('maps /p/<code> to a profile', () => {
         expect(parseRoute('/p/9f3ac21b')).toEqual({ name: 'profile', code: '9f3ac21b' })
     })
@@ -20,6 +24,7 @@ describe('parseRoute', () => {
 
     it('rejects junk paths to home', () => {
         expect(parseRoute('/leaderboard/extra')).toEqual({ name: 'home' })
+        expect(parseRoute('/changelog/extra')).toEqual({ name: 'home' })
         expect(parseRoute('/p/')).toEqual({ name: 'home' })
         expect(parseRoute('/p/has spaces')).toEqual({ name: 'home' })
         expect(parseRoute('/p/way-too-long-to-be-a-share-code-way-too-long')).toEqual({ name: 'home' })
@@ -31,6 +36,7 @@ describe('routePath', () => {
     it('is the inverse of parseRoute', () => {
         expect(routePath({ name: 'home' })).toBe('/')
         expect(routePath({ name: 'leaderboard' })).toBe('/leaderboard')
+        expect(routePath({ name: 'changelog' })).toBe('/changelog')
         expect(routePath({ name: 'profile', code: '9f3ac21b' })).toBe('/p/9f3ac21b')
     })
 })
