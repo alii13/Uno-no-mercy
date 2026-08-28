@@ -8,8 +8,6 @@
       </a>
 
       <div class="top-bar-cta">
-        <WhatsNew />
-        <span class="text-link-sep" aria-hidden="true">·</span>
         <button class="text-link" @click="reportAndEmit('showAuth', 'signup')">
           SIGN UP
         </button>
@@ -115,7 +113,6 @@ import { ArrowRight } from 'lucide-vue-next'
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import gsap from 'gsap'
 import LandingScrollSections from './LandingScrollSections.vue'
-import WhatsNew from './WhatsNew.vue'
 import LandingFAQ from './LandingFAQ.vue'
 import SiteFooter from './SiteFooter.vue'
 import FeedbackModal from './FeedbackModal.vue'

@@ -160,9 +160,12 @@
          arrives over Realtime and lands here, above every screen. -->
     <InviteToast />
 
-    <!-- One-time release card. Renders only when a loud changelog entry is
-         unread, and never over a live match. -->
-    <ReleaseCard v-if="!inMpMatch && localGameStore.gameState === 'LOBBY'" />
+    <!-- One-time release card. Signed in only: someone who has not played has
+         no stake in what changed, and a guest who plays is signed in, so this
+         is the same line the landing page is drawn on. Never over a game. -->
+    <ReleaseCard
+      v-if="authStore.isAuthenticated && !inMpMatch && localGameStore.gameState === 'LOBBY'"
+    />
   </div>
 </template>
 
