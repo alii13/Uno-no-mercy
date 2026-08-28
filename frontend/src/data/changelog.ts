@@ -54,6 +54,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
     {
+        id: '2026-08-29',
+        level: 'loud',
+        tag: 'NEW',
+        title: 'Your stats page is now your dossier',
+        body: 'Your badge leads the page, with the full ten-tier ladder beside it and the date you took every tier you hold. Your rank, your personal bests, and your last ten games sit next to it.',
+        bodySignedOut: 'Every player has a dossier: the badge they hold, the date they earned each tier, their rank, and their personal bests.',
+        cta: { label: 'HOW BADGES WORK', route: { name: 'badges' } },
+    },
+    {
         id: '2026-08-28',
         level: 'loud',
         tag: 'NEW',

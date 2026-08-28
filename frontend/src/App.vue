@@ -92,7 +92,6 @@
       v-else-if="currentRoute.name === 'profile' && !inMpMatch"
       :code="currentRoute.code"
       @back="navigate({ name: 'home' })"
-      @dashboard="showDashboard = true; navigate({ name: 'home' })"
     />
 
 
@@ -122,19 +121,12 @@
       @back="showFriends = false"
     />
 
-    <!-- Player Dashboard -->
-    <PlayerDashboard
-      v-else-if="showDashboard"
-      @back="showDashboard = false"
-    />
-
     <!-- Authenticated - show lobby -->
     <MultiplayerLobby
       v-else
       @playLocal="startLocalGame"
       @playDaily="startDailyGame('lobby')"
       @showAuth="handleShowAuth('claim')"
-      @showStats="showDashboard = true"
       @showFriends="showFriends = true"
     />
 
@@ -187,7 +179,6 @@ import Button from './components/ui/Button.vue'
 // landing page shouldn't download the whole game engine + dashboard. They load
 // on demand when the view is first shown.
 const MultiplayerLobby = defineAsyncComponent(() => import('./components/MultiplayerLobby.vue'))
-const PlayerDashboard = defineAsyncComponent(() => import('./components/PlayerDashboard.vue'))
 const FriendsPage = defineAsyncComponent(() => import('./components/FriendsPage.vue'))
 const LeaderboardPage = defineAsyncComponent(() => import('./components/LeaderboardPage.vue'))
 const BadgesPage = defineAsyncComponent(() => import('./components/BadgesPage.vue'))
@@ -225,7 +216,6 @@ const authMode = ref<'login' | 'signup' | 'claim'>('signup')
 watch(() => authStore.isAuthenticated, (is, was) => {
   if (is && !was) showAuthView.value = false
 })
-const showDashboard = ref(false)
 const showFriends = ref(false)
 const showPasswordReset = ref(false)
 const newPassword = ref('')
@@ -254,7 +244,6 @@ const currentScreen = computed(() => {
   if (showAuthView.value) return 'claim_account'
   if (mpStore.currentGame?.status === 'waiting') return 'waiting_room'
   if (showFriends.value) return 'friends'
-  if (showDashboard.value) return 'dashboard'
   return 'lobby'
 })
 watch(currentScreen, (screen) => {

@@ -53,7 +53,7 @@
             <ChevronDown class="chip-edit-icon" :stroke-width="2" aria-hidden="true" />
           </button>
           <div v-if="accountOpen" class="account-menu" role="menu">
-            <button class="account-item" role="menuitem" @click="viewProfile">View profile</button>
+            <button v-if="authStore.profile?.share_code" class="account-item" role="menuitem" @click="viewProfile">View profile</button>
             <button v-if="!social.unavailable" class="account-item" role="menuitem" @click="openFriends">
               Friends
               <span v-if="social.incoming.length" class="account-count">{{ social.incoming.length }}</span>
@@ -674,7 +674,6 @@ const emit = defineEmits<{
   (e: 'playLocal', mode: StackingMode): void
   (e: 'playDaily'): void
   (e: 'showAuth'): void
-  (e: 'showStats'): void
   (e: 'showFriends'): void
 }>()
 
@@ -1120,14 +1119,13 @@ onUnmounted(() => {
     document.removeEventListener('keydown', onDocKey)
 })
 
-// share_code only exists once leaderboards-v2.sql has run, and a brand-new
-// guest row may not have one yet. Falling back to the dashboard keeps the item
-// from being a dead end.
+// The profile lives entirely at /p/<share_code>, so without a code there is
+// nowhere to go — the menu item hides rather than dead-ends. share_code only
+// exists once leaderboards-v2.sql has run and the guest trigger has fired.
 function viewProfile() {
     closeAccount()
     const code = authStore.profile?.share_code
     if (code) navigate({ name: 'profile', code })
-    else emit('showStats')
 }
 
 function editNameFromMenu() {
