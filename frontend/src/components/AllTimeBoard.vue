@@ -22,9 +22,8 @@
             <span v-if="flagEmoji(champion.country)" class="at-name-flag" :title="champion.country ?? ''">{{ flagEmoji(champion.country) }}</span>
           </span>
           <span class="at-hero-sub">
-            <template v-if="countryName(champion.country)">{{ countryName(champion.country) }} · </template>
-            <template v-if="champion.member_since">playing since {{ since(champion.member_since) }} · </template>
-            {{ champion.games.toLocaleString() }} games
+            <template v-if="countryName(champion.country)">{{ countryName(champion.country) }}</template>
+            <template v-if="champion.member_since"> · playing since {{ since(champion.member_since) }}</template>
           </span>
         </div>
         <Badge
@@ -38,22 +37,26 @@
         />
       </section>
 
+      <!-- The same four numbers the table shows, in the same order. The board
+           ranks on points, so the champion must be described in the terms
+           everyone below them is measured by, and points carries the accent
+           here exactly as it does on the column header. -->
       <dl v-if="champion" class="at-rail">
         <div class="at-stat">
-          <dt>WINS</dt>
-          <dd class="hot">{{ champion.wins.toLocaleString() }}</dd>
+          <dt>GAMES</dt>
+          <dd>{{ champion.games.toLocaleString() }}</dd>
         </div>
         <div class="at-stat">
-          <dt>WIN RATE</dt>
+          <dt>WINS</dt>
+          <dd>{{ champion.wins.toLocaleString() }}</dd>
+        </div>
+        <div class="at-stat">
+          <dt>RATE</dt>
           <dd>{{ rate(champion.wins, champion.games) }}</dd>
         </div>
         <div class="at-stat">
-          <dt>BEST STREAK</dt>
-          <dd>{{ champion.best_win_streak || '—' }}</dd>
-        </div>
-        <div class="at-stat">
-          <dt>STACK EATEN</dt>
-          <dd>{{ champion.max_stack_survived ? `+${champion.max_stack_survived}` : '—' }}</dd>
+          <dt>POINTS</dt>
+          <dd class="hot">{{ champion.points.toLocaleString() }}</dd>
         </div>
       </dl>
 
