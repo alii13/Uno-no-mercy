@@ -83,7 +83,7 @@ export function earnedPoints(input: PointsInput): number {
 /** Walkover games (every opponent left) record near-zero plays; the same
  *  `cards_played_total >= 5` guard the achievements/records use keeps a
  *  quitter from minting win or loss points. Mirrored in badges.sql. */
-const MIN_PLAYS = 5
+export const MIN_PLAYS = 5
 
 export function aggregateRows(rows: ResultRow[]): PointsInput {
     const days = new Set<string>()

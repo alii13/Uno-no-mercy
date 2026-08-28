@@ -32,75 +32,143 @@
       <p class="state-desc">Play your first game to start tracking stats.</p>
     </div>
 
-    <div v-else class="dashboard-content">
-      <!-- Identity card — hero -->
-      <section class="identity">
-        <div class="identity-avatar">{{ username.charAt(0).toUpperCase() }}</div>
-        <div class="identity-info">
-          <div class="identity-name">{{ username }}</div>
-          <div class="identity-rank">
-            <button class="identity-badge-btn" @click="navigate({ name: 'badges' })" title="How badges work">
-              <Badge :badge="badge" :points="badgePoints" :progress="badgeProgress" size="chip" />
-            </button>
-          </div>
-          <div v-if="badgeProgress.next" class="identity-progress">
-            {{ badgeProgress.needed.toLocaleString() }} points to {{ badgeProgress.next.title }}
-            <button class="identity-how" @click="navigate({ name: 'badges' })">How badges work <ArrowRight :size="14" :stroke-width="2" aria-hidden="true" /></button>
-          </div>
-          <button
-            v-if="authStore.profile?.share_code"
-            class="public-profile-link"
-            @click="navigate({ name: 'profile', code: authStore.profile.share_code })"
-          >
-            VIEW PUBLIC PROFILE <ArrowRight :size="14" :stroke-width="2" aria-hidden="true" />
-          </button>
-        </div>
-      </section>
+    <!-- Dossier: badge rail, then who you are, then the record. Grid puts the
+         rail beside the record on desktop and below the name on a phone. -->
+    <div v-else class="dossier">
+      <header class="who">
+        <h1 class="who-name">
+          {{ username }}<span v-if="flag" class="who-flag" aria-hidden="true">{{ flag }}</span>
+        </h1>
+        <p class="who-meta">
+          <span v-if="memberSince" class="who-enlisted">Enlisted {{ memberSince }}</span>
+          <span v-if="memberSince" class="who-sep who-enlisted" aria-hidden="true"></span>
+          <span>{{ gamesPlayed }} games</span>
+          <span class="who-sep" aria-hidden="true"></span>
+          <span class="who-last">{{ lastPlayed }}</span>
+        </p>
+        <button
+          v-if="authStore.profile?.share_code"
+          class="public-profile-link"
+          @click="navigate({ name: 'profile', code: authStore.profile.share_code })"
+        >
+          VIEW PUBLIC PROFILE <ArrowRight :size="14" :stroke-width="2" aria-hidden="true" />
+        </button>
+      </header>
 
-      <!-- Primary stats: 4 dominant numbers -->
-      <section class="primary-stats">
-        <div class="stat-card">
-          <div class="stat-value">{{ gamesPlayed }}</div>
-          <div class="stat-label">GAMES</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value stat-win">{{ winRate }}%</div>
-          <div class="stat-label">WIN RATE</div>
-        </div>
-        <div class="stat-card">
-          <div
-            class="stat-value"
-            :class="currentStreak.type === 'W' ? 'stat-win' : 'stat-loss'"
-          >
-            {{ currentStreak.type }}{{ currentStreak.count }}
-          </div>
-          <div class="stat-label">STREAK</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value stat-hazard">{{ ruthlessness }}</div>
-          <div class="stat-label">RUTHLESS</div>
-        </div>
-      </section>
+      <aside class="rail">
+        <Badge
+          class="rail-badge"
+          :badge="badge"
+          size="full"
+          :points="badgePoints"
+          :progress="badgeProgress"
+          link
+        />
+        <p class="rail-tier">TIER {{ badge.tier }} OF {{ BADGES.length }}</p>
 
-      <!-- Recent games -->
-      <section class="record-section">
-        <h3 class="section-title">RECENT GAMES</h3>
-        <ul class="recent-list">
+        <div class="rail-points">
+          <span class="rail-points-value">{{ badgePoints.toLocaleString() }}</span>
+          <span class="rail-points-label">POINTS EARNED</span>
+        </div>
+
+        <ol class="ladder">
           <li
-            v-for="game in recentGames"
-            :key="game.id"
-            class="recent-row"
+            v-for="tier in BADGES"
+            :key="tier.tier"
+            class="ladder-row"
+            :class="{
+              'ladder-row--current': tier.tier === badge.tier,
+              'ladder-row--locked': tier.tier > badge.tier,
+            }"
           >
-            <span class="recent-badge" :class="'badge-' + game.result">
-              {{ game.result.charAt(0).toUpperCase() }}
-            </span>
-            <span class="recent-type">{{ game.is_bot_game ? 'BOT' : 'PVP' }}</span>
-            <span class="recent-cards">{{ game.cards_played_total }} cards</span>
-            <span class="recent-duration">{{ formatDuration(game.game_duration_secs) }}</span>
-            <span class="recent-date">{{ formatDate(game.played_at) }}</span>
+            <Badge class="ladder-mark" :badge="tier" size="mark" />
+            <span class="ladder-name">{{ tier.title }}</span>
+            <span class="ladder-threshold">{{ tier.threshold.toLocaleString() }}</span>
           </li>
-        </ul>
-      </section>
+        </ol>
+      </aside>
+
+      <div class="record">
+        <section v-if="standingAvailable && globalRank" class="panel">
+          <h2 class="panel-title">STANDING</h2>
+          <div class="standing">
+            <div class="standing-cell">
+              <p class="standing-label">GLOBAL RANK</p>
+              <p class="standing-value">#{{ globalRank.rank!.toLocaleString() }}</p>
+              <p class="standing-sub">
+                of {{ globalRank.total.toLocaleString() }}<template v-if="topPercent"> · top {{ topPercent }}%</template>
+              </p>
+            </div>
+            <div v-if="countryRank && flag" class="standing-cell">
+              <p class="standing-label"><span class="standing-flag" aria-hidden="true">{{ flag }}</span> COUNTRY</p>
+              <p class="standing-value">#{{ countryRank.rank!.toLocaleString() }}</p>
+              <p class="standing-sub">of {{ countryRank.total.toLocaleString() }}</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2 class="panel-title">SERVICE RECORD</h2>
+          <ul class="records">
+            <li class="record-card">
+              <p class="record-label">FASTEST WIN</p>
+              <p class="record-value record-value--hazard">{{ fastestWin }}</p>
+            </li>
+            <li class="record-card">
+              <p class="record-label">STACK EATEN</p>
+              <p class="record-value">+{{ biggestStackSurvived }}</p>
+            </li>
+            <li class="record-card">
+              <p class="record-label">LEANEST WIN</p>
+              <p class="record-value">{{ leanestWin }}</p>
+            </li>
+            <li class="record-card">
+              <p class="record-label">PEAK HELD</p>
+              <p class="record-value">{{ peakCardsEver }}</p>
+            </li>
+            <li class="record-card">
+              <p class="record-label">BEST RUN</p>
+              <p class="record-value">{{ bestWinStreak }}</p>
+            </li>
+          </ul>
+        </section>
+
+        <section v-if="promotions.length" class="panel">
+          <h2 class="panel-title">UPGRADES</h2>
+          <ol class="upgrades">
+            <li
+              v-for="promotion in promotions"
+              :key="promotion.badge.tier"
+              class="upgrade"
+              :class="{ 'upgrade--current': promotion.badge.tier === badge.tier }"
+            >
+              <Badge class="ladder-mark" :badge="promotion.badge" size="mark" />
+              <span class="upgrade-name">{{ promotion.badge.title }}</span>
+              <span class="upgrade-when">{{ formatDate(promotion.at) }} · {{ upgradeGap(promotion) }}</span>
+            </li>
+            <li v-if="badgeProgress.next" class="upgrade upgrade--next">
+              <Badge class="ladder-mark ladder-mark--locked" :badge="badgeProgress.next" size="mark" />
+              <span class="upgrade-name">{{ badgeProgress.next.title }}</span>
+              <span class="upgrade-when">{{ badgeProgress.needed.toLocaleString() }} to go</span>
+            </li>
+          </ol>
+        </section>
+
+        <section class="panel">
+          <h2 class="panel-title">ACTIVITY</h2>
+          <ul class="activity">
+            <li v-for="game in recentGames" :key="game.id" class="activity-row">
+              <span class="activity-result" :class="'activity-result--' + game.result">
+                {{ game.result.charAt(0).toUpperCase() }}
+              </span>
+              <span class="activity-body">
+                <span class="activity-line">{{ game.cards_played_total }} cards in {{ formatDuration(game.game_duration_secs) }}</span>
+                <span class="activity-sub">{{ game.is_bot_game ? 'BOT' : 'PVP' }} · {{ formatDate(game.played_at) }}</span>
+              </span>
+            </li>
+          </ul>
+        </section>
+      </div>
     </div>
 
     <!-- Share modal -->
@@ -145,8 +213,14 @@
 import { ArrowRight, BarChart3, ChevronLeft } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { usePlayerStats } from '../composables/usePlayerStats'
+import { useProfileStanding } from '../composables/useProfileStanding'
 import { useAuthStore } from '../stores/authStore'
 import { navigate } from '../utils/routes'
+import { BADGES } from '../utils/badges'
+import { flagEmoji } from '../utils/country'
+import { personalRecords } from '../utils/personalRecords'
+import { promotionHistory, type Promotion } from '../utils/promotions'
+import { relativeTime } from '../utils/relativeTime'
 import Button from './ui/Button.vue'
 import Badge from './Badge.vue'
 
@@ -163,12 +237,60 @@ const showShareModal = ref(false)
 const copied = ref(false)
 
 const {
-  loading, gamesPlayed, gamesWon, gamesLost, gamesEliminated,
+  loading, results, gamesPlayed, gamesWon, gamesLost, gamesEliminated,
   winRate, currentStreak, bestWinStreak,
   totalCardsPlayed, biggestStackSurvived,
   peakCardsEver, ruthlessness,
   badge, badgePoints, badgeProgress, recentGames,
 } = usePlayerStats()
+
+const {
+  available: standingAvailable,
+  globalRank,
+  countryRank,
+} = useProfileStanding()
+
+const flag = computed(() => flagEmoji(authStore.profile?.country))
+
+const memberSince = computed(() => {
+  const iso = authStore.profile?.created_at
+  if (!iso) return ''
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime())
+    ? ''
+    : d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+})
+
+// Your own page always knows you are online, so a presence dot would say
+// nothing. When you last played is the live line that actually informs.
+const lastPlayed = computed(() => {
+  const newest = results.value[0]?.played_at
+  return newest ? `Last played ${relativeTime(newest)}` : 'No games yet'
+})
+
+const promotions = computed<Promotion[]>(() => promotionHistory(results.value))
+
+const records = computed(() => personalRecords(results.value))
+const fastestWin = computed(() =>
+  records.value.fastestWinSecs === null ? '—' : formatDuration(records.value.fastestWinSecs),
+)
+const leanestWin = computed(() =>
+  records.value.leanestWinCards === null ? '—' : String(records.value.leanestWinCards),
+)
+
+/** Rounded up, so the very top of the board never reads "top 0%". */
+const topPercent = computed(() => {
+  const g = globalRank.value
+  if (!g?.rank || g.total <= 0) return 0
+  return Math.max(1, Math.ceil((g.rank / g.total) * 100))
+})
+
+function upgradeGap(promotion: Promotion): string {
+  const days = promotion.daysSincePrevious
+  if (days === null) return 'joined'
+  if (days === 0) return 'same day'
+  return days === 1 ? '1 day later' : `${days} days later`
+}
 
 function formatDuration(secs: number): string {
   if (secs < 60) return `${secs}s`
@@ -379,17 +501,27 @@ function copyShareLink() {
   text-shadow: 0 0 12px rgba(255, 42, 42, 0.5);
 }
 
-/* CONTENT */
-.dashboard-content {
+/* CONTENT — the dossier grid. The rail spans both rows beside the record on
+   desktop; on a phone the whole thing stacks with the name first, because you
+   should know whose page this is before you see the badge. */
+.dossier {
   flex: 1;
-  padding: var(--spacing-6) var(--spacing-4) var(--spacing-12);
-  max-width: 720px;
   width: 100%;
+  max-width: 1120px;
   margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-6);
+  padding: var(--spacing-6) var(--spacing-4) var(--spacing-12);
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  grid-template-areas:
+    'rail who'
+    'rail record';
+  align-content: start;
+  gap: var(--spacing-6) var(--spacing-8);
 }
+
+.who { grid-area: who; }
+.rail { grid-area: rail; }
+.record { grid-area: record; }
 
 /* STATE SCREEN — loading / empty */
 .state-screen {
@@ -424,234 +556,319 @@ function copyShareLink() {
   letter-spacing: 0.1em;
 }
 
-/* IDENTITY */
-.identity {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-4);
-  padding: var(--spacing-6);
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: var(--radius-md);
-}
-
-.identity-avatar {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: var(--color-neon-blue);
-  color: var(--bg-concrete);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-display);
-  font-size: var(--text-2xl);
-  flex-shrink: 0;
-}
-
-.identity-info {
+/* WHO — name, flag, and the live "last played" line */
+.who {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-1);
-  min-width: 0;
+  gap: var(--spacing-2);
+  padding-bottom: var(--spacing-4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.identity-name {
-  font-family: var(--font-body);
-  font-size: var(--text-lg);
-  font-weight: bold;
-  color: var(--text-primary);
-}
-
-.identity-rank {
+.who-name {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-3);
+  margin: 0;
   font-family: var(--font-display);
-  font-size: var(--text-base);
-  letter-spacing: 0.1em;
-}
-.identity-badge-btn {
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
+  font-size: var(--text-3xl);
+  font-weight: 400;
+  line-height: 1.05;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
 }
 
-.identity-progress {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  letter-spacing: 0.1em;
+/* 1em, from painted pixels rather than font metrics — the same measurement the
+   all-time board's flag uses. The emoji renders in the system colour font,
+   whose box bears no relation to the display face's, so a metrics-derived
+   fraction reads like a footnote. */
+.who-flag {
+  flex: none;
+  font-size: 1em;
+  line-height: 1;
 }
-.identity-how {
-  display: inline-flex;
+
+.who-meta {
+  display: flex;
   align-items: center;
-  gap: var(--spacing-1);
-  margin-top: var(--spacing-1);
-  background: none;
-  border: none;
-  padding: 0;
-  color: rgba(255, 204, 0, 0.75);
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  margin: 0;
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  letter-spacing: 0.08em;
-  cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
 }
-.identity-how:hover { color: #ffcc00; }
+
+.who-sep {
+  width: 3px;
+  height: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--text-muted);
+  opacity: 0.6;
+}
+
+.who-last {
+  color: var(--text-secondary);
+}
 
 .public-profile-link {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-1);
   align-self: flex-start;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) 0;
   background: none;
   border: none;
-  padding: 0;
+  cursor: pointer;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
-  letter-spacing: 0.12em;
-  color: rgba(0, 229, 255, 0.7);
-  cursor: pointer;
+  letter-spacing: 0.16em;
+  color: var(--color-neon-blue);
+  transition: color var(--duration-snap) var(--ease-snap);
 }
 
 .public-profile-link:hover {
-  color: var(--color-neon-blue);
+  color: var(--color-hazard);
 }
 
-/* PRIMARY STATS — 4 cells */
-.primary-stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--spacing-2);
-}
-
-.stat-card {
-  background: rgba(0, 0, 0, 0.4);
+/* RAIL — the badge is the hero of this page */
+.rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-6) var(--spacing-4);
+  background: rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  padding: var(--spacing-3);
-  text-align: center;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
 }
 
-.stat-value {
+/* The shared Badge renders emblem, tier name and progress at a size tuned for
+   chips; this page is where it gets to be big. */
+.rail-badge :deep(.badge-emblem) {
+  width: 132px;
+  height: 132px;
+}
+
+.rail-badge :deep(.badge-label) {
+  font-size: var(--text-2xl);
+}
+
+.rail-tier {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.22em;
+  color: var(--text-muted);
+}
+
+.rail-points {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-1);
+  width: 100%;
+  padding-top: var(--spacing-4);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.rail-points-value {
   font-family: var(--font-display);
-  font-size: var(--text-xl);
+  font-size: var(--text-2xl);
   color: var(--text-primary);
   line-height: 1;
 }
 
-.stat-value.stat-win {
-  color: var(--color-neon-green);
-}
-
-.stat-value.stat-loss {
-  color: var(--color-alert);
-}
-
-.stat-value.stat-hazard {
-  color: var(--color-hazard);
-}
-
-.stat-label {
+.rail-points-label {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
+  letter-spacing: 0.22em;
   color: var(--text-muted);
-  letter-spacing: 0.15em;
-  margin-top: var(--spacing-1);
 }
 
-/* SECTION (BATTLE RECORD, LIFETIME, RECENT) */
-.record-section {
+/* LADDER — where this badge sits among all ten */
+.ladder {
+  list-style: none;
+  width: 100%;
+  margin: 0;
+  padding: var(--spacing-4) 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.ladder-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-1) var(--spacing-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.ladder-row--current {
+  border-color: color-mix(in srgb, var(--color-hazard) 35%, transparent);
+  background: rgba(255, 204, 0, 0.08);
+  color: var(--text-primary);
+}
+
+.ladder-row--locked {
+  color: var(--text-muted);
+}
+
+/* The real tier emblem via the shared Badge, which also carries the tooltip.
+   `mark` is the emblem-only size; the rows just pin it to a fixed lane so the
+   names line up whatever the art. */
+.ladder-mark {
+  flex: none;
+}
+
+.ladder-mark :deep(.badge-emblem) {
+  width: 22px;
+  height: 22px;
+}
+
+/* An unearned tier is shown, but dimmed — you can see what is coming without
+   it competing with the badges you actually hold. */
+.ladder-row--locked .ladder-mark,
+.ladder-mark--locked {
+  opacity: 0.4;
+}
+
+.ladder-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.ladder-threshold {
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* RECORD — the right-hand column */
+.record {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
+  min-width: 0;
+}
+
+.panel {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
 }
 
-.section-title {
-  font-family: var(--font-display);
-  font-size: var(--text-sm);
-  color: var(--color-hazard);
-  letter-spacing: 0.15em;
+.panel-title {
   margin: 0;
   padding-bottom: var(--spacing-2);
   border-bottom: 1px dashed rgba(255, 204, 0, 0.18);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  letter-spacing: 0.15em;
+  color: var(--color-hazard);
 }
 
-/* BATTLE BAR */
-.battle-bar {
+/* STANDING */
+.standing {
   display: flex;
-  height: 28px;
-  overflow: hidden;
+  flex-wrap: wrap;
+  gap: var(--spacing-4);
+}
+
+.standing-cell {
+  flex: 1 1 180px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-4);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(0, 243, 255, 0.16);
   border-radius: var(--radius-sm);
 }
 
-.bar-segment {
+.standing-label {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: var(--spacing-1);
+  margin: 0;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
-  font-weight: bold;
-  min-width: 32px;
+  letter-spacing: 0.18em;
+  color: var(--text-muted);
 }
 
-.bar-won {
-  background: var(--color-neon-green);
-  color: var(--bg-concrete);
+.standing-flag {
+  font-size: 1em;
+  line-height: 1;
 }
 
-.bar-lost {
-  background: var(--color-alert);
-  color: white;
+.standing-value {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  line-height: 1;
+  color: var(--color-neon-blue);
 }
 
-.bar-elim {
-  background: var(--text-muted);
-  color: white;
+.standing-sub {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
 }
 
-/* SPLITS */
-.splits {
+/* SERVICE RECORD */
+.records {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+}
+
+.record-card {
+  flex: 1 1 120px;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
-  margin: 0;
+  padding: var(--spacing-3);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-sm);
 }
 
-.split-row {
-  display: flex;
-  justify-content: space-between;
+/* Uniform white labels: five different label colours read as noise, and they
+   were decorative, never semantic. One value carries the colour instead. */
+.record-label {
+  margin: 0;
   font-family: var(--font-mono);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
+  letter-spacing: 0.14em;
+  color: #ffffff;
 }
 
-.split-label {
-  color: var(--text-muted);
+.record-value {
   margin: 0;
-}
-
-.split-value {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  line-height: 1;
   color: var(--text-primary);
-  margin: 0;
-  font-weight: bold;
 }
 
-/* LIFETIME GRID */
+.record-value--hazard {
+  color: var(--color-hazard);
+}
 
-
-
-
-
-/* RECENT GAMES */
-
-
-
-
-
-
-
-
-
-
-.recent-list {
+/* UPGRADES — the badges taken, and the next one */
+.upgrades {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -660,9 +877,8 @@ function copyShareLink() {
   gap: var(--spacing-1);
 }
 
-.recent-row {
-  display: grid;
-  grid-template-columns: 28px 40px 1fr auto auto;
+.upgrade {
+  display: flex;
   align-items: center;
   gap: var(--spacing-3);
   padding: var(--spacing-2) var(--spacing-3);
@@ -671,53 +887,101 @@ function copyShareLink() {
   border-radius: var(--radius-sm);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
+  color: var(--text-secondary);
 }
 
-.recent-badge {
+.upgrade--current {
+  border-color: color-mix(in srgb, var(--color-hazard) 30%, transparent);
+  background: rgba(255, 204, 0, 0.07);
+  color: var(--text-primary);
+}
+
+.upgrade--next {
+  color: var(--text-muted);
+  border-style: dashed;
+}
+
+.upgrade-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.upgrade-when {
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* ACTIVITY */
+.activity {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.activity-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-sm);
+}
+
+.activity-result {
+  flex: none;
   width: 24px;
   height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
-  font-size: var(--text-xs);
   border-radius: var(--radius-sm);
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
 }
 
-.badge-won {
+.activity-result--won {
   background: var(--color-neon-green);
   color: var(--bg-concrete);
 }
 
-.badge-lost {
+.activity-result--lost {
   background: var(--color-alert);
-  color: white;
+  color: #ffffff;
 }
 
-.badge-eliminated {
+.activity-result--eliminated {
   background: var(--text-muted);
-  color: white;
+  color: #ffffff;
 }
 
-.badge-abandoned {
+.activity-result--abandoned {
   background: rgba(255, 255, 255, 0.1);
   color: var(--text-muted);
 }
 
-.recent-type {
-  color: var(--text-secondary);
-  font-size: var(--text-xs);
-  letter-spacing: 0.1em;
+.activity-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
-.recent-cards {
+.activity-line {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
   color: var(--text-primary);
 }
 
-.recent-duration,
-.recent-date {
-  color: var(--text-muted);
+.activity-sub {
+  font-family: var(--font-mono);
   font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
 }
 
 /* SHARE MODAL */
@@ -820,37 +1084,52 @@ function copyShareLink() {
     letter-spacing: 0.15em;
   }
 
-  .dashboard-content {
-    padding: var(--spacing-4) var(--spacing-3) var(--spacing-8);
+  .share-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Below the two-column breakpoint the dossier stacks. The name leads, so you
+   read whose page this is before the badge. */
+@media (max-width: 900px) {
+  .dossier {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'who'
+      'rail'
+      'record';
     gap: var(--spacing-4);
+    padding: var(--spacing-4) var(--spacing-3) var(--spacing-8);
   }
 
-  .identity {
-    padding: var(--spacing-4);
+  .who-name {
+    font-size: var(--text-2xl);
   }
 
-  .identity-avatar {
-    width: 48px;
-    height: 48px;
-    font-size: var(--text-xl);
-  }
-
-  .primary-stats {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-
-  .recent-row {
-    grid-template-columns: 24px 36px 1fr auto;
-    font-size: var(--text-xs);
-  }
-
-  .recent-date {
+  /* Three segments wrap to two lines on a phone and strand a separator dot at
+     the end of the first. The join date is the least useful of the three and
+     the public profile already carries it. */
+  .who-enlisted {
     display: none;
   }
 
-  .share-actions {
-    grid-template-columns: 1fr;
+  /* Slightly under the letters on a phone, where a full-height flag next to a
+     shorter name crowds the line. */
+  .who-flag {
+    font-size: 0.9em;
+  }
+
+  .rail-badge :deep(.badge-emblem) {
+    width: 104px;
+    height: 104px;
+  }
+
+  .record-card {
+    flex-basis: 100px;
+  }
+
+  .upgrade-when {
+    font-size: 10px;
   }
 }
 </style>
