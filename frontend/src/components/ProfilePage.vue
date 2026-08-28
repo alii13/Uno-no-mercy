@@ -1052,7 +1052,11 @@ watch(() => props.code, (code) => {
 
 .pp-ladder { width: 100%; }
 
+/* The rail spans both grid rows, so a tall rail stretches the record's row.
+   Pin the record to the top of it, or a short record (a new player with no
+   games) floats in the middle of the gap. */
 .pp-record {
+  align-self: start;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-6);
