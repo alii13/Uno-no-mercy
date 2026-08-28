@@ -72,8 +72,6 @@ export interface Champion {
     member_since: string | null
     games: number
     wins: number
-    best_win_streak: number
-    max_stack_survived: number
     points: number
 }
 
@@ -175,10 +173,11 @@ export function useLeaderboard() {
     }
 
     /**
-     * The hero's streak and stack come from the existing public_profile(),
-     * keyed on the leader's share code — one extra round trip instead of a
-     * fourth definer function. A leader with no share code still renders,
-     * just without the two deep stats.
+     * Everything the slab shows comes from the board row itself, except how
+     * long they have been playing — that is read from the existing
+     * public_profile(), keyed on the leader's share code, rather than adding
+     * a fourth definer function for one column. A leader with no share code
+     * still renders, just without the date.
      */
     async function fetchChampion() {
         const top = alltime.value[0]
@@ -194,8 +193,6 @@ export function useLeaderboard() {
             member_since: null,
             games: top.games,
             wins: top.wins,
-            best_win_streak: 0,
-            max_stack_survived: 0,
             points: top.points,
         }
         if (!top.share_code) {
@@ -205,12 +202,7 @@ export function useLeaderboard() {
         const { data, error } = await supabase.rpc('public_profile', { p_share_code: top.share_code })
         const row = error ? null : (data as Record<string, unknown>[] | null)?.[0]
         champion.value = row
-            ? {
-                ...base,
-                member_since: (row.member_since as string) ?? null,
-                best_win_streak: Number(row.best_win_streak ?? 0),
-                max_stack_survived: Number(row.max_stack_survived ?? 0),
-            }
+            ? { ...base, member_since: (row.member_since as string) ?? null }
             : base
     }
 
