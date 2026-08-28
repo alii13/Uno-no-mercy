@@ -159,7 +159,7 @@ import { ChevronLeft, Crown, Shield, Zap } from 'lucide-vue-next'
 import gsap from 'gsap'
 import { useLeaderboard, type DailyRow, type WeeklyRow } from '../composables/useLeaderboard'
 import { useMotion } from '../composables/useMotion'
-import { navigate } from '../utils/routes'
+import { navigate, currentRoute, type LeaderboardTab } from '../utils/routes'
 import { formatCountdown, msUntilLocalMidnight } from '../utils/countdown'
 import { flagEmoji } from '../utils/country'
 import { useBadges } from '../composables/useBadges'
@@ -179,7 +179,11 @@ const lb = useLeaderboard()
 const authStore = useAuthStore()
 /** Pins the viewer's own country to the top of the board's filter. */
 const myCountry = computed(() => authStore.profile?.country ?? null)
-const tab = ref<'daily' | 'weekly' | 'alltime'>('daily')
+// A deep link names its board: /leaderboard/alltime opens on all-time rather
+// than dropping the visitor on today's deal, which is not what the link
+// promised. The bare /leaderboard still means the daily board.
+const routeTab = currentRoute.value.name === 'leaderboard' ? currentRoute.value.tab : undefined
+const tab = ref<LeaderboardTab>(routeTab ?? 'daily')
 const podiumEl = ref<HTMLElement | null>(null)
 const listEl = ref<HTMLElement | null>(null)
 const motion = useMotion()
@@ -211,11 +215,29 @@ function badgeInfoFor(row: Row) {
     return row.user_id ? badges.value[row.user_id] : undefined
 }
 
-function switchTab(next: 'daily' | 'weekly' | 'alltime') {
+function switchTab(next: LeaderboardTab) {
     if (tab.value === next) return
     tab.value = next
     track('leaderboard_tab_viewed', { tab: next })
+    // Keep the URL on the board being shown, so it stays shareable and the
+    // browser's back button walks the tabs.
+    navigate({ name: 'leaderboard', tab: next })
 }
+
+// Back and forward change the route without re-mounting this page, so the
+// tab has to follow the URL or the browser buttons move the address bar and
+// leave the board behind.
+watch(currentRoute, (r) => {
+    if (r.name !== 'leaderboard') return
+    tab.value = r.tab ?? 'daily'
+})
+
+// A deep link can land before the feature probe finishes. If the all-time
+// board turns out not to be installed, fall back rather than showing a tab
+// that is not there.
+watch(() => lb.alltimeAvailable.value, (ok) => {
+    if (!ok && tab.value === 'alltime') tab.value = 'daily'
+})
 
 // 'global' rather than an absent param: an unset value would be
 // indistinguishable from the event not firing at all in GA4.

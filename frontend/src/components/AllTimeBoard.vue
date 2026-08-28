@@ -290,9 +290,13 @@ function openProfile(code: string | null | undefined) {
   overflow-wrap: anywhere;
 }
 
+/* 1em, from painted pixels rather than font metrics: at the same probe size
+   the name inks 66px and this emoji inks 64px, so they match at 1:1. A metrics
+   guess put it at 0.61em and it read like a footnote — the emoji is painted in
+   the system colour font, whose box bears no relation to the display face's. */
 .at-name-flag {
   flex: none;
-  font-size: 0.38em;
+  font-size: 1em;
   line-height: 1;
 }
 
@@ -482,6 +486,9 @@ function openProfile(code: string | null | undefined) {
 @media (max-width: 640px) {
   .at-hero { gap: var(--spacing-4); }
   .at-namerow { font-size: var(--text-3xl); }
+  /* Slightly under the letters on a phone, where a full-height flag next to
+     a shorter name crowds the line. */
+  .at-name-flag { font-size: 0.9em; }
   .at-hero-emblem :deep(.badge-emblem) { width: 60px; height: 60px; }
   .at-stat { padding-left: var(--spacing-3); }
   .at-stat dd { font-size: var(--text-lg); }
