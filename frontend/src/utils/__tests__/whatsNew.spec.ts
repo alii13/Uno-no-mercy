@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { newestId, unreadEntries, unreadCount, pendingLoud } from '../whatsNew'
+import { newestId, previousId, seedId, unreadEntries, unreadCount, isOnlyUnread, pendingLoud } from '../whatsNew'
 import type { ChangelogEntry } from '../../data/changelog'
 
 function entry(id: string, level: ChangelogEntry['level'] = 'quiet'): ChangelogEntry {
@@ -22,6 +22,47 @@ describe('newestId', () => {
 
     it('returns null for an empty changelog', () => {
         expect(newestId([])).toBeNull()
+    })
+})
+
+describe('previousId', () => {
+    it('returns the id one step below the newest', () => {
+        expect(previousId(ENTRIES)).toBe('2026-08-19')
+        expect(previousId([...ENTRIES].reverse())).toBe('2026-08-19')
+    })
+
+    it("returns '' when there is nothing below the newest", () => {
+        expect(previousId([entry('2026-08-26')])).toBe('')
+        expect(previousId([])).toBe('')
+    })
+})
+
+describe('seedId', () => {
+    it('catches a brand-new visitor up, so they see no backlog', () => {
+        const seed = seedId(ENTRIES, false)
+        expect(seed).toBe('2026-08-26')
+        expect(unreadCount(ENTRIES, seed)).toBe(0)
+        expect(pendingLoud(ENTRIES, seed, [])).toBeNull()
+    })
+
+    it('leaves the newest entry unread for a player who was here before', () => {
+        // The deploy that introduces What's New: nobody has a stored id yet,
+        // so without this the release announces itself to no one.
+        const seed = seedId(ENTRIES, true)
+        expect(seed).toBe('2026-08-19')
+        expect(unreadCount(ENTRIES, seed)).toBe(1)
+        expect(pendingLoud(ENTRIES, seed, [])?.id).toBe('2026-08-26')
+    })
+
+    it('does not resurface anything older than the current release', () => {
+        expect(unreadEntries(ENTRIES, seedId(ENTRIES, true)).map(e => e.id))
+            .toEqual(['2026-08-26'])
+    })
+
+    it('makes a lone entry unread for a returning player', () => {
+        const one = [entry('2026-08-26', 'loud')]
+        expect(seedId(one, true)).toBe('')
+        expect(unreadCount(one, '')).toBe(1)
     })
 })
 
@@ -52,6 +93,29 @@ describe('unreadCount', () => {
         expect(unreadCount(ENTRIES, '2026-08-26')).toBe(0)
         expect(unreadCount(ENTRIES, null)).toBe(0)
         expect(unreadCount([], '2026-08-12')).toBe(0)
+    })
+})
+
+describe('isOnlyUnread', () => {
+    it('is true when the card is all that is left to read', () => {
+        // The common case after seeding: exactly one unread entry, and the
+        // card is it. Closing the card must clear the dot too.
+        expect(isOnlyUnread(ENTRIES, '2026-08-19', '2026-08-26')).toBe(true)
+    })
+
+    it('is false while other entries are still unread', () => {
+        // Three unread, one of them loud. Dismissing the card must leave the
+        // dot lit, because it is then telling the truth.
+        expect(isOnlyUnread(ENTRIES, '2026-08-04', '2026-08-26')).toBe(false)
+    })
+
+    it('is false when nothing is unread at all', () => {
+        expect(isOnlyUnread(ENTRIES, '2026-08-26', '2026-08-26')).toBe(false)
+        expect(isOnlyUnread(ENTRIES, null, '2026-08-26')).toBe(false)
+    })
+
+    it('is false for an id that is not the unread one', () => {
+        expect(isOnlyUnread(ENTRIES, '2026-08-19', '2026-08-04')).toBe(false)
     })
 })
 

@@ -20,6 +20,33 @@ export function newestId(entries: readonly ChangelogEntry[]): string | null {
 }
 
 /**
+ * The id one step below the newest, or '' when there is nothing below it.
+ *
+ * '' is deliberate rather than null: stored as a last-seen id it makes every
+ * entry unread (`id > ''`), while still being a real stored value, so the
+ * seeding branch does not fire again on the next load.
+ */
+export function previousId(entries: readonly ChangelogEntry[]): string {
+    const ids = entries.map(e => e.id).sort()
+    return ids.length >= 2 ? ids[ids.length - 2]! : ''
+}
+
+/**
+ * What to store for a browser that has no last-seen id yet.
+ *
+ * A brand-new visitor is caught up by definition — seed to the newest so they
+ * are not met with a backlog and a stale card for features that predate them.
+ *
+ * A player who has been here before this feature existed is NOT caught up:
+ * they have simply never had anywhere to see it. Seeding them one entry back
+ * announces the current release and nothing older, which is the whole reason
+ * the release card exists on the deploy that introduces it.
+ */
+export function seedId(entries: readonly ChangelogEntry[], hasPlayedBefore: boolean): string | null {
+    return hasPlayedBefore ? previousId(entries) : newestId(entries)
+}
+
+/**
  * Entries shipped since the player last looked.
  *
  * A null `lastSeenId` means they have never been here. A first visit has no
@@ -32,6 +59,23 @@ export function unreadEntries(
 ): ChangelogEntry[] {
     if (lastSeenId === null) return []
     return entries.filter(e => e.id > lastSeenId)
+}
+
+/**
+ * True when `id` is the only thing the player has left to read.
+ *
+ * Closing a release card is reading that entry, so the dot must not point
+ * straight back at it. A single last-seen watermark cannot mark one entry read
+ * while leaving older ones unread — but when the card IS the only unread
+ * entry, advancing the watermark says exactly the right thing.
+ */
+export function isOnlyUnread(
+    entries: readonly ChangelogEntry[],
+    lastSeenId: string | null,
+    id: string,
+): boolean {
+    const unread = unreadEntries(entries, lastSeenId)
+    return unread.length > 0 && unread.every(e => e.id === id)
 }
 
 export function unreadCount(

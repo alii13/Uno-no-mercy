@@ -13,10 +13,25 @@
 
 import { ref, computed } from 'vue'
 import { CHANGELOG } from '../data/changelog'
-import { newestId, unreadCount, unreadEntries, pendingLoud } from '../utils/whatsNew'
+import { seedId, newestId, unreadCount, unreadEntries, isOnlyUnread, pendingLoud } from '../utils/whatsNew'
+import { DIRECT_SESSION_KEY } from '../utils/sessionMigration'
 
 const SEEN_KEY = 'om-whatsnew-seen'
 const DISMISSED_KEY = 'om-whatsnew-dismissed'
+
+/**
+ * Keys that only exist once someone has actually played or signed in. Reading
+ * settings or audio prefs would not do: those can be written on a first page
+ * load, which would misread a brand-new visitor as a returning player.
+ */
+const PLAYED_BEFORE_KEYS = [
+    DIRECT_SESSION_KEY,     // signed in, or an anonymous identity from playing
+    'uno_retention_v1',
+    'uno_daily_v1',
+    'uno_bot_ladder_v1',
+    'uno_cosmetics_v1',
+    'uno_mp_room',
+]
 
 function read(key: string): string | null {
     try {
@@ -46,14 +61,21 @@ function readDismissed(): string[] {
 const lastSeenId = ref<string | null>(read(SEEN_KEY))
 const dismissed = ref<string[]>(readDismissed())
 
-// A first visit is caught up by definition: seed to the newest entry so the
-// player is not shown a backlog and a stale card for features that predate
-// them. The dot then appears on the next release, which is the point.
+/**
+ * True when this browser has played before. Used only to tell a genuinely new
+ * visitor from a long-time player who has never had this feature — before this
+ * shipped, nobody had a last-seen id, so without this check the deploy that
+ * introduces What's New would announce itself to nobody.
+ */
+function hasPlayedBefore(): boolean {
+    return PLAYED_BEFORE_KEYS.some(k => read(k) !== null)
+}
+
 if (lastSeenId.value === null) {
-    const newest = newestId(CHANGELOG)
-    if (newest) {
-        lastSeenId.value = newest
-        write(SEEN_KEY, newest)
+    const seed = seedId(CHANGELOG, hasPlayedBefore())
+    if (seed !== null) {
+        lastSeenId.value = seed
+        write(SEEN_KEY, seed)
     }
 }
 
@@ -71,11 +93,21 @@ export function useWhatsNew() {
         write(SEEN_KEY, newest)
     }
 
-    /** Dismissing the card only retires the card. The entry stays in the panel. */
+    /**
+     * The entry stays in the panel; only the card is retired.
+     *
+     * Closing the card is reading that entry, so when it was the only unread
+     * one the dot clears too — leaving it lit would point the player back at
+     * what they just read. With other entries still unread the dot stays,
+     * because it is then telling the truth.
+     */
     function dismissCard(id: string): void {
-        if (dismissed.value.includes(id)) return
-        dismissed.value = [...dismissed.value, id]
-        write(DISMISSED_KEY, JSON.stringify(dismissed.value))
+        const wasOnlyUnread = isOnlyUnread(CHANGELOG, lastSeenId.value, id)
+        if (!dismissed.value.includes(id)) {
+            dismissed.value = [...dismissed.value, id]
+            write(DISMISSED_KEY, JSON.stringify(dismissed.value))
+        }
+        if (wasOnlyUnread) markAllRead()
     }
 
     return { entries, unread, unreadIds, card, markAllRead, dismissCard }
