@@ -168,16 +168,17 @@ onUnmounted(() => {
   border: none;
   padding: var(--spacing-2);
   min-height: 44px;
+  /* Matches .text-link in the landing and lobby top bars — the unread dot
+     is the signal, so the label itself must not shout over its neighbours. */
   font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  letter-spacing: 0.12em;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-size: var(--text-xs);
+  letter-spacing: 0.15em;
+  color: var(--text-secondary);
   cursor: pointer;
   white-space: nowrap;
 }
 
-.wn-trigger:hover { color: var(--color-hazard); }
+.wn-trigger:hover { color: var(--color-neon-blue); }
 
 /* The icon is the whole control on narrow screens; the words are the
    control on wide ones. Never both. */

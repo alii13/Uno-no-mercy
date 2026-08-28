@@ -12,14 +12,17 @@
       <section v-if="champion" class="at-hero">
         <div class="at-hero-text">
           <span class="at-kicker">{{ country ? `TOP IN ${countryName(country).toUpperCase()}` : 'REIGNING CHAMPION' }}</span>
-          <component
-            :is="champion.share_code ? 'button' : 'h2'"
-            class="at-name"
-            :class="{ clickable: !!champion.share_code }"
-            @click="openProfile(champion.share_code)"
-          >{{ champion.username }}</component>
+          <span class="at-namerow">
+            <component
+              :is="champion.share_code ? 'button' : 'h2'"
+              class="at-name"
+              :class="{ clickable: !!champion.share_code }"
+              @click="openProfile(champion.share_code)"
+            >{{ champion.username }}</component>
+            <span v-if="flagEmoji(champion.country)" class="at-name-flag" :title="champion.country ?? ''">{{ flagEmoji(champion.country) }}</span>
+          </span>
           <span class="at-hero-sub">
-            <template v-if="flagEmoji(champion.country)">{{ flagEmoji(champion.country) }} {{ countryName(champion.country) }} · </template>
+            <template v-if="countryName(champion.country)">{{ countryName(champion.country) }} · </template>
             <template v-if="champion.member_since">playing since {{ since(champion.member_since) }} · </template>
             {{ champion.games.toLocaleString() }} games
           </span>
@@ -264,6 +267,16 @@ function openProfile(code: string | null | undefined) {
   color: var(--color-hazard);
 }
 
+/* The row owns the scale so the flag can size itself against the name
+   and both shrink together on a phone. */
+.at-namerow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-3);
+  min-width: 0;
+  font-size: var(--text-display);
+}
+
 .at-name {
   margin: 0;
   padding: 0;
@@ -271,10 +284,16 @@ function openProfile(code: string | null | undefined) {
   background: none;
   text-align: left;
   font-family: var(--font-display);
-  font-size: var(--text-display);
+  font-size: inherit;
   line-height: 1.08;
-  color: var(--text-primary);
+  color: var(--color-alert);
   overflow-wrap: anywhere;
+}
+
+.at-name-flag {
+  flex: none;
+  font-size: 0.38em;
+  line-height: 1;
 }
 
 .at-name.clickable { cursor: pointer; }
@@ -462,7 +481,7 @@ function openProfile(code: string | null | undefined) {
 
 @media (max-width: 640px) {
   .at-hero { gap: var(--spacing-4); }
-  .at-name { font-size: var(--text-3xl); }
+  .at-namerow { font-size: var(--text-3xl); }
   .at-hero-emblem :deep(.badge-emblem) { width: 60px; height: 60px; }
   .at-stat { padding-left: var(--spacing-3); }
   .at-stat dd { font-size: var(--text-lg); }
