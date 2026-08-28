@@ -219,17 +219,33 @@
         <p class="pp-cta-line">Think you can beat {{ p.username }}?</p>
         <Button variant="primary" size="lg" block @click="$emit('back')">PLAY OPEN MERCY — FREE</Button>
       </section>
-      <section v-else-if="authStore.isAnonymous" class="pp-cta pp-cta--own">
-        <p class="pp-cta-line">This is your guest profile - claim it from the lobby (CLAIM ACCOUNT) and everything here is yours forever.</p>
-        <Button variant="secondary" size="md" block @click="$emit('back')">GO TO LOBBY</Button>
-        <!-- Guests own their stats and card back too; withholding the tools
-             left them with no route to the dashboard at all. -->
-        <button class="pp-own-link" @click="$emit('dashboard')">EDIT NAME · CHANGE CARD BACK · FULL STATS <ArrowRight :size="14" :stroke-width="2" aria-hidden="true" /></button>
-      </section>
       <section v-else class="pp-cta pp-cta--own">
-        <button class="pp-own-link" @click="$emit('dashboard')">EDIT NAME · CHANGE CARD BACK · FULL STATS <ArrowRight :size="14" :stroke-width="2" aria-hidden="true" /></button>
+        <p v-if="authStore.isAnonymous" class="pp-cta-line">This is your guest profile - claim it from the lobby (CLAIM ACCOUNT) and everything here is yours forever.</p>
+        <Button v-if="authStore.isAnonymous" variant="secondary" size="md" block @click="$emit('back')">GO TO LOBBY</Button>
+        <!-- The one owner tool that is not on the page already: a PNG of these
+             numbers, worth posting. Renaming lives in the lobby. -->
+        <button v-if="p.games > 0" class="pp-own-link" @click="showShareCard = true">
+          SHARE A STATS CARD <ArrowRight :size="14" :stroke-width="2" aria-hidden="true" />
+        </button>
       </section>
     </div>
+
+    <ShareStatsCard
+      v-if="p && badgeInfo"
+      :open="showShareCard"
+      :username="p.username"
+      :badge="badgeInfo.badge"
+      :games="p.games"
+      :wins="p.wins"
+      :losses="Math.max(0, p.games - p.wins)"
+      :eliminated="0"
+      :win-rate="winRate"
+      :best-streak="p.best_win_streak"
+      :biggest-stack="p.max_stack_survived"
+      :peak-cards="p.max_peak_cards"
+      :share-url="shareUrl"
+      @close="showShareCard = false"
+    />
 
     <SiteFooter />
   </div>
@@ -256,12 +272,15 @@ import ActivityHeatmap from './ActivityHeatmap.vue'
 import SiteFooter from './SiteFooter.vue'
 import Button from './ui/Button.vue'
 import Badge from './Badge.vue'
+import ShareStatsCard from './ShareStatsCard.vue'
 
 const props = defineProps<{ code: string }>()
-defineEmits<{ (e: 'back'): void; (e: 'dashboard'): void }>()
+defineEmits<{ (e: 'back'): void }>()
 
 const pp = useProfile()
 const dossier = useProfileDossier()
+const showShareCard = ref(false)
+const shareUrl = computed(() => `${window.location.origin}/p/${props.code}`)
 const authStore = useAuthStore()
 const motion = useMotion()
 const contentEl = ref<HTMLElement | null>(null)
