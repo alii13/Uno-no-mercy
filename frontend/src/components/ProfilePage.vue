@@ -31,63 +31,62 @@
     </div>
 
     <div v-else-if="p" ref="contentEl" class="pp-content">
-      <!-- Identity hero: their skin, name, rank ladder position -->
-      <section class="pp-hero">
+      <!-- WHO — name first, so you know whose page this is before the badge -->
+      <header class="pp-who">
+        <h1 class="pp-name">
+          {{ p.username }}<span v-if="flagEmoji(p.country)" class="pp-flag" :title="p.country ?? ''">{{ flagEmoji(p.country) }}</span>
+        </h1>
+        <p class="pp-meta">
+          <span v-if="presenceOnline" class="pp-live">Online now</span>
+          <span v-else-if="lastSeenLabel">Last seen {{ lastSeenLabel }}</span>
+          <span class="pp-sep" aria-hidden="true"></span>
+          <span>{{ p.games }} games</span>
+          <span class="pp-sep" aria-hidden="true"></span>
+          <span>Since {{ memberSince }}</span>
+        </p>
+      </header>
+
+      <!-- RAIL — the badge is the hero of this page -->
+      <aside class="pp-rail">
         <Badge
           v-if="badgeInfo"
+          class="pp-rail-badge"
           :badge="badgeInfo.badge"
           :points="badgeInfo.points"
           :progress="badgeInfo.progress"
           :presence="lastSeen"
-          size="mark"
+          size="full"
           link
-          class="pp-emblem"
         />
-        <div class="pp-identity">
-          <div class="pp-name-row">
-            <h1 class="pp-name">{{ p.username }}</h1>
-            <span v-if="flagEmoji(p.country)" class="pp-flag" :title="p.country ?? ''">{{ flagEmoji(p.country) }}</span>
-          </div>
-          <div class="pp-chips">
-            <!-- Presence answers the only question a visitor has here: can I
-                 play this person now, or is it worth leaving an invite? -->
-            <span v-if="presenceOnline" class="pp-chip pp-chip--live">ONLINE</span>
-            <span v-else-if="lastSeenLabel" class="pp-chip">LAST SEEN {{ lastSeenLabel }}</span>
-            <span class="pp-chip">{{ p.wins }} WINS</span>
-            <span class="pp-chip">SINCE {{ memberSince }}</span>
-          </div>
-          <div v-if="badgeInfo?.progress.next" class="pp-progress">
-            <div class="pp-progress-bar" role="img" :aria-label="`${badgeInfo.progress.needed} points to ${badgeInfo.progress.next.title}`">
-              <div class="pp-progress-fill" :style="{ width: Math.round(badgeInfo.progress.pct * 100) + '%', background: badgeInfo.badge.color }"></div>
-            </div>
-            <span class="pp-progress-label">{{ badgeInfo.progress.needed.toLocaleString() }} POINTS TO {{ badgeInfo.progress.next.title.toUpperCase() }}</span>
-          </div>
-        </div>
-      </section>
+        <p v-if="badgeInfo" class="pp-rail-tier">TIER {{ badgeInfo.badge.tier }} OF {{ BADGES.length }}</p>
 
+        <div v-if="badgeInfo" class="pp-rail-points">
+          <span class="pp-rail-points-value">{{ badgeInfo.points.toLocaleString() }}</span>
+          <span class="pp-rail-points-label">POINTS EARNED</span>
+        </div>
+
+        <p v-if="badgeInfo" class="pp-ladder-title">THE LADDER</p>
+        <ol v-if="badgeInfo" class="pp-ladder">
+          <li
+            v-for="tier in BADGES"
+            :key="tier.tier"
+            class="pp-ladder-row"
+            :class="{
+              'pp-ladder-row--current': tier.tier === badgeInfo.badge.tier,
+              'pp-ladder-row--locked': tier.tier > badgeInfo.badge.tier,
+            }"
+          >
+            <Badge class="pp-ladder-mark" :badge="tier" size="mark" aria-hidden="true" />
+            <span class="pp-ladder-name">{{ tier.title }}</span>
+            <span class="pp-ladder-threshold">{{ tier.threshold.toLocaleString() }}</span>
+          </li>
+        </ol>
+      </aside>
+
+      <div class="pp-record">
       <div v-if="p.games === 0" class="pp-empty">First game pending. The deck is waiting.</div>
 
       <template v-else>
-        <!-- Headline numbers -->
-        <section class="pp-stats">
-          <div class="pp-stat">
-            <Trophy class="pp-stat-icon" :size="14" aria-hidden="true" />
-            <span class="pp-stat-value">{{ p.wins }}</span><span class="pp-stat-label">WINS</span>
-          </div>
-          <div class="pp-stat">
-            <Swords class="pp-stat-icon" :size="14" aria-hidden="true" />
-            <span class="pp-stat-value">{{ p.games }}</span><span class="pp-stat-label">GAMES</span>
-          </div>
-          <div class="pp-stat">
-            <Target class="pp-stat-icon" :size="14" aria-hidden="true" />
-            <span class="pp-stat-value">{{ winRate }}%</span><span class="pp-stat-label">WIN RATE</span>
-          </div>
-          <div class="pp-stat">
-            <Flame class="pp-stat-icon pp-stat-icon--fire" :size="14" aria-hidden="true" />
-            <span class="pp-stat-value pp-fire">{{ p.best_win_streak }}</span><span class="pp-stat-label">BEST STREAK</span>
-          </div>
-        </section>
-
         <!-- Where they stand in the field. Hidden rather than guessed at when
              profile-dossier.sql has not been run. -->
         <section v-if="dossier.standing.value" class="pp-standing-section">
@@ -108,26 +107,6 @@
               <p class="pp-standing-sub">of {{ dossier.standing.value.countryTotal.toLocaleString() }}</p>
             </div>
           </div>
-        </section>
-
-        <!-- The ladder they are climbing, and where they sit on it -->
-        <section v-if="badgeInfo" class="pp-ladder-section">
-          <h3 class="pp-section-title">THE LADDER</h3>
-          <ol class="pp-ladder">
-            <li
-              v-for="tier in BADGES"
-              :key="tier.tier"
-              class="pp-ladder-row"
-              :class="{
-                'pp-ladder-row--current': tier.tier === badgeInfo.badge.tier,
-                'pp-ladder-row--locked': tier.tier > badgeInfo.badge.tier,
-              }"
-            >
-              <Badge class="pp-ladder-mark" :badge="tier" size="mark" aria-hidden="true" />
-              <span class="pp-ladder-name">{{ tier.title }}</span>
-              <span class="pp-ladder-threshold">{{ tier.threshold.toLocaleString() }}</span>
-            </li>
-          </ol>
         </section>
 
         <!-- Every badge they have taken, and when -->
@@ -156,14 +135,12 @@
           <ActivityHeatmap :activity="pp.activity.value" />
         </section>
 
-        <!-- The brag stats unique to No Mercy -->
-        <section v-if="records.length" class="pp-records">
-          <h3 class="pp-section-title">NO MERCY RECORD</h3>
-          <ul class="pp-record-rows">
-            <li v-for="r in records" :key="r.label" class="pp-record-row">
-              <component :is="r.icon" class="pp-record-icon" :size="14" :stroke-width="2" aria-hidden="true" />
-              <span class="pp-record-label">{{ r.label }}</span>
-              <span class="pp-record-value">{{ r.value }}</span>
+        <section class="pp-panel">
+          <h3 class="pp-section-title">SERVICE RECORD</h3>
+          <ul class="pp-records">
+            <li v-for="r in records" :key="r.label" class="pp-record-card">
+              <p class="pp-record-label">{{ r.label }}</p>
+              <p class="pp-record-value" :class="{ 'pp-record-value--hazard': r.hazard }">{{ r.value }}</p>
             </li>
           </ul>
         </section>
@@ -228,6 +205,7 @@
           SHARE A STATS CARD <ArrowRight :size="14" :stroke-width="2" aria-hidden="true" />
         </button>
       </section>
+      </div>
     </div>
 
     <ShareStatsCard
@@ -252,8 +230,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick, type FunctionalComponent } from 'vue'
-import { ArrowRight, Check, ChevronLeft, Flame, Layers, Plus, Shield, SkipForward, Swords, Target, Trophy, UserPlus, Zap } from 'lucide-vue-next'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ArrowRight, Check, ChevronLeft, UserPlus } from 'lucide-vue-next'
 import gsap from 'gsap'
 import { useProfile } from '../composables/useProfile'
 import { useMotion } from '../composables/useMotion'
@@ -356,17 +334,24 @@ function clock(secs: number): string {
     return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
 }
 
-interface RecordRow { icon: FunctionalComponent; label: string; value: string }
+interface RecordRow {
+    label: string
+    value: string
+    hazard?: boolean
+}
 
 const records = computed<RecordRow[]>(() => {
-    if (!p.value) return []
-    const out: RecordRow[] = []
-    if (p.value.min_duration_won) out.push({ icon: Zap, label: 'FASTEST WIN', value: clock(p.value.min_duration_won) })
-    if (p.value.max_stack_survived > 0) out.push({ icon: Shield, label: 'BIGGEST STACK SURVIVED', value: `+${p.value.max_stack_survived}` })
-    if (p.value.max_peak_cards > 0) out.push({ icon: Layers, label: 'MOST CARDS HELD & LIVED', value: `${p.value.max_peak_cards}` })
-    if (p.value.sum_skips > 0) out.push({ icon: SkipForward, label: 'SKIPS DEALT', value: `${p.value.sum_skips}` })
-    if (p.value.sum_draw_cards > 0) out.push({ icon: Plus, label: 'DRAW CARDS INFLICTED', value: `${p.value.sum_draw_cards}` })
-    return out
+    const v = p.value
+    if (!v) return []
+    // The five the dossier shows. A record a player has not set yet renders as
+    // a dash rather than vanishing, so the row keeps its shape.
+    return [
+        { label: 'FASTEST WIN', value: v.min_duration_won ? clock(v.min_duration_won) : '—', hazard: true },
+        { label: 'STACK EATEN', value: v.max_stack_survived > 0 ? `+${v.max_stack_survived}` : '—' },
+        { label: 'LEANEST WIN', value: v.min_cards_won ? `${v.min_cards_won}` : '—' },
+        { label: 'PEAK HELD', value: v.max_peak_cards > 0 ? `${v.max_peak_cards}` : '—' },
+        { label: 'BEST RUN', value: `${v.best_win_streak}` },
+    ]
 })
 
 const FORM_LETTER: Record<string, string> = { won: 'W', lost: 'L', eliminated: 'E', abandoned: '–' }
@@ -450,6 +435,7 @@ watch(() => props.code, (code) => {
 </script>
 
 <style scoped>
+
 .pp-page {
   min-height: 100vh;
   min-height: 100dvh;
@@ -542,110 +528,8 @@ watch(() => props.code, (code) => {
   margin: 0;
 }
 
-.pp-content {
-  flex: 1;
-  width: 100%;
-  max-width: 640px;
-  margin: 0 auto;
-  padding: var(--spacing-6) var(--spacing-4) var(--spacing-8);
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-8);
-}
-
-.pp-hero {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-6);
-  padding: var(--spacing-4);
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--radius-md);
-}
-
-.pp-emblem { flex: none; }
-.pp-emblem :deep(.badge-emblem) { width: 88px; height: 88px; }
-
-.pp-identity {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2);
-  min-width: 0;
-}
-
-.pp-name-row {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  min-width: 0;
-}
-
-.pp-name {
-  font-family: var(--font-display);
-  font-size: 1.4rem;
-  letter-spacing: 0.08em;
-  color: var(--text-primary);
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pp-flag { font-size: 1.1rem; line-height: 1; flex-shrink: 0; }
-
-.pp-chips {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--spacing-2);
-}
-
-.pp-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  letter-spacing: 0.12em;
-  color: var(--text-secondary);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 999px;
-  padding: 2px 10px;
-  white-space: nowrap;
-}
-
 /* After .pp-chip, not before: both are one class deep, so source order is
    what decides the colour. */
-.pp-chip--live {
-  color: var(--color-neon-green);
-  border-color: rgba(0, 255, 102, 0.35);
-}
-
-.pp-progress {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-}
-
-.pp-progress-bar {
-  height: 6px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.pp-progress-fill {
-  height: 100%;
-  border-radius: 999px;
-}
-
-.pp-progress-label {
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  letter-spacing: 0.14em;
-  color: var(--text-muted);
-}
-
 .pp-title-note {
   font-family: var(--font-mono);
   font-size: 0.6rem;
@@ -662,46 +546,6 @@ watch(() => props.code, (code) => {
   padding: var(--spacing-6);
 }
 
-.pp-stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--spacing-2);
-}
-
-.pp-stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-1);
-  padding: var(--spacing-3) var(--spacing-2);
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: var(--radius-sm);
-}
-
-.pp-stat-icon {
-  color: var(--text-muted);
-}
-
-.pp-stat-icon--fire {
-  color: var(--color-hazard, #ffcc00);
-}
-
-.pp-stat-value {
-  font-family: var(--font-display);
-  font-size: 1.4rem;
-  color: var(--text-primary);
-}
-
-.pp-fire { color: var(--color-hazard, #ffcc00); }
-
-.pp-stat-label {
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  letter-spacing: 0.16em;
-  color: var(--text-muted);
-}
-
 .pp-section-title {
   font-family: var(--font-display);
   font-size: 0.95rem;
@@ -715,26 +559,7 @@ watch(() => props.code, (code) => {
   padding-left: var(--spacing-4);
 }
 
-.pp-record-rows {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.pp-record-row {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  padding: var(--spacing-3) 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
 .pp-record-row:last-child { border-bottom: none; }
-
-.pp-record-icon {
-  flex-shrink: 0;
-  color: var(--color-alert, #ff2a2a);
-}
 
 .pp-record-label {
   flex: 1;
@@ -854,10 +679,6 @@ watch(() => props.code, (code) => {
 .pp-own-link:hover { color: var(--color-neon-blue); }
 
 @media (max-width: 480px) {
-  .pp-stats { grid-template-columns: repeat(2, 1fr); }
-  .pp-hero { flex-direction: column; text-align: center; }
-  .pp-name-row { justify-content: center; }
-  .pp-progress { width: 100%; }
 }
 
 /* ---- Dossier sections (standing, ladder, upgrades, games) ---------------- */
@@ -987,10 +808,12 @@ watch(() => props.code, (code) => {
 .pp-upgrade--current .pp-upgrade-mark :deep(.badge-emblem) { width: 30px; height: 30px; }
 
 .pp-upgrade-name {
-  font-size: var(--text-xs);
+  max-width: 100%;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
+  overflow-wrap: anywhere;
   color: var(--text-secondary);
 }
 
@@ -1108,4 +931,190 @@ watch(() => props.code, (code) => {
   .pp-game-mode { display: none; }
   .pp-game-line { font-size: var(--text-xs); }
 }
+/* ---- Dossier layout ------------------------------------------------------
+   One page for every profile: your own and everyone else's. The rail carries
+   the badge beside the record on desktop and drops below the name on a phone,
+   which is why this is a grid and not two columns. */
+.pp-content {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: var(--spacing-6) var(--spacing-4) var(--spacing-12);
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  grid-template-areas:
+    'rail who'
+    'rail record';
+  align-content: start;
+  gap: var(--spacing-6) var(--spacing-8);
+}
+
+.pp-who { grid-area: who; }
+.pp-rail { grid-area: rail; }
+.pp-record { grid-area: record; }
+
+.pp-who {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding-bottom: var(--spacing-4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pp-name {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-3);
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-display);
+  font-weight: 400;
+  line-height: 1.05;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+/* 1em from painted pixels, matching the all-time board's measurement. */
+.pp-flag {
+  flex: none;
+  font-size: 1em;
+  line-height: 1;
+}
+
+.pp-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.pp-live { color: var(--color-neon-green); }
+
+.pp-sep {
+  width: 3px;
+  height: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--text-muted);
+  opacity: 0.6;
+}
+
+.pp-rail {
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-6) var(--spacing-4);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+}
+
+.pp-rail-badge :deep(.badge-emblem) { width: 132px; height: 132px; }
+.pp-rail-badge :deep(.badge-label) { font-size: var(--text-2xl); }
+
+.pp-rail-tier,
+.pp-rail-points-label,
+.pp-ladder-title {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.22em;
+  color: var(--text-muted);
+}
+
+.pp-rail-points {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-1);
+  width: 100%;
+  padding-top: var(--spacing-4);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pp-rail-points-value {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  line-height: 1;
+  color: var(--text-primary);
+}
+
+.pp-ladder-title {
+  width: 100%;
+  padding-top: var(--spacing-4);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pp-ladder { width: 100%; }
+
+.pp-record {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
+  min-width: 0;
+}
+
+.pp-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+/* Five cards across, matching the dossier's service record. */
+.pp-records {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+}
+
+.pp-record-card {
+  flex: 1 1 120px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-sm);
+}
+
+/* Uniform white labels; one value carries the colour instead. */
+.pp-record-label {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.14em;
+  color: #ffffff;
+}
+
+.pp-record-value {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  line-height: 1;
+  color: var(--text-primary);
+}
+
+.pp-record-value--hazard { color: var(--color-hazard); }
+
+@media (max-width: 900px) {
+  .pp-content {
+    grid-template-columns: 1fr;
+    grid-template-areas: 'who' 'rail' 'record';
+    gap: var(--spacing-4);
+    padding: var(--spacing-4) var(--spacing-3) var(--spacing-8);
+  }
+
+  .pp-rail-badge :deep(.badge-emblem) { width: 104px; height: 104px; }
+  .pp-record-card { flex: 1 1 calc(50% - var(--spacing-2)); }
+}
+
 </style>
