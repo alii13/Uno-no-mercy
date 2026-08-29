@@ -36,6 +36,17 @@ Guidance for working in this repo. Hard-won - read before changing CSS, raising 
 - **Both surfaces are for players, not visitors.** The panel lives in the lobby top bar and the card renders only when signed in, so someone who has never played is not told what changed in a product they have not used. A guest who plays is signed in, so "signed in" means "has played". `/changelog` stays public: a page someone navigates to is not a nudge.
 - Write `body` for a signed-in reader; that is the only reader a card has. The optional `stat` field fetches a live number, and a card without one simply has no number line. `bodySignedOut` and `ctaSignedOut` are still on the type but nothing can reach them while the card is signed-in only — do not write new copy into them.
 
+## Asking players a question
+
+- The loud card has a second job: one question, two or three options, answered in one tap. Copy lives in `frontend/src/data/polls.ts`, answers in `poll_votes` (`supabase/polls.sql`, already run).
+- **Adding a question is one edit.** Append to `POLLS` with a fresh ISO-dated id and ship it. `poll_votes` is generic, so a new question needs no SQL and no deploy beyond the copy.
+- **Never change a shipped poll's `id` or its `options`.** The id is the local answered flag, so reusing one asks people who already answered; the options are stored verbatim as `choice`, so rewriting one splits the tally against rows already written. A changed question is a new entry.
+- Read the tally in the SQL Editor - both queries are in `supabase/polls.sql`, including the one that counts only players with real games behind them. Nothing in the app reads the results.
+- **A release card always wins the corner.** The question renders in the same slot with `v-else-if`, so it waits until nothing is owed from the changelog. Two cards stacked there is how a channel stops being read.
+- One question at a time, and one per visit: the first entry in `POLLS` they have not closed. A second entry waits for their next load, not for the first card to clear. Answering or dismissing retires it for good, and both write the same local flag - a question that comes back is worse than a lost answer.
+- Same budget as a loud entry. Every question spends the same attention a release card does, so ask one when the answer decides something, not to fill the slot.
+- The flag is `localStorage`, so it is not a boundary: clearing site data asks again. The table's primary key is what stops a second answer from counting, and anonymous sign-in means it stops one account, not one person.
+
 ## Cloudflare Pages
 
 - **Do not add `/* /index.html 200` to `_redirects`** - Pages flags it as an infinite loop and ignores it. Deep links (`/leaderboard`, `/p/<code>`) work via Pages' automatic SPA fallback, which applies because the build output has no `404.html`.
