@@ -53,6 +53,13 @@
  *   release_card_taken     { entry_id }      — its CTA was pressed
  *   release_card_dismissed { entry_id }      — X or "not now"
  *
+ * The same card asking a question. `poll_shown` is the denominator: an answer
+ * rate is the only way to tell a poll people ignored from one nobody was
+ * shown, and the vote table cannot tell them apart on its own.
+ *   poll_shown    { poll_id }          — a question became visible
+ *   poll_answered { poll_id, choice }  — an option was pressed
+ *   poll_skipped  { poll_id }          — X, with no answer
+ *
  * Guest claim funnel. `method` on the completion is what makes the email and
  * Google paths comparable — the whole point of instrumenting them:
  *   guest_claim_started        {}                  — email form opened

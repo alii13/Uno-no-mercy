@@ -24,12 +24,42 @@
       </div>
     </div>
   </div>
+
+  <!-- The same card asking instead of announcing. v-else-if, so a release the
+       player has not read always wins the corner: two cards stacked there is
+       how a channel stops being read. -->
+  <div v-else-if="question" class="rc" role="dialog" :aria-label="question.question">
+    <header class="rc-head">
+      <span class="rc-kicker">{{ thanked ? 'THANKS' : 'ONE QUESTION' }}</span>
+      <button class="rc-close" type="button" aria-label="Dismiss" @click="skipQuestion">
+        <X :size="14" :stroke-width="2" aria-hidden="true" />
+      </button>
+    </header>
+
+    <div class="rc-body">
+      <h2 class="rc-title">{{ question.question }}</h2>
+      <p class="rc-text">{{ thanked ? 'Answer recorded. That is all we needed.' : question.body }}</p>
+
+      <div v-if="!thanked" class="rc-actions">
+        <button
+          v-for="(option, i) in question.options"
+          :key="option"
+          class="rc-go rc-opt"
+          :class="{ 'rc-alt': i > 0 }"
+          type="button"
+          @click="vote(option)"
+        >{{ option }}</button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { X } from 'lucide-vue-next'
 import { useWhatsNew } from '../composables/useWhatsNew'
+import { usePoll } from '../composables/usePoll'
+import type { Poll } from '../data/polls'
 import { useAuthStore } from '../stores/authStore'
 import { supabase } from '../lib/supabase'
 import { navigate } from '../utils/routes'
@@ -74,6 +104,49 @@ function dismiss() {
     if (!entry.value) return
     track('release_card_dismissed', { entry_id: entry.value.id })
     dismissCard(entry.value.id)
+}
+
+/*
+ * The question the card asks when it owes no release.
+ *
+ * `asked` is a local copy because `pending` empties the moment a choice is
+ * recorded, and the thank-you has to outlive that. `question` is what the
+ * template reads: null while a release card holds the corner.
+ */
+const { pending, answer, skip } = usePoll()
+const asked = ref<Poll | null>(null)
+const thanked = ref(false)
+const question = computed(() => (entry.value ? null : asked.value))
+
+watch(pending, (p) => { if (p && !asked.value) asked.value = p }, { immediate: true })
+
+// Same denominator as release_card_shown: an answer rate means nothing without
+// the number of people who were asked.
+let questionReported: string | null = null
+watch(question, (q) => {
+    if (!q || questionReported === q.id) return
+    questionReported = q.id
+    track('poll_shown', { poll_id: q.id })
+}, { immediate: true })
+
+// The insert is not awaited: `answer` retires the question before it sends, so
+// the thank-you and its timer must not sit behind a round trip that a slow
+// network can stretch to ten seconds.
+function vote(choice: string) {
+    const q = asked.value
+    if (!q) return
+    track('poll_answered', { poll_id: q.id, choice })
+    thanked.value = true
+    void answer(q, choice)
+    window.setTimeout(() => { asked.value = null }, 1800)
+}
+
+function skipQuestion() {
+    const q = asked.value
+    if (!q) return
+    if (!thanked.value) track('poll_skipped', { poll_id: q.id })
+    skip(q)
+    asked.value = null
 }
 
 function go() {
@@ -196,6 +269,19 @@ function go() {
   letter-spacing: 0.14em;
   color: var(--bg-concrete, #0a0a0b);
   cursor: pointer;
+}
+
+/* The card's other buttons carry their case in the copy ("SEE YOUR RANK").
+   An option is also a stored value, so it is written as words and shouted
+   here instead. */
+.rc-opt { text-transform: uppercase; }
+
+/* Every option after the first. Two hazard-yellow buttons side by side read as
+   two primary actions, and a Yes/No pair has only one. */
+.rc-alt {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: var(--text-secondary);
 }
 
 .rc-later {
