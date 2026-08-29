@@ -138,7 +138,8 @@ function vote(choice: string) {
     track('poll_answered', { poll_id: q.id, choice })
     thanked.value = true
     void answer(q, choice)
-    window.setTimeout(() => { asked.value = null }, 1800)
+    // Both, or the next question renders its thank-you with no buttons.
+    window.setTimeout(() => { asked.value = null; thanked.value = false }, 1800)
 }
 
 function skipQuestion() {

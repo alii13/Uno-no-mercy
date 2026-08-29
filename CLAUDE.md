@@ -43,7 +43,7 @@ Guidance for working in this repo. Hard-won - read before changing CSS, raising 
 - **Never change a shipped poll's `id` or its `options`.** The id is the local answered flag, so reusing one asks people who already answered; the options are stored verbatim as `choice`, so rewriting one splits the tally against rows already written. A changed question is a new entry.
 - Read the tally in the SQL Editor - both queries are in `supabase/polls.sql`, including the one that counts only players with real games behind them. Nothing in the app reads the results.
 - **A release card always wins the corner.** The question renders in the same slot with `v-else-if`, so it waits until nothing is owed from the changelog. Two cards stacked there is how a channel stops being read.
-- One question at a time, and one per player: `POLLS[0]` that they have not closed. Answering or dismissing retires it for good, and both write the same local flag - a question that comes back is worse than a lost answer.
+- One question at a time, and one per visit: the first entry in `POLLS` they have not closed. A second entry waits for their next load, not for the first card to clear. Answering or dismissing retires it for good, and both write the same local flag - a question that comes back is worse than a lost answer.
 - Same budget as a loud entry. Every question spends the same attention a release card does, so ask one when the answer decides something, not to fill the slot.
 - The flag is `localStorage`, so it is not a boundary: clearing site data asks again. The table's primary key is what stops a second answer from counting, and anonymous sign-in means it stops one account, not one person.
 

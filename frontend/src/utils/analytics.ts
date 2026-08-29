@@ -59,6 +59,10 @@
  *   poll_shown    { poll_id }          — a question became visible
  *   poll_answered { poll_id, choice }  — an option was pressed
  *   poll_skipped  { poll_id }          — X, with no answer
+ *   poll_vote_failed { poll_id }       — the answer never reached the table. An
+ *                            insert that fails silently reads in the tally as
+ *                            nobody answering, which is the one reading that
+ *                            must never be a guess.
  *
  * Guest claim funnel. `method` on the completion is what makes the email and
  * Google paths comparable — the whole point of instrumenting them:

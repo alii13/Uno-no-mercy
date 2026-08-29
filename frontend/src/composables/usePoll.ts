@@ -12,6 +12,7 @@
 import { ref, computed } from 'vue'
 import { POLLS, nextPoll, type Poll } from '../data/polls'
 import { supabase } from '../lib/supabase'
+import { track } from '../utils/analytics'
 
 const ANSWERED_KEY = 'om-poll-answered'
 
@@ -57,8 +58,12 @@ export function usePoll() {
     async function answer(poll: Poll, choice: string): Promise<void> {
         close(poll.id)
         try {
-            await supabase.from('poll_votes').insert({ poll_id: poll.id, choice })
-        } catch { /* the answer is lost, the card still closes */ }
+            const { error } = await supabase.from('poll_votes').insert({ poll_id: poll.id, choice })
+            // 23505 is the one-vote-per-user key doing its job, not a failure.
+            if (error && error.code !== '23505') track('poll_vote_failed', { poll_id: poll.id })
+        } catch {
+            track('poll_vote_failed', { poll_id: poll.id })
+        }
     }
 
     /** Closing the card without answering. The question does not return. */
