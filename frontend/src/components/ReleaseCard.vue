@@ -118,7 +118,11 @@ const asked = ref<Poll | null>(null)
 const thanked = ref(false)
 const question = computed(() => (entry.value ? null : asked.value))
 
-watch(pending, (p) => { if (p && !asked.value) asked.value = p }, { immediate: true })
+// `!entry.value` is the whole of "a release always wins the corner". Without
+// it, dismissing a release card summons the question into the space it just
+// left, which is two interruptions wearing one card. A player who was owed a
+// release is asked on their next visit instead.
+watch(pending, (p) => { if (p && !asked.value && !entry.value) asked.value = p }, { immediate: true })
 
 // Same denominator as release_card_shown: an answer rate means nothing without
 // the number of people who were asked.
