@@ -375,10 +375,12 @@ function startLocalGame(mode?: 'official' | 'house' | 'casual') {
 }
 
 // The daily challenge: official rules, date-seeded so the whole world gets
-// the same deal today. `source` says which surface converted — the lobby card
-// or the game-over nudge — so adoption per surface is measurable.
-function startDailyGame(source: 'lobby' | 'game_over') {
-  track('daily_started', { source })
+// the same deal today. `entry_point` says which surface converted — the lobby
+// card or the game-over nudge — so adoption per surface is measurable. It is
+// NOT called `source`: GA4 reads a parameter of that name as a traffic source
+// and rewrites the session's attribution with it.
+function startDailyGame(entry_point: 'lobby' | 'game_over') {
+  track('daily_started', { entry_point })
   localGameStore.initializeGame(['You', 'Terminator'], 'official', { dailySeed: localDateString() })
 }
 </script>

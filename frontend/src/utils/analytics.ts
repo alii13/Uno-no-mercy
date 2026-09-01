@@ -27,7 +27,7 @@
  *   share              { method: whatsapp|x|image|native|clipboard,
  *                        content_type: sp_win|mp_win|daily }
  *   profile_shared     {}
- *   daily_started      { source: lobby|game_over }
+ *   daily_started      { entry_point: lobby|game_over }
  *   daily_finished     { result: won|lost|eliminated, turns }
  *   bot_defeated       { bot_id, rung: 1..8 }
  *   play_clicked       { method: guest }
@@ -74,6 +74,14 @@
  *   guest_claim_completed      { method: email|google }
  */
 
+/**
+ * GA4 reads these parameter names as attribution, whatever event carries them,
+ * and rewrites the session's traffic source with the value. `daily_started`
+ * shipped with `source: 'lobby'` and filed 309 sessions in one week under a
+ * referrer called "lobby" - about a fifth of all traffic, with the real
+ * referrer lost. Name a parameter `entry_point`, `origin_surface`, anything
+ * but these.
+ */
 type Params = Record<string, string | number | boolean | undefined>
 
 export function track(event: string, params?: Params): void {
