@@ -10,15 +10,25 @@ class_name = "GameRoomDO"
 tag = "v1"
 new_sqlite_classes = ["GameRoomDO"]
 
-# Supabase project used for token introspection. The anon key is public by
-# design (it ships in every frontend bundle) — it is not a secret.
+# Supabase project used for token introspection. This is the publishable key:
+# public by design (it ships in every frontend bundle), and not a secret.
+#
+# It replaced the legacy `anon` JWT so the legacy key could be disabled. A
+# frozen copy of the frontend was running on someone else's domain against this
+# project, and its bundle carries the old key. Unlike the legacy key, this one
+# rotates without touching the JWT secret, so a future lockout costs nobody
+# their session.
+#
+# DEPLOY THIS WORKER BEFORE DISABLING THE LEGACY KEY. Introspection fails
+# closed: a 401 here means verifySupabaseToken returns null and nobody can
+# create or join a room.
 # RealtimeKit: account id + preset name are not secrets; the app id and API
 # token are wrangler secrets (REALTIMEKIT_APP_ID, REALTIMEKIT_API_TOKEN) —
 # without them /health reports voice:false and voice-join answers
 # voice-unavailable.
 [vars]
 SUPABASE_URL = "https://djzqoccutacfueuadflw.supabase.co"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqenFvY2N1dGFjZnVldWFkZmx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg3MjI4ODMsImV4cCI6MjA4NDI5ODg4M30.YVHGJWZmaSc3rrC61ypwsJCAAHWUWBlhzCXFNS7CF_4"
+SUPABASE_ANON_KEY = "sb_publishable_YcRHugf7xAe9xGCquvAxyQ_85sBcPsi"
 REALTIMEKIT_ACCOUNT_ID = "1d8c38c6c9efdd5a2d4bf620eb058f9d"
 REALTIMEKIT_PRESET = "group_call_participant"
 REALTIMEKIT_HOST_PRESET = "group_call_host"
